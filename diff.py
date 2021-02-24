@@ -32,12 +32,16 @@ def prepare_diff_report(pk_spec, path2, inport1, outport):
       if row1 == None:
         try:
           row1 = next(reader1)
+          if len(row1) != len(header1):
+            print("** Row %s of stdin is ragged" % (count,))
           pk1 = primary_key(row1, pk_positions1)
         except StopIteration:
           row1 = False
       if row2 == None:
         try:
           row2 = next(reader2)
+          if len(row2) != len(header2):
+            print("** Row %s of %s is ragged" % (count, path2,))
           pk2 = primary_key(row2, pk_positions2)
         except StopIteration:
           row2 = False
