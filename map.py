@@ -3,15 +3,14 @@
 # Filter that adds an page id (EOLid) column
 # Assumes CSV input and output
 
-import sys, csv
+import sys, csv, argparse
 
 page_id_label = "EOLid"
 parent_page_id_label = "parentEOLid"
 accepted_page_id_label = "acceptedEOLid"
 
-def apply_mappings(mappings, csvp, inport, outport):
-  (d, q, g) = csv_parameters(csvp)
-  reader = csv.reader(inport, delimiter=d, quotechar=q, quoting=g)
+def apply_mappings(mappings, inport, outport):
+  reader = csv.reader(inport)
   header = next(reader)
   taxon_id_pos = windex(header, "taxonID")
   parent_taxon_id_pos = windex(header, "parentNameUsageID")
@@ -109,13 +108,12 @@ def windex(header, fieldname):
   else:
     return None
 
-def csv_parameters(path):
-  if ".csv" in path:
-    return (",", '"', csv.QUOTE_MINIMAL)
-  else:
-    return ("\t", "\a", csv.QUOTE_NONE)
-
 if __name__ == '__main__':
-  mapfile = sys.argv[1]
-  csvp = sys.argv[2] if len(sys.argv) > 2 else "stdin.csv"
-  apply_mappings(read_mappings(mapfile), csvp, sys.stdin, sys.stdout)
+  parser = argparse.ArgumentParser(description="""
+    Add column for page id with contents determined by mapping each taxonID.
+    Similarly for parentNameUsageID and acceptedNameUsageID, if present.
+    """)
+  parser.add_argument('mapping',
+                      help='name of file where taxonID to page id mapping is stored')
+  args=parser.parse_args()
+  apply_mappings(read_mappings(args.mapping), sys.stdin, sys.stdout)

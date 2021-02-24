@@ -5,7 +5,7 @@
 
 # Records are matched between the sources via their primary keys.
 
-import sys, csv
+import sys, csv, argparse
 
 def prepare_diff_report(pk_spec, path2, inport1, outport):
   pk_fields = pk_spec.split(",")
@@ -20,7 +20,7 @@ def prepare_diff_report(pk_spec, path2, inport1, outport):
     column_map = [(windex(header1, header2[j]), j) for j in range(len(header2))]
     print("# diff: Column mapping is %s" % column_map, file=sys.stderr)
     writer = csv.writer(outport)
-    writer.writerow(["op"] + header2)
+    writer.writerow(["status"] + header2)
     row1 = None
     row2 = None
     added = 0
@@ -63,7 +63,7 @@ def prepare_diff_report(pk_spec, path2, inport1, outport):
         # Which columns?
         d = row_diff(row1, row2, column_map)
         if d:
-          writer.writerow([d] + row2)
+          writer.writerow(["change " + d] + row2)
           changed += 1 
         else:
           continued += 1          
@@ -110,8 +110,7 @@ def continues(row1, row2, column_map):
       return False
 
 def start(inport, pk_fields, extension):
-  (d, q, g) = csv_parameters(extension)
-  reader = csv.reader(inport, delimiter=d, quotechar=q, quoting=g)
+  reader = csv.reader(inport)
   header = next(reader)
   for field in pk_fields:
     if windex(header, field) == None:
@@ -127,13 +126,27 @@ def windex(header, fieldname):
   else:
     return None
 
-def csv_parameters(path):
-  if ".csv" in path:
-    return (",", '"', csv.QUOTE_MINIMAL)
-  else:
-    return ("\t", "\a", csv.QUOTE_NONE)
-
 if __name__ == '__main__':
-  pk_spec = sys.argv[1]
-  path2 = sys.argv[2] if len(sys.argv) > 2 else "stdin.csv"
-  prepare_diff_report(pk_spec, path2, sys.stdin, sys.stdout)
+  parser = argparse.ArgumentParser(description="""
+    Find differences between the two inputs.
+    The first input is read from standard input, and the second from the 
+    named file.
+    The 'prepare' tool can be used to put an input into the sorted form 
+    required by this tool. 
+    A report on the 
+    differences is written to standard output.  
+    The report contains an additional "status" column.
+    Rows present in the first input but not the second are given status "add".
+    Rows present in the second but not the first are given status "remove".
+    Changed rows (with some fields added, removed, or altered) are given
+    status "change" with additional details provided on which columns changed.
+    Rows that 
+    persist unchanged from the first input to the second are 
+    not listed in the report at all.
+    """)
+  parser.add_argument('other',
+                      help="Filename for the second input (CSV)")
+  parser.add_argument('--key',
+                      help="names 'a,b,c' for columns that together form match key")
+  args=parser.parse_args()
+  prepare_diff_report(args.key, args.other, sys.stdin, sys.stdout)

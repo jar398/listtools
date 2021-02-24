@@ -3,19 +3,20 @@
 # Shunt records that have a non-null acceptedNameUsageID field
 # (i.e. those for synonyms) into a separate file
 
-import sys, csv
+import sys, csv, argparse
 
 # Compare map.py
 accepted_page_id_label = "acceptedEOLid"
 
-def shunt_synonyms(csvp, inport, outport, synport):
-  (d, q, g) = csv_parameters(csvp)
-  reader = csv.reader(inport, delimiter=d, quotechar=q, quoting=g)
+def shunt_synonyms(inport, outport, synport):
+  reader = csv.reader(inport)
   header = next(reader)
   taxon_id_pos = windex(header, "taxonID")
   accepted_taxon_id_pos = windex(header, "acceptedNameUsageID")
   accepted_page_id_pos = windex(header, accepted_page_id_label)
-  assert accepted_taxon_id_pos or accepted_page_id_pos
+  if (accepted_taxon_id_pos == None and accepted_page_id_pos == None):
+    print("** No accepted-id column found in input header")
+    assert False
 
   writer = csv.writer(outport)
   writer.writerow(header)
@@ -51,14 +52,15 @@ def windex(header, fieldname):
   else:
     return None
 
-def csv_parameters(path):
-  if ".csv" in path:
-    return (",", '"', csv.QUOTE_MINIMAL)
-  else:
-    return ("\t", "\a", csv.QUOTE_NONE)
-
 if __name__ == '__main__':
-  synfile = sys.argv[1]
-  csvp = sys.argv[2] if len(sys.argv) > 2 else "stdin.csv"
-  with open(synfile, "w") as synport:
-    shunt_synonyms(csvp, sys.stdin, sys.stdout, synport)
+  parser = argparse.ArgumentParser(description="""
+    Move rows for taxonomic synonyms to a separate file, leaving
+    others unchanged.
+    CSV rows are read from standard input and non-synonym 
+    rows written to standard output.
+    """)
+  parser.add_argument('synonyms', 
+                      help='name of file where synonyms will be stored')
+  args=parser.parse_args()
+  with open(args.synonyms, "w") as synport:
+    shunt_synonyms(sys.stdin, sys.stdout, synport)

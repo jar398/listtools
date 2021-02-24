@@ -2,13 +2,12 @@
 
 # Detect duplicates and sort according to some primary key.
 
-import sys, csv
+import sys, csv, argparse
 
-def prepare(pk_spec, csvp, inport, outport):
+def prepare(pk_spec, inport, outport):
   pk_fields = pk_spec.split(",")
   print("# prepare: Primary key fields = %s" % pk_fields, file=sys.stderr)
-  (d, q, g) = csv_parameters(csvp)
-  reader = csv.reader(inport, delimiter=d, quotechar=q, quoting=g)
+  reader = csv.reader(inport)
   header = next(reader)
   for field in pk_fields:
     if not windex(header, field):
@@ -80,6 +79,13 @@ def csv_parameters(path):
     return ("\t", "\a", csv.QUOTE_NONE)
 
 if __name__ == '__main__':
-  pk = sys.argv[1]
-  csvp = sys.argv[2] if len(sys.argv) > 2 else "stdin.csv"
-  prepare(pk, csvp, sys.stdin, sys.stdout)
+  parser = argparse.ArgumentParser(description="""
+    Merge duplicate records, and sort all records.
+    Rows merge when they have the same key.  Sort is according to key value.
+    CSV rows are read from standard input.  Merged and sorted are written
+    to standard output.
+    """)
+  parser.add_argument('--key',
+                      help="names 'a,b,c' for columns that together form the sort key")
+  args=parser.parse_args()
+  prepare(args.key, sys.stdin, sys.stdout)
