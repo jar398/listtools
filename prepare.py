@@ -10,7 +10,7 @@ def prepare(pk_spec, inport, outport):
   reader = csv.reader(inport)
   header = next(reader)
   for field in pk_fields:
-    if not windex(header, field):
+    if windex(header, field) == None:
       print("# prepare: Primary key field %s not found in header" % field,
             file=sys.stderr)
       print("# prepare: header = %s" % (header,),
@@ -46,18 +46,16 @@ def prepare(pk_spec, inport, outport):
     writer.writerow(merged[key])
   print("prepare: %s rows resulting from merges" % len(conflicts), file=sys.stderr)
 
+# Compare diff.py
 def primary_key(row1, pk_positions1):
   # not so good I think.
-  key = tuple(mint(row1[pos]) for pos in pk_positions1)
-  return key
+  return tuple(mint(row1[pos]) for pos in pk_positions1)
 
 def mint(val):
-  if not val:
-    return val
-  elif val.isdigit():
-    return int(val)
+  if val and val.isdigit():
+    return (int(val), val)
   else:
-    return val
+    return (1000000000, val)
 
 def merge(row1, row2):
   return [merge_values(x, y) for (x, y) in zip(row1, row2)]

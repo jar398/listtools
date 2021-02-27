@@ -9,16 +9,16 @@ import sys, csv, argparse
 
 def prepare_diff_report(pk_spec, path2, inport1, outport):
   pk_fields = pk_spec.split(",")
-  print("# diff: Primary key fields = %s" % pk_fields, file=sys.stderr)
+  #print("# diff: Primary key fields = %s" % pk_fields, file=sys.stderr)
   (reader1, header1, pk_positions1) = start(inport1, pk_fields, ".csv")    #foooooo
-  print("# diff: Header 1 = %s" % header1, file=sys.stderr)
+  #print("# diff: Header 1 = %s" % header1, file=sys.stderr)
   with open(path2, "r") as inport2:
     (reader2, header2, pk_positions2) = start(inport2, pk_fields, path2)
-    print("# diff: Header 2 = %s" % header2, file=sys.stderr)
+    #print("# diff: Header 2 = %s" % header2, file=sys.stderr)
     if sorted(header1) != sorted(header2):
-      print("# diff: Tables have different columns", file=sys.stderr)
+      print("** diff: Tables have different columns", file=sys.stderr)
     column_map = [(windex(header1, header2[j]), j) for j in range(len(header2))]
-    print("# diff: Column mapping is %s" % column_map, file=sys.stderr)
+    #print("# diff: Column mapping is %s" % column_map, file=sys.stderr)
     writer = csv.writer(outport)
     writer.writerow(["status"] + header2)
     row1 = None
@@ -77,14 +77,15 @@ def prepare_diff_report(pk_spec, path2, inport1, outport):
     print("# diff: Changed:   %s" % changed, file=sys.stderr)
     print("# diff: Continued: %s" % continued, file=sys.stderr)
 
+# Compare prepare.py
 def primary_key(row1, pk_positions1):
   return tuple(mint(row1[pos]) for pos in pk_positions1)
 
 def mint(val):
   if val and val.isdigit():
-    return int(val)
+    return (int(val), val)
   else:
-    return val
+    return (1000000000, val)
 
 def row_diff(row1, row2, column_map):
   if not isinstance(row1, list):
