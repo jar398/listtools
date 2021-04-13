@@ -1,4 +1,4 @@
-#!/bin/env python3
+#!/usr/bin/env python3
 
 # Shunt records that have a non-null acceptedNameUsageID field
 # (i.e. those for synonyms) into a separate file
@@ -59,7 +59,7 @@ if __name__ == '__main__':
     CSV rows are read from standard input and non-synonym 
     rows written to standard output.
     """)
-  parser.add_argument('synonyms', 
+  parser.add_argument('--synonyms', 
                       help='name of file where synonyms will be stored')
   args=parser.parse_args()
   with open(args.synonyms, "w") as synport:

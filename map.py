@@ -1,4 +1,4 @@
-#!/bin/env python3
+#!/usr/bin/env python3
 
 # Filter that adds an page id (EOLid) column
 # Assumes CSV input and output
@@ -113,7 +113,7 @@ if __name__ == '__main__':
     Add column for page id with contents determined by mapping each taxonID.
     Similarly for parentNameUsageID and acceptedNameUsageID, if present.
     """)
-  parser.add_argument('mapping',
+  parser.add_argument('--mapping',
                       help='name of file where taxonID to page id mapping is stored')
   args=parser.parse_args()
   apply_mappings(read_mappings(args.mapping), sys.stdin, sys.stdout)

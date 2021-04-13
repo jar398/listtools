@@ -1,4 +1,4 @@
-#!/bin/env python3
+#!/usr/bin/env python3
 
 import sys, csv, argparse
 
@@ -46,7 +46,7 @@ if __name__ == '__main__':
     Normalize to csv and check that number of columns is same in every row.
     CSV rows are written to standard output.
     """)
-  parser.add_argument('input', default=None,
+  parser.add_argument('--input', default=None,
                       help='name of input file.  TSV assumed unless name contains ".csv"')
   args=parser.parse_args()
   start_csv(args.input, sys.stdout)
