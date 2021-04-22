@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
 
+# This should always be the first step in a processing pipeline.
+#  - Normalizes tsv to csv
+#  - Makes sure all rows have the same number of fields
+
 import sys, csv, argparse
 
 def start_csv(filename, outport):
@@ -35,6 +39,12 @@ def start_csv(filename, outport):
     print("start: trimmed extra values from %s rows" % (trimmed,),
           file=sys.stderr)
     
+def windex(header, fieldname):
+  if fieldname in header:
+    return header.index(fieldname)
+  else:
+    return None
+
 def csv_parameters(path):
   if ".csv" in path:
     return (",", '"', csv.QUOTE_MINIMAL)

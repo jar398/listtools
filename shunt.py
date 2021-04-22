@@ -6,14 +6,16 @@
 import sys, csv, argparse
 
 # Compare map.py
+accepted_taxon_id_label = "acceptedNameUsageID"
 accepted_page_id_label = "acceptedEOLid"
 
 def shunt_synonyms(inport, outport, synport):
   reader = csv.reader(inport)
   header = next(reader)
   taxon_id_pos = windex(header, "taxonID")
-  accepted_taxon_id_pos = windex(header, "acceptedNameUsageID")
-  accepted_page_id_pos = windex(header, accepted_page_id_label)
+  page_id_pos  = windex(header, "EOLid")
+  accepted_taxon_id_pos = windex(header, accepted_taxon_id_label)
+  accepted_page_id_pos  = windex(header, accepted_page_id_label)
   if (accepted_taxon_id_pos == None and accepted_page_id_pos == None):
     print("** No accepted-id column found in input header")
     assert False
@@ -25,19 +27,14 @@ def shunt_synonyms(inport, outport, synport):
   syn_writer.writerow(header)
   syn_count = 0
   for row in reader:
-    # DH 0.9 has 10 extra null columns at the end of synonym lines
-    if len(row) > len(header):
-      row = row[0:len(header)]
-    if len(row) != len(header):
-      print(("** shunt: Unexpected number of columns: have %s want %s" %
-             (len(row), len(header))),
-            file=sys.stderr)
-      print(("** shunt: Row is %s" % (row,)), file=sys.stderr)
-      assert False
-
-    if ((accepted_taxon_id_pos and (row[accepted_taxon_id_pos] and
-                                    row[accepted_taxon_id_pos] != row[taxon_id_pos])) or
-        (accepted_page_id_pos and row[accepted_page_id_pos])):
+    # Separate synonyms from accepteds
+    if accepted_page_id_pos != None:
+      a = row[accepted_page_id_pos]
+      syno = (a and (page_id_pos != None) and a != row[page_id_pos])
+    elif accepted_taxon_id_pos != None:
+      a = row[accepted_taxon_id_pos]
+      syno = (a and (taxon_id_pos != None) and a != row[taxon_id_pos])
+    if syno:
       syn_writer.writerow(row)
       syn_count += 1
     else:

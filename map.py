@@ -72,12 +72,16 @@ def apply_mappings(mappings, inport, outport):
       row.append(parent_page_id)
     if accepted_taxon_id_pos != None:
       accepted_taxon_id = row[accepted_taxon_id_pos]
-      if accepted_taxon_id and accepted_taxon_id == taxon_id:
-        accepted_page_id = None
-      else:
-        # synonym
+
+      if accepted_taxon_id == taxon_id:
+        # optimization that saves a dict lookup (this matters)
+        accepted_page_id = page_id
+      elif accepted_taxon_id:
         accepted_page_id = mappings.get(accepted_taxon_id)
         if accepted_page_id: did_map = True
+      else:
+        accepted_page_id = None
+
       row.append(accepted_page_id)
     assert len(row) == len(out_header)
     if not did_map:
