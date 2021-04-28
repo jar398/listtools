@@ -12,17 +12,21 @@ accepted_page_id_label = "acceptedEOLid"
 def siphon_names(inport, outport, synport):
   reader = csv.reader(inport)
   header = next(reader)
-  taxon_id_pos = windex(header, "taxonID")
-  page_id_pos  = windex(header, "EOLid")
-  accepted_taxon_id_pos = windex(header, accepted_taxon_id_label)
-  accepted_page_id_pos  = windex(header, accepted_page_id_label)
-  if (accepted_taxon_id_pos == None and accepted_page_id_pos == None):
-    print("** names: No accepted-id column found in input header",
+  id_pos = (windex(header, "EOLid") or
+            windex(header, "taxonID"))
+  if id_pos == None:
+    print("** names: No acceptedcolumn found in input header",
           file=sys.stderr)
     assert False
-  columns_to_keep = [i
-                     for i in list(range(len(header)))
-                     if (i != accepted_taxon_id_pos and i != accepted_page_id_pos)]
+  accepted_id_pos = (windex(header, accepted_page_id_label) or
+                     windex(header, accepted_taxon_id_label))
+  if accepted_id_pos == None:
+    print("** names: No accepted id column found in input header",
+          file=sys.stderr)
+    assert False
+  columns_to_keep = list(range(len(header)))
+  del columns_to_keep[accepted_id_pos]
+  # Also delete?  taxonomic and nomenclatural status
 
   writer = csv.writer(outport)
   writer.writerow([header[i] for i in columns_to_keep])
@@ -31,24 +35,14 @@ def siphon_names(inport, outport, synport):
   names_writer.writerow(header)
   syn_count = 0
   for row in reader:
-    # Separate synonyms from accepteds
     is_accepted = False
-    if accepted_page_id_pos != None:
-      accepted_page_id = row[accepted_page_id_pos]
-      page_id = row[page_id_pos] if (page_id_pos != None) else None
-      if accepted_page_id == page_id:
-        is_accepted = True
-      elif accepted_page_id == None:
-        is_accepted = True
-        row[accepted_page_id_pos] = page_id
-    elif accepted_taxon_id_pos != None:
-      accepted_taxon_id = row[accepted_taxon_id_pos]
-      taxon_id = row[taxon_id_pos] if (taxon_id_pos != None) else None
-      if accepted_taxon_id == taxon_id:
-        is_accepted = True
-      elif accepted_taxon_id == None:
-        is_accepted = True
-        row[accepted_taxon_id_pos] = taxon_id
+    id = row[id_pos]
+    accepted_id = row[accepted_id_pos]
+    if accepted_id == id:
+      is_accepted = True
+    elif accepted_id == None:
+      is_accepted = True
+      row[accepted_id_pos] = id
     if is_accepted:
       writer.writerow([row[i] for i in columns_to_keep])
       count += 1
@@ -66,10 +60,8 @@ def windex(header, fieldname):
 
 if __name__ == '__main__':
   parser = argparse.ArgumentParser(description="""
-    Move rows for taxonomic synonyms to a separate file, leaving
-    others unchanged.
-    CSV rows are read from standard input and non-synonym 
-    rows written to standard output.
+    Remove synonyms from input stream, while also creating
+    a separate file containing all names.
     """)
   parser.add_argument('--names', 
                       help='name of file where names will be stored')
