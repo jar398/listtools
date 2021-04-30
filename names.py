@@ -9,20 +9,24 @@ import sys, csv, argparse
 accepted_taxon_id_label = "acceptedNameUsageID"
 accepted_page_id_label = "acceptedEOLid"
 
-def siphon_names(inport, outport, synport):
+def divert_names(inport, outport, synport):
   reader = csv.reader(inport)
   header = next(reader)
-  id_pos = (windex(header, "EOLid") or
-            windex(header, "taxonID"))
+  id_label = "EOLid"
+  if windex(header, id_label) == None: id_label = "taxonID"
+  id_pos = windex(header, id_label)
   if id_pos == None:
-    print("** names: No acceptedcolumn found in input header",
+    print("** names: No id column (%s) found in input header" % id_label,
           file=sys.stderr)
+    print("Header: %s" % header, file=sys.stderr)
     assert False
-  accepted_id_pos = (windex(header, accepted_page_id_label) or
-                     windex(header, accepted_taxon_id_label))
+  aid_label = accepted_page_id_label
+  if aid_label == None: aid_label = accepted_taxon_id_label
+  accepted_id_pos = windex(header, aid_label)
   if accepted_id_pos == None:
-    print("** names: No accepted id column found in input header",
+    print("** names: No accepted id column (%s) found in input header" % aid_label,
           file=sys.stderr)
+    print("Header: %s" % header, file=sys.stderr)
     assert False
   columns_to_keep = list(range(len(header)))
   del columns_to_keep[accepted_id_pos]
@@ -40,7 +44,7 @@ def siphon_names(inport, outport, synport):
     accepted_id = row[accepted_id_pos]
     if accepted_id == id:
       is_accepted = True
-    elif accepted_id == None:
+    elif accepted_id == None or accepted_id == '':    # can't remember
       is_accepted = True
       row[accepted_id_pos] = id
     if is_accepted:
@@ -64,7 +68,7 @@ if __name__ == '__main__':
     a separate file containing all names.
     """)
   parser.add_argument('--names', 
-                      help='name of file where names will be stored')
+                      help='path to file where names will be stored')
   args=parser.parse_args()
-  with open(args.synonyms, "w") as synport:
-    siphon_names(sys.stdin, sys.stdout, synport)
+  with open(args.names, "w") as synport:
+    divert_names(sys.stdin, sys.stdout, synport)
