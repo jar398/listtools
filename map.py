@@ -36,11 +36,13 @@ def apply_mappings(mappings, inport, outport):
   if accepted_taxon_id_pos != None:
     out_header.append(accepted_page_id_label)
   writer.writerow(out_header)
-  count = 0
+  map_count = 0
+  map_parent_count = 0
+  map_accepted_count = 0
   self_parent = 0
   for row in reader:
     did_map = False
-    if(count % 500000 == 0): print("# map: Row %s" % count, file=sys.stderr)
+    if map_count % 500000 == 0: print("# map: Row %s" % map_count, file=sys.stderr)
     taxon_id = row[taxon_id_pos]
     if not taxon_id:
       print("** map: No taxon id in column %s: %s" % (taxon_id_pos, row,),
@@ -49,6 +51,7 @@ def apply_mappings(mappings, inport, outport):
     page_id = mappings.get(taxon_id)
     if page_id:
       did_map = True
+      map_count += 1
     # Deal with page id
     if overwrite:
       if page_id:
@@ -69,6 +72,8 @@ def apply_mappings(mappings, inport, outport):
         # Flush self-parent nodes!
         self_parent += 1
         continue
+      if parent_page_id:
+        map_parent_count += 1
       row.append(parent_page_id)
     if accepted_taxon_id_pos != None:
       accepted_taxon_id = row[accepted_taxon_id_pos]
@@ -78,7 +83,9 @@ def apply_mappings(mappings, inport, outport):
         accepted_page_id = page_id
       elif accepted_taxon_id:
         accepted_page_id = mappings.get(accepted_taxon_id)
-        if accepted_page_id: did_map = True
+        if accepted_page_id:
+          did_map = True
+          map_accepted_count += 1
       else:
         accepted_page_id = None
 
@@ -89,8 +96,9 @@ def apply_mappings(mappings, inport, outport):
             file=sys.stderr)
       continue
     writer.writerow(row)
-    count += 1
-  print("map: Emitted %s rows" % count, file=sys.stderr)
+  print("map: Mapped %s taxon ids, %s parents, %s accepteds" %
+        (map_count, map_parent_count, map_accepted_count),
+        file=sys.stderr)
   if self_parent > 0:
     print("map: Suppressed %s self-parent rows" % self_parent, file=sys.stderr)
 

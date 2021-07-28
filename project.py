@@ -7,20 +7,21 @@ import sys, csv, argparse
 def project(keep, drop, inport, outport):
   reader = csv.reader(inport)
   header = next(reader)
+  keepers = header
   if keep:
     keepers = keep.split(",")
-    print("# project: Keeping %s" % (keep,), file=sys.stderr)
-  elif drop:
+  if drop:
     droppers = drop.split(",")
-    print("# project: Flushing %s" % (drop,), file=sys.stderr)
-    keepers = [column for column in header if not (column in droppers)]
-  positions = [header.index(keeper) for keeper in keepers]
-  print("# project: Keeping %s" % (positions,), file=sys.stderr)
+    print("# project: Flushing %s" % (droppers,), file=sys.stderr)
+    keepers = [column for column in keepers if not (column in droppers)]
+  keep_positions = [header.index(keeper) for keeper in keepers]
+  print("# project: Keeping %s" % (keepers,), file=sys.stderr)
+  print("# project: Keeping %s" % (keep_positions,), file=sys.stderr)
   writer = csv.writer(outport, delimiter=",", quotechar='"', quoting=csv.QUOTE_MINIMAL)
   writer.writerow(keepers)
   for row in reader:
     assert len(row) == len(header)
-    writer.writerow([row[position] for position in positions])
+    writer.writerow([row[position] for position in keep_positions])
 
 if __name__ == '__main__':
   specified_columns = sys.argv[1]

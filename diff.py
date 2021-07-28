@@ -46,7 +46,7 @@ def prepare_diff_report(pk_spec, path2, inport1, outport):
         except StopIteration:
           row2 = False
       assert row1 != None and row2 != None    # should be obvious
-      if not row1 and not row2:
+      if row1 == False and row2 == False:
         break
       if count % 500000 == 0:
         print("# diff: %s" % count, file=sys.stderr)
@@ -63,6 +63,9 @@ def prepare_diff_report(pk_spec, path2, inport1, outport):
         # Which columns?
         d = row_diff(row1, row2, column_map)
         if d:
+          row2 = [changefoo(v1, v2) for (v1, v2) in zip(row1, row2)]
+          for pos in pk_positions1:
+            row2[pos] = row1[pos]
           writer.writerow(["change " + d] + row2)
           changed += 1 
         else:
@@ -76,6 +79,12 @@ def prepare_diff_report(pk_spec, path2, inport1, outport):
     print("# diff: Removed:   %s" % removed, file=sys.stderr)
     print("# diff: Changed:   %s" % changed, file=sys.stderr)
     print("# diff: Continued: %s" % continued, file=sys.stderr)
+
+def changefoo(v1, v2):
+  if v1 == v2:
+    return ""
+  else:
+    return "%s→%s" % (v1 or "", v2 or "")
 
 # Compare prepare.py
 def primary_key(row1, pk_positions1):
@@ -97,11 +106,14 @@ def row_diff(row1, row2, column_map):
 def value_diff(x1, x2, j):
   if x1 == x2:
     return ""
-  elif not x1:
+  elif x1 == None or x1 == "":
+    # Add a value
     return "a%s " % j
-  elif not x2:
+  elif x2 == None or x2 == "":
+    # Remove a value
     return "r%s " % j
   else:
+    # Change a value
     return "c%s " % j  
 
 def continues(row1, row2, column_map):
