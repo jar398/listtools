@@ -16,8 +16,12 @@ def prepare(pk_spec, inport, outport):
       print("# prepare: header = %s" % (header,),
             file=sys.stderr)
   pk_positions = [windex(header, field) for field in pk_fields]
+  can_pos = windex(header, "canonicalName")
+  sci_pos = windex(header, "scientificName")
   merged = {}
   conflicts = {}
+  scinames = {}
+  ambiguous_scinames = {}
   merges = 0
   count = 0
   writer = csv.writer(outport)
@@ -37,6 +41,15 @@ def prepare(pk_spec, inport, outport):
         print("# prepare: Merge <- %s" % have_row, file=sys.stderr)
     else:
       merged[pk] = row
+    if sci_pos != None:
+      name = row[sci_pos]
+      if not name:
+        name = row[can_pos]
+    else:
+      name = row[can_pos]
+    if name in scinames:
+      print("# ambiguous scientific name: %s" % name)
+    scinames[name] = row
     if count % 500000 == 0:
       print("# prepare: %s" % count, file=sys.stderr)
     count += 1
@@ -45,6 +58,7 @@ def prepare(pk_spec, inport, outport):
   for key in s:
     writer.writerow(merged[key])
   print("prepare: %s rows resulting from merges" % len(conflicts), file=sys.stderr)
+  print("prepare: %s ambiguous names" % len(ambiguous_scinames), file=sys.stderr)
 
 # Compare diff.py
 def primary_key(row1, pk_positions1):
