@@ -6,6 +6,8 @@
 
 import sys, csv, re, argparse
 
+MISSING = ''
+
 def start_csv(filename, outport, cleanp):
   with open(filename, "r") as inport:
     (d, q, g) = csv_parameters(filename)
@@ -15,18 +17,31 @@ def start_csv(filename, outport, cleanp):
       if "," in header[0] or "\t" in header[0]:
         print("** start: Suspicious header", file=sys.stderr)
         print("** start: Header is %s" % (row,), file=sys.stderr)
+    # Every table needs to have a column of unique primary keys
+    id_pos = windex(header, "id")
+    if id_pos != None:
+      out_header = header
+      out_id_pos = id_pos
+    else:
+      out_header = header + ["id"]    # Add primary key
+      out_id_pos = len(header)
     can_pos = windex(header, "canonicalName")
     sci_pos = windex(header, "scientificName")
     source_pos = windex(header, "source")
     landmark_pos = windex(header, "Landmark")
-    taxon_id_pos = windex(header, "taxonID")
     if landmark_pos != None: header[landmark_pos] = "landmark_status"
+    taxon_id_pos = windex(header, "taxonID")
+    accepted_pos = windex(header, "acceptedNameUsageID")
     writer = csv.writer(outport) # CSV not TSV
-    writer.writerow(header)
+    writer.writerow(out_header)
     count = 0
     trimmed = 0
-    clean_count = 0
+    names_cleaned = 0
+    accepteds_cleaned = 0
+    seen_ids = {}
     for row in reader:
+
+      # Deal with raggedness
       if len(row) > len(header):
         row = row[0:len(header)]
         trimmed += 1
@@ -36,10 +51,34 @@ def start_csv(filename, outport, cleanp):
               file=sys.stderr)
         print(("** start: Row is %s" % (row,)), file=sys.stderr)
         assert False
-      if cleanp and can_pos != None and sci_pos != None:
-        if clean(row, can_pos, sci_pos):
-          clean_count += 1
 
+      # Assign ids (primary keys) to any nodes that don't have them
+      id = None
+      if id_pos != None and row[id_pos] != MISSING:
+        id = row[id_pos]
+      if id == None and taxon_id_pos != None and row[taxon_id_pos] != MISSING:
+        id = row[taxon_id_pos]
+      if id == None:
+        id = count
+      if id in seen_ids:
+        spin = 1
+        while True:
+          dodge = "%s..%s" % (id, spin)
+          if not dodge in seen_ids:
+            id = dodge
+            break
+      if id_pos == None:
+        row = row + [id]
+      else:
+        row[out_id_pos] = id
+      seen_ids[id] = True
+
+      # Now, cleanups specific to EOL
+      if cleanp:
+        if clean_name(row, can_pos, sci_pos):
+          names_cleaned += 1
+        if clean_accepted(row, accepted_pos, taxon_id_pos):
+          accepteds_cleaned += 1
       if landmark_pos != None: 
         l = row[landmark_pos]
         if l != None and l != '':
@@ -54,13 +93,10 @@ def start_csv(filename, outport, cleanp):
         sources = row[source_pos].split(',')
         if len(sources) > 1 and ':' in sources[0] and ':' in sources[1]:
           row[source_pos] = sources[0]
-      # Assign taxon ids to nodes (usually synonyms) that don't have them
-      if taxon_id_pos != None and not row[taxon_id_pos]:
-        row[taxon_id_pos] = "start.py.%s" % (count,)
       writer.writerow(row)
       count += 1
-  print("start: %s rows, %s columns, %s cleaned" %
-        (count, len(header), clean_count),
+  print("start: %s rows, %s columns, %s names cleaned, %s accepted cleaned" %
+        (count, len(header), names_cleaned, accepteds_cleaned),
         file=sys.stderr)
   if trimmed > 0:
     # Ignoring extra values is appropriate behavior for DH 0.9.  But
@@ -84,38 +120,40 @@ Case analysis:
   not-sci  not-sci   Remove s if =.  Otherwise leave.
 """
 
-def clean(row, can_pos, sci_pos):
-  c = row[can_pos]
-  s = row[sci_pos]
-  if s == None or s == '':
-    # if is_scientific(c): row[sci_pos] = c
-    return False
-  if is_scientific(s):
-    # if not c: row[can_pos] = s
-    return False
-  # s is nonnull and not 'scientific'
-  if c == None or c == '':
-    # swap
-    row[sci_pos] = None
-    row[can_pos] = s
-    # print("start: c := s", file=sys.stderr) - frequent in DH 1.1
-    return True
-  if is_scientific(c):
-    # should gnparse!
-    if c.startswith(s):
-      row[sci_pos] = c
-      row[can_pos] = s
-      # never in DH 1.1
-      print("start: swap s/c", file=sys.stderr)
-      return True
-    return False
-  if c == s:
-    row[sci_pos] = None
-    # print("start: flush s", file=sys.stderr) - happens all the time in 1.1
+def clean_accepted(row, accepted_pos, taxon_id_pos):
+  if accepted_pos != None and row[accepted_pos] == MISSING:
+    row[accepted_pos] = row[taxon_id_pos]
     return True
   return False
 
-sci_re = re.compile(", [0-9]{4}\\b")
+def clean_name(row, can_pos, sci_pos):
+  if can_pos != None and sci_pos != None:
+    c = row[can_pos]
+    s = row[sci_pos]
+    if s == MISSING:
+      # if is_scientific(c): row[sci_pos] = c
+      return False
+    if is_scientific(s):
+      # if not c: row[can_pos] = s
+      return False
+    # s is nonnull and not 'scientific'
+    if c == MISSING:
+      # swap
+      row[sci_pos] = None
+      row[can_pos] = s
+      # print("start: c := s", file=sys.stderr) - frequent in DH 1.1
+      return True
+    if c == s:
+      if is_scientific(c):
+        # should gnparse!
+        row[can_pos] = None
+      else:
+        row[sci_pos] = None
+      # print("start: flush s", file=sys.stderr) - happens all the time in 1.1
+      return True
+  return False
+
+sci_re = re.compile(" [1-2][0-9]{3}\\b")
 
 def is_scientific(name):
   sci_re.search(name)
