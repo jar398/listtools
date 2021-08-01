@@ -17,14 +17,7 @@ def start_csv(filename, outport, cleanp):
       if "," in header[0] or "\t" in header[0]:
         print("** start: Suspicious header", file=sys.stderr)
         print("** start: Header is %s" % (row,), file=sys.stderr)
-    # Every table needs to have a column of unique primary keys
-    id_pos = windex(header, "id")
-    if id_pos != None:
-      out_header = header
-      out_id_pos = id_pos
-    else:
-      out_header = header + ["id"]    # Add primary key
-      out_id_pos = len(header)
+    out_header = header
     can_pos = windex(header, "canonicalName")
     sci_pos = windex(header, "scientificName")
     source_pos = windex(header, "source")
@@ -52,25 +45,6 @@ def start_csv(filename, outport, cleanp):
         print(("** start: Row is %s" % (row,)), file=sys.stderr)
         assert False
 
-      # Assign ids (primary keys) to any nodes that don't have them
-      id = None
-      if id_pos != None and row[id_pos] != MISSING:
-        id = row[id_pos]
-      if id == None and taxon_id_pos != None and row[taxon_id_pos] != MISSING:
-        id = row[taxon_id_pos]
-      if id == None:
-        id = count
-      if id in seen_ids:
-        spin = 1
-        while True:
-          dodge = "%s..%s" % (id, spin)
-          if not dodge in seen_ids:
-            id = dodge
-            break
-      if id_pos == None:
-        row = row + [id]
-      else:
-        row[out_id_pos] = id
       seen_ids[id] = True
 
       # Now, cleanups specific to EOL
@@ -185,3 +159,35 @@ if __name__ == '__main__':
 
   args=parser.parse_args()
   start_csv(args.input, sys.stdout, args.clean)
+
+"""
+      # Assign ids (primary keys) to any nodes that don't have them
+      id = None
+      if id_pos != None and row[id_pos] != MISSING:
+        id = row[id_pos]
+      if id == None and taxon_id_pos != None and row[taxon_id_pos] != MISSING:
+        id = row[taxon_id_pos]
+      if id == None:
+        id = count
+      if id in seen_ids:
+        spin = 1
+        while True:
+          dodge = "%s..%s" % (id, spin)
+          if not dodge in seen_ids:
+            id = dodge
+            break
+
+      if id_pos == None:
+        row = row + [id]
+      else:
+        row[out_id_pos] = id
+
+    # Every table needs to have a column of unique primary keys
+    id_pos = windex(header, "id")
+    if id_pos != None:
+      out_id_pos = id_pos
+    else:
+      out_header = header + ["id"]    # Add primary key
+      out_id_pos = len(header)
+
+"""
