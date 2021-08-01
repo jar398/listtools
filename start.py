@@ -8,7 +8,7 @@ import sys, csv, re, argparse
 
 MISSING = ''
 
-def start_csv(filename, outport, cleanp):
+def start_csv(filename, outport, pk_col, cleanp):
   with open(filename, "r") as inport:
     (d, q, g) = csv_parameters(filename)
     reader = csv.reader(inport, delimiter=d, quotechar=q, quoting=g)
@@ -17,7 +17,13 @@ def start_csv(filename, outport, cleanp):
       if "," in header[0] or "\t" in header[0]:
         print("** start: Suspicious header", file=sys.stderr)
         print("** start: Header is %s" % (row,), file=sys.stderr)
-    out_header = header
+    pk_pos = windex(header, pk_col)
+    must_affix_pk = (pk_col and pk_pos == None)
+    if must_affix_pk:
+      print("Prepending a %s column" % pk_col, file=sys.stderr)
+      header = [pk_col] + header
+      pk_pos = 0
+    print("Header: %s" % (header,), file=sys.stderr)
     can_pos = windex(header, "canonicalName")
     sci_pos = windex(header, "scientificName")
     source_pos = windex(header, "source")
@@ -26,15 +32,25 @@ def start_csv(filename, outport, cleanp):
     taxon_id_pos = windex(header, "taxonID")
     accepted_pos = windex(header, "acceptedNameUsageID")
     writer = csv.writer(outport) # CSV not TSV
-    writer.writerow(out_header)
+    writer.writerow(header)
     count = 0
     trimmed = 0
     names_cleaned = 0
     accepteds_cleaned = 0
-    seen_ids = {}
+    seen_pks = {}
+    previous_pk = 0
     for row in reader:
+      if must_affix_pk:
+        pk = previous_pk + 1
+        row = [pk] + row
+        previous_pk = pk
+      else:
+        pk = row[pk_pos]
+        assert pk != MISSING
+        assert not (pk in seen_pks)
+        seen_pks[pk] = True
 
-      # Deal with raggedness
+      # Deal with raggedness if any
       if len(row) > len(header):
         row = row[0:len(header)]
         trimmed += 1
@@ -45,8 +61,6 @@ def start_csv(filename, outport, cleanp):
         print(("** start: Row is %s" % (row,)), file=sys.stderr)
         assert False
 
-      seen_ids[id] = True
-
       # Now, cleanups specific to EOL
       if cleanp:
         if clean_name(row, can_pos, sci_pos):
@@ -55,17 +69,17 @@ def start_csv(filename, outport, cleanp):
           accepteds_cleaned += 1
       if landmark_pos != None: 
         l = row[landmark_pos]
-        if l != None and l != '':
+        if l != MISSING:
           e = int(l)
           # enum landmark: %i[no_landmark minimal abbreviated extended full]
           if   e == 1: row[landmark_pos] = 'minimal'
           elif e == 2: row[landmark_pos] = 'abbreviated'
           elif e == 3: row[landmark_pos] = 'extended'
           elif e == 4: row[landmark_pos] = 'full'
-          else: row[landmark_pos] = None
-      if source_pos != None and row[source_pos]:
+          else: row[landmark_pos] = MISSING
+      if source_pos != None and row[source_pos] != MISSING:
         sources = row[source_pos].split(',')
-        if len(sources) > 1 and ':' in sources[0] and ':' in sources[1]:
+        if len(sources) > 1:
           row[source_pos] = sources[0]
       writer.writerow(row)
       count += 1
@@ -151,43 +165,44 @@ if __name__ == '__main__':
     """)
   parser.add_argument('--input', default=None,
                       help='name of input file.  TSV assumed unless name contains ".csv"')
-
+  parser.add_argument('--pk', default=None,
+                      help='name of column containing primary key')
   parser.add_argument('--clean', dest='clean', action='store_true',
                       help='clean up scientificName and canonicalName a little bit')
   parser.add_argument('--no-clean', dest='clean', action='store_false')
   parser.set_defaults(clean=True)
 
   args=parser.parse_args()
-  start_csv(args.input, sys.stdout, args.clean)
+  start_csv(args.input, sys.stdout, args.pk, args.clean)
 
 """
       # Assign ids (primary keys) to any nodes that don't have them
-      id = None
-      if id_pos != None and row[id_pos] != MISSING:
-        id = row[id_pos]
-      if id == None and taxon_id_pos != None and row[taxon_id_pos] != MISSING:
-        id = row[taxon_id_pos]
-      if id == None:
-        id = count
-      if id in seen_ids:
+      pk = None
+      if pk_pos != None and row[pk_pos] != MISSING:
+        pk = row[pk_pos]
+      if pk == None and taxon_pk_pos != None and row[taxon_pk_pos] != MISSING:
+        pk = row[taxon_pk_pos]
+      if pk == None:
+        pk = count
+      if pk in seen_pks:
         spin = 1
         while True:
-          dodge = "%s..%s" % (id, spin)
-          if not dodge in seen_ids:
-            id = dodge
+          dodge = "%s..%s" % (pk, spin)
+          if not dodge in seen_pks:
+            pk = dodge
             break
 
-      if id_pos == None:
-        row = row + [id]
+      if pk_pos == None:
+        row = row + [pk]
       else:
-        row[out_id_pos] = id
+        row[out_pk_pos] = pk
 
     # Every table needs to have a column of unique primary keys
-    id_pos = windex(header, "id")
-    if id_pos != None:
-      out_id_pos = id_pos
+    pk_pos = windex(header, pk_col)
+    if pk_pos != None:
+      out_pk_pos = pk_pos
     else:
-      out_header = header + ["id"]    # Add primary key
-      out_id_pos = len(header)
+      out_header = header + [pk_col]    # Add primary key
+      out_pk_pos = len(header)
 
 """

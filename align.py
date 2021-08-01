@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
 
+# comet = ☄  erase = ⌫  recycle = ♲
+
+
 """
 Here's what we're trying to do, as an n^2 method:
 
@@ -15,10 +18,9 @@ With some indexing, we can do it in approximately linear time.
 
 # CONFIGURATION:
 
-# Most important first
+# Most important column first
 INDEX_BY = ["EOLid", "source", "scientificName", "canonicalName"]
 
-# Idea: distinguish between 'carry' and 'change' ??
 GRAPHDB_COLUMNS = INDEX_BY +\
   ["taxonRank", "taxonomicStatus", "landmark"]
 
@@ -30,72 +32,137 @@ from functools import reduce
 MISSING = ''
 AMBIGUOUS = '¿'
 
-def matchings(inport1, inport2, outport):
+def matchings(inport1, inport2, pk_col, outport):
   reader1 = csv.reader(inport1)
   header1 = next(reader1)
   reader2 = csv.reader(inport2)
   header2 = next(reader2)
-  all_rows2 = read_rows(reader2, header2)
+  pk_pos1 = windex(header1, pk_col)
+  pk_pos2 = windex(header2, pk_col)
+
+  all_rows2 = read_rows(reader2, pk_pos2)
   rows2_by_property = get_rows_by_property(all_rows2, header2)
-  (best_in_file1, best_in_file2, frontier) = \
-    find_best_matches(reader1, header1, header2, all_rows2, rows2_by_property)
-  emit_matches(best_in_file1, best_in_file2, header2, all_rows2, outport)
-  emit_additions(best_in_file1, all_rows2, frontier, outport)
+  (best_in_file1, best_in_file2, all_rows1) = \
+    find_best_matches(reader1, header1, header2, all_rows2, pk_col, rows2_by_property)
+  inj = injection(all_rows1, all_rows2, best_in_file1, best_in_file2,
+                  windex(header1, pk_col), windex(header2, pk_col))
 
-def emit_additions(best_in_file1, all_rows2, frontier, outport):
-  writer = csv.writer(outport)
-  for key2 in sorted(all_rows2.keys()):
-    if not (key2 in best_in_file1):
-      writer.writerow([frontier, "add"] + all_rows2[key2])
-      frontier += 1
-
-def emit_matches(best_in_file1, best_in_file2, header2, all_rows2, outport):
   def item_sort_key(item):
     (key1, (score, key2)) = item
-    return (score, bleh(key1), bleh(key2))
+    return (score, key1, key2)
   writer = csv.writer(outport)
   # Now emit the matches.
-  writer.writerow(["aligned_id", "status"] + header2)
-  blank = [MISSING for x in header2]
+  writer.writerow(["status"] + header2)
+
+  accepted_pos = windex(header2, "acceptedNameUsageID") if pk_col == "taxonID" else None
+  parent_pos   = windex(header2, "parentNameUsageID")   if pk_col == "taxonID" else None
+  print("Accepted in %s, parent in %s" % (accepted_pos, parent_pos), file=sys.stderr)
+
+  # Preserve anything in file2 that was also in file1
+  # List things in file1 not preserved for file2
   for (key1, (score, key2)) in sorted(best_in_file2.items(),
-                                    key=item_sort_key):
-    mtype = match_type(key1, key2, score, best_in_file1)
+                                      key=item_sort_key):
     if score < 0: score = MISSING
-    writer.writerow([key1, mtype] + all_rows2.get(key2, blank))
+    row2 = all_rows2.get(key2)
+    if row2 == None:
+      mtype = "remove"
+      row2 = [MISSING for x in header2]
+      row2[pk_pos2] = key1
+    else:
+      mtype = "carry"
+      row2[pk_pos2] = inj[key2]
+      if accepted_pos != None:
+        row2[accepted_pos] = inj.get(row2[accepted_pos])
+      if parent_pos != None:
+        row2[parent_pos] = inj.get(row2[parent_pos])
+    writer.writerow([mtype] + row2)
     # perhaps an explanation for the score and reason, as well??
 
-def bleh(id):
-  if id == None:
-    return (-1, None)           # sorts before 0
-  if (isinstance(id, int)):
-    return (id, None)
-  if (id.isdigit() or
-      (id[0] == '-' and id[1:].isdigit())):
-    return (int(id), id)
-  else:
-    return (1000000000, id)
+  # Add new things from file2 that weren't in file1
+  for key2 in sorted(all_rows2.keys()):
+    if not (key2 in best_in_file1):
+      row2 = all_rows2[key2]
+      row2[pk_pos2] = inj[key2]
+      # !!!!! also need to map parent and accepted.
+      writer.writerow(["add"] + row2)
 
-def match_type(key1, key2, score, best_in_file1):
+# Map from rows2 key (row number) to rows1 key (primary key)
+
+def injection(rows1, rows2, best_in_file1, best_in_file2, pk_pos1, pk_pos2):
+  def item_sort_key(item):
+    (key1, (score, key2)) = item
+    return (score, key1, key2)
+  inj = {}
+  # file1 is keyed by pk, file2 is keyed by row number...
+  for (key1, (score, key2)) in sorted(best_in_file2.items(),
+                                      key=item_sort_key):
+    if check_match(key1, key2, score, best_in_file1):
+      inj[key2] = key1
+  for (key2, row2) in sorted(rows2.items()):
+    if not key2 in inj:
+      row2 = rows2[key2]
+      pk2 = row2[pk_pos2]
+      if pk2 == MISSING:
+        print("No pk in column %s: %s" % (pk_pos2, row2,), file=sys.stderr)
+      inj[key2] = choose_pk(pk2, rows1)
+  return inj
+
+def choose_pk(pk2, rows1):
+  assert pk2 != MISSING
+  if pk2 in rows1:
+    # Already mapped, i.e. collision
+    foo = pk2.rsplit(1)
+    if len(foo) == 2 and foo[1].isdigit():
+      stem = foo[0]
+      spin = int(foo[1])
+    else:
+      stem = pk2
+      spin = 1
+    while True:
+      candidate = "%s^%s" % (stem, spin)
+      print("Considering %s" % (candidate,), file=sys.stderr)
+      if candidate in rows1:
+        spin += 1
+      else:
+        break
+    return candidate
+  else:
+    # Use pk2 for primary key; it doesn't conflict
+    return pk2
+
+def check_match(key1, key2, score, best_in_file1):
   assert key1 != AMBIGUOUS
   if key2 == AMBIGUOUS:
     # does not occur in 0.9/1.1
-    return "ambiguous"
+    print("Tie: id %s -> multiple rows" % (key1,),
+          file=sys.stderr)
+    return False
   else:
     best1 = best_in_file1.get(key2)
     if best1:
-      (score3, id3) = best1
+      (score3, key3) = best1
       if score != score3:
-        return "remove"  # was "weak"
-      elif id3 == AMBIGUOUS:
-        return "remove"  # was "coambiguous"
+        print("Id %s defeated by id %s for row %s" % (key1, key3, key2,),
+              file=sys.stderr)
+        return False  # was "weak"
+      elif key3 == AMBIGUOUS:
+        print("Id %s tied with other id(s) for row %s" % (key1, key2,),
+              file=sys.stderr)
+        return False  # was "coambiguous"
+      elif score < 100:
+        print("Id %s match to row %s is too weak to use (score %s)" % (key1, key2, score),
+              file=sys.stderr)
+        return False
       else:
-        if key1 != id3:
-          print("%s = %s != %s, score %s, back %s" % (key1, key2, id3, score, score3),
+        if key1 != key3:
+          print("%s = %s != %s, score %s, back %s" % (key1, key2, key3, score, score3),
                 file=sys.stderr)
-          assert key1 == id3
-        return "carry"     # the ones that matter
+          assert key1 == key3
+        # maybe "change" as well?
+        return True
     else:
-      return "remove"    # need better word
+      return False    # need better word
+
 
 def indexed_positions(header):
   return [windex(header, col)
@@ -114,26 +181,26 @@ def get_weights(header, header2):
     w = w + w
   return weights
 
-def find_best_matches(reader1, header1, header2, all_rows2, rows2_by_property):
+def find_best_matches(reader1, header1, header2, all_rows2, pk_col, rows2_by_property):
   correspondence = [windex(header2, column) for column in header1]
   print("Correspondence: %s" % correspondence, file=sys.stderr)
   positions = indexed_positions(header1)
   print("Indexed: %s" % positions, file=sys.stderr)
   weights = get_weights(header1, header2)
   print("Weights: %s" % weights, file=sys.stderr)
-  aligned_id_pos = windex(header1, "aligned_id")
-  assert aligned_id_pos != None
+  pk_pos = windex(header1, pk_col)
+  if pk_pos == None:
+    print("No %s column in %s" % (pk_col, header1,),
+          file=sys.stderr)
+  assert pk_pos != None
   no_info = (-1, None)
 
   best_in_file2 = {}    # key1 -> (score, [record2, ...])  aligned id
   best_in_file1 = {}    # key2 -> (score, [record1, ...])  row number
   all_rows1 = {}
   count = 0
-  frontier = 0
   for row1 in reader1:
-    key1 = int(row1[aligned_id_pos])
-    if key1 >= frontier: frontier = key1 + 1
-
+    key1 = row1[pk_pos]
     # The following check is also enforced by start.py... flush them here?
     assert not key1 in all_rows1; all_rows1[key1] = row1
     best2_so_far = no_info
@@ -164,7 +231,7 @@ def find_best_matches(reader1, header1, header2, all_rows2, rows2_by_property):
 
     best_in_file2[key1] = best2_so_far
 
-  return (best_in_file1, best_in_file2, frontier)
+  return (best_in_file1, best_in_file2, all_rows1)
 
 def compute_score(row1, row2, correspondence, weights):
   s = 0
@@ -202,13 +269,13 @@ def get_rows_by_property(all_rows, header):
         file=sys.stderr)
   return by_property
 
-def read_rows(reader, header):
+def read_rows(reader, pk_pos):
   all_rows = {}
-  rownum = 1
   for row in reader:
-    all_rows[rownum] = row
-    rownum += 1
-  print("%s rows" % (rownum,),
+    pk = row[pk_pos]
+    assert pk != MISSING
+    all_rows[pk] = row
+  print("%s rows" % (len(all_rows),),
         file=sys.stderr)
   return all_rows
 
@@ -244,6 +311,8 @@ if __name__ == '__main__':
     """)
   parser.add_argument('--state',
                       help='name of file containing unaliged CSV input')
+  parser.add_argument('--pk', default=None,
+                      help='name of column containing primary key')
   args=parser.parse_args()
   with open(args.state, "r") as infile:
-    matchings(sys.stdin, infile, sys.stdout)
+    matchings(sys.stdin, infile, args.pk, sys.stdout)
