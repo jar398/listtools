@@ -70,7 +70,7 @@ def matchings(inport1, inport2, pk_col, outport):
     best2 = best_in_file2.get(key1)
     if best2:
       (score, key2) = best2
-      if not check_match(key1, key2, score, best_in_file1, remove_count):
+      if not check_match(key1, key2, score, best_in_file1):
         # Delete row1.  Kept rows are taken care of next
         write_row([MISSING for x in header2], key1)
         remove_count += 1
@@ -84,7 +84,7 @@ def matchings(inport1, inport2, pk_col, outport):
     best1 = best_in_file1.get(key2)
     if best1:
       (score, key1) = best1
-      if check_match(key2, key1, score, best_in_file2, carry_count):
+      if check_match(key1, key2, score, best_in_file2):
         write_row(row2, key1)
       carry_count += 1
     else:
@@ -93,33 +93,31 @@ def matchings(inport1, inport2, pk_col, outport):
       add_count += 1
   print("%s carries, %s additions" % (carry_count, add_count,), file=sys.stderr)
 
-def check_match(key1, key2, score, best_in_file1, count):
+def check_match(key1, key2, score, best_in_file1):
   assert key1 != AMBIGUOUS
   if key2 == AMBIGUOUS:
     # does not occur in 0.9/1.1
-    if count <= 10:
-      print("Tie: id %s -> multiple rows" % (key1,),
-            file=sys.stderr)
+    print("Tie: id %s -> multiple rows" % (key1,),
+          file=sys.stderr)
+    return False
+  elif key2 == None:
+    return False
+  elif score < 100:
+    print("Old %s match to new %s is too weak to use (score %s)" % (key1, key2, score),
+          file=sys.stderr)
     return False
   else:
     best1 = best_in_file1.get(key2)
     if best1:
       (score3, key3) = best1
       if score != score3:
-        if count <= 10:
-          print("Id %s defeated by id %s for row %s" % (key1, key3, key2,),
-                file=sys.stderr)
+        print("Old %s defeated by old %s for new %s" % (key1, key3, key2,),
+              file=sys.stderr)
         return False  # was "weak"
       elif key3 == AMBIGUOUS:
-        if count <= 10:
-          print("Id %s tied with other id(s) for row %s" % (key1, key2,),
-                file=sys.stderr)
+        print("Old %s tied with other old(s) for new %s" % (key1, key2,),
+              file=sys.stderr)
         return False  # was "coambiguous"
-      elif score < 100:
-        if count <= 10:
-          print("Id %s match to row %s is too weak to use (score %s)" % (key1, key2, score),
-                file=sys.stderr)
-        return False
       else:
         if key1 != key3:
           print("%s = %s != %s, score %s, back %s" % (key1, key2, key3, score, score3),
