@@ -33,7 +33,7 @@ MANAGED_FIELDS = \
 
 import sys, io, argparse, csv
 from functools import reduce
-from util import read_csv, windex, MISSING
+from util import read_csv, windex, map_row, MISSING
 
 AMBIGUOUS = '¿'
 
@@ -72,6 +72,7 @@ def matchings(inport1, inport2, pk_col, outport):
   write_row(header2, "mode", "previous_pk")
 
   # Note deletions of old rows
+  correspondence = [windex(header1, column) for column in header2]
   remove_count = 0
   for (key1, row1) in sorted(all_rows1.items(),
                              key=lambda item: item[0]):
@@ -81,12 +82,14 @@ def matchings(inport1, inport2, pk_col, outport):
       (matchp, mode) = check_match(key1, key2, score, best_in_file1)
       if not matchp:
         # Delete row1.  Kept rows are taken care of next
-        write_row([MISSING for x in header2], "remove", key1)
+        # We don't need the values: [MISSING for x in header2]
+        row2 = map_row(correspondence, row1)
+        row2[pk_pos2] = MISSING
+        write_row(row2, "remove", key1)
         remove_count += 1
   print("%s removals" % (remove_count,), file=sys.stderr)
 
   # Carry over everything from file2
-  cocorrespondence = [windex(header1, column) for column in header2]
   carry_count = 0
   update_count = 0
   add_count = 0
@@ -95,28 +98,29 @@ def matchings(inport1, inport2, pk_col, outport):
     best1 = best_in_file1.get(key2)
     if best1:
       (score, key1) = best1
-      (matchp, mode) = check_match(key1, key2, score, best_in_file1)
-      if matchp:
-        if unchanged(all_rows1[key1], all_rows2[key2], foi_positions, cocorrespondence):
-          write_row(row2, "carry", key1)
-          carry_count += 1
+      if key1 != AMBIGUOUS:
+        (matchp, mode) = check_match(key1, key2, score, best_in_file1)
+        if matchp:
+          if unchanged(all_rows1[key1], all_rows2[key2], foi_positions, correspondence):
+            write_row(row2, "carry", key1)
+            carry_count += 1
+          else:
+            write_row(row2, "update", key1)
+            update_count += 1
         else:
-          write_row(row2, "update", key1)
-          update_count += 1
-      else:
-        print("Missed match %s to %s because %s" % (key1, key2, mode), file=sys.stderr)
-        write_row(row2, "add", key1)
-        add_count += 1
+          print("Missed match %s to %s because %s" % (key1, key2, mode), file=sys.stderr)
+          write_row(row2, "add", key1)
+          add_count += 1
     else:
       # Wholly new
       write_row(row2, "add", MISSING)
       add_count += 1
   print("%s carries, %s updates, %s additions" % (carry_count, update_count, add_count,), file=sys.stderr)
 
-def unchanged(row1, row2, foi_positions, cocorrespondence):
+def unchanged(row1, row2, foi_positions, correspondence):
   for pos2 in foi_positions:
     if pos2 != None:
-      pos1 = cocorrespondence[pos2]
+      pos1 = correspondence[pos2]
       value1 = MISSING
       if pos1 != None: value1 = row1[pos1]
       if value1 != row2[pos2]:
@@ -141,11 +145,11 @@ def check_match(key1, key2, score, best_in_file1):
     if best1:
       (score3, key3) = best1
       if score != score3:
-        print("Old %s defeated by old %s for new %s" % (key1, key3, key2,),
+        print("Old %s (score %s) defeated by old %s (score %s) for new %s" % (key1, score, key3, score3, key2,),
               file=sys.stderr)
         return (False, "defeated")
       elif key3 == AMBIGUOUS:
-        print("Old %s tied with other old(s) for new %s" % (key1, key2,),
+        print("Old %s tied (score %s) with other old(s) for new %s" % (key1, score, key2,),
               file=sys.stderr)
         return (False, "tie")
       else:
@@ -163,12 +167,12 @@ def indexed_positions(header):
           for col in INDEX_BY
           if windex(header, col) != None]
 
-def get_weights(header, header2):
-  weights = [(1 if col in header2 else 0) for col in header]
+def get_weights(header, header_b):
+  weights = [(1 if col in header_b else 0) for col in header]
 
   # Censor these
-  mode_pos = windex(header2, "mode")
-  previous_pos = windex(header2, "previous_pk")
+  mode_pos = windex(header_b, "mode")
+  previous_pos = windex(header_b, "previous_pk")
   if mode_pos != None: weights[mode_pos] = 0
   if previous_pos != None: weights[previous_pos] = 0
 
@@ -185,11 +189,11 @@ def get_weights(header, header2):
 def find_best_matches(header1, header2, all_rows1, all_rows2,
                       pk_col, rows2_by_property):
   assert len(all_rows2) > 0
-  correspondence = [windex(header2, column) for column in header1]
+  correspondence = [windex(header1, column) for column in header2]
   print("Correspondence: %s" % correspondence, file=sys.stderr)
   positions = indexed_positions(header1)
   print("Indexed: %s" % positions, file=sys.stderr)
-  weights = get_weights(header1, header2)
+  weights = get_weights(header2, header1)
   print("Weights: %s" % weights, file=sys.stderr)
   pk_pos = windex(header1, pk_col)
   if pk_pos == None:
@@ -238,13 +242,13 @@ def find_best_matches(header1, header2, all_rows1, all_rows2,
 
 def compute_score(row1, row2, correspondence, weights):
   s = 0
-  for i in range(0, len(row1)):
-    w = weights[i]
+  for j in range(0, len(row2)):
+    w = weights[j]
     if w != 0:
-      if row1[i] != MISSING:
-        j = correspondence[i]
-        if j != None:
-          if row2[j] != MISSING:
+      if row2[j] != MISSING:
+        i = correspondence[j]
+        if i != None:
+          if row1[i] != MISSING:
             s += w
   return s
 

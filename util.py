@@ -23,3 +23,11 @@ def windex(header, fieldname):
   else:
     return None
 
+# Returns row with same length as correspondence
+
+def map_row(correspondence, rowa):
+  def m(j):
+    i = correspondence[j]
+    return rowa[i] if i != None else MISSING
+  return [m(j) for j in range(0, len(correspondence))]
+
