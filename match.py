@@ -22,8 +22,8 @@ With some indexing, we can do it in approximately linear time.
 INDEX_BY = \
   ["EOLid", "source", "scientificName", "canonicalName"]
 
-FIELDS_OF_INTEREST = \
-  ["canonicalName", "taxonomicStatus"]
+MANAGED_FIELDS = \
+  ["canonicalName", "scientificName"]
 """
   ["EOLid", "source", "scientificName", "canonicalName"] + \
   ["taxonRank", "taxonomicStatus", "landmark_status"]
@@ -33,23 +33,20 @@ FIELDS_OF_INTEREST = \
 
 import sys, io, argparse, csv
 from functools import reduce
+from util import read_csv, windex, MISSING
 
-MISSING = ''
 AMBIGUOUS = '¿'
 
 def matchings(inport1, inport2, pk_col, outport):
-  reader1 = csv.reader(inport1)
-  header1 = next(reader1)
-  reader2 = csv.reader(inport2)
-  header2 = next(reader2)
+  (header1, all_rows1) = read_csv(inport1, pk_col)
+  (header2, all_rows2) = read_csv(inport2, pk_col)
+
   pk_pos1 = windex(header1, pk_col)
   pk_pos2 = windex(header2, pk_col)
   mode_pos = windex(header2, "mode")
   previous_pos = windex(header2, "previous_pk")
-  foi_positions = [windex(header2, name) for name in FIELDS_OF_INTEREST]
+  foi_positions = [windex(header2, name) for name in MANAGED_FIELDS]
 
-  all_rows1 = read_rows(reader1, pk_pos1)
-  all_rows2 = read_rows(reader2, pk_pos2)
   rows2_by_property = get_rows_by_property(all_rows2, header2)
   (best_in_file1, best_in_file2) = \
     find_best_matches(header1, header2, all_rows1, all_rows2,
@@ -274,16 +271,6 @@ def get_rows_by_property(all_rows, header):
         file=sys.stderr)
   return by_property
 
-def read_rows(reader, pk_pos):
-  all_rows = {}
-  for row in reader:
-    pk = row[pk_pos]
-    assert pk != MISSING
-    all_rows[pk] = row
-  print("Read %s rows" % (len(all_rows),),
-        file=sys.stderr)
-  return all_rows
-
 # Future: exclude really ephemeral properties like taxonID
 
 def row_properties(row, header, positions):
@@ -291,12 +278,6 @@ def row_properties(row, header, positions):
           for i in range(0, len(header))
           if (i in positions and
               row[i] != MISSING)]
-
-def windex(header, fieldname):
-  if fieldname in header:
-    return header.index(fieldname)
-  else:
-    return None
 
 # Test
 def test1():
@@ -312,12 +293,15 @@ def test():
 
 if __name__ == '__main__':
   parser = argparse.ArgumentParser(description="""
-    TBD.  Output is state with ids from input via matching.
+    Standard input is file containing initial state.
+    Standard output is the final state, consisting of specified state 
+    file annotated with ids for initial state records, via matching.
     """)
   parser.add_argument('--state',
-                      help='name of file containing unaliged CSV input')
+                      help='name of file to be annotated with matches to initial')
   parser.add_argument('--pk', default=None,
                       help='name of column containing primary key')
+  # List of fields stored in database or graphdb should be an arg.
   args=parser.parse_args()
-  with open(args.state, "r") as infile:
-    matchings(sys.stdin, infile, args.pk, sys.stdout)
+  with open(args.state, "r") as inport2:
+    matchings(sys.stdin, inport2, args.pk, sys.stdout)
