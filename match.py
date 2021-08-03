@@ -19,10 +19,15 @@ With some indexing, we can do it in approximately linear time.
 # CONFIGURATION:
 
 # Most important column first
-INDEX_BY = ["EOLid", "source", "scientificName", "canonicalName"]
+INDEX_BY = \
+  ["EOLid", "source", "scientificName", "canonicalName"]
 
-GRAPHDB_COLUMNS = INDEX_BY +\
-  ["taxonRank", "taxonomicStatus", "landmark"]
+FIELDS_OF_INTEREST = \
+  ["canonicalName", "taxonomicStatus"]
+"""
+  ["EOLid", "source", "scientificName", "canonicalName"] + \
+  ["taxonRank", "taxonomicStatus", "landmark_status"]
+"""
 
 # -----
 
@@ -39,7 +44,9 @@ def matchings(inport1, inport2, pk_col, outport):
   header2 = next(reader2)
   pk_pos1 = windex(header1, pk_col)
   pk_pos2 = windex(header2, pk_col)
+  mode_pos = windex(header2, "mode")
   previous_pos = windex(header2, "previous_pk")
+  foi_positions = [windex(header2, name) for name in FIELDS_OF_INTEREST]
 
   all_rows1 = read_rows(reader1, pk_pos1)
   all_rows2 = read_rows(reader2, pk_pos2)
@@ -53,15 +60,19 @@ def matchings(inport1, inport2, pk_col, outport):
     return (score, key1, key2)
   writer = csv.writer(outport)
 
-  def write_row(row2, previous):
+  def write_row(row2, mode, previous):
     if previous_pos == None:
       row2 = [previous] + row2
     else:
       row2[previous_pos] = previous
+    if mode_pos == None:
+      row2 = [mode] + row2
+    else:
+      row2[mode_pos] = mode
     writer.writerow(row2)
 
   # Now emit the matches.
-  write_row(header2, "previous_pk")
+  write_row(header2, "mode", "previous_pk")
 
   # Note deletions of old rows
   remove_count = 0
@@ -70,28 +81,50 @@ def matchings(inport1, inport2, pk_col, outport):
     best2 = best_in_file2.get(key1)
     if best2:
       (score, key2) = best2
-      if not check_match(key1, key2, score, best_in_file1):
+      (matchp, mode) = check_match(key1, key2, score, best_in_file1)
+      if not matchp:
         # Delete row1.  Kept rows are taken care of next
-        write_row([MISSING for x in header2], key1)
+        write_row([MISSING for x in header2], "remove", key1)
         remove_count += 1
   print("%s removals" % (remove_count,), file=sys.stderr)
 
   # Carry over everything from file2
+  cocorrespondence = [windex(header1, column) for column in header2]
   carry_count = 0
+  update_count = 0
   add_count = 0
   for (key2, row2) in sorted(all_rows2.items(),
                              key=lambda item: item[0]):
     best1 = best_in_file1.get(key2)
     if best1:
       (score, key1) = best1
-      if check_match(key1, key2, score, best_in_file2):
-        write_row(row2, key1)
-      carry_count += 1
+      (matchp, mode) = check_match(key1, key2, score, best_in_file1)
+      if matchp:
+        if unchanged(all_rows1[key1], all_rows2[key2], foi_positions, cocorrespondence):
+          write_row(row2, "carry", key1)
+          carry_count += 1
+        else:
+          write_row(row2, "update", key1)
+          update_count += 1
+      else:
+        print("Missed match %s to %s because %s" % (key1, key2, mode), file=sys.stderr)
+        write_row(row2, "add", key1)
+        add_count += 1
     else:
       # Wholly new
-      write_row(row2, MISSING)
+      write_row(row2, "add", MISSING)
       add_count += 1
-  print("%s carries, %s additions" % (carry_count, add_count,), file=sys.stderr)
+  print("%s carries, %s updates, %s additions" % (carry_count, update_count, add_count,), file=sys.stderr)
+
+def unchanged(row1, row2, foi_positions, cocorrespondence):
+  for pos2 in foi_positions:
+    if pos2 != None:
+      pos1 = cocorrespondence[pos2]
+      value1 = MISSING
+      if pos1 != None: value1 = row1[pos1]
+      if value1 != row2[pos2]:
+        return False
+  return True
 
 def check_match(key1, key2, score, best_in_file1):
   assert key1 != AMBIGUOUS
@@ -99,13 +132,13 @@ def check_match(key1, key2, score, best_in_file1):
     # does not occur in 0.9/1.1
     print("Tie: id %s -> multiple rows" % (key1,),
           file=sys.stderr)
-    return False
+    return (False, "ambiguous")
   elif key2 == None:
-    return False
+    return (False, "unevaluated")
   elif score < 100:
     print("Old %s match to new %s is too weak to use (score %s)" % (key1, key2, score),
           file=sys.stderr)
-    return False
+    return (False, "weak")
   else:
     best1 = best_in_file1.get(key2)
     if best1:
@@ -113,20 +146,19 @@ def check_match(key1, key2, score, best_in_file1):
       if score != score3:
         print("Old %s defeated by old %s for new %s" % (key1, key3, key2,),
               file=sys.stderr)
-        return False  # was "weak"
+        return (False, "defeated")
       elif key3 == AMBIGUOUS:
         print("Old %s tied with other old(s) for new %s" % (key1, key2,),
               file=sys.stderr)
-        return False  # was "coambiguous"
+        return (False, "tie")
       else:
         if key1 != key3:
           print("%s = %s != %s, score %s, back %s" % (key1, key2, key3, score, score3),
                 file=sys.stderr)
           assert key1 == key3
-        # maybe "change" as well?
-        return True
+        return (True, "match")
     else:
-      return False    # need better word
+      return (False, "unconsidered")
 
 
 def indexed_positions(header):
@@ -136,6 +168,13 @@ def indexed_positions(header):
 
 def get_weights(header, header2):
   weights = [(1 if col in header2 else 0) for col in header]
+
+  # Censor these
+  mode_pos = windex(header2, "mode")
+  previous_pos = windex(header2, "previous_pk")
+  if mode_pos != None: weights[mode_pos] = 0
+  if previous_pos != None: weights[previous_pos] = 0
+
   w = 100
   loser = INDEX_BY + []
   loser.reverse()               # I hate this
@@ -192,8 +231,8 @@ def find_best_matches(header1, header2, all_rows1, all_rows2,
         elif score == score1_so_far and key1 != key1_so_far:
           best_in_file1[key2] = (score, AMBIGUOUS)
 
-    best_in_file2[key1] = best2_so_far
-    assert len(best_in_file2) >= 1
+    if best2_so_far != no_info:
+      best_in_file2[key1] = best2_so_far
 
   print("%s properties" % prop_count, file=sys.stderr)
   if len(all_rows1) > 0:
@@ -273,7 +312,7 @@ def test():
 
 if __name__ == '__main__':
   parser = argparse.ArgumentParser(description="""
-    TBD.  Output is state with ids from input via alignment.
+    TBD.  Output is state with ids from input via matching.
     """)
   parser.add_argument('--state',
                       help='name of file containing unaliged CSV input')

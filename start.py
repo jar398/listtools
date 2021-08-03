@@ -27,6 +27,7 @@ def start_csv(filename, outport, pk_col, cleanp):
     can_pos = windex(header, "canonicalName")
     sci_pos = windex(header, "scientificName")
     source_pos = windex(header, "source")
+    dataset_pos = windex(header, "datasetID")
     landmark_pos = windex(header, "Landmark")
     if landmark_pos != None: header[landmark_pos] = "landmark_status"
     taxon_id_pos = windex(header, "taxonID")
@@ -78,9 +79,7 @@ def start_csv(filename, outport, pk_col, cleanp):
           elif e == 4: row[landmark_pos] = 'full'
           else: row[landmark_pos] = MISSING
       if source_pos != None and row[source_pos] != MISSING:
-        sources = row[source_pos].split(',')
-        if len(sources) > 1:
-          row[source_pos] = sources[0]
+        row[source_pos] = row[source_pos].split(',', 1)[0]
       writer.writerow(row)
       count += 1
   print("start: %s rows, %s columns, %s names cleaned, %s accepted cleaned" %
