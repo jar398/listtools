@@ -20,7 +20,6 @@ def scatter(inport, dest):
   # open three files for output: remove, update, add
 
   mode_pos = windex(header, mode_column)
-
   subheader = [x for x in header]
   del subheader[mode_pos]
 
@@ -32,6 +31,7 @@ def scatter(inport, dest):
       file = open(fname + ".new", "w")
       files[mode] = file
       writers[mode] = csv.writer(file)
+      writers[mode].writerow(subheader)
       counts[mode] = 0
     writer = writers[mode]
     writer.writerow(row)
