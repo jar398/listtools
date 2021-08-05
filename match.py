@@ -7,10 +7,10 @@
 Here's what we're trying to do, as an n^2 method:
 
   For (record 1, record 2) pair, compute match score.
-  Consider all matches (x1, x2) where 
+  Consider all candidate matches (x1, x2) where 
     either x1 = record 1 or x2 = record 2.
   Designate (record 1, record 2) a match if it has the highest score
-    among all of these (x1, x2) pairs.
+    among all of these candidates.
   (I.e. if record 1 = unique best match to record 2 AND v.v.)
 
 With some indexing, we can do it in approximately linear time.
@@ -43,8 +43,10 @@ def matchings(inport1, inport2, pk_col, outport):
 
   pk_pos1 = windex(header1, pk_col)
   pk_pos2 = windex(header2, pk_col)
+  assert pk_pos1 != None 
+  assert pk_pos2 != None
   mode_pos = windex(header2, "mode")
-  previous_pos = windex(header2, "previous_pk")
+  previous_pos2 = windex(header2, "previous_pk")
   foi_positions = [windex(header2, name) for name in MANAGED_FIELDS]
 
   rows2_by_property = get_rows_by_property(all_rows2, header2)
@@ -57,11 +59,11 @@ def matchings(inport1, inport2, pk_col, outport):
     return (score, key1, key2)
   writer = csv.writer(outport)
 
-  def write_row(row2, mode, previous):
-    if previous_pos == None:
-      row2 = [previous] + row2
+  def write_row(row2, mode, key1):
+    if previous_pos2 == None:
+      row2 = [key1] + row2
     else:
-      row2[previous_pos] = previous
+      row2[previous_pos2] = key1
     if mode_pos == None:
       row2 = [mode] + row2
     else:
@@ -172,9 +174,9 @@ def get_weights(header, header_b):
 
   # Censor these
   mode_pos = windex(header_b, "mode")
-  previous_pos = windex(header_b, "previous_pk")
+  previous_pos2 = windex(header_b, "previous_pk")
   if mode_pos != None: weights[mode_pos] = 0
-  if previous_pos != None: weights[previous_pos] = 0
+  if previous_pos2 != None: weights[previous_pos2] = 0
 
   w = 100
   loser = INDEX_BY + []
@@ -301,11 +303,11 @@ if __name__ == '__main__':
     Standard output is the final state, consisting of specified state 
     file annotated with ids for initial state records, via matching.
     """)
-  parser.add_argument('--state',
+  parser.add_argument('--next',
                       help='name of file to be annotated with matches to initial')
   parser.add_argument('--pk', default=None,
                       help='name of column containing primary key')
   # List of fields stored in database or graphdb should be an arg.
   args=parser.parse_args()
-  with open(args.state, "r") as inport2:
+  with open(args.next, "r") as inport2:
     matchings(sys.stdin, inport2, args.pk, sys.stdout)

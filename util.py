@@ -31,3 +31,8 @@ def map_row(correspondence, rowa):
     return rowa[i] if i != None else MISSING
   return [m(j) for j in range(0, len(correspondence))]
 
+def csv_parameters(path):
+  if not path or ".csv" in path:
+    return (",", '"', csv.QUOTE_MINIMAL)
+  else:
+    return ("\t", "\a", csv.QUOTE_NONE)
