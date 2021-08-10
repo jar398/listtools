@@ -12,8 +12,8 @@ from util import windex
 def write_cql_files(dest, pk_col):
   node_type = "Usage"
   prepare_add_cql(node_type, dest)
-  prepare_remove_cql(node_type, pk_col, dest)
   prepare_update_cql(node_type, pk_col, dest)
+  prepare_remove_cql(node_type, pk_col, dest)
 
 def get_header(fname):
   # Just get the header

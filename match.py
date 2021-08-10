@@ -73,25 +73,8 @@ def matchings(inport1, inport2, pk_col, outport):
   # Now emit the matches.
   write_row(header2, "mode", "previous_pk")
 
-  # Note deletions of old rows
   correspondence = [windex(header1, column) for column in header2]
-  remove_count = 0
-  for (key1, row1) in sorted(all_rows1.items(),
-                             key=lambda item: item[0]):
-    best2 = best_in_file2.get(key1)
-    if best2:
-      (score, key2) = best2
-      (matchp, mode) = check_match(key1, key2, score, best_in_file1)
-      if not matchp:
-        # Delete row1.  Kept rows are taken care of next
-        # We don't need the values: [MISSING for x in header2]
-        row2 = map_row(correspondence, row1)
-        row2[pk_pos2] = MISSING
-        write_row(row2, "remove", key1)
-        remove_count += 1
-  print("%s removals" % (remove_count,), file=sys.stderr)
-
-  # Carry over everything from file2
+  # Everything from file2 is carried over, updated, or new
   carry_count = 0
   update_count = 0
   add_count = 0
@@ -110,14 +93,34 @@ def matchings(inport1, inport2, pk_col, outport):
             write_row(row2, "update", key1)
             update_count += 1
         else:
-          print("Missed match %s to %s because %s" % (key1, key2, mode), file=sys.stderr)
+          print("Missed match %s to %s because %s" % (key1, key2, mode),
+                file=sys.stderr)
           write_row(row2, "add", key1)
           add_count += 1
     else:
       # Wholly new
       write_row(row2, "add", MISSING)
       add_count += 1
-  print("%s carries, %s updates, %s additions" % (carry_count, update_count, add_count,), file=sys.stderr)
+
+  # Note deletions of old rows
+  remove_count = 0
+  for (key1, row1) in sorted(all_rows1.items(),
+                             key=lambda item: item[0]):
+    best2 = best_in_file2.get(key1)
+    if best2:
+      (score, key2) = best2
+      (matchp, mode) = check_match(key1, key2, score, best_in_file1)
+      if not matchp:
+        # Delete row1.  Kept rows are taken care of next
+        # We don't need the values: [MISSING for x in header2]
+        row2 = map_row(correspondence, row1)
+        row2[pk_pos2] = MISSING
+        write_row(row2, "remove", key1)
+        remove_count += 1
+  print("%s removals" % (remove_count,), file=sys.stderr)
+
+  print("%s carries, %s updates, %s additions" % (carry_count, update_count, add_count,),
+        file=sys.stderr)
 
 def unchanged(row1, row2, foi_positions, correspondence):
   for pos2 in foi_positions:

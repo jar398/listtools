@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
 
+# Turns a single csv with a 'mode' column into a set of csvs, one for
+# each value found in the 'mode' column.
+
 import sys, os, csv, argparse, pathlib
 from util import windex
 
