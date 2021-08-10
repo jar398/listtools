@@ -1,10 +1,16 @@
 #!/usr/bin/env python3
 
+# Prepare CQL queries that can accomplish the patch.
+# This really ought to be done in Ruby.
+
+
 import sys, os, csv, argparse, pathlib
 from util import windex
 
+# Later: do it only for records provided by a particular resource (e.g. traits)
+
 def write_cql_files(dest, pk_col):
-  node_type = "TaxonSource"
+  node_type = "Usage"
   prepare_add_cql(node_type, dest)
   prepare_remove_cql(node_type, pk_col, dest)
   prepare_update_cql(node_type, pk_col, dest)
