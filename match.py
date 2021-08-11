@@ -33,7 +33,8 @@ MANAGED_FIELDS = \
 
 import sys, io, argparse, csv
 from functools import reduce
-from util import read_csv, windex, map_row, MISSING
+from util import read_csv, windex, MISSING, \
+                 correspondence, precolumn, apply_correspondence
 
 AMBIGUOUS = '¿'
 
@@ -45,8 +46,6 @@ def matchings(inport1, inport2, pk_col, outport):
   pk_pos2 = windex(header2, pk_col)
   assert pk_pos1 != None 
   assert pk_pos2 != None
-  mode_pos = windex(header2, "mode")
-  previous_pos2 = windex(header2, "previous_pk")
   foi_positions = [windex(header2, name) for name in MANAGED_FIELDS]
 
   rows2_by_property = get_rows_by_property(all_rows2, header2)
@@ -59,73 +58,82 @@ def matchings(inport1, inport2, pk_col, outport):
     return (score, key1, key2)
   writer = csv.writer(outport)
 
+  # Primary key is key1, key2 goes to "new_pk" column
   def write_row(row2, mode, key1):
-    if previous_pos2 == None:
-      row2 = [key1] + row2
-    else:
-      row2[previous_pos2] = key1
-    if mode_pos == None:
-      row2 = [mode] + row2
-    else:
-      row2[mode_pos] = mode
-    writer.writerow(row2)
+    key2 = row2[pk_pos2]
+    del row2[pk_pos2]    # May need to copy !!???
+    writer.writerow([mode, key1, key2] + row2)
 
-  # Now emit the matches.
-  write_row(header2, "mode", "previous_pk")
+  def flush_row(row1):
+    # We don't really need the values: could say [MISSING for x in header2]
+    fake = apply_correspondence(corr_12, row1)
+    fake[pk_pos2] = MISSING
+    write_row(fake, "remove", key1)
 
-  correspondence = [windex(header1, column) for column in header2]
-  # Everything from file2 is carried over, updated, or new
+  # Now emit the matches.  key1 goes into the primary key column, while
+  # key2 goes into the "new_pk" column.  Other columns are those from 
+  # the second file.
+  modified_header2 = header2 + []
+  modified_header2[pk_pos2] = "new_pk"
+  write_row(modified_header2, "mode", pk_col)
+
+  # Process 1st file for changes and deletions
+  corr_12 = correspondence(header1, header2)
   carry_count = 0
   update_count = 0
-  add_count = 0
-  for (key2, row2) in sorted(all_rows2.items(),
-                             key=lambda item: item[0]):
-    best1 = best_in_file1.get(key2)
-    if best1:
-      (score, key1) = best1
-      if key1 != AMBIGUOUS:
-        (matchp, mode) = check_match(key1, key2, score, best_in_file1)
-        if matchp:
-          if unchanged(all_rows1[key1], all_rows2[key2], foi_positions, correspondence):
-            write_row(row2, "carry", key1)
-            carry_count += 1
-          else:
-            write_row(row2, "update", key1)
-            update_count += 1
-        else:
-          print("Missed match %s to %s because %s" % (key1, key2, mode),
-                file=sys.stderr)
-          write_row(row2, "add", key1)
-          add_count += 1
-    else:
-      # Wholly new
-      write_row(row2, "add", MISSING)
-      add_count += 1
-
-  # Note deletions of old rows
   remove_count = 0
-  for (key1, row1) in sorted(all_rows1.items(),
-                             key=lambda item: item[0]):
+  for (key1, row1) in all_rows1.items():
     best2 = best_in_file2.get(key1)
     if best2:
       (score, key2) = best2
       (matchp, mode) = check_match(key1, key2, score, best_in_file1)
-      if not matchp:
-        # Delete row1.  Kept rows are taken care of next
-        # We don't need the values: [MISSING for x in header2]
-        row2 = map_row(correspondence, row1)
-        row2[pk_pos2] = MISSING
-        write_row(row2, "remove", key1)
+      if matchp:
+        row2 = all_rows2[key2]
+        if unchanged(row1, row2, foi_positions, corr_12):
+          # write_row(row2, "carry", key1)
+          carry_count += 1
+        else:
+          write_row(row2, "update", key1)
+          update_count += 1
+      else:
+        # Delete row1.
+        # No need to report; check_match has already done that.
+        flush_row(row1)
         remove_count += 1
-  print("%s removals" % (remove_count,), file=sys.stderr)
+    else:
+      # Unmatched; remove
+      flush_row(row1)
+      remove_count += 1
 
-  print("%s carries, %s updates, %s additions" % (carry_count, update_count, add_count,),
+  print("%s carries, %s updates, %s removals" %
+        (carry_count, update_count, remove_count,),
         file=sys.stderr)
 
-def unchanged(row1, row2, foi_positions, correspondence):
+  # Find additions in 2nd file
+  add_count = 0
+  for (key2, row2) in all_rows2.items():
+    best1 = best_in_file1.get(key2)
+    if best1:
+      (score, key1) = best1
+      (matchp, mode) = check_match(key1, key2, score, best_in_file1)
+      if matchp:
+        pass                    # covered in previous loop
+      else:
+        # Condition has already been reported.  No report here.
+        write_row(row2, "add", key1)    # ?
+        add_count += 1
+    else:
+      # ?  need a key1 for sorting. use key1 which we hope doesn't collide.
+      # TBD: change the key if key2 is already in use as a key1.
+      write_row(row2, "add", key2)
+      add_count += 1
+
+  print("%s addition" % (add_count,), file=sys.stderr)
+
+def unchanged(row1, row2, foi_positions, corr_12):
   for pos2 in foi_positions:
     if pos2 != None:
-      pos1 = correspondence[pos2]
+      pos1 = precolumn(corr_12, pos2)
       value1 = MISSING
       if pos1 != None: value1 = row1[pos1]
       if value1 != row2[pos2]:
@@ -133,10 +141,13 @@ def unchanged(row1, row2, foi_positions, correspondence):
   return True
 
 def check_match(key1, key2, score, best_in_file1):
-  assert key1 != AMBIGUOUS
-  if key2 == AMBIGUOUS:
+  if key1 == AMBIGUOUS:
+    print("Tie: multiple old records map to %s" % (key2,),
+          file=sys.stderr)
+    return (False, "contentious")
+  elif key2 == AMBIGUOUS:
     # does not occur in 0.9/1.1
-    print("Tie: id %s -> multiple rows" % (key1,),
+    print("Tie: record %s -> multiple new rows" % (key1,),
           file=sys.stderr)
     return (False, "ambiguous")
   elif key2 == None:
@@ -177,9 +188,7 @@ def get_weights(header, header_b):
 
   # Censor these
   mode_pos = windex(header_b, "mode")
-  previous_pos2 = windex(header_b, "previous_pk")
   if mode_pos != None: weights[mode_pos] = 0
-  if previous_pos2 != None: weights[previous_pos2] = 0
 
   w = 100
   loser = INDEX_BY + []
@@ -194,8 +203,8 @@ def get_weights(header, header_b):
 def find_best_matches(header1, header2, all_rows1, all_rows2,
                       pk_col, rows2_by_property):
   assert len(all_rows2) > 0
-  correspondence = [windex(header1, column) for column in header2]
-  print("Correspondence: %s" % correspondence, file=sys.stderr)
+  corr_12 = correspondence(header1, header2)
+  print("Correspondence: %s" % (corr_12,), file=sys.stderr)
   positions = indexed_positions(header1)
   print("Indexed: %s" % positions, file=sys.stderr)
   weights = get_weights(header2, header1)
@@ -220,7 +229,7 @@ def find_best_matches(header1, header2, all_rows1, all_rows2,
       prop_count += 1
       for key2 in rows2_by_property.get(prop, []):
         row2 = all_rows2[key2]
-        score = compute_score(row1, row2, correspondence, weights)
+        score = compute_score(row1, row2, corr_12, weights)
         best1_so_far = best_in_file1.get(key2, no_info)
 
         # Update best file2 match for row1
@@ -245,13 +254,13 @@ def find_best_matches(header1, header2, all_rows1, all_rows2,
     assert len(best_in_file2) > 0
   return (best_in_file1, best_in_file2)
 
-def compute_score(row1, row2, correspondence, weights):
+def compute_score(row1, row2, corr_12, weights):
   s = 0
   for j in range(0, len(row2)):
     w = weights[j]
     if w != 0:
       if row2[j] != MISSING:
-        i = correspondence[j]
+        i = precolumn(corr_12, j)
         if i != None:
           if row1[i] != MISSING:
             s += w
@@ -306,11 +315,11 @@ if __name__ == '__main__':
     Standard output is the final state, consisting of specified state 
     file annotated with ids for initial state records, via matching.
     """)
-  parser.add_argument('--next',
-                      help='name of file to be annotated with matches to initial')
+  parser.add_argument('--target',
+                      help='name of file specifying target state')
   parser.add_argument('--pk', default=None,
                       help='name of column containing primary key')
   # List of fields stored in database or graphdb should be an arg.
   args=parser.parse_args()
-  with open(args.next, "r") as inport2:
+  with open(args.target, "r") as inport2:
     matchings(sys.stdin, inport2, args.pk, sys.stdout)
