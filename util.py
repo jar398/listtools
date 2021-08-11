@@ -5,25 +5,33 @@ import sys, io, argparse, csv
 
 MISSING = ''
 
-def read_csv(inport, pk_col):
+def read_csv(inport, pk_col=None, key=None):
   reader = csv.reader(inport)
   header = next(reader)
-  pk_pos = windex(header, pk_col)
-  if pk_pos == None:
-    print("Column %s not found in %s" % (pk_col, header),
-          file=sys.stderr)
-    assert False
-  all_rows = {}
-  for row in reader:
-    assert len(row) == len(header)
-    pk = row[pk_pos]
-    if pk == MISSING:
-      print("Column %s not set in %s" % (pk_col, row),
+  assert pk_col == None or key == None
+  assert pk_col != None or key != None
+  if pk_col:
+    pk_pos = windex(header, pk_col)
+    if pk_pos == None:
+      print("Column %s not found in %s" % (pk_col, header),
             file=sys.stderr)
       assert False
-    all_rows[pk] = row
+    keyfun = lambda row: row[pk_pos]
+  else:
+    keyfun = key
+  return (header, read_rows(reader, key=keyfun))
+
+def read_rows(reader, key=lambda row: row):
+  all_rows = {}
+  for row in reader:
+    ky = key(row)
+    if ky in all_rows:
+      print("Multiple records for key %s, e.g. %s" % (ky, row),
+            file=sys.stderr)
+      assert False
+    all_rows[ky] = row
   print("Read %s rows" % len(all_rows), file=sys.stderr)
-  return (header, all_rows)
+  return all_rows
 
 def windex(header, fieldname):
   if fieldname in header:

@@ -14,6 +14,11 @@ def project(keep, drop, inport, outport):
     droppers = drop.split(",")
     print("# project: Flushing %s" % (droppers,), file=sys.stderr)
     keepers = [column for column in keepers if not (column in droppers)]
+  for keeper in keepers:
+    if not (keeper in header):
+      print("* project: Column %s not in header %s" % (keeper, header,),
+            file=sys.stderr)
+      assert False
   keep_positions = [header.index(keeper) for keeper in keepers]
   print("# project: Keeping %s" % (keepers,), file=sys.stderr)
   print("# project: Keeping %s" % (keep_positions,), file=sys.stderr)

@@ -14,19 +14,38 @@ new_pk_column = "new_pk"
 def apply_delta(inport, deltaport, pk_col, outport):
   reader1 = csv.reader(inport)
   header1 = next(reader1)
-  pk_pos1 = windex(header1, pk_col)
-  assert pk_pos1 != None
+  old_pk_pos1 = windex(header1, pk_col)
+  assert old_pk_pos1 != None
 
   reader2 = csv.reader(deltaport)
   header2 = next(reader2)
-  pk_pos2 = windex(header2, pk_col)
   mode_pos = windex(header2, "mode")
+  old_pk_pos2 = windex(header2, pk_col)
   new_pk_pos = windex(header2, "new_pk")
-  assert pk_pos2 != None
+  assert mode_pos != None
+  assert old_pk_pos2 != None
+  assert new_pk_pos != None
 
-  corr_12 = correspondence(header1, header2)
+  header2[old_pk_pos2] = "old_pk"
+  header2[new_pk_pos] = pk_col
+
+  # row2 = row from delta.  pk column has original pk, new_pk has new pk.
+  def convert_row(row2):
+    row3 = row2 + []
+    del row3[old_pk_pos2]    # old_pk
+    del row3[mode_pos]
+    return row3
+
+  header3 = convert_row(header2)
 
   writer = csv.writer(outport)
+  writer.writerow(header3)
+
+  def write_row(row2):
+    writer.writerow(convert_row(row2))
+
+  # Turn a file 1 row into a delta row
+  corr_13 = correspondence(header1, header3)
 
   # Cf. diff.py
   row1 = None
@@ -37,15 +56,6 @@ def apply_delta(inport, deltaport, pk_col, outport):
   continued = 0
   count = 0
 
-  def write_row(row2):
-    row3 = row2 + []
-    row3[pk_pos2] = row2[new_pk_pos]
-    del row3[new_pk_pos]
-    del row3[mode_pos]
-    writer.writerow(row3)
-
-  write_row(header2)
-
   while True:
     if row1 == None:
       try:
@@ -53,7 +63,7 @@ def apply_delta(inport, deltaport, pk_col, outport):
         if len(row1) != len(header1):
           print("** Row %s of stdin is ragged" % (count,), file=sys.stderr)
           assert False
-        pk1 = row1[pk_pos1]
+        pk1 = row1[old_pk_pos1]
       except StopIteration:
         row1 = False
     if row2 == None:
@@ -62,7 +72,7 @@ def apply_delta(inport, deltaport, pk_col, outport):
         if len(row2) != len(header2):
           print("** Row %s of %s is ragged" % (count,), file=sys.stderr)
           assert False
-        pk2 = row2[pk_pos2]
+        pk2 = row2[old_pk_pos2]
       except StopIteration:
         row2 = False
     assert row1 != None and row2 != None    # should be obvious
@@ -73,7 +83,7 @@ def apply_delta(inport, deltaport, pk_col, outport):
 
     if row1 and (not row2 or pk1 < pk2):
       # CARRY OVER.
-      write_row(apply_correspondence(corr_12, row1))
+      writer.writerow(apply_correspondence(corr_13, row1))
       row1 = None
       continued += 1
     elif row2 and (not row1 or pk1 > pk2):

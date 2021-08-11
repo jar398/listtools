@@ -18,16 +18,13 @@ With some indexing, we can do it in approximately linear time.
 
 # CONFIGURATION:
 
-# Most important column first
-INDEX_BY = \
-  ["EOLid", "source", "scientificName", "canonicalName"]
-
-MANAGED_FIELDS = \
+# Fields sufficient to say it's a continuation not an update...
+#  kludge for testing purposes, really all columns should matter
+INTERESTING_FIELDS = \
   ["canonicalName", "scientificName"]
-"""
-  ["EOLid", "source", "scientificName", "canonicalName"] + \
-  ["taxonRank", "taxonomicStatus", "landmark_status"]
-"""
+
+INDEX_BY = \
+  ["EOLid", "source", "scientificName", "canonicalName", "taxonID"]
 
 # -----
 
@@ -46,7 +43,7 @@ def matchings(inport1, inport2, pk_col, outport):
   pk_pos2 = windex(header2, pk_col)
   assert pk_pos1 != None 
   assert pk_pos2 != None
-  foi_positions = [windex(header2, name) for name in MANAGED_FIELDS]
+  foi_positions = [windex(header2, name) for name in INTERESTING_FIELDS]
 
   rows2_by_property = get_rows_by_property(all_rows2, header2)
   (best_in_file1, best_in_file2) = \
@@ -58,11 +55,25 @@ def matchings(inport1, inport2, pk_col, outport):
     return (score, key1, key2)
   writer = csv.writer(outport)
 
+  # Generate a delta row from a 2nd-input row.
+  def convert_row(row2, mode, key1):
+    row3 = [mode, row2[pk_pos2]] + row2
+    row3[pk_pos2 + 2] = key1
+    return row3
+
   # Primary key is key1, key2 goes to "new_pk" column
   def write_row(row2, mode, key1):
-    key2 = row2[pk_pos2]
-    del row2[pk_pos2]    # May need to copy !!???
-    writer.writerow([mode, key1, key2] + row2)
+    writer.writerow(convert_row(row2, mode, key1))
+
+  # key1 goes into the primary key column, while
+  # key2 goes into the "new_pk" column.  Other columns are those from 
+  # the second file.  The output is sorted and processed according to
+  # the old file's primary key.  A change to the primary key comes by
+  # setting a new record's primary key to the value in the 'new_pk'
+  # column.
+  modified_header2 = header2 + []
+  modified_header2[pk_pos2] = "new_pk"
+  write_row(modified_header2, "mode", pk_col)
 
   def flush_row(row1):
     # We don't really need the values: could say [MISSING for x in header2]
@@ -70,13 +81,7 @@ def matchings(inport1, inport2, pk_col, outport):
     fake[pk_pos2] = MISSING
     write_row(fake, "remove", key1)
 
-  # Now emit the matches.  key1 goes into the primary key column, while
-  # key2 goes into the "new_pk" column.  Other columns are those from 
-  # the second file.
-  modified_header2 = header2 + []
-  modified_header2[pk_pos2] = "new_pk"
-  write_row(modified_header2, "mode", pk_col)
-
+  # Now emit the matches.  
   # Process 1st file for changes and deletions
   corr_12 = correspondence(header1, header2)
   carry_count = 0
@@ -123,9 +128,9 @@ def matchings(inport1, inport2, pk_col, outport):
         write_row(row2, "add", key1)    # ?
         add_count += 1
     else:
-      # ?  need a key1 for sorting. use key1 which we hope doesn't collide.
-      # TBD: change the key if key2 is already in use as a key1.
-      write_row(row2, "add", key2)
+      # ?  need a key1-like key for sorting. use key2, tweaked in
+      # order to avoid possible collision.
+      write_row(row2, "add", key2 + '+')
       add_count += 1
 
   print("%s addition" % (add_count,), file=sys.stderr)
