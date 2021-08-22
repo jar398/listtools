@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 import sys, argparse, csv
-from util import read_rows, windex
+from util import windex
 
 def sort_csv(inport, key_columns, outport):
   reader = csv.reader(inport)
@@ -12,13 +12,19 @@ def sort_csv(inport, key_columns, outport):
   def sort_key(row):
     return tuple(row[pk_pos] for pk_pos in key_positions)
 
-  rows = read_rows(reader, key=sort_key)
-
+  rows = read_rows(reader)
   writer = csv.writer(outport)
   writer.writerow(header)
-  for row in sorted(rows.values(), key=sort_key):
+  for row in sorted(rows, key=sort_key):
     assert len(row) == len(header)
     writer.writerow(row)
+
+def read_rows(reader):
+  all_rows = []
+  for row in reader:
+    all_rows.append(row)
+  print("Read %s rows" % len(all_rows), file=sys.stderr)
+  return all_rows
 
 if __name__ == '__main__':
   parser = argparse.ArgumentParser(description="""

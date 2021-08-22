@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 """
  Makes a subset of a checklist based on one subtree of a taxonmoy.
 
@@ -13,18 +15,13 @@ debug = False
 
 import sys, os, csv, argparse
 
-def main(checklist, tax_path, root_id, outpath):
-  topo = read_topology(tax_path)
+def main(infile, hier_path, root_id, outfile):
+  topo = read_topology(hier_path)
   all = closure(topo, root_id)
-  with open(checklist, "r") as infile:
-    with open(outpath, "w") as outfile:
-      write_subset(infile, root_id, all, topo, outfile)
+  write_subset(infile, root_id, all, topo, outfile)
 
 def write_subset(infile, root_id, all, topo, outfile):
-  print("Writing subset to %s" % outpath, flush=True, file=sys.stderr)
-
-  (delimiter, quotechar, mode) = csv_parameters(checklist)
-  reader = csv.reader(infile, delimiter=delimiter, quotechar=quotechar, quoting=mode)
+  reader = csv.reader(infile)
   head = next(reader)
 
   tid_column = head.index("taxonID") 
@@ -32,11 +29,9 @@ def write_subset(infile, root_id, all, topo, outfile):
   pid_column = head.index("parentNameUsageID")
   sid_column = head.index("taxonomicStatus")
 
-  (delimiter, quotechar, mode) = csv_parameters(outpath)
-  writer = csv.writer(outfile, delimiter=delimiter, quotechar=quotechar, quoting=mode)
+  writer = csv.writer(outfile)
   writer.writerow(head)
   for row in reader:
-    row = clean(row, tid_column, pid_column, aid_column, sid_column, topo)
     tid = row[tid_column]
     if tid in all:
       writer.writerow(row)
@@ -52,7 +47,7 @@ def closure(topo, root_id):
     if not id in all:
       all[id] = True
       if id in topo:
-        (children, synonyms, _) = topo[id]
+        (children, synonyms) = topo[id]
         for child in children:
           descend(child)
         for syn in synonyms:
@@ -61,13 +56,13 @@ def closure(topo, root_id):
   print("  %s nodes in transitive closure" % len(all), file=sys.stderr)
   return all
 
-def read_topology(tax_path):
+def read_topology(hier_path):
   # Keyed by taxon id
   topo = {}
-  (delimiter, quotechar, mode) = csv_parameters(tax_path)
+  (delimiter, quotechar, mode) = csv_parameters(hier_path)
   counter = 0
-  with open(tax_path, "r") as infile:
-    print("Scanning %s to obtain topology" % tax_path, flush=True, file=sys.stderr)
+  with open(hier_path, "r") as infile:
+    print("Scanning %s to obtain hierarchy" % hier_path, flush=True, file=sys.stderr)
     reader = csv.reader(infile, delimiter=delimiter, quotechar=quotechar, quoting=mode)
     head = next(reader)
 
@@ -91,17 +86,15 @@ def read_topology(tax_path):
       parent_id = row[pid_column]
       accepted_id = row[aid_column]
       status = row[sid_column]
-      is_syn = ((accepted_id and not accepted_id == tid and not parent_id) or
-                is_synonym_status(status))
-      get_topo_record(tid, topo)[2] = is_syn
-      if is_syn:
-        if accepted_id != '':
-          (_, syns, _) = get_topo_record(accepted_id, topo)
-          syns.append(tid)
-      else:
-        if parent_id != '':
-          (children, _, _) = get_topo_record(parent_id, topo)
-          children.append(tid)
+      # Not clear which part of the record is authoritative when there
+      # is a conflict.
+      # (accepted_id and not accepted_id == tid))
+      if accepted_id != '' and accepted_id != tid:
+        (_, syns) = get_topo_record(accepted_id, topo)
+        syns.append(tid)
+      if parent_id != '' and parent_id != tid:
+        (children, _) = get_topo_record(parent_id, topo)
+        children.append(tid)
     print("  %s nodes of which %s have children and/or synonyms" %
           (counter, len(topo)), file=sys.stderr)
 
@@ -110,91 +103,9 @@ def read_topology(tax_path):
 def get_topo_record(tid, topo):
   record = topo.get(tid)
   if not record:
-    record = [[], [], None]
+    record = [[], []]
     topo[tid] = record
   return record
-
-def clean(row, tid_column, pid_column, aid_column, sid_column, topo):
-  tid = row[tid_column]
-  status = row[sid_column]
-  accepted_id = row[aid_column]
-  parent_id = row[pid_column]
-
-  # Clean up this record
-
-  if parent_id == tid:
-    parent_id = ''
-  if accepted_id == tid:
-    accepted_id = ''
-
-  record = topo.get(tid)
-  if record:
-    (children, synonyms, is_syn) = record
-    if is_syn != is_synonym_status(status):
-      if is_syn == None:
-        is_syn = is_synonym_status(status)
-        record[2] = is_syn
-      else:
-        print("** %s: Synonym = %s but status = %s" %
-              (tid, is_syn, status), file=sys.stderr)
-  else:
-    children = []
-    synonyms = []
-    is_syn = is_synonym_status(status)
-
-  if is_syn:
-    if len(children) > 0:
-      print("** Synonym %s (%s) has children" % (tid, status), file=sys.stderr)
-    if len(synonyms) > 0:
-      print("** Synonym %s (%s) has synonyms" % (tid, status), file=sys.stderr)
-    if accepted_id == '':
-      print("** Synonym %s (%s) has no accepted id" % (tid, status), file=sys.stderr)
-      if parent_id != '':
-        print("** Synonym %s (%s) has a parent %s" % (tid, status, parent_id),
-              file=sys.stderr)
-    else:
-      (_, _, is_syn_) = topo.get(accepted_id)
-      if is_syn_ == None:
-        print("** Synonym %s accepted id %s -> nowhere" % (tid, accepted_id),
-              file=sys.stderr)
-      elif is_syn_:
-        print("** Synonym %s accepted id %s -> synonym" % (tid, accepted_id),
-              file=sys.stderr)
-      if parent_id != '':
-        # This occurs a lot in GBIF, usually (always?) points to accepted's parent
-        # print("** Synonym %s has a parent %s" % (tid, parent_id), file=sys.stderr)
-        parent_id = ''
-  else:
-    if accepted_id != '':
-      print("** Accepted node %s (%s) has accepted id %s" % (tid, status, accepted_id),
-            file=sys.stderr)
-      accepted_id = ''
-    if parent_id == '':
-      pass    # this is OK, it would be a root
-    else:
-      (_, _, is_syn_) = topo.get(parent_id)
-      if is_syn_ == None:
-        print("** Accepted %s parent id %s -> nowhere" % (tid, parent_id), file=sys.stderr)
-      elif is_syn_:
-        print("** Accepted %s has parent id %s -> synonym" % (tid, parent_id),
-              file=sys.stderr)
-    for id in children:
-      if id in topo:
-        (_, _, is_syn) = topo[id]
-        if is_syn:
-          print("** Accepted %s (%s) has child %s which is a synonym" % (tid, status, id),
-                file=sys.stderr)
-    for id in synonyms:
-      if id in topo:
-        (_, _, is_syn) = topo[id]
-        if not is_syn:
-          print("** Accepted %s (%s) has synonym %s which is accepted" % (tid, status, id),
-                file=sys.stderr)
-
-  row[pid_column] = parent_id
-  row[aid_column] = accepted_id
-
-  return row
 
 def is_synonym_status(status):
   # return status != "accepted"  ??
@@ -220,10 +131,9 @@ def csv_parameters(path):
 
 if __name__ == '__main__':
   parser = argparse.ArgumentParser()
-  parser.add_argument('--taxonomy', help="""taxonomy from which to extract
-                            hierarchy; defaults to source""")
-  parser.add_argument('source', help='taxonomy or checklist from which to extract subset')
-  parser.add_argument('id', help="taxon id of subset's root")
-  parser.add_argument('--out', help='where to store the subset')
+  parser.add_argument('--hierarchy',
+                      help="file from which to extract complete hierarchy")
+  parser.add_argument('--root',
+                      help="taxonID of root of subtree to be extracted")
   args = parser.parse_args()
-  main(args.source, args.taxonomy or args.source, args.id, args.out)
+  main(sys.stdin, args.hierarchy, args.root, sys.stdout)

@@ -21,15 +21,9 @@ def apply_mappings(mappings, inport, outport):
     print("** map: No taxonID in header: %s" % (header,),
           file=sys.stderr)
     assert False
-  overwrite = (page_id_pos != None)
-  if overwrite:
-    print("map: Overwriting %s column with mapped page ids" % page_id_label,
-          file=sys.stderr)
   writer = csv.writer(outport, delimiter=",", quotechar='"', quoting=csv.QUOTE_MINIMAL)
   out_header = [field for field in header]  # copy
-  if overwrite:
-    pass
-  else:
+  if page_id_pos == None:
     out_header.append(page_id_label)
   if parent_taxon_id_pos != None:
     out_header.append(parent_page_id_label)
@@ -42,7 +36,8 @@ def apply_mappings(mappings, inport, outport):
   self_parent = 0
   for row in reader:
     did_map = False
-    if map_count % 500000 == 0: print("# map: Row %s" % map_count, file=sys.stderr)
+    if map_count % 500000 == 0:
+      print("# map: loading map, row %s" % map_count, file=sys.stderr)
     taxon_id = row[taxon_id_pos]
     if not taxon_id:
       print("** map: No taxon id in column %s: %s" % (taxon_id_pos, row,),
@@ -53,15 +48,17 @@ def apply_mappings(mappings, inport, outport):
       did_map = True
       map_count += 1
     # Deal with page id
-    if overwrite:
+    if page_id_pos != None:
       if page_id:
         have_page_id = row[page_id_pos]
         if have_page_id:
           have_page_id = int(have_page_id)
           if have_page_id != page_id:
-            print("map: Page id conflict for taxon %s; replacing %s by %s" %
+            print("map: Page id conflict for taxon %s; replacing %s with %s" %
                   (taxon_id, have_page_id, page_id),
                   file=sys.stderr)
+      elif row[page_id_pos]:
+        did_map = True
       row[page_id_pos] = page_id
     else:
       row.append(page_id)

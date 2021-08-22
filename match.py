@@ -18,13 +18,13 @@ With some indexing, we can do it in approximately linear time.
 
 # CONFIGURATION:
 
+INDEX_BY = \
+  ["EOLid", "source", "scientificName", "canonicalName", "taxonID"]
+
 # Fields sufficient to say it's a continuation not an update...
 #  kludge for testing purposes, really all columns should matter
 INTERESTING_FIELDS = \
   ["canonicalName", "scientificName"]
-
-INDEX_BY = \
-  ["EOLid", "source", "scientificName", "canonicalName", "taxonID"]
 
 # -----
 
@@ -33,9 +33,10 @@ from functools import reduce
 from util import read_csv, windex, MISSING, \
                  correspondence, precolumn, apply_correspondence
 
-AMBIGUOUS = '¿'
+def matchings(inport1, inport2, pk_col, indexed, managed, outport):
+  global INDEX_BY
+  INDEX_BY = indexed.split(",")    # kludge
 
-def matchings(inport1, inport2, pk_col, outport):
   (header1, all_rows1) = read_csv(inport1, pk_col)
   (header2, all_rows2) = read_csv(inport2, pk_col)
 
@@ -43,16 +44,13 @@ def matchings(inport1, inport2, pk_col, outport):
   pk_pos2 = windex(header2, pk_col)
   assert pk_pos1 != None 
   assert pk_pos2 != None
-  foi_positions = [windex(header2, name) for name in INTERESTING_FIELDS]
+  foi_positions = [windex(header2, name) for name in managed.split(",")]
 
   rows2_by_property = get_rows_by_property(all_rows2, header2)
   (best_in_file1, best_in_file2) = \
     find_best_matches(header1, header2, all_rows1, all_rows2,
                       pk_col, rows2_by_property)
 
-  def item_sort_key(item):
-    (key1, (score, key2)) = item
-    return (score, key1, key2)
   writer = csv.writer(outport)
 
   # Generate a delta row from a 2nd-input row.
@@ -61,7 +59,7 @@ def matchings(inport1, inport2, pk_col, outport):
     row3[pk_pos2 + 2] = key1
     return row3
 
-  # Primary key is key1, key2 goes to "new_pk" column
+  # Primary key is key1; key2 goes to "new_pk" column
   def write_row(row2, mode, key1):
     writer.writerow(convert_row(row2, mode, key1))
 
@@ -90,9 +88,10 @@ def matchings(inport1, inport2, pk_col, outport):
   for (key1, row1) in all_rows1.items():
     best2 = best_in_file2.get(key1)
     if best2:
-      (score, key2) = best2
-      (matchp, mode) = check_match(key1, key2, score, best_in_file1)
+      (score, keys2) = best2
+      (matchp, mode) = check_match([key1], keys2, score, best_in_file1)
       if matchp:
+        key2 = keys2[0]
         row2 = all_rows2[key2]
         if unchanged(row1, row2, foi_positions, corr_12):
           # write_row(row2, "carry", key1)
@@ -119,8 +118,8 @@ def matchings(inport1, inport2, pk_col, outport):
   for (key2, row2) in all_rows2.items():
     best1 = best_in_file1.get(key2)
     if best1:
-      (score, key1) = best1
-      (matchp, mode) = check_match(key1, key2, score, best_in_file1)
+      (score, keys1) = best1
+      (matchp, mode) = check_match(keys1, [key2], score, best_in_file1)
       if matchp:
         pass                    # covered in previous loop
       else:
@@ -145,40 +144,51 @@ def unchanged(row1, row2, foi_positions, corr_12):
         return False
   return True
 
-def check_match(key1, key2, score, best_in_file1):
-  if key1 == AMBIGUOUS:
-    print("Tie: multiple old records map to %s" % (key2,),
-          file=sys.stderr)
+WAD_SIZE = 4
+
+def check_match(keys1, keys2, score, best_in_file1):
+  if len(keys1) > 1:
+    if len(keys1) < WAD_SIZE:
+      print("Tie: multiple old %s -> new %s score %s" %
+            (keys1, keys2[0], score),
+            file=sys.stderr)
     return (False, "contentious")
-  elif key2 == AMBIGUOUS:
-    # does not occur in 0.9/1.1
-    print("Tie: record %s -> multiple new rows" % (key1,),
-          file=sys.stderr)
+  elif len(keys2) > 1:
+    if len(keys2) < WAD_SIZE:
+      # does not occur in 0.9/1.1
+      print("Tie: old %s -> multiple new %s score %s" %
+            (keys1[0], keys2, score),
+            file=sys.stderr)
     return (False, "ambiguous")
-  elif key2 == None:
+  elif len(keys2) == 0:
     return (False, "unevaluated")
   elif score < 100:
-    print("Old %s match to new %s is too weak to use (score %s)" % (key1, key2, score),
+    print("Old %s match to new %s is too weak to use (score %s)" % (keys1[0], keys2[0], score),
           file=sys.stderr)
     return (False, "weak")
   else:
+    key1 = keys1[0]
+    key2 = keys2[0]
     best1 = best_in_file1.get(key2)
     if best1:
-      (score3, key3) = best1
-      if score != score3:
-        print("Old %s (score %s) defeated by old %s (score %s) for new %s" % (key1, score, key3, score3, key2,),
-              file=sys.stderr)
-        return (False, "defeated")
-      elif key3 == AMBIGUOUS:
-        print("Old %s tied (score %s) with other old(s) for new %s" % (key1, score, key2,),
-              file=sys.stderr)
+      (score3, keys3) = best1
+      if len(keys3) > 1:
+        if len(keys3) < WAD_SIZE:
+          print("Old %s tied (score %s) with other old(s) for new %s" % (key1, score, key2,),
+                file=sys.stderr)
         return (False, "tie")
       else:
-        if key1 != key3:
-          print("%s = %s != %s, score %s, back %s" % (key1, key2, key3, score, score3),
+        key3 = keys3[0]
+        if score != score3:
+          print("Old %s (score %s) defeated by old %s (score %s) for new %s" % (key1, score, key3, score3, key2,),
                 file=sys.stderr)
-          assert key1 == key3
-        return (True, "match")
+          return (False, "defeated")
+        else:
+          if key1 != key3:
+            print("%s = %s != %s, score %s, back %s" % (key1, key2, key3, score, score3),
+                  file=sys.stderr)
+            assert key1 == key3
+          return (True, "match")
     else:
       return (False, "unconsidered")
 
@@ -188,8 +198,10 @@ def indexed_positions(header):
           for col in INDEX_BY
           if windex(header, col) != None]
 
-def get_weights(header, header_b):
-  weights = [(1 if col in header_b else 0) for col in header]
+# One weight for each column in file A
+
+def get_weights(header_a, header_b):
+  weights = [(1 if col in header_b else 0) for col in header_a]
 
   # Censor these
   mode_pos = windex(header_b, "mode")
@@ -199,7 +211,7 @@ def get_weights(header, header_b):
   loser = INDEX_BY + []
   loser.reverse()               # I hate this
   for col in loser:
-    pos = windex(header, col)
+    pos = windex(header_a, col)
     if pos != None:
       weights[pos] = w
     w = w + w
@@ -219,7 +231,7 @@ def find_best_matches(header1, header2, all_rows1, all_rows2,
     print("No %s column in %s" % (pk_col, header1,),
           file=sys.stderr)
   assert pk_pos != None
-  no_info = (-1, None)
+  no_info = (-1, [])
 
   best_in_file2 = {}    # key1 -> (score, key2)
   best_in_file1 = {}    # key2 -> (score, key1)
@@ -238,18 +250,18 @@ def find_best_matches(header1, header2, all_rows1, all_rows2,
         best1_so_far = best_in_file1.get(key2, no_info)
 
         # Update best file2 match for row1
-        (score2_so_far, key2_so_far) = best2_so_far
+        (score2_so_far, keys2) = best2_so_far
         if score > score2_so_far:
-          best2_so_far = (score, key2)
-        elif score == score2_so_far and key2 != key2_so_far:
-          best2_so_far = (score, AMBIGUOUS)
+          best2_so_far = (score, [key2])
+        elif score == score2_so_far and not key2 in keys2:
+          if len(keys2) < WAD_SIZE: keys2.append(key2)
 
         # Update best file1 match for row2
-        (score1_so_far, key1_so_far) = best1_so_far
+        (score1_so_far, keys1) = best1_so_far
         if score > score1_so_far:
-          best_in_file1[key2] = (score, key1)
-        elif score == score1_so_far and key1 != key1_so_far:
-          best_in_file1[key2] = (score, AMBIGUOUS)
+          best_in_file1[key2] = (score, [key1])
+        elif score == score1_so_far and not key1 in keys1:
+          if len(keys1) < WAD_SIZE: keys1.append(key1)
 
     if best2_so_far != no_info:
       best_in_file2[key1] = best2_so_far
@@ -264,11 +276,19 @@ def compute_score(row1, row2, corr_12, weights):
   for j in range(0, len(row2)):
     w = weights[j]
     if w != 0:
-      if row2[j] != MISSING:
-        i = precolumn(corr_12, j)
-        if i != None:
-          if row1[i] != MISSING:
-            s += w
+      v2 = row2[j]
+      i = precolumn(corr_12, j)
+      if i != None:
+        v1 = row1[i]
+      else:
+        v1 = MISSING
+      if v1 == MISSING or v2 == MISSING:
+        d = 1
+      elif v1 == v2:
+        d = 100
+      else:
+        d = 0
+      s += w * d
   return s
 
 LIMIT=100
@@ -283,7 +303,7 @@ def get_rows_by_property(all_rows, header):
       if keys != None:
         if len(keys) <= LIMIT:
           if len(keys) == LIMIT:
-            print("%s rows with property %s" % (LIMIT, property,),
+            print("%s+ rows with property %s" % (LIMIT, property,),
                   file=sys.stderr)
           keys.append(key)
           entry_count += 1
@@ -322,9 +342,19 @@ if __name__ == '__main__':
     """)
   parser.add_argument('--target',
                       help='name of file specifying target state')
-  parser.add_argument('--pk', default=None,
+  parser.add_argument('--pk',
+                      default="taxonID",
                       help='name of column containing primary key')
+  # Order is important
+  indexed="EOLid,source,scientificName,canonicalName,taxonID"
+  parser.add_argument('--index',
+                      default=indexed,
+                      help='names of columns to match on')
+  managed=indexed+"taxonRank,taxonomicStatus,datasetID"
+  parser.add_argument('--manage',
+                      default=managed,
+                      help='names of columns under version control')
   # List of fields stored in database or graphdb should be an arg.
   args=parser.parse_args()
   with open(args.target, "r") as inport2:
-    matchings(sys.stdin, inport2, args.pk, sys.stdout)
+    matchings(sys.stdin, inport2, args.pk, args.index, args.manage, sys.stdout)

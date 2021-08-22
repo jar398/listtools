@@ -16,16 +16,9 @@ def start_csv(inport, params, outport, pk_col, cleanp):
   if len(in_header) == 1:
     if "," in in_header[0] or "\t" in in_header[0]:
       print("** start: Suspicious in_header", file=sys.stderr)
-      print("** start: In_Header is %s" % (row,), file=sys.stderr)
+      print("** start: in_header is %s" % (in_header,), file=sys.stderr)
   pk_pos_in = windex(in_header, pk_col)
-  must_affix_pk = (pk_col and pk_pos_in == None)
-  if must_affix_pk:
-    print("Prepending a %s column" % pk_col, file=sys.stderr)
-    out_header = [pk_col] + in_header
-  else:
-    out_header = in_header
-  pk_pos_out = windex(out_header, pk_col)
-  print("Output header: %s" % (out_header,), file=sys.stderr)
+
   can_pos = windex(in_header, "canonicalName")
   sci_pos = windex(in_header, "scientificName")
   source_pos = windex(in_header, "source")
@@ -34,6 +27,15 @@ def start_csv(inport, params, outport, pk_col, cleanp):
   if landmark_pos != None: in_header[landmark_pos] = "landmark_status"
   taxon_id_pos = windex(in_header, "taxonID")
   accepted_pos = windex(in_header, "acceptedNameUsageID")
+
+  must_affix_pk = (pk_col and pk_pos_in == None)
+  if must_affix_pk:
+    print("Prepending a %s column" % pk_col, file=sys.stderr)
+    out_header = [pk_col] + in_header
+  else:
+    out_header = in_header
+  pk_pos_out = windex(out_header, pk_col)
+  print("Output header: %s" % (out_header,), file=sys.stderr)
 
   writer = csv.writer(outport) # CSV not TSV
   writer.writerow(out_header)
