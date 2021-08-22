@@ -15,6 +15,8 @@ debug = False
 
 import sys, os, csv, argparse
 
+from util import MISSING
+
 def main(infile, hier_path, root_id, outfile):
   topo = read_topology(hier_path)
   all = closure(topo, root_id)
@@ -89,10 +91,10 @@ def read_topology(hier_path):
       # Not clear which part of the record is authoritative when there
       # is a conflict.
       # (accepted_id and not accepted_id == tid))
-      if accepted_id != '' and accepted_id != tid:
+      if accepted_id != MISSING and accepted_id != tid:
         (_, syns) = get_topo_record(accepted_id, topo)
         syns.append(tid)
-      if parent_id != '' and parent_id != tid:
+      if parent_id != MISSING and parent_id != tid:
         (children, _) = get_topo_record(parent_id, topo)
         children.append(tid)
     print("  %s nodes of which %s have children and/or synonyms" %

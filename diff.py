@@ -1,165 +1,370 @@
-#!/bin/env python3
+#!/usr/bin/env python3
 
-# Find the differences between two source tables, and generate a list
-# of patch directives that would transform one into the other.
+# comet = ☄  erase = ⌫  recycle = ♲
 
-# Records are matched between the sources via their primary keys.
 
-import sys, csv, argparse
+"""
+Here's what we're trying to do, as an n^2 method:
 
-def prepare_diff_report(pk_spec, path2, inport1, outport):
-  pk_fields = pk_spec.split(",")
-  #print("# diff: Primary key fields = %s" % pk_fields, file=sys.stderr)
-  (reader1, header1, pk_positions1) = start(inport1, pk_fields, ".csv")    #foooooo
-  #print("# diff: Header 1 = %s" % header1, file=sys.stderr)
-  with open(path2, "r") as inport2:
-    (reader2, header2, pk_positions2) = start(inport2, pk_fields, path2)
-    #print("# diff: Header 2 = %s" % header2, file=sys.stderr)
-    if sorted(header1) != sorted(header2):
-      print("** diff: Tables have different columns", file=sys.stderr)
-    column_map = [(windex(header1, header2[j]), j) for j in range(len(header2))]
-    #print("# diff: Column mapping is %s" % column_map, file=sys.stderr)
-    writer = csv.writer(outport)
-    writer.writerow(["status"] + header2)
-    row1 = None
-    row2 = None
-    added = 0
-    removed = 0
-    changed = 0
-    continued = 0
-    count = 0
-    while True:
-      if row1 == None:
-        try:
-          row1 = next(reader1)
-          if len(row1) != len(header1):
-            print("** Row %s of stdin is ragged" % (count,))
-          pk1 = primary_key(row1, pk_positions1)
-        except StopIteration:
-          row1 = False
-      if row2 == None:
-        try:
-          row2 = next(reader2)
-          if len(row2) != len(header2):
-            print("** Row %s of %s is ragged" % (count, path2,))
-          pk2 = primary_key(row2, pk_positions2)
-        except StopIteration:
-          row2 = False
-      assert row1 != None and row2 != None    # should be obvious
-      if row1 == False and row2 == False:
-        break
-      if count % 500000 == 0:
-        print("# diff: %s" % count, file=sys.stderr)
-      count += 1
-      if row1 and (not row2 or pk1 < pk2):
-        writer.writerow(["remove"] + row1)
-        row1 = None
-        removed += 1
-      elif row2 and (not row1 or pk2 < pk1):
-        writer.writerow(["add"] + row2)
-        row2 = None
-        added += 1
-      elif pk1 == pk2:
-        # Which columns?
-        d = row_diff(row1, row2, column_map)
-        if d:
-          row2 = [changefoo(v1, v2) for (v1, v2) in zip(row1, row2)]
-          for pos in pk_positions1:
-            row2[pos] = row1[pos]
-          writer.writerow(["change " + d] + row2)
-          changed += 1 
+  For (record 1, record 2) pair, compute match score.
+  Consider all candidate matches (x1, x2) where 
+    either x1 = record 1 or x2 = record 2.
+  Designate (record 1, record 2) a match if it has the highest score
+    among all of these candidates.
+  (I.e. if record 1 = unique best match to record 2 AND v.v.)
+
+With some indexing, we can do it in approximately linear time.
+"""
+
+# -----
+
+import sys, io, argparse, csv
+from functools import reduce
+from util import read_csv, windex, MISSING, \
+                 correspondence, precolumn, apply_correspondence
+
+def matchings(inport1, inport2, pk_col, indexed, managed, outport):
+  global INDEX_BY, pk_pos1, pk_pos2
+  INDEX_BY = indexed.split(",")    # kludge
+
+  (header1, all_rows1) = read_csv(inport1, pk_col)
+  (header2, all_rows2) = read_csv(inport2, pk_col)
+
+  pk_pos1 = windex(header1, pk_col)
+  pk_pos2 = windex(header2, pk_col)
+  assert pk_pos1 != None 
+  assert pk_pos2 != None
+  # Positions in header2 of the managed columns ("fields of interest")
+  foi_positions = [windex(header2, name) for name in managed.split(",")]
+
+  rows2_by_property = index_rows_by_property(all_rows2, header2)
+  (best_rows_in_file1, best_rows_in_file2) = \
+    find_best_matches(header1, header2, all_rows1, all_rows2,
+                      pk_col, rows2_by_property)
+
+  writer = csv.writer(outport)
+
+  # Generate a delta row from a 2nd-input row.
+  def convert_row(row2, mode, key1):
+    delta_row = [mode, row2[pk_pos2]] + row2
+    delta_row[pk_pos2 + 2] = key1
+    return delta_row
+
+  # Primary key is key1; key2 goes to "new_pk" column
+  def write_row(row2, mode, key1):
+    writer.writerow(convert_row(row2, mode, key1))
+
+  # key1 goes into the primary key column, while
+  # key2 goes into the "new_pk" column.  Other columns are those from 
+  # the second file.  The output is sorted and processed according to
+  # the old file's primary key.  A change to the primary key comes by
+  # setting a new record's primary key to the value in the 'new_pk'
+  # column.
+  modified_header2 = header2 + []
+  modified_header2[pk_pos2] = "new_pk"
+  write_row(modified_header2, "mode", pk_col)
+
+  def flush_row(row1):
+    # We don't really need the values: could say [MISSING for x in header2]
+    fake = apply_correspondence(corr_12, row1)
+    fake[pk_pos2] = MISSING
+    write_row(fake, "remove", key1)
+
+  # Now emit the matches.  
+  # Process 1st file for changes and deletions
+  corr_12 = correspondence(header1, header2)
+  carry_count = 0
+  update_count = 0
+  remove_count = 0
+  stats = [[0, 0, 0] for col in header2]
+  for (key1, row1) in all_rows1.items():
+    best_rows2 = best_rows_in_file2.get(key1)
+    if best_rows2:
+      (score, rows2) = best_rows2
+      keys2 = [row[pk_pos2] for row in rows2]
+      (matchp, mode) = check_match([row1], rows2, score,
+                                   best_rows_in_file1)
+      if matchp:
+        key2 = keys2[0]
+        row2 = all_rows2[key2]
+        if analyze_changes(row1, row2, foi_positions, corr_12, stats):
+          write_row(row2, "update", key1)
+          update_count += 1
         else:
-          continued += 1          
-        row1 = row2 = None
+          # write_row(row2, "carry", key1)
+          carry_count += 1
       else:
-        print("** Fail. Keys are %s %s" % (pk1, pk2), file=sys.stderr)
-        assert False
+        # Delete row1.
+        # No need to report; check_match has already done that.
+        flush_row(row1)
+        remove_count += 1
+    else:
+      # Unmatched; remove
+      flush_row(row1)
+      remove_count += 1
 
-    print("# diff: Added:     %s" % added, file=sys.stderr)
-    print("# diff: Removed:   %s" % removed, file=sys.stderr)
-    print("# diff: Changed:   %s" % changed, file=sys.stderr)
-    print("# diff: Continued: %s" % continued, file=sys.stderr)
+  # Find additions in 2nd file
+  add_count = 0
+  for (key2, row2) in all_rows2.items():
+    best_rows1 = best_rows_in_file1.get(key2)
+    if best_rows1:
+      (score, rows1) = best_rows1
+      keys1 = [row1[pk_pos1] for row1 in rows1]
+      (matchp, mode) = check_match(rows1, [row2], score, best_rows_in_file1)
+      if matchp:
+        pass                    # covered in previous loop
+      else:
+        # Condition has already been reported.  No report here.
+        write_row(row2, "add", key1)    # ?
+        add_count += 1
+    else:
+      # ?  need a key1-like key for sorting. use key2, tweaked in
+      # order to avoid possible collision.
+      write_row(row2, "add", key2 + '+')
+      add_count += 1
 
-def changefoo(v1, v2):
-  if v1 == v2:
-    return ""
-  else:
-    return "%s→%s" % (v1 or "", v2 or "")
-
-# Compare prepare.py
-def primary_key(row1, pk_positions1):
-  return tuple(mint(row1[pos]) for pos in pk_positions1)
-
-def mint(val):
-  if val and val.isdigit():
-    return (int(val), val)
-  else:
-    return (1000000000, val)
-
-def row_diff(row1, row2, column_map):
-  if not isinstance(row1, list):
-    print("!!! %s" % row1, file=sys.stderr)
-  if not isinstance(row2, list):
-    print("!!!! %s" % row2, file=sys.stderr)
-  return "".join([value_diff(row1[i], row2[j], j) for (i, j) in column_map])
-
-def value_diff(x1, x2, j):
-  if x1 == x2:
-    return ""
-  elif x1 == None or x1 == "":
-    # Add a value
-    return "a%s " % j
-  elif x2 == None or x2 == "":
-    # Remove a value
-    return "r%s " % j
-  else:
-    # Change a value
-    return "c%s " % j  
-
-def continues(row1, row2, column_map):
-  # True if values in row2 all come from row1
-  for (i, j) in column_map:
-    if row2[j] != row1[i]:
-      return False
-
-def start(inport, pk_fields, extension):
-  reader = csv.reader(inport)
-  header = next(reader)
-  for field in pk_fields:
-    if windex(header, field) == None:
-      print("# diff: Primary key field %s not found in header\n  %s" %
-            (field, header),
+  print("\n%s carries, %s additions, %s updates, %s removals" %
+        (carry_count, add_count, update_count, remove_count,),
+        file=sys.stderr)
+  for j in range(0, len(header2)):
+    (a, c, d) = stats[j]
+    if a + c + d > 0:
+      print("%s: %s fill, %s change, %s erase" % (header2[j], a, c, d),
             file=sys.stderr)
-  pk_positions = [windex(header, field) for field in pk_fields]
-  return (reader, header, pk_positions)
 
-def windex(header, fieldname):
-  if fieldname in header:
-    return header.index(fieldname)
+# foi_positions = positions in header2 of the change-managed columns.
+# Side effect: increment counters per column of added, updated, removed rows
+
+def analyze_changes(row1, row2, foi_positions, corr_12, stats):
+  for pos2 in foi_positions:
+    if pos2 != None:
+      value2 = row2[pos2]
+      pos1 = precolumn(corr_12, pos2)
+      value1 = MISSING
+      if pos1 != None: value1 = row1[pos1]
+      if value1 != value2:
+        if value1 == MISSING: stats[pos2][0] += 1
+        if value2 == MISSING: stats[pos2][2] += 1
+        else: stats[pos2][1] += 1
+        return True
+  return False
+
+WAD_SIZE = 4
+
+def check_match(rows1, rows2, score, best_rows_in_file1):
+  global pk_pos1, pk_pos2
+  keys1 = [row1[pk_pos1] for row1 in rows1]
+  keys2 = [row2[pk_pos2] for row2 in rows2]
+  if len(keys1) > 1:
+    if len(keys1) < WAD_SIZE:
+      # keys1 = [row1[pk_pos1] for row1 in rows1]
+      print("Tie: multiple old %s -> new %s (score %s)" %
+            (keys1, keys2[0], score),
+            file=sys.stderr)
+    return (False, "contentious")
+  elif len(keys2) > 1:
+    if len(keys2) < WAD_SIZE:
+      # does not occur in 0.9/1.1
+      print("Tie: old %s -> multiple new %s (score %s)" %
+            (keys1[0], keys2, score),
+            file=sys.stderr)
+    return (False, "ambiguous")
+  elif len(keys2) == 0:
+    return (False, "unevaluated")
+  elif score < 100:
+    print("Old %s match to new %s is too weak to use (score %s)" % (keys1[0], keys2[0], score),
+          file=sys.stderr)
+    return (False, "weak")
   else:
-    return None
+    key1 = keys1[0]
+    key2 = keys2[0]
+    best_rows1 = best_rows_in_file1.get(key2)
+    if best_rows1:
+      (score3, rows3) = best_rows1
+      pk_pos1 = 0    # FIX ME FIX ME
+      if len(rows3) > 1:
+        if len(rows3) < WAD_SIZE:
+          keys3 = [row3[pk_pos1] for row3 in rows3]
+          print("Old %s (score %s) colliding at %s" % (keys3, score, key2,),
+                file=sys.stderr)
+        return (False, "collision")
+      elif score < score3:
+        # Don't report; this happens way too often
+        return (False, "inferior")
+      else:
+        assert score == score3
+        row3 = rows3[0]
+        key3 = row3[pk_pos1]
+        if key1 != key3:
+          print("%s = %s != %s, score %s, back %s" % (key1, key2, key3, score, score3),
+                file=sys.stderr)
+          assert key1 == key3
+        return (True, "match")
+    else:
+      return (False, "unconsidered")
+
+# Positions in header2 of columns to be indexed (properties)
+
+def indexed_positions(header, index_by):
+  return [windex(header, col)
+          for col in index_by
+          if windex(header, col) != None]
+
+# One weight for each column in file A
+
+def get_weights(header_b, header_a, index_by):
+  weights = [(1 if col in header_b else 0) for col in header_a]
+
+  # Censor these
+  mode_pos = windex(header_b, "mode")
+  if mode_pos != None: weights[mode_pos] = 0
+
+  w = 100
+  loser = index_by + []
+  loser.reverse()               # I hate this
+  for col in loser:
+    pos = windex(header_a, col)
+    if pos != None:
+      weights[pos] = w
+    w = w + w
+  return weights
+
+def find_best_matches(header1, header2, all_rows1, all_rows2,
+                      pk_col, rows2_by_property):
+  global pk_pos1, pk_pos2
+  assert len(all_rows2) > 0
+  corr_12 = correspondence(header1, header2)
+  print("Correspondence: %s" % (corr_12,), file=sys.stderr)
+  positions = indexed_positions(header1, INDEX_BY)
+  print("Indexed: %s" % positions, file=sys.stderr)
+  weights = get_weights(header1, header2, INDEX_BY)    # parallel to header2
+  print("Weights: %s" % weights, file=sys.stderr)
+  no_info = (-1, [])
+
+  best_rows_in_file2 = {}    # key1 -> (score, rows2)
+  best_rows_in_file1 = {}    # key2 -> (score, rows1)
+  prop_count = 0
+  for (key1, row1) in all_rows1.items():
+    # The following check is also enforced by start.py... flush them here?
+    best2_so_far = no_info
+    best_rows_so_far2 = no_info
+
+    for prop in row_properties(row1, header1, positions):
+      if prop_count % 100000 == 0:
+        print(prop_count, file=sys.stderr)
+      prop_count += 1
+      for row2 in rows2_by_property.get(prop, []):
+        key2 = row2[pk_pos2]
+        score = compute_score(row1, row2, corr_12, weights)
+        best_rows_so_far1 = best_rows_in_file1.get(key2, no_info)
+
+        # Update best file2 match for row1
+        (score2_so_far, rows2) = best_rows_so_far2
+        if score > score2_so_far:
+          best_rows_so_far2 = (score, [row2])
+        elif score == score2_so_far and not row2 in rows2:
+          if len(rows2) < WAD_SIZE: rows2.append(row2)
+
+        # Update best file1 match for row2
+        (score1_so_far, rows1) = best_rows_so_far1
+        if score > score1_so_far:
+          best_rows_in_file1[key2] = (score, [row1])
+        elif score == score1_so_far and not row1 in rows1:
+          if len(rows1) < WAD_SIZE: rows1.append(row1)
+
+    if best_rows_so_far2 != no_info:
+      best_rows_in_file2[key1] = best_rows_so_far2
+
+  print("%s properties" % prop_count, file=sys.stderr)
+  if len(all_rows1) > 0 and len(all_rows2) > 0:
+    assert len(best_rows_in_file1) > 0
+    assert len(best_rows_in_file2) > 0
+  return (best_rows_in_file1, best_rows_in_file2)
+
+def compute_score(row1, row2, corr_12, weights):
+  s = 0
+  for j in range(0, len(row2)):
+    w = weights[j]
+    if w != 0:
+      v2 = row2[j]
+      i = precolumn(corr_12, j)
+      if i != None:
+        v1 = row1[i]
+      else:
+        v1 = MISSING
+      if v1 == MISSING or v2 == MISSING:
+        d = 1
+      elif v1 == v2:
+        d = 100
+      else:
+        d = 0
+      s += w * d
+  return s
+
+LIMIT=100
+
+def index_rows_by_property(all_rows, header):
+  positions = indexed_positions(header, INDEX_BY)
+  rows_by_property = {}
+  entry_count = 0
+  for (key, row) in all_rows.items():
+    for property in row_properties(row, header, positions):
+      rows = rows_by_property.get(property)
+      if rows != None:
+        if len(rows) <= LIMIT:
+          if len(rows) == LIMIT:
+            print("%s+ rows with property %s" % (LIMIT, property,),
+                  file=sys.stderr)
+          rows.append(row)
+          entry_count += 1
+      else:
+        rows_by_property[property] = [row]
+        entry_count += 1
+  print("%s properties" % (len(rows_by_property),),
+        file=sys.stderr)
+  return rows_by_property
+
+# Future: exclude really ephemeral properties like taxonID
+
+def row_properties(row, header, positions):
+  return [(header[i], row[i])
+          for i in range(0, len(header))
+          if (i in positions and
+              row[i] != MISSING)]
+
+# Test
+def test1():
+  inport1 = io.StringIO(u"taxonID,bar\n1,2")
+  inport2 = io.StringIO(u"taxonID,bar\n1,3")
+  matchings(inport1, inport2, sys.stdout)
+
+def test():
+  inport1 = io.StringIO(u"taxonID,bar\n1,dog\n2,cat")
+  inport2 = io.StringIO(u"taxonID,bar\n91,cat\n93,pig")
+  matchings(inport1, inport2, sys.stdout)
+
 
 if __name__ == '__main__':
   parser = argparse.ArgumentParser(description="""
-    Find differences between the two inputs.
-    The first input is read from standard input, and the second from the 
-    named file.
-    The 'prepare' tool can be used to put an input into the sorted form 
-    required by this tool. 
-    A report on the 
-    differences is written to standard output.  
-    The report contains an additional "status" column.
-    Rows present in the first input but not the second are given status "add".
-    Rows present in the second but not the first are given status "remove".
-    Changed rows (with some fields added, removed, or altered) are given
-    status "change" with additional details provided on which columns changed.
-    Rows that 
-    persist unchanged from the first input to the second are 
-    not listed in the report at all.
+    Standard input is file containing initial state.
+    Standard output is the final state, consisting of specified state 
+    file annotated with ids for initial state records, via matching.
     """)
-  parser.add_argument('other',
-                      help="Filename for the second input (CSV)")
-  parser.add_argument('--key',
-                      help="names 'a,b,c' for columns that together form match key")
+  parser.add_argument('--target',
+                      help='name of file specifying target state')
+  parser.add_argument('--pk',
+                      default="taxonID",
+                      help='name of column containing primary key')
+  # Order is important
+  indexed="EOLid,scientificName,canonicalName,taxonID"
+  parser.add_argument('--index',
+                      default=indexed,
+                      help='names of columns to match on')
+  managed=indexed+"taxonRank,taxonomicStatus,datasetID"
+  parser.add_argument('--manage',
+                      default=managed,
+                      help='names of columns under version control')
+  # List of fields stored in database or graphdb should be an arg.
   args=parser.parse_args()
-  prepare_diff_report(args.key, args.other, sys.stdin, sys.stdout)
+  with open(args.target, "r") as inport2:
+    matchings(sys.stdin, inport2, args.pk, args.index, args.manage, sys.stdout)
