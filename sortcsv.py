@@ -10,7 +10,7 @@ def sort_csv(inport, key_columns, outport):
   print("## Sort key positions: %s" % (key_positions,), file=sys.stderr)
 
   def sort_key(row):
-    return tuple(row[pk_pos] for pk_pos in key_positions)
+    return (tuple(row[pk_pos] for pk_pos in key_positions), row)
 
   rows = read_rows(reader)
   writer = csv.writer(outport)

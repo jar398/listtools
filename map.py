@@ -7,7 +7,6 @@ import sys, csv, argparse
 
 page_id_label = "EOLid"
 parent_page_id_label = "parentEOLid"
-accepted_page_id_label = "acceptedEOLid"
 
 def apply_mappings(mappings, inport, outport):
   reader = csv.reader(inport)
@@ -27,8 +26,6 @@ def apply_mappings(mappings, inport, outport):
     out_header.append(page_id_label)
   if parent_taxon_id_pos != None:
     out_header.append(parent_page_id_label)
-  if accepted_taxon_id_pos != None:
-    out_header.append(accepted_page_id_label)
   writer.writerow(out_header)
   map_count = 0
   map_parent_count = 0
@@ -74,19 +71,15 @@ def apply_mappings(mappings, inport, outport):
       row.append(parent_page_id)
     if accepted_taxon_id_pos != None:
       accepted_taxon_id = row[accepted_taxon_id_pos]
-
-      if accepted_taxon_id == taxon_id:
-        # optimization that saves a dict lookup (this matters)
-        accepted_page_id = page_id
-      elif accepted_taxon_id:
+      if accepted_taxon_id and accepted_taxon_id != taxon_id:
         accepted_page_id = mappings.get(accepted_taxon_id)
         if accepted_page_id:
           did_map = True
           map_accepted_count += 1
-      else:
-        accepted_page_id = None
-
-      row.append(accepted_page_id)
+          if page_id and accepted_page_id != page_id:
+            print("taxonId %s -> %s while acceptedNameUsageID %s -> %s" %
+                  (taxon_id, page_id, accepted_taxon_id, accepted_page_id),
+                  file=sys.stderr)
     assert len(row) == len(out_header)
     if not did_map:
       print("** map: No mapping in row %s" % (row,),

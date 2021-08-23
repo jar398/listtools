@@ -51,7 +51,7 @@ def matchings(inport1, inport2, pk_col, indexed, managed, outport):
     return delta_row
 
   # Primary key is key1; key2 goes to "new_pk" column
-  def write_row(row2, mode, key1):
+  def write_row(mode, key1, row2):
     writer.writerow(convert_row(row2, mode, key1))
 
   # key1 goes into the primary key column, while
@@ -62,13 +62,13 @@ def matchings(inport1, inport2, pk_col, indexed, managed, outport):
   # column.
   modified_header2 = header2 + []
   modified_header2[pk_pos2] = "new_pk"
-  write_row(modified_header2, "mode", pk_col)
+  write_row("mode", pk_col, modified_header2)
 
   def flush_row(row1):
     # We don't really need the values: could say [MISSING for x in header2]
     fake = apply_correspondence(corr_12, row1)
     fake[pk_pos2] = MISSING
-    write_row(fake, "remove", key1)
+    write_row("remove", key1, fake)
 
   # Now emit the matches.  
   # Process 1st file for changes and deletions
@@ -76,22 +76,22 @@ def matchings(inport1, inport2, pk_col, indexed, managed, outport):
   carry_count = 0
   update_count = 0
   remove_count = 0
-  stats = [[0, 0, 0] for col in header2]
+  stats = [[0, 0, 0, ([], [], [])] for col in header2]
+  seen = {}
   for (key1, row1) in all_rows1.items():
     best_rows2 = best_rows_in_file2.get(key1)
     if best_rows2:
       (score, rows2) = best_rows2
-      keys2 = [row[pk_pos2] for row in rows2]
       (matchp, mode) = check_match([row1], rows2, score,
                                    best_rows_in_file1)
       if matchp:
-        key2 = keys2[0]
-        row2 = all_rows2[key2]
+        row2 = rows2[0]
+        seen[row2[pk_pos2]] = True
         if analyze_changes(row1, row2, foi_positions, corr_12, stats):
-          write_row(row2, "update", key1)
+          write_row("update", key1, row2)
           update_count += 1
         else:
-          # write_row(row2, "carry", key1)
+          # write_row("carry", key1, row2)
           carry_count += 1
       else:
         # Delete row1.
@@ -106,31 +106,33 @@ def matchings(inport1, inport2, pk_col, indexed, managed, outport):
   # Find additions in 2nd file
   add_count = 0
   for (key2, row2) in all_rows2.items():
-    best_rows1 = best_rows_in_file1.get(key2)
-    if best_rows1:
-      (score, rows1) = best_rows1
-      keys1 = [row1[pk_pos1] for row1 in rows1]
-      (matchp, mode) = check_match(rows1, [row2], score, best_rows_in_file1)
-      if matchp:
-        pass                    # covered in previous loop
-      else:
-        # Condition has already been reported.  No report here.
-        write_row(row2, "add", key1)    # ?
-        add_count += 1
-    else:
-      # ?  need a key1-like key for sorting. use key2, tweaked in
-      # order to avoid possible collision.
-      write_row(row2, "add", key2 + '+')
+    if not key2 in seen:
+      if key2 in all_rows1:
+        print("Collision: %s" % key2)
+      write_row("add", key2, row2)
       add_count += 1
+  seen = None
 
-  print("\n%s carries, %s additions, %s updates, %s removals" %
+  print("%s carries, %s additions, %s removals, %s updates" %
         (carry_count, add_count, update_count, remove_count,),
         file=sys.stderr)
   for j in range(0, len(header2)):
-    (a, c, d) = stats[j]
-    if a + c + d > 0:
-      print("%s: %s fill, %s change, %s erase" % (header2[j], a, c, d),
+    (a, c, d, (qs, cs, ds)) = stats[j]
+    if a > 0:
+      x = [row2[pk_pos2] for row2 in qs]
+      print("  %s: %s set %s" % (header2[j], a, x),
             file=sys.stderr)
+    if c > 0:
+      x = [row1[pk_pos1] for row1 in cs]
+      print("  %s: %s modify %s" % (header2[j], c, x),
+            file=sys.stderr)
+    if d > 0:
+      x = [row1[pk_pos1] for row1 in ds]
+      print("  %s: %s clear %s" % (header2[j], d, x),
+            file=sys.stderr)
+
+# for readability
+SAMPLES = 3
 
 # foi_positions = positions in header2 of the change-managed columns.
 # Side effect: increment counters per column of added, updated, removed rows
@@ -142,10 +144,18 @@ def analyze_changes(row1, row2, foi_positions, corr_12, stats):
       pos1 = precolumn(corr_12, pos2)
       value1 = MISSING
       if pos1 != None: value1 = row1[pos1]
+      ss = stats[pos2]
       if value1 != value2:
-        if value1 == MISSING: stats[pos2][0] += 1
-        if value2 == MISSING: stats[pos2][2] += 1
-        else: stats[pos2][1] += 1
+        (a, c, d, (qs, cs, ds)) = ss
+        if value1 == MISSING:
+          ss[0] += 1
+          if a < SAMPLES: qs.append(row2)
+        elif value2 == MISSING: 
+          ss[2] += 1
+          if d < SAMPLES: ds.append(row1)
+        else:
+          ss[1] += 1
+          if c < SAMPLES: cs.append(row1)
         return True
   return False
 
@@ -155,21 +165,21 @@ def check_match(rows1, rows2, score, best_rows_in_file1):
   global pk_pos1, pk_pos2
   keys1 = [row1[pk_pos1] for row1 in rows1]
   keys2 = [row2[pk_pos2] for row2 in rows2]
-  if len(keys1) > 1:
-    if len(keys1) < WAD_SIZE:
+  if len(rows1) > 1:
+    if len(rows1) < WAD_SIZE:
       # keys1 = [row1[pk_pos1] for row1 in rows1]
       print("Tie: multiple old %s -> new %s (score %s)" %
             (keys1, keys2[0], score),
             file=sys.stderr)
     return (False, "contentious")
-  elif len(keys2) > 1:
-    if len(keys2) < WAD_SIZE:
+  elif len(rows2) > 1:
+    if len(rows2) < WAD_SIZE:
       # does not occur in 0.9/1.1
       print("Tie: old %s -> multiple new %s (score %s)" %
             (keys1[0], keys2, score),
             file=sys.stderr)
     return (False, "ambiguous")
-  elif len(keys2) == 0:
+  elif len(rows2) == 0:
     return (False, "unevaluated")
   elif score < 100:
     print("Old %s match to new %s is too weak to use (score %s)" % (keys1[0], keys2[0], score),
@@ -250,7 +260,7 @@ def find_best_matches(header1, header2, all_rows1, all_rows2,
     best_rows_so_far2 = no_info
 
     for prop in row_properties(row1, header1, positions):
-      if prop_count % 100000 == 0:
+      if prop_count % 500000 == 0:
         print(prop_count, file=sys.stderr)
       prop_count += 1
       for row2 in rows2_by_property.get(prop, []):
@@ -356,11 +366,11 @@ if __name__ == '__main__':
                       default="taxonID",
                       help='name of column containing primary key')
   # Order is important
-  indexed="EOLid,scientificName,canonicalName,taxonID"
+  indexed="taxonID,EOLid,scientificName,canonicalName"
   parser.add_argument('--index',
                       default=indexed,
                       help='names of columns to match on')
-  managed=indexed+"taxonRank,taxonomicStatus,datasetID"
+  managed=indexed+",taxonRank,taxonomicStatus,datasetID"
   parser.add_argument('--manage',
                       default=managed,
                       help='names of columns under version control')
