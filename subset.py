@@ -55,6 +55,7 @@ def closure(topo, root_id):
         for syn in synonyms:
           descend(syn)
   descend(root_id)
+  assert len(all) > 1
   print("  %s nodes in transitive closure" % len(all), file=sys.stderr)
   return all
 

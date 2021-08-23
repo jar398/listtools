@@ -114,7 +114,7 @@ def matchings(inport1, inport2, pk_col, indexed, managed, outport):
   seen = None
 
   print("%s carries, %s additions, %s removals, %s updates" %
-        (carry_count, add_count, update_count, remove_count,),
+        (carry_count, add_count, remove_count, update_count,),
         file=sys.stderr)
   for j in range(0, len(header2)):
     (a, c, d, (qs, cs, ds)) = stats[j]
@@ -124,11 +124,11 @@ def matchings(inport1, inport2, pk_col, indexed, managed, outport):
             file=sys.stderr)
     if c > 0:
       x = [row1[pk_pos1] for row1 in cs]
-      print("  %s: %s modify %s" % (header2[j], c, x),
+      print("  %s: %s modified %s" % (header2[j], c, x),
             file=sys.stderr)
     if d > 0:
       x = [row1[pk_pos1] for row1 in ds]
-      print("  %s: %s clear %s" % (header2[j], d, x),
+      print("  %s: %s cleared %s" % (header2[j], d, x),
             file=sys.stderr)
 
 # for readability
