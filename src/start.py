@@ -35,7 +35,7 @@ def start_csv(inport, params, outport, pk_col, cleanp):
   else:
     out_header = in_header
   pk_pos_out = windex(out_header, pk_col)
-  print("Output header: %s" % (out_header,), file=sys.stderr)
+  print("# Output header: %s" % (out_header,), file=sys.stderr)
 
   writer = csv.writer(outport) # CSV not TSV
   writer.writerow(out_header)
@@ -103,7 +103,7 @@ def start_csv(inport, params, outport, pk_col, cleanp):
 
     writer.writerow(out_row)
     count += 1
-  print("start: %s rows, %s columns, %s minted, %s names cleaned, %s accepted cleaned" %
+  print("-- start: %s rows, %s columns, %s ids minted, %s names cleaned, %s accepted cleaned" %
         (count, len(in_header), minted, names_cleaned, accepteds_cleaned),
         file=sys.stderr)
   if trimmed > 0:
@@ -136,31 +136,19 @@ def clean_accepted(row, accepted_pos, taxon_id_pos):
 
 # Returns True if a change was made
 
-probe = "Callitrix torquatus Hoffmannsegg, 1807"
-probe = "Callitrix torquatus"
-
 def clean_name(row, can_pos, sci_pos):
-  q = (probe in row[can_pos] or probe in row[sci_pos])
-  if q: print("##Looking", file=sys.stderr)
   if can_pos != None and sci_pos != None:
-    if q: print("##Positions yes", file=sys.stderr)
     c = row[can_pos]
     s = row[sci_pos]
     if s == MISSING:
-      if q: print("##Sci missing yes", file=sys.stderr)
       if is_scientific(c):
-        if q: print("##Can scientific yes", file=sys.stderr)
         row[sci_pos] = c
         row[can_pos] = MISSING
         return True
-      if q: print("##Can scientific no", file=sys.stderr)
       return False
-    if q: print("##Sci missing no: %s | %s" % (c,s,), file=sys.stderr)
     if is_scientific(s):
-      if q: print("##Sci scientific, no clean", file=sys.stderr)
       return False
     # s is nonnull and not 'scientific'
-    if q: print("##Sci not scientific", file=sys.stderr)
     if c == MISSING:
       # swap
       row[sci_pos] = None

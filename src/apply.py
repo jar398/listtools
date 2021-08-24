@@ -65,7 +65,7 @@ def apply_delta(inport, deltaport, pk_col, outport):
       try:
         row1 = next(reader1)
         if count1 % 500000 == 0:
-          print("# apply: %s" % count1, file=sys.stderr)
+          print("# apply: row %s" % count1, file=sys.stderr)
         count1 += 1
         if len(row1) != len(header1):
           print("** Row %s of stdin is ragged" % (count1,), file=sys.stderr)
@@ -122,12 +122,9 @@ def apply_delta(inport, deltaport, pk_col, outport):
               file=sys.stderr)
         assert False
 
-  print("# apply: Added:     %s" % added, file=sys.stderr)
-  print("# apply: Removed:   %s" % removed, file=sys.stderr)
-  print("# apply: Changed:   %s" % changed, file=sys.stderr)
-  print("# apply: Continued: %s" % continued, file=sys.stderr)
-
-
+  print("-- apply: added %s, removed %s, updated %s, continued %s" %
+        (added, removed, changed, continued),
+        file=sys.stderr)
 
 if __name__ == '__main__':
   parser = argparse.ArgumentParser(description="""

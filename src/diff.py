@@ -108,27 +108,27 @@ def matchings(inport1, inport2, pk_col, indexed, managed, outport):
   for (key2, row2) in all_rows2.items():
     if not key2 in seen:
       if key2 in all_rows1:
-        print("Collision: %s" % key2)
+        print("** Collision: %s" % key2)
       write_row("add", key2, row2)
       add_count += 1
   seen = None
 
-  print("%s carries, %s additions, %s removals, %s updates" %
+  print("-- diff: %s carries, %s additions, %s removals, %s updates" %
         (carry_count, add_count, remove_count, update_count,),
         file=sys.stderr)
   for j in range(0, len(header2)):
     (a, c, d, (qs, cs, ds)) = stats[j]
     if a > 0:
       x = [row2[pk_pos2] for row2 in qs]
-      print("  %s: %s set %s" % (header2[j], a, x),
+      print("--   %s: %s set %s" % (header2[j], a, x),
             file=sys.stderr)
     if c > 0:
       x = [row1[pk_pos1] for row1 in cs]
-      print("  %s: %s modified %s" % (header2[j], c, x),
+      print("--   %s: %s modified %s" % (header2[j], c, x),
             file=sys.stderr)
     if d > 0:
       x = [row1[pk_pos1] for row1 in ds]
-      print("  %s: %s cleared %s" % (header2[j], d, x),
+      print("--   %s: %s cleared %s" % (header2[j], d, x),
             file=sys.stderr)
 
 # for readability
@@ -168,21 +168,21 @@ def check_match(rows1, rows2, score, best_rows_in_file1):
   if len(rows1) > 1:
     if len(rows1) < WAD_SIZE:
       # keys1 = [row1[pk_pos1] for row1 in rows1]
-      print("Tie: multiple old %s -> new %s (score %s)" %
+      print("** Tie: multiple old %s -> new %s (score %s)" %
             (keys1, keys2[0], score),
             file=sys.stderr)
     return (False, "contentious")
   elif len(rows2) > 1:
     if len(rows2) < WAD_SIZE:
       # does not occur in 0.9/1.1
-      print("Tie: old %s -> multiple new %s (score %s)" %
+      print("** Tie: old %s -> multiple new %s (score %s)" %
             (keys1[0], keys2, score),
             file=sys.stderr)
     return (False, "ambiguous")
   elif len(rows2) == 0:
     return (False, "unevaluated")
   elif score < 100:
-    print("Old %s match to new %s is too weak to use (score %s)" % (keys1[0], keys2[0], score),
+    print("** Old %s match to new %s is too weak to use (score %s)" % (keys1[0], keys2[0], score),
           file=sys.stderr)
     return (False, "weak")
   else:
@@ -195,7 +195,7 @@ def check_match(rows1, rows2, score, best_rows_in_file1):
       if len(rows3) > 1:
         if len(rows3) < WAD_SIZE:
           keys3 = [row3[pk_pos1] for row3 in rows3]
-          print("Old %s (score %s) colliding at %s" % (keys3, score, key2,),
+          print("** Old %s (score %s) colliding at %s" % (keys3, score, key2,),
                 file=sys.stderr)
         return (False, "collision")
       elif score < score3:
@@ -203,10 +203,10 @@ def check_match(rows1, rows2, score, best_rows_in_file1):
         return (False, "inferior")
       else:
         assert score == score3
-        row3 = rows3[0]
+        row3 = rows3[0]         # ??
         key3 = row3[pk_pos1]
         if key1 != key3:
-          print("%s = %s != %s, score %s, back %s" % (key1, key2, key3, score, score3),
+          print("# bug?: %s = %s != %s, score %s, back %s" % (key1, key2, key3, score, score3),
                 file=sys.stderr)
           assert key1 == key3
         return (True, "match")
@@ -244,11 +244,11 @@ def find_best_matches(header1, header2, all_rows1, all_rows2,
   global pk_pos1, pk_pos2
   assert len(all_rows2) > 0
   corr_12 = correspondence(header1, header2)
-  print("Correspondence: %s" % (corr_12,), file=sys.stderr)
+  print("# correspondence: %s" % (corr_12,), file=sys.stderr)
   positions = indexed_positions(header1, INDEX_BY)
-  print("Indexed: %s" % positions, file=sys.stderr)
+  print("# indexed: %s" % positions, file=sys.stderr)
   weights = get_weights(header1, header2, INDEX_BY)    # parallel to header2
-  print("Weights: %s" % weights, file=sys.stderr)
+  print("# weights: %s" % weights, file=sys.stderr)
   no_info = (-1, [])
 
   best_rows_in_file2 = {}    # key1 -> (score, rows2)
@@ -261,7 +261,7 @@ def find_best_matches(header1, header2, all_rows1, all_rows2,
 
     for prop in row_properties(row1, header1, positions):
       if prop_count % 500000 == 0:
-        print(prop_count, file=sys.stderr)
+        print("# %s properties so far" % prop_count, file=sys.stderr)
       prop_count += 1
       for row2 in rows2_by_property.get(prop, []):
         key2 = row2[pk_pos2]
@@ -285,7 +285,7 @@ def find_best_matches(header1, header2, all_rows1, all_rows2,
     if best_rows_so_far2 != no_info:
       best_rows_in_file2[key1] = best_rows_so_far2
 
-  print("%s properties" % prop_count, file=sys.stderr)
+  print("# diff: %s properties" % prop_count, file=sys.stderr)
   if len(all_rows1) > 0 and len(all_rows2) > 0:
     assert len(best_rows_in_file1) > 0
     assert len(best_rows_in_file2) > 0
@@ -323,14 +323,14 @@ def index_rows_by_property(all_rows, header):
       if rows != None:
         if len(rows) <= LIMIT:
           if len(rows) == LIMIT:
-            print("%s+ rows with property %s" % (LIMIT, property,),
+            print("# %s+ rows with property %s" % (LIMIT, property,),
                   file=sys.stderr)
           rows.append(row)
           entry_count += 1
       else:
         rows_by_property[property] = [row]
         entry_count += 1
-  print("%s properties" % (len(rows_by_property),),
+  print("# %s rows indexed by property" % (len(rows_by_property),),
         file=sys.stderr)
   return rows_by_property
 

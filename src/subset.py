@@ -41,7 +41,7 @@ def write_subset(infile, root_id, all, topo, outfile):
 # Transitive closure of accepted records
 
 def closure(topo, root_id):
-  print("Computing transitive closure starting from %s" % root_id,
+  print("# subset: computing transitive closure starting from %s" % root_id,
         flush=True, file=sys.stderr)
   all = {}
   empty = []
@@ -56,7 +56,7 @@ def closure(topo, root_id):
           descend(syn)
   descend(root_id)
   assert len(all) > 1
-  print("  %s nodes in transitive closure" % len(all), file=sys.stderr)
+  print("-- subset: %s items in transitive closure" % len(all), file=sys.stderr)
   return all
 
 def read_topology(hier_path):
@@ -65,7 +65,9 @@ def read_topology(hier_path):
   (delimiter, quotechar, mode) = csv_parameters(hier_path)
   counter = 0
   with open(hier_path, "r") as infile:
-    print("Scanning %s to obtain hierarchy" % hier_path, flush=True, file=sys.stderr)
+    print("# subset: scanning %s to obtain hierarchy" % hier_path,
+          flush=True,
+          file=sys.stderr)
     reader = csv.reader(infile, delimiter=delimiter, quotechar=quotechar, quoting=mode)
     head = next(reader)
 
@@ -98,7 +100,7 @@ def read_topology(hier_path):
       if parent_id != MISSING and parent_id != tid:
         (children, _) = get_topo_record(parent_id, topo)
         children.append(tid)
-    print("  %s nodes of which %s have children and/or synonyms" %
+    print("-- subset: %s hierarchy items of which %s have children and/or synonyms" %
           (counter, len(topo)), file=sys.stderr)
 
   return topo

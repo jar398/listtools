@@ -30,7 +30,7 @@ def read_rows(reader, key=lambda row: row):
             file=sys.stderr)
       assert False
     all_rows[ky] = row
-  print("Read %s rows" % len(all_rows), file=sys.stderr)
+  print("# read_rows: read %s rows" % len(all_rows), file=sys.stderr)
   return all_rows
 
 def windex(header, fieldname):

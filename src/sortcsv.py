@@ -7,7 +7,7 @@ def sort_csv(inport, key_columns, outport):
   reader = csv.reader(inport)
   header = next(reader)
   key_positions = [windex(header, pk_col) for pk_col in key_columns.split(",")]
-  print("## Sort key positions: %s" % (key_positions,), file=sys.stderr)
+  print("# sort key positions: %s" % (key_positions,), file=sys.stderr)
 
   def sort_key(row):
     return (tuple(row[pk_pos] for pk_pos in key_positions), row)
@@ -23,7 +23,7 @@ def read_rows(reader):
   all_rows = []
   for row in reader:
     all_rows.append(row)
-  print("Read %s rows" % len(all_rows), file=sys.stderr)
+  print("# sort: read %s rows" % len(all_rows), file=sys.stderr)
   return all_rows
 
 if __name__ == '__main__':
