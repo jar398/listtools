@@ -3,20 +3,31 @@
 # Run with: 
 #   make -f doc/diffpatch.makefile A=oldtable B=newtable
 # The tables here would be oldtable.csv and newtable.csv
-#
-# For example:
 
-# 1.1 / 1.2 mammals only 
-A=work/dh11-mammals
-B=work/dh12-mammals
+# Default example:
+# Compare two versions of NCBI mammals
 
-# 0.9 / 1.1
+A=work/ncbi201505-mammals
+B=work/ncbi202008-mammals
+MAMMALIA=40674
+
+# make A=work/ncbi201505-mammals B=work/ncbi202008-mammals
+
+# time make A=work/ncbi201505 B=work/ncbi202008
+
+
+# EOL examples:
+
+# EOL DH 1.1 / 1.2 mammals only 
+# A=work/dh11-mammals B=work/dh12-mammals MAMMALIA=EOL-000000627548
+
+# EOL 0.9 / 1.1
 # time make A=work/dh09 B=work/dh11
 
-# 0.9 / 1.1 mammals only
-# time make A=work/dh09-mammals B=work/dh11-mammals
+# EOL 0.9 / 1.1 mammals only
+# time make A=work/dh09-mammals B=work/dh11-mammals MAMMALIA=EOL-000000627548
 
-# 1.1 / 1.2
+# EOL 1.1 / 1.2
 # time make A=work/dh11 B=work/dh12
 
 # Hierarchies
@@ -27,7 +38,7 @@ B=work/dh12-mammals
 #   time make A=work/dh11-hier B=work/dh12-hier
 
 SHELL = /usr/bin/bash
-RAKE = cd ../plotter; rake
+RAKE = cd ../plotter && rake
 P = src
 
 
@@ -81,8 +92,12 @@ $(ROUND): $(DELTA) $A-narrow.csv $B-narrow.csv
 	$P/project.py --keep $(MANAGE) <$< >$@.new
 	@mv -f $@.new $@
 
+%-mammals.csv: %.csv $P/subset.py
+	$P/subset.py --hierarchy $< --root $(MAMMALIA) < $< > $@.new
+	@mv -f $@.new $@
+
 # ----------------------------------------------------------------------
-# Particular taxa files to use with the above
+# EOL examples
 
 inputs: dh work/dh09.csv work/dh11.csv
 dh: work/dh09.csv work/dh11.csv work/dh12.csv
@@ -119,13 +134,10 @@ work/dh12.csv: $P/start.py
 # in1=./deprecated/work/1-mam.csv
 # in2=./deprecated/work/724-mam.csv
 
-# Mammals = page id 1642, usage id EOL-000000627548
-MAMMALIA11=EOL-000000627548
+# EOL mammals root = page id 1642, usage id EOL-000000627548 (DH 1.1)
+# MAMMALIA=EOL-000000627548
 
-work/%-mammals.csv: work/%.csv $P/subset.py
-	$P/subset.py --hierarchy $< --root $(MAMMALIA11) < $< > $@.new
-	@mv -f $@.new $@
-
+# Mammals root has a different usage id in DH 0.9
 MAMMALIA09=-168130
 work/dh09-mammals.csv: work/dh09.csv $P/subset.py
 	$P/subset.py --hierarchy $< --root $(MAMMALIA09) < $< > $@.new
@@ -136,6 +148,8 @@ work/dh11-mammals-hier.csv: work/dh11-mammals.csv work/dh11-map.csv $P/hierarchy
 		  < $< \
 		  > $@.new
 	@mv -f $@.new $@
+
+# EOL dynamic hierarchy - usages mapped to pages
 
 work/%-hier.csv: work/%.csv work/%-map.csv $P/hierarchy.py
 	set -o pipefail; \
@@ -158,4 +172,32 @@ work/dh12-map.csv: work/dh11-map.csv
 work/%-mapped.csv: work/%.csv work/%-map.csv $P/idmap.py
 	$P/idmap.py --mapping $(<:.csv=-map.csv) \
 		  < $< > $@.new
+	@mv -f $@.new $@
+
+# ----------------------------------------------------------------------
+# ASU example
+
+# N.b. NCBI taxonomy id for mammals is MAMMALIA=40674
+
+foo: work/ncbi201505.csv
+
+work/ncbi201505.url:
+	echo ftp://ftp.ncbi.nlm.nih.gov/pub/taxonomy/taxdump_archive/taxdmp_2015-05-01.zip \
+	  >$@
+work/ncbi202008.url:
+	echo ftp://ftp.ncbi.nlm.nih.gov/pub/taxonomy/taxdump_archive/taxdmp_2020-08-01.zip \
+	  >$@
+
+%/dump/names.dmp: %.url
+	mkdir -p `dirname $@`
+	wget -O `dirname $@`.zip $$(cat $<)
+	unzip -d `dirname $@` `dirname $@`.zip
+	touch `dirname $@`/*
+.PRECIOUS: %/dump/names.dmp
+
+# Convert NCBI taxdump to DwC form
+%.csv: %/dump/names.dmp src/ncbi_to_dwc.py 
+	$P/ncbi_to_dwc.py `dirname $<` \
+	| $P/start.py --pk taxonID \
+	| $P/sortcsv.py --key $(USAGE_KEY) > $@.new
 	@mv -f $@.new $@

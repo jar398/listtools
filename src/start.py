@@ -176,7 +176,8 @@ if __name__ == '__main__':
     CSV rows are written to standard output.
     """)
   parser.add_argument('--input', default=None,
-                      help='name of input file.  TSV assumed unless name contains ".csv"')
+                      help="""name of input file.  TSV assumed unless
+                              name contains ".csv".  Default to CSV from stdin""")
   parser.add_argument('--pk', default=None,
                       help='name of column containing primary key')
   parser.add_argument('--clean', dest='clean', action='store_true',
@@ -186,8 +187,8 @@ if __name__ == '__main__':
 
   args=parser.parse_args()
   inpath = args.input
-  params = csv_parameters(inpath)
   if inpath == None:
+    params = csv_parameters("foo.csv")
     start_csv(sys.stdin, params, sys.stdout, args.pk, args.clean)
   else:
     with open(args.input, "r") as inport:

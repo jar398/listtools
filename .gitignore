@@ -127,3 +127,9 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+# Added by JAR
+*~
+*.tmp
+work/
+config

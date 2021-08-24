@@ -14,11 +14,15 @@ def project(keep, drop, inport, outport):
     droppers = drop.split(",")
     print("# project: Flushing %s" % (droppers,), file=sys.stderr)
     keepers = [column for column in keepers if not (column in droppers)]
+  losers = []
   for keeper in keepers:
     if not (keeper in header):
-      print("* project: Column %s not in header %s" % (keeper, header,),
+      print("-- column %s not in header %s" % (keeper, header,),
             file=sys.stderr)
-      assert False
+      losers.append(keepers.index(keeper))
+  losers.reverse()
+  for loser in losers:
+    del keepers[loser]
   keep_positions = [header.index(keeper) for keeper in keepers]
   print("# project: Keeping %s" % (keepers,), file=sys.stderr)
   print("# project: Keeping %s" % (keep_positions,), file=sys.stderr)
