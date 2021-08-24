@@ -14,6 +14,16 @@ parent_id_col = "parentEOLid"
 usage_id_col = "taxonID"
 
 def hierarchy(keep, infile, outfile, usage_to_item):
+
+  unmapped = []
+  def itemize(usage_id):
+    item_id = usage_to_item.get(usage_id)
+    if item_id: return item_id
+    item_id = "[%s]" % usage_id
+    usage_to_item[usage_id] = item_id
+    unmapped.append(usage_id)
+    return item_id
+
   item_rows = {}
   reader = csv.reader(infile)
   header = next(reader)
@@ -34,11 +44,13 @@ def hierarchy(keep, infile, outfile, usage_to_item):
   corr = correspondence(header, out_header)
   print("Correspondence: %s" % (corr,), file=sys.stderr)
 
-  item_rows = {} # item id to output row
+  item_rows = {} # usage id to output row
+  seen_item_ids = {}
   parent = {}    # usage id to parent usage id
   roots = []
   children = {}
   synonyms = 0
+  discards = []
 
   writer = csv.writer(outfile)
   writer.writerow(out_header)
@@ -60,10 +72,19 @@ def hierarchy(keep, infile, outfile, usage_to_item):
 
     # Ignore any non-accepted rows
     if indication_1:
-      item_row = apply_correspondence(corr, row)
-      item_row[0] = usage_to_item[usage_id]
-      item_rows[usage_id] = item_row    # don't need all of it
-      parent[usage_id] = row[parent_usage_pos]
+      item_id = itemize(usage_id)
+      if item_id in seen_item_ids:
+        discards.append((usage_id, item_id, seen_item_ids[item_id]))
+      else:
+        seen_item_ids[item_id] = usage_id
+        item_row = apply_correspondence(corr, row)
+        if item_row[0] != MISSING and item_row[0] != item_id:
+          print("For usage %s, mapping %s will override input file %s" %
+                (usage_id, item_id, item_row[0]),
+                file=sys.stderr)
+        item_row[0] = item_id
+        item_rows[usage_id] = item_row    # don't need all of it
+        parent[usage_id] = row[parent_usage_pos]
     else:
       synonyms += 1
 
@@ -73,7 +94,7 @@ def hierarchy(keep, infile, outfile, usage_to_item):
     parent_usage_id = parent[usage_id]
     if parent_usage_id in item_rows:
       parent[usage_id] = parent_usage_id
-      item_row[1] = usage_to_item[parent_usage_id]
+      item_row[1] = itemize(parent_usage_id)
       ch = children.get(parent_usage_id)
       if ch:
         ch.append(usage_id)
@@ -84,8 +105,8 @@ def hierarchy(keep, infile, outfile, usage_to_item):
 
     writer.writerow(item_row)
 
-  print("%s items, %s roots, %s items with children, %s non-items" %
-        (len(item_rows), len(roots), len(children), synonyms),
+  print("%s items, %s roots, %s items with children, %s non-items, %s unmapped, %s discards" %
+        (len(item_rows), len(roots), len(children), synonyms, len(unmapped), len(discards)),
         file=sys.stderr)
 
   # As a diagnostic service, check that the hierarchy is well-formed.
@@ -106,7 +127,7 @@ def hierarchy(keep, infile, outfile, usage_to_item):
       if not usage_id in seen:
         throttle += 1
         if throttle <= 10:
-          print("Missed: %s = %s" % (usage_id, usage_to_item[usage_id]),
+          print("Missed: %s = %s" % (usage_id, itemize(usage_id)),
                 file=sys.stderr)
 
 if __name__ == '__main__':

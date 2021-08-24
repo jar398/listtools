@@ -102,7 +102,7 @@ def apply_delta(inport, deltaport, pk_col, outport):
       row2 = None
       added += 1
     elif row2 and (not row1 or pk1 > pk2):
-      print("Invalid mode '%s' for %s < %s" % (row2[mode_pos], pk2, pk1),
+      print("Invalid mode '%s' for %s < %s (need to sort?)" % (row2[mode_pos], pk2, pk1),
             file=sys.stderr)
       assert False
     else:

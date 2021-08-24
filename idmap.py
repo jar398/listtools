@@ -50,7 +50,6 @@ def apply_mappings(mappings, inport, outport):
       if item_id:
         have_item_id = row[item_id_pos]
         if have_item_id:
-          have_item_id = int(have_item_id)
           if have_item_id != item_id:
             print("map: Item id conflict for usage %s; replacing %s with %s" %
                   (usage_id, have_item_id, item_id),
@@ -97,7 +96,7 @@ def read_mappings(mapfile):
     reader = csv.reader(infile)
     next(reader)
     for [usage_id, item_id] in reader:
-      mappings[usage_id] = int(item_id)
+      mappings[usage_id] = item_id
   print("map: %s mappings" % len(mappings),
         file=sys.stderr)
   return mappings
