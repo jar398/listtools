@@ -66,7 +66,7 @@ def start_csv(inport, params, outport, pk_col, cleanp):
       if clean_accepted(row, accepted_pos, taxon_id_pos):
         accepteds_cleaned += 1
 
-    # Now, cleanups specific to EOL
+    # landmark_status is specific to EOL
     if landmark_pos != None: 
       l = row[landmark_pos]
       if l != MISSING:
@@ -77,6 +77,8 @@ def start_csv(inport, params, outport, pk_col, cleanp):
         elif e == 3: row[landmark_pos] = 'extended'
         elif e == 4: row[landmark_pos] = 'full'
         else: row[landmark_pos] = MISSING
+
+    # If multiple sources (smasher output), use only the first
     if source_pos != None and row[source_pos] != MISSING:
       row[source_pos] = row[source_pos].split(',', 1)[0]
 
@@ -88,7 +90,7 @@ def start_csv(inport, params, outport, pk_col, cleanp):
     pk = out_row[pk_pos_out]
     if pk == MISSING:
       text = "^".join(row)
-      pk = hashlib.sha1(text.encode('utf-8')).hexdigest()[8:16]
+      pk = hashlib.sha1(text.encode('utf-8')).hexdigest()[0:8]
       minted += 1
       out_row[pk_pos_out] = pk
     assert pk != MISSING

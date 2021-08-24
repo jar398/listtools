@@ -366,7 +366,7 @@ if __name__ == '__main__':
                       default="taxonID",
                       help='name of column containing primary key')
   # Order is important
-  indexed="taxonID,EOLid,scientificName,canonicalName"
+  indexed="taxonID,scientificName,canonicalName"
   parser.add_argument('--index',
                       default=indexed,
                       help='names of columns to match on')

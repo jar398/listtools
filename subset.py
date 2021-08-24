@@ -15,7 +15,7 @@ debug = False
 
 import sys, os, csv, argparse
 
-from util import MISSING
+from util import MISSING, csv_parameters
 
 def main(infile, hier_path, root_id, outfile):
   topo = read_topology(hier_path)
@@ -106,29 +106,9 @@ def read_topology(hier_path):
 def get_topo_record(tid, topo):
   record = topo.get(tid)
   if not record:
-    record = [[], []]
+    record = ([], [])
     topo[tid] = record
   return record
-
-def is_synonym_status(status):
-  # return status != "accepted"  ??
-  if (("synonym" in status) or
-      status in unaccepted_statuses):
-    return True
-  elif status == "accepted" or status == "valid":
-    return False
-  else:
-    print("** Unrecognized taxonomic status %s" % status, file=sys.stderr)
-    return False
-
-# These are found the hard way.  So far gleaned from GBIF and EOL.
-unaccepted_statuses = ["misapplied", "misspelling", "invalid", "not accepted"]
-
-def csv_parameters(path):
-  if ".csv" in path:
-    return (",", '"', csv.QUOTE_MINIMAL)
-  else:
-    return ("\t", "\a", csv.QUOTE_NONE)
 
 # main(checklist, taxonomy, root_id, outfile)
 
