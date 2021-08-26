@@ -41,8 +41,6 @@ def write_subset(infile, root_id, all, topo, outfile):
 # Transitive closure of accepted records
 
 def closure(topo, root_id):
-  print("# subset: computing transitive closure starting from %s" % root_id,
-        flush=True, file=sys.stderr)
   all = {}
   empty = []
   def descend(id):

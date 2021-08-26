@@ -58,7 +58,7 @@ DELTA_KEY ?= $(USAGE_KEY)
 # and	    $P/sortcsv.py --key $(USAGE_KEY) <$< >$@.new
 
 INDEX ?= taxonID,EOLid,scientificName,canonicalName
-MANAGE ?= taxonID,scientificName,canonicalName,taxonRank,taxonomicStatus,datasetID,source
+MANAGE ?= taxonID,scientificName,canonicalName,taxonRank,taxonomicStatus,nomenclaturalStatus,datasetID,source
 
 $(DELTA): $A.csv $B.csv $P/diff.py
 	@echo
@@ -67,7 +67,6 @@ $(DELTA): $A.csv $B.csv $P/diff.py
 	$P/diff.py --target $B.csv --pk $(DELTA_KEY) \
 		   --index $(INDEX) --manage $(MANAGE) \
 		   < $A.csv \
-	| $P/project.py --keep mode,new_pk,$(MANAGE) \
 	| $P/sortcsv.py --key $(DELTA_KEY) \
 	> $@.new
 	@mv -f $@.new $@

@@ -5,7 +5,7 @@
 #  - Makes sure all rows have the same number of fields
 
 import sys, csv, re, hashlib, argparse
-from util import csv_parameters, windex
+from util import csv_parameters, windex, stable_hash
 
 MISSING = ''
 
@@ -90,7 +90,7 @@ def start_csv(inport, params, outport, pk_col, cleanp):
     pk = out_row[pk_pos_out]
     if pk == MISSING:
       text = "^".join(row)
-      pk = hashlib.sha1(text.encode('utf-8')).hexdigest()[0:8]
+      pk = stable_hash(row)
       minted += 1
       out_row[pk_pos_out] = pk
     assert pk != MISSING
@@ -98,7 +98,6 @@ def start_csv(inport, params, outport, pk_col, cleanp):
       print("%s is not a good primary key column.  Two or more rows with %s = %s\n" %
             (pk_col, pk_col, pk),
             file=sys.stderr)
-      assert not (pk in seen_pks)
     seen_pks[pk] = True
 
     writer.writerow(out_row)
@@ -191,6 +190,7 @@ if __name__ == '__main__':
     params = csv_parameters("foo.csv")
     start_csv(sys.stdin, params, sys.stdout, args.pk, args.clean)
   else:
+    params = csv_parameters(args.input)
     with open(args.input, "r") as inport:
       start_csv(inport, params, sys.stdout, args.pk, args.clean)
 

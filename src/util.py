@@ -1,7 +1,7 @@
 
 # Things used in more than one plotter python file
 
-import sys, io, argparse, csv
+import sys, io, argparse, csv, hashlib
 
 MISSING = ''
 
@@ -69,3 +69,9 @@ def csv_parameters(path):
     return (",", '"', csv.QUOTE_MINIMAL)
   else:
     return ("\t", "\a", csv.QUOTE_NONE)
+
+def stable_hash(lst, without=None):
+  if without != None:
+    lst = lst + []
+    del lst[without]
+  return hashlib.sha1("^".join(lst).encode('utf-8')).hexdigest()[0:8]

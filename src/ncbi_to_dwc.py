@@ -15,7 +15,9 @@
  Copied from ../cldiff/src/ncbi_to_dwc.py on 2021-08-24
 """
 
-import sys, os, csv, argparse, hashlib
+import sys, os, csv, argparse
+
+from util import stable_hash
 
 def ncbi_to_dwc(indir, outfile):
   assert os.path.exists(indir)
@@ -77,7 +79,7 @@ def collate_names(names, accepteds):
   # Remove the canonical names, keep the rest
   names2 = keep
   keep = None #GC
-  print ("%s canonicalNames (NCBI so-called scientific names)" %
+  print ("# %s canonicalNames (NCBI so-called scientific names)" %
          len(scinames),
          file=sys.stderr)
   synonyms = []
@@ -93,7 +95,7 @@ def collate_names(names, accepteds):
     else:
       synonyms.append(row)
   # Remove authorities (= scientific names), keep the rest
-  print ("%s scientificNames (NCBI so-called authorities)" %
+  print ("# %s scientificNames (NCBI so-called authorities)" %
          len(authorities),
          file=sys.stderr)
   return (synonyms, scinames, authorities)
@@ -111,7 +113,7 @@ def read_accepteds(nodes_path):
       if rank == "clade" or rank == "no rank":
         rank = None
       accepteds.append((row[0], row[2], rank))
-  print ("%s accepteds" % len(accepteds), file=sys.stderr)
+  print ("# %s accepted names" % len(accepteds), file=sys.stderr)
   return accepteds
 
 def read_names(names_path):
@@ -120,6 +122,7 @@ def read_names(names_path):
   with open(names_path, "r") as infile:
     # Depends on names being grouped by taxa
     previous_id = None
+    spins = {}
     for row in csv.reader(infile,
                           delimiter="\t",
                           quotechar="\a",
@@ -131,13 +134,20 @@ def read_names(names_path):
       id = row[0]
       if str(id) != previous_id:
         previous_id = id
+        spins = {}
       name = row[2]
       unique = row[4]
       nom_status = row[6]
-      text = "%s^%s^%s" % (name, nom_status, unique)
-      spin = hashlib.sha1(text.encode('utf-8')).hexdigest()[0:8]
-      names.append((id, name, nom_status, spin))
-  print ("%s names" % len(names), file=sys.stderr)
+      spin = stable_hash((name, nom_status, unique))
+      out = (id, name, nom_status, spin)
+      if not spin in spins:
+        names.append(out)
+        spins[spin] = True
+      else:
+        # 263 of these in 2020-08-01
+        # print("# Ignoring redundant name record %s" % (out,), file=sys.stderr)
+        pass
+  print ("# %s names" % len(names), file=sys.stderr)
   return names
 
 def read_merged(merged_path):
@@ -150,7 +160,7 @@ def read_merged(merged_path):
                           quoting=csv.QUOTE_NONE):
       # old_tax_id, |, new_tax_id
       merged.append((row[0], row[2]))
-  print ("%s merged" % len(merged), file=sys.stderr)
+  print ("# %s merged taxa" % len(merged), file=sys.stderr)
   return merged
 
 # When invoked from command line:

@@ -1,6 +1,13 @@
 # listtools
 Tools for manipulating lists of things, and taxonomic checklists in particular.
 
+## NCBI worked example
+
+It is possible to compare a clade as treated in two different versions
+of NCBI Taxonomy.  Here's how.
+
+
+
 ## Configuration for EOL
 
 For EOL, the list tools are intended to be used in conjunction with
