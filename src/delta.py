@@ -42,6 +42,7 @@ def matchings(inport1, inport2, pk_col_arg, indexed, managed_arg, outport):
 
   cop = compute_coproduct(header1, header2,
                           all_rows1, all_rows2)
+
   write_delta(cop, header1, header2, all_rows1, all_rows2, managed, outport)
 
 def compute_coproduct(header1, header2, all_rows1, all_rows2):
@@ -49,80 +50,104 @@ def compute_coproduct(header1, header2, all_rows1, all_rows2):
   inr = {}
   out = {}
 
-  (best_rows_in_file1, best_rows_in_file2) = \
+  (best_rows_in_file2, best_rows_in_file1) = \
     find_best_matches(header1, header2, all_rows1, all_rows2, pk_col)
+  print("# %s A rows with B match(es), %s B rows with A match(es)" %
+        (len(best_rows_in_file2), len(best_rows_in_file1)),
+        file=sys.stderr)
 
   def connect(key1, key2, remark):
     # Choose an id in the coproduct
     if key2:
       key3 = key2
+    elif key1 in all_rows2:     # id collision
+      row1 = all_rows1[key1]
+      key3 = "%s$%s" % (key1, stable_hash(row1))
+      print("-- id %s is used differently in the two inputs.\n" + \
+            "--   %s will replace it for first input" % (key1, key3),
+            file=sys.stderr)
     else:
-      if key1 in all_rows2:     # id collision
-        key3 = stable_hash(row1)
-        print("Id collision: replacing %s with %s" % (key1, key3),
-              file=sys.stderr)
-      else:
-        key3 = key1
+      key3 = key1
     # Establish correspondences
     if key1:
       inl[key1] = key3
     if key2:
       inr[key2] = key3
     out[key3] = (key1, key2, remark)
+    if not remark.startswith("."):
+      print("# %s" % (remark,), file=sys.stderr)
 
-  for (key1, row1) in all_rows1.items():
+  def find_match(key1, best_rows_in_file2, best_rows_in_file1):
     key2 = None
-    (row2, remark) = check_match(key1, best_rows_in_file1)
+    (row2, remark) = check_match(key1, best_rows_in_file2)
     if row2 != None:
       candidate = row2[pk_pos2]
-      (back1, remark2) = check_match(candidate, best_rows_in_file2)
+      (back1, remark2) = check_match(candidate, best_rows_in_file1)
       if back1 != None:
         if back1[pk_pos1] == key1:
           # Mutual match!
           key2 = candidate
-          remark = MISSING
+          remark = ".mutual"
         else:
-          # I've never seen this happen but it could
           remark = (".round trip failed: %s -> %s -> %s" %
                     (key1, row2[pk_pos2], back1[pk_pos1]))
       else:
         # Probably an ambiguity {row1, row1'} <-> row2
-        remark = remark2
+        remark = ".2 " + remark2
     else:
       # Probably an ambiguity row1 <-> {row2, row2'}
-      pass  #remark = remark
+      remark = ".1 " + remark
+    return (key2, remark)
 
-    if key2 == None and remark != MISSING:
-      print("# Near miss: %s %s" % (key1, remark), file=sys.stderr)
+  # -----
 
+  for (key1, row1) in all_rows1.items():
+    (key2, remark) = find_match(key1, best_rows_in_file2, best_rows_in_file1)
     # Store the correspondence
     connect(key1, key2, remark)
 
   for (key2, row2) in all_rows2.items():
-    if not inl.get(key2):
-      (_, remark) = check_match(key2, best_rows_in_file2)
-      # Addition
+    if not key2 in inr:
+      (key1, remark) = find_match(key2, best_rows_in_file1, best_rows_in_file2)
+      if key1:
+        # shouldn't happen
+        remark = "surprising match: %s <-> %s" % (key2, key1)
+      # Addition - why did it fail?
+      # Unique match means outcompeted, probably?
       connect(None, key2, remark)
+
+  # Print stats on outcome
+  aonly = bonly = matched = 0
+  for (key3, (key1, key2, remark)) in out.items():
+    if key1 != None and key2 != None:
+      matched += 1
+    elif key1 == None:
+      bonly += 1
+    else:
+      aonly += 1
+  print("# coproduct: %s A only, %s A and B, %s B only" %
+        (aonly, matched, bonly),
+        file=sys.stderr)
 
   return (inl, inr, out)
 
 WAD_SIZE = 4
 
-def check_match(key1, best_rows_in_file1):
+def check_match(key1, best_rows_in_file2):
   global pk_pos1, pk_pos2
-  best2 = best_rows_in_file1.get(key1)
+  best2 = best_rows_in_file2.get(key1)
   if best2:
     (score2, rows2) = best2
     if len(rows2) == 1:
-      return (rows2[0], MISSING)    # unique match
+      return (rows2[0], ".unique")    # unique match
     elif len(rows2) < WAD_SIZE:
       keys2 = [row2[pk_pos2] for row2 in rows2]
-      return (None, (".ambiguous: %s -> %s (score %s)" %
-                     (key1, keys2, score)))
+      return (None, ("ambiguous: %s -> %s (score %s)" %
+                     (key1, keys2, score2)))
     else:
-      return (None, MISSING)  # ".highly ambiguous"
+      return (None, ".highly ambiguous")
   else:
-    return (None, MISSING)
+    return (None, ".no matches")
 
 def find_best_matches(header1, header2, all_rows1, all_rows2, pk_col):
   global pk_pos1, pk_pos2
@@ -170,11 +195,11 @@ def find_best_matches(header1, header2, all_rows1, all_rows2, pk_col):
     if best_rows_so_far2 != no_info:
       best_rows_in_file2[key1] = best_rows_so_far2
 
-  print("# diff: %s properties" % prop_count, file=sys.stderr)
+  print("# delta: indexed %s values" % prop_count, file=sys.stderr)
   if len(all_rows1) > 0 and len(all_rows2) > 0:
     assert len(best_rows_in_file1) > 0
     assert len(best_rows_in_file2) > 0
-  return (best_rows_in_file1, best_rows_in_file2)
+  return (best_rows_in_file2, best_rows_in_file1)
 
 # Write coproduct in the form of an EOL-ish delta
 
@@ -183,9 +208,10 @@ def write_delta(cop, header1, header2, all_rows1, all_rows2, managed, outport):
 
   header3 = ['mode', 'new_pk', 'remark'] + managed
   mode_pos3 = 0
-  old_pk_pos3 = 3 + windex(managed, pk_col)
   new_pk_pos3 = 1
   remark_pos3 = 2
+  # new_pk_pos3 will be the primary key within the delta itself
+  old_pk_pos3 = 3 + windex(managed, pk_col)
 
   corr_13 = correspondence(header1, header3)
   corr_23 = correspondence(header2, header3)
@@ -236,7 +262,7 @@ def write_delta(cop, header1, header2, all_rows1, all_rows2, managed, outport):
                 key1, key2, key3, remark)
       add_count += 1
 
-  print("-- diff: %s carries, %s additions, %s removals, %s updates" %
+  print("-- delta: %s carries, %s additions, %s removals, %s updates" %
         (carry_count, add_count, remove_count, update_count,),
         file=sys.stderr)
   for j in range(0, len(header2)):
@@ -347,7 +373,7 @@ def index_rows_by_property(all_rows, header):
       else:
         rows_by_property[property] = [row]
         entry_count += 1
-  print("# %s rows indexed by property" % (len(rows_by_property),),
+  print("# %s rows indexed by values" % (len(rows_by_property),),
         file=sys.stderr)
   return rows_by_property
 

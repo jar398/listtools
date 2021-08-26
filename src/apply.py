@@ -23,33 +23,34 @@ def apply_delta(inport, deltaport, pk_col, outport):
   # Every delta has mode and new_pk columns, as well as a primary key
   # column (typically taxonID).
   mode_pos = windex(header2, "mode")
+  new_pk_pos2 = windex(header2, "new_pk")
+  remark_pos = windex(header2, "remark")
   old_pk_pos2 = windex(header2, pk_col)
-  new_pk_pos = windex(header2, "new_pk")
   assert mode_pos != None
   assert old_pk_pos2 != None
-  assert new_pk_pos != None
+  assert new_pk_pos2 != None
 
-  # We want to use old PK for matching
-  header2[old_pk_pos2] = "old_pk"      # was: primary key pk_col
-  header2[new_pk_pos] = pk_col         # was: "new_pk"
+  header3 = header2 + []
+  lose = sorted([mode_pos, new_pk_pos2, remark_pos])
+  lose.reverse()
+  for pos in lose:
+    del header3[pos]
+  pk_pos3 = windex(header3, pk_col)
 
-  # row2 = row from delta.  pk column has original pk, new_pk has new pk.
-  def convert_row(row2):
-    row3 = row2 + []
-    del row3[old_pk_pos2]    # old_pk
-    del row3[mode_pos]
-    return row3
-
-  header3 = convert_row(header2)
+  # Turn a file 1 row into a delta row
+  corr_13 = correspondence(header1, header3)
+  # This may be too clever... column new_pk in delta has to go to
+  # column taxonID in the new B fie
+  hacked_header3 = header3 + []
+  hacked_header3[pk_pos3] = "new_pk"    # to match delta
+  corr_23 = correspondence(header2, hacked_header3)
 
   writer = csv.writer(outport)
   writer.writerow(header3)
 
   def write_row(row2):
-    writer.writerow(convert_row(row2))
-
-  # Turn a file 1 row into a delta row
-  corr_13 = correspondence(header1, header3)
+    row3 = apply_correspondence(corr_23, row2)
+    writer.writerow(row3)
 
   # Cf. diff.py
   row1 = None
@@ -70,7 +71,7 @@ def apply_delta(inport, deltaport, pk_col, outport):
         if len(row1) != len(header1):
           print("** Row %s of stdin is ragged" % (count1,), file=sys.stderr)
           assert False
-        pk1 = row1[old_pk_pos1]
+        pk1 = row1[old_pk_pos1]    # primary key in A
       except StopIteration:
         row1 = False
         pk1 = None
@@ -83,7 +84,7 @@ def apply_delta(inport, deltaport, pk_col, outport):
         if len(row2) != len(header2):
           print("** Row %s of %s is ragged" % (count2,), file=sys.stderr)
           assert False
-        pk2 = row2[old_pk_pos2]
+        pk2 = row2[old_pk_pos2]    # primary key in A
       except StopIteration:
         row2 = False
         pk2 = None
@@ -92,8 +93,9 @@ def apply_delta(inport, deltaport, pk_col, outport):
       break
 
     if row1 and (not row2 or pk1 < pk2):
-      # CARRY OVER.
-      writer.writerow(apply_correspondence(corr_13, row1))
+      # CARRY OVER.  Primary key is unchanged.
+      row3 = apply_correspondence(corr_13, row1)
+      writer.writerow(row3)
       row1 = None
       continued += 1
     elif row2 and row2[mode_pos] == "add":

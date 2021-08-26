@@ -25,7 +25,8 @@ MAMMALIA=40674
 # time make A=work/dh09 B=work/dh11
 
 # EOL 0.9 / 1.1 mammals only
-# time make A=work/dh09-mammals B=work/dh11-mammals MAMMALIA=EOL-000000627548
+# time make A=work/dh09-mammals B=work/dh11-mammals \
+#   MAMMALIA=EOL-000000627548 INDEX=EOLid,scientificName,canonicalName
 
 # EOL 1.1 / 1.2
 # time make A=work/dh11 B=work/dh12
@@ -75,7 +76,7 @@ $(DELTA): $A.csv $B.csv $P/delta.py
 # something:
 # 	$P/scatter.py --dest $(basename $(DELTA)) < $(DELTA)
 
-$(ROUND): $(DELTA) $A-narrow.csv $B-narrow.csv
+$(ROUND): $(DELTA) $A-narrow.csv $B-narrow.csv $P/apply.py
 	@echo
 	@echo "--- APPLYING DELTA ---"
 	set -o pipefail; \
@@ -87,7 +88,7 @@ $(ROUND): $(DELTA) $A-narrow.csv $B-narrow.csv
 	@echo "--- Comparing $@ to $B.csv ---"
 	@wc $B-narrow.csv; wc $@
 
-%-narrow.csv: %.csv
+%-narrow.csv: %.csv $P/project.py
 	$P/project.py --keep $(MANAGE) <$< >$@.new
 	@mv -f $@.new $@
 

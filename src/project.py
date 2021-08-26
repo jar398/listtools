@@ -10,10 +10,13 @@ def project(keep, drop, inport, outport):
   keepers = header
   if keep:
     keepers = keep.split(",")
+    keepers = [col
+               for col in keep.split(",")
+               if col in header]
   if drop:
     droppers = drop.split(",")
     print("# project: Flushing %s" % (droppers,), file=sys.stderr)
-    keepers = [column for column in keepers if not (column in droppers)]
+    keepers = [col for col in keepers if not (col in droppers)]
   losers = []
   for keeper in keepers:
     if not (keeper in header):
