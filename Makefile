@@ -60,13 +60,13 @@ DELTA_KEY ?= $(USAGE_KEY)
 INDEX ?= taxonID,EOLid,scientificName,canonicalName
 MANAGE ?= taxonID,scientificName,canonicalName,taxonRank,taxonomicStatus,nomenclaturalStatus,datasetID,source
 
-$(DELTA): $A.csv $B.csv $P/diff.py
+$(DELTA): $A.csv $B.csv $P/delta.py
 	@echo
 	@echo "--- COMPUTING DELTA ---"
 	set -o pipefail; \
-	$P/diff.py --target $B.csv --pk $(DELTA_KEY) \
-		   --index $(INDEX) --manage $(MANAGE) \
-		   < $A.csv \
+	$P/delta.py --target $B.csv --pk $(DELTA_KEY) \
+		    --index $(INDEX) --manage $(MANAGE) \
+		    < $A.csv \
 	| $P/sortcsv.py --key $(DELTA_KEY) \
 	> $@.new
 	@mv -f $@.new $@
