@@ -14,8 +14,10 @@ def sort_csv(inport, key_columns, outport):
 
   rows = read_rows(reader)
   writer = csv.writer(outport)
+  print("# sorting %s rows" % len(rows), file=sys.stderr)
+  rows.sort(key=sort_key)
   writer.writerow(header)
-  for row in sorted(rows, key=sort_key):
+  for row in rows:
     assert len(row) == len(header)
     writer.writerow(row)
 
@@ -23,7 +25,6 @@ def read_rows(reader):
   all_rows = []
   for row in reader:
     all_rows.append(row)
-  print("# sort: read %s rows" % len(all_rows), file=sys.stderr)
   return all_rows
 
 if __name__ == '__main__':

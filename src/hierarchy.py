@@ -1,28 +1,39 @@
 #!/usr/bin/env python3
 
+# This is mainly an EOL tool but could be useful as a general
+# hierarchy checking tool.
+
 # Input: a usages table, with taxonID as primary key
 #   also acceptedNameUsageId, taxonomicStatus, etc.
 
 # Output: a hierarchical items table, with one row per item
 
 import sys, csv, argparse
-import idmap
 from util import apply_correspondence, correspondence, windex, MISSING
-
-item_id_col = "EOLid"
-parent_id_col = "parentEOLid"
-usage_id_col = "taxonID"
 
 def hierarchy(keep, infile, outfile, usage_to_item):
 
+  usage_id_col = "taxonID"
+  # This choice should be controlled independently of presence of map...
+  if usage_to_item:
+    item_id_col = "EOLid"
+    parent_id_col = "parentEOLid"
+  else:
+    item_id_col = "taxonID"
+    parent_id_col = "parentNameUsageId"
+
   unmapped = []
   def itemize(usage_id):
-    item_id = usage_to_item.get(usage_id)
-    if item_id: return item_id
-    item_id = "[%s]" % usage_id
-    usage_to_item[usage_id] = item_id
-    unmapped.append(usage_id)
-    return item_id
+    if usage_to_item:
+      item_id = usage_to_item.get(usage_id)
+      if item_id: return item_id
+      item_id = "[%s]" % usage_id
+      usage_to_item[usage_id] = item_id
+      unmapped.append(usage_id)
+      return item_id
+    else:
+      assert usage_id != MISSING
+      item_id = usage_id
 
   item_rows = {}
   reader = csv.reader(infile)
@@ -52,9 +63,6 @@ def hierarchy(keep, infile, outfile, usage_to_item):
   synonyms = 0
   discards = []
 
-  writer = csv.writer(outfile)
-  writer.writerow(out_header)
-
   for row in reader:
     usage_id = row[usage_pos]
 
@@ -76,6 +84,21 @@ def hierarchy(keep, infile, outfile, usage_to_item):
       if item_id in seen_item_ids:
         discards.append((usage_id, item_id, seen_item_ids[item_id]))
       else:
+
+        # Work out parents and children
+        # This could be done in terms of items not usages
+        parent_usage_id = row[parent_usage_pos]
+        if parent_usage_id == MISSING:
+          roots.append(parent_usage_id)
+        else:
+          parent[usage_id] = parent_usage_id
+          ch = children.get(parent_usage_id)
+          if ch:
+            ch.append(usage_id)
+          else:
+            children[parent_usage_id] = [usage_id]
+
+        # Form an output row
         seen_item_ids[item_id] = usage_id
         item_row = apply_correspondence(corr, row)
         if item_row[0] != MISSING and item_row[0] != item_id:
@@ -84,24 +107,23 @@ def hierarchy(keep, infile, outfile, usage_to_item):
                 file=sys.stderr)
         item_row[0] = item_id
         item_rows[usage_id] = item_row    # don't need all of it
-        parent[usage_id] = row[parent_usage_pos]
     else:
       synonyms += 1
+
+  writer = csv.writer(outfile)
+  writer.writerow(out_header)
 
   # Now fill in parent pointers, generate the output, and get the topology
   for (usage_id, item_row) in item_rows.items():
 
-    parent_usage_id = parent[usage_id]
-    if parent_usage_id in item_rows:
-      parent[usage_id] = parent_usage_id
-      item_row[1] = itemize(parent_usage_id)
-      ch = children.get(parent_usage_id)
-      if ch:
-        ch.append(usage_id)
+    parent_item_id = MISSING
+    parent_usage_id = parent.get(usage_id)
+    if parent_usage_id:
+      if parent_usage_id in item_rows:
+        parent_item_id = itemize(parent_usage_id)
       else:
-        children[parent_usage_id] = [usage_id]
-    else:
-      roots.append(usage_id)
+        roots.append(usage_id)
+    item_row[1] = parent_item_id
 
     writer.writerow(item_row)
 
@@ -130,6 +152,18 @@ def hierarchy(keep, infile, outfile, usage_to_item):
           print("Missed: %s = %s" % (usage_id, itemize(usage_id)),
                 file=sys.stderr)
 
+def read_mappings(mapfile):
+  if not mapfile: return None
+  mappings = {}
+  with open(mapfile, "r") as infile:
+    reader = csv.reader(infile)
+    next(reader)
+    for [usage_id, item_id] in reader:
+      mappings[usage_id] = item_id
+  print("map: %s mappings" % len(mappings),
+        file=sys.stderr)
+  return mappings
+
 if __name__ == '__main__':
   parser = argparse.ArgumentParser(description="""
     CSV rows are read from standard input and written to standard output.
@@ -140,4 +174,4 @@ if __name__ == '__main__':
   parser.add_argument('--mapping',
                       help='name of file where usage id to item id mapping is stored')
   args=parser.parse_args()
-  hierarchy(args.keep, sys.stdin, sys.stdout, idmap.read_mappings(args.mapping))
+  hierarchy(args.keep, sys.stdin, sys.stdout, read_mappings(args.mapping))

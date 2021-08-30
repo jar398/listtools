@@ -89,7 +89,8 @@ $(ROUND): $(DELTA) $A-narrow.csv $B-narrow.csv $P/apply.py
 	@wc $B-narrow.csv; wc $@
 
 %-narrow.csv: %.csv $P/project.py
-	$P/project.py --keep $(MANAGE) <$< >$@.new
+	$P/project.py --keep $(MANAGE) <$< | \
+	$P/sortcsv.py --key $(USAGE_KEY) >$@.new
 	@mv -f $@.new $@
 
 %-mammals.csv: %.csv $P/subset.py
@@ -153,7 +154,7 @@ work/dh11-mammals-hier.csv: work/dh11-mammals.csv work/dh11-map.csv $P/hierarchy
 
 work/%-hier.csv: work/%.csv work/%-map.csv $P/hierarchy.py
 	set -o pipefail; \
-	$P/hierarchy.py --mapping $(<:.csv=-map.csv) \
+	$P/hierarchy.py --mapping $(basename $<)-map.csv) \
 			--keep landmark_status \
 		  < $< \
 	| $P/sortcsv.py --key $(HIER_KEY) > $@.new
@@ -170,7 +171,7 @@ work/dh12-map.csv: work/dh11-map.csv
 # Deprecated ... ?
 
 work/%-mapped.csv: work/%.csv work/%-map.csv $P/idmap.py
-	$P/idmap.py --mapping $(<:.csv=-map.csv) \
+	$P/idmap.py --mapping $(basename $<)-map.csv) \
 		  < $< > $@.new
 	@mv -f $@.new $@
 
@@ -181,14 +182,14 @@ work/%-mapped.csv: work/%.csv work/%-map.csv $P/idmap.py
 
 foo: work/ncbi201505.csv
 
-work/ncbi201505.url:
+work/ncbi201505.ncbi-url:
 	echo ftp://ftp.ncbi.nlm.nih.gov/pub/taxonomy/taxdump_archive/taxdmp_2015-05-01.zip \
 	  >$@
-work/ncbi202008.url:
+work/ncbi202008.ncbi-url:
 	echo ftp://ftp.ncbi.nlm.nih.gov/pub/taxonomy/taxdump_archive/taxdmp_2020-08-01.zip \
 	  >$@
 
-%/dump/names.dmp: %.url
+%/dump/names.dmp: %.ncbi-url
 	mkdir -p `dirname $@`
 	wget -O `dirname $@`.zip $$(cat $<)
 	unzip -d `dirname $@` `dirname $@`.zip
@@ -198,6 +199,33 @@ work/ncbi202008.url:
 # Convert NCBI taxdump to DwC form
 %.csv: %/dump/names.dmp src/ncbi_to_dwc.py 
 	$P/ncbi_to_dwc.py `dirname $<` \
-	| $P/start.py --pk taxonID \
+	| $P/start.py --pk $(USAGE_KEY) \
 	| $P/sortcsv.py --key $(USAGE_KEY) > $@.new
 	@mv -f $@.new $@
+
+# GBIF, mammals = 359
+
+work/gbif20190916.gbif-url:
+	echo https://rs.gbif.org/datasets/backbone/2019-09-06/backbone.zip >$@
+
+work/gbif20210303.gbif-url:
+	echo https://rs.gbif.org/datasets/backbone/2021-03-03/backbone.zip >$@
+
+%/dump/meta.xml: %.gbif-url
+	mkdir -p `dirname $@`/dump
+	wget -O `dirname $@`.zip $$(cat $<)
+	unzip -d `dirname $@` `dirname $@`.zip
+	touch `dirname $@`/*
+.PRECIOUS: %/dump/meta.xml
+
+# Ingest GBIF dump
+%.csv: %/dump/meta.xml
+	$P/start.py --pk $(USAGE_KEY) --input `dirname $<`/Taxon.tsv >$@.new
+	@mv -f $@.new $@
+.PRECIOUS: %.csv
+
+fuu: work/gbif20210303-mammals.csv
+
+fuuu:
+	@echo $(dir a/b/c.d)
+	@echo $(basename a/b/c.d)

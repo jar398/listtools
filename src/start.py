@@ -42,7 +42,7 @@ def start_csv(inport, params, outport, pk_col, cleanp):
   count = 0
   trimmed = 0
   names_cleaned = 0
-  accepteds_cleaned = 0
+  accepteds_normalized = 0
   minted = 0
   seen_pks = {}
   previous_pk = 0
@@ -63,8 +63,9 @@ def start_csv(inport, params, outport, pk_col, cleanp):
     if cleanp:
       if clean_name(row, can_pos, sci_pos):
         names_cleaned += 1
-      if clean_accepted(row, accepted_pos, taxon_id_pos):
-        accepteds_cleaned += 1
+
+    if normalize_accepted(row, accepted_pos, taxon_id_pos):
+      accepteds_normalized += 1
 
     # landmark_status is specific to EOL
     if landmark_pos != None: 
@@ -102,8 +103,8 @@ def start_csv(inport, params, outport, pk_col, cleanp):
 
     writer.writerow(out_row)
     count += 1
-  print("-- start: %s rows, %s columns, %s ids minted, %s names cleaned, %s accepted cleaned" %
-        (count, len(in_header), minted, names_cleaned, accepteds_cleaned),
+  print("-- start: %s rows, %s columns, %s ids minted, %s names cleaned, %s accepted normalized" %
+        (count, len(in_header), minted, names_cleaned, accepteds_normalized),
         file=sys.stderr)
   if trimmed > 0:
     # Ignoring extra values is appropriate behavior for DH 0.9.  But
@@ -127,7 +128,7 @@ Case analysis:
   not-sci  not-sci   Remove s if =.  Otherwise leave.
 """
 
-def clean_accepted(row, accepted_pos, taxon_id_pos):
+def normalize_accepted(row, accepted_pos, taxon_id_pos):
   if accepted_pos != None and row[accepted_pos] == MISSING:
     row[accepted_pos] = row[taxon_id_pos]
     return True
