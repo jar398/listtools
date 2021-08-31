@@ -187,11 +187,11 @@ if __name__ == '__main__':
   parser.add_argument('--manage',
                       default=managed,
                       help='names of columns under version control')
-  parser.add_argument('--coproduct',
+  parser.add_argument('--matches',
                       default=None,
                       help='names of columns under version control')
   # List of fields stored in database or graphdb should be an arg.
   args=parser.parse_args()
   with open(args.target, "r") as inport2:
     matchings(sys.stdin, inport2, args.pk, args.index, args.manage,
-              args.coproduct, sys.stdout)
+              args.matches, sys.stdout)

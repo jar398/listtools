@@ -27,6 +27,7 @@ def start_csv(inport, params, outport, pk_col, cleanp):
   if landmark_pos != None: in_header[landmark_pos] = "landmark_status"
   taxon_id_pos = windex(in_header, "taxonID")
   accepted_pos = windex(in_header, "acceptedNameUsageID")
+  tax_status_pos = windex(in_header, "taxonomicStatus")
 
   must_affix_pk = (pk_col and pk_pos_in == None)
   if must_affix_pk:
@@ -67,6 +68,16 @@ def start_csv(inport, params, outport, pk_col, cleanp):
     if normalize_accepted(row, accepted_pos, taxon_id_pos):
       accepteds_normalized += 1
 
+    # Two ways to test whether a usage is accepted
+    au = row[accepted_usage_pos] if accepted_usage_pos != None else MISSING
+    indication_1 = (au == MISSING or au == usage_id)
+    stat = row[tax_status_pos] if tax_status_pos != None else "accepted"
+    indication_2 = (stat == "accepted" or stat == "valid")
+    if indication_1 != indication_2:
+      print("-- Conflicting evidence concerning acceptedness: %s usage %s status %s" %
+             (usage_id, au, stat),
+            file=sys.stderr)
+
     # landmark_status is specific to EOL
     if landmark_pos != None: 
       l = row[landmark_pos]
@@ -103,7 +114,7 @@ def start_csv(inport, params, outport, pk_col, cleanp):
 
     writer.writerow(out_row)
     count += 1
-  print("-- start: %s rows, %s columns, %s ids minted, %s names cleaned, %s accepted normalized" %
+  print("-- start: %s rows, %s columns, %s ids minted, %s names cleaned, %s accepteds normalized" %
         (count, len(in_header), minted, names_cleaned, accepteds_normalized),
         file=sys.stderr)
   if trimmed > 0:

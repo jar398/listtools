@@ -1,5 +1,5 @@
 
-# Things used in more than one plotter python file
+# Miscellaneous things used by more than one listtools module
 
 import sys, io, argparse, csv, hashlib
 

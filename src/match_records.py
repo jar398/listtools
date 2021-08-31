@@ -46,7 +46,6 @@ def compute_coproduct(header1, header2, all_rows1, all_rows2, pk_col_arg, index_
   assert pk_pos1 != None 
   assert pk_pos2 != None
 
-  seen2 = {}                    # injection B -> A+B
   cop = {}
 
   (best_rows_in_file2, best_rows_in_file1) = \
@@ -59,7 +58,6 @@ def compute_coproduct(header1, header2, all_rows1, all_rows2, pk_col_arg, index_
     # Choose an id in the coproduct
     if key2:
       key3 = key2
-      seen2[key2] = key3
     elif key1 in all_rows2:     # id collision
       row1 = all_rows1[key1]
       key3 = "%s$%s" % (key1, stable_hash(row1))
@@ -70,8 +68,9 @@ def compute_coproduct(header1, header2, all_rows1, all_rows2, pk_col_arg, index_
       key3 = key1
     # Establish correspondences
     cop[key3] = (key1, key2, remark)
-    if not remark.startswith("."):
+    if remark != MISSING and not remark.startswith("."):
       print("# %s" % (remark,), file=sys.stderr)
+    return key3
 
   def find_match(key1, best_rows_in_file2, best_rows_in_file1):
     key2 = None
@@ -97,10 +96,13 @@ def compute_coproduct(header1, header2, all_rows1, all_rows2, pk_col_arg, index_
 
   # -----
 
+  seen2 = {}                    # injection B -> A+B
+
   for (key1, row1) in all_rows1.items():
     (key2, remark) = find_match(key1, best_rows_in_file2, best_rows_in_file1)
     # Store the correspondence
-    connect(key1, key2, remark)
+    key3 = connect(key1, key2, remark)
+    if key2: seen2[key2] = key3
 
   for (key2, row2) in all_rows2.items():
     if not key2 in seen2:
@@ -145,6 +147,9 @@ def check_match(key1, best_rows_in_file2):
   else:
     return (None, ".no matches")
 
+# For each row in each input (A/B), compute the set of all best
+# (i.e. highest scoring) matches in the opposite input.
+r
 def find_best_matches(header1, header2, all_rows1, all_rows2, pk_col):
   global pk_pos1, pk_pos2
   assert len(all_rows2) > 0
