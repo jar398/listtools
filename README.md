@@ -1,5 +1,10 @@
 # listtools
+
 Tools for manipulating lists of things, and taxonomic checklists in particular.
+
+This tool suite is intended to eventually replace the ['checklist
+diff'](https://github.com/jar398/cldiff) tool.  Work in progress
+includes matching lists with sensitivity to their hierarchies.
 
 ## Overview
 
