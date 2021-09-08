@@ -61,7 +61,7 @@ DELTA_KEY ?= $(USAGE_KEY)
 INDEX ?= taxonID,EOLid,scientificName,canonicalName
 MANAGE ?= taxonID,scientificName,canonicalName,taxonRank,taxonomicStatus,nomenclaturalStatus,datasetID,source
 
-$(DELTA): $A.csv $B.csv $P/delta.py
+$(DELTA): $A.csv $B.csv $P/delta.py $P/match_records.py
 	@echo
 	@echo "--- COMPUTING DELTA ---"
 	set -o pipefail; \

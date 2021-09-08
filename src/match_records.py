@@ -17,29 +17,33 @@ With some indexing, we can do it in approximately linear time.
 
 import sys, io, argparse, csv
 from functools import reduce
-from util import read_csv, windex, MISSING, \
-                 correspondence, precolumn
+from util import ingest_csv, windex, MISSING, \
+                 correspondence, precolumn, stable_hash
 
-def main(inport1, inport2, pk_col, indexed, outport):
-  index_by = indexed.split(",")    # kludge
-  (header1, all_rows1) = read_csv(inport1, pk_col)
-  (header2, all_rows2) = read_csv(inport2, pk_col)
+# Row generators -> row generator
 
-  cop = compute_coproduct(header1, header2, all_rows1, all_rows2,
-                          pk_col, index_by)
+def match_records(a_reader, b_reader, pk_col="taxonID", index_by=["canonicalName"]):
+  a_table = ingest_csv(a_reader, pk_col)
+  b_table = ingest_csv(b_reader, pk_col)
+  cop = compute_coproduct(a_table, b_table, pk_col, index_by)
+  return generate_coproduct(cop, pk_col)
 
-  write_coproduct(cop, pk_col, outport)
+# Coproduct -> row generator
 
-def write_coproduct(cop, pk_col, outport):
-  writer = csv.writer(outport)
-  writer.writerow([pk_col, pk_col + "_A", pk_col + "_B", "remark"])
+def generate_coproduct(cop, pk_col):
+  yield [pk_col, pk_col + "_A", pk_col + "_B", "remark"]
   for (key3, (key1, key2, remark)) in cop.items():
-    writer.writerow([key3, key1, key2, remark])
+    yield [key3, key1, key2, remark]
 
-def compute_coproduct(header1, header2, all_rows1, all_rows2, pk_col_arg, index_by):
+# Stuff -> coproduct (cf. delta.py)
+
+def compute_coproduct(a_table, b_table, pk_col_arg, index_by):
   global INDEX_BY, pk_col, pk_pos1, pk_pos2
   pk_col = pk_col_arg
   INDEX_BY = index_by    # kludge
+
+  (header1, all_rows1) = a_table
+  (header2, all_rows2) = b_table
 
   pk_pos1 = windex(header1, pk_col)
   pk_pos2 = windex(header2, pk_col)
@@ -61,8 +65,8 @@ def compute_coproduct(header1, header2, all_rows1, all_rows2, pk_col_arg, index_
     elif key1 in all_rows2:     # id collision
       row1 = all_rows1[key1]
       key3 = "%s$%s" % (key1, stable_hash(row1))
-      print("-- id %s is used differently in the two inputs.\n" + \
-            "--   %s will replace it for the A input" % (key1, key3),
+      print(("-- id %s is used differently in the two inputs.\n" + \
+             "--   %s will replace it for the A input") % (key1, key3),
             file=sys.stderr)
     else:
       key3 = key1
@@ -149,7 +153,7 @@ def check_match(key1, best_rows_in_file2):
 
 # For each row in each input (A/B), compute the set of all best
 # (i.e. highest scoring) matches in the opposite input.
-r
+
 def find_best_matches(header1, header2, all_rows1, all_rows2, pk_col):
   global pk_pos1, pk_pos2
   assert len(all_rows2) > 0
@@ -281,7 +285,7 @@ def row_properties(row, header, positions):
 
 # Inverse of write_coproduct
 
-def read_coproduct(cofile, pk_col):
+def ingest_coproduct(cofile, pk_col):
   reader = csv.reader(cofile)
   header = next(reader)
   pk_pos = windex(header, pk_col)
@@ -303,12 +307,18 @@ def read_coproduct(cofile, pk_col):
 def test1():
   inport1 = io.StringIO(u"taxonID,bar\n1,2")
   inport2 = io.StringIO(u"taxonID,bar\n1,3")
-  main(inport1, inport2, "taxonID", "taxonID,bar", sys.stdout)
+  main(inport1, inport2, "taxonID", ["taxonID", "bar"], sys.stdout)
 
 def test():
   inport1 = io.StringIO(u"taxonID,bar\n1,dog\n2,cat")
   inport2 = io.StringIO(u"taxonID,bar\n91,cat\n93,pig")
-  main(inport1, inport2, "taxonID", "taxonID,bar", sys.stdout)
+  main(inport1, inport2, "taxonID", ["taxonID", "bar"], sys.stdout)
+
+def main(inport1, inport2, pk_col, index_by, outport):
+  gen = match_records(csv.reader(inport1), csv.reader(inport2),
+                      pk_col=pk_col, index_by=index_by)
+  writer = csv.writer(outport)
+  for row in gen: writer.writerow(row)
 
 
 if __name__ == '__main__':
@@ -329,4 +339,6 @@ if __name__ == '__main__':
                       help='names of columns to match on')
   args=parser.parse_args()
   with open(args.target, "r") as inport2:
-    main(sys.stdin, inport2, args.pk, args.index, sys.stdout)
+    main(sys.stdin, inport2, args.pk,
+         args.index.split(","), sys.stdout)
+

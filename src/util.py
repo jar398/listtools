@@ -6,31 +6,38 @@ import sys, io, argparse, csv, hashlib
 MISSING = ''
 
 def read_csv(inport, pk_col=None, key=None):
-  reader = csv.reader(inport)
+  return ingest_csv(csv.reader(inport), pk_col, key)
+
+# Iterator -> (header, dict)
+
+def ingest_csv(reader, pk_col=None, key=None):
   header = next(reader)
+  assert isinstance(header, list) or isinstance(header, tuple)
   assert pk_col == None or key == None
   assert pk_col != None or key != None
-  if pk_col:
+  if key:
+    keyfun = key
+  else:
+    if pk_col == None: pk_col = "taxonID"
     pk_pos = windex(header, pk_col)
     if pk_pos == None:
       print("Column %s not found in %s" % (pk_col, header),
             file=sys.stderr)
       assert False
     keyfun = lambda row: row[pk_pos]
-  else:
-    keyfun = key
   return (header, read_rows(reader, key=keyfun))
 
-def read_rows(reader, key=lambda row: row):
+def read_rows(reader, key=lambda row: row[0]):
   all_rows = {}
   for row in reader:
+    assert isinstance(row[0], str)
     ky = key(row)
     if ky in all_rows:
       print("Multiple records for key %s, e.g. %s" % (ky, row),
             file=sys.stderr)
       assert False
     all_rows[ky] = row
-  print("# read_rows: read %s rows" % len(all_rows), file=sys.stderr)
+  print("# read_rows: read %s non-header rows" % len(all_rows), file=sys.stderr)
   return all_rows
 
 def windex(header, fieldname):

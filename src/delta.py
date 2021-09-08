@@ -22,7 +22,7 @@ import sys, io, argparse, csv
 from functools import reduce
 from util import read_csv, windex, MISSING, \
                  correspondence, precolumn, apply_correspondence
-from match_records import compute_coproduct
+from match_records import compute_coproduct, ingest_coproduct
 
 def matchings(inport1, inport2, pk_col_arg, indexed, managed_arg,
               coproduct_file, outport):
@@ -30,30 +30,33 @@ def matchings(inport1, inport2, pk_col_arg, indexed, managed_arg,
   pk_col = pk_col_arg
   INDEX_BY = indexed.split(",")    # kludge
 
-  (header1, all_rows1) = read_csv(inport1, pk_col)
-  (header2, all_rows2) = read_csv(inport2, pk_col)
+  a_table = read_csv(inport1, pk_col)
+  b_table = read_csv(inport2, pk_col)
 
   if coproduct_file:
     with open(coproduct_file, "r") as cofile:
-      cop = read_coproduct(cofile, pk_col)
+      cop = ingest_coproduct(cofile, pk_col)
   else:
-    cop = compute_coproduct(header1, header2, all_rows1, all_rows2,
-                            pk_col, INDEX_BY)
+    cop = compute_coproduct(a_table, b_table, pk_col, INDEX_BY)
 
+  (header1, _) = a_table
+  (header2, _) = b_table
   managed = [man
              for man in managed_arg.split(",")
              if man in header1 or man in header2]
 
-  write_delta(cop, header1, header2, all_rows1, all_rows2, managed, outport)
+  write_delta(cop, a_table, b_table, managed, outport)
 
 # Write coproduct in the form of an EOL-ish delta
 
-def write_delta(cop, header1, header2, all_rows1, all_rows2, managed, outport):
+def write_delta(cop, a_table, b_table, managed, outport):
   global pk_col
   global pk_pos1, pk_pos2
+
+  (header1, all_rows1) = a_table
+  (header2, all_rows2) = b_table
   pk_pos1 = windex(header1, pk_col)
   pk_pos2 = windex(header2, pk_col)
-
 
   header3 = ['mode', 'new_pk', 'remark'] + managed
   mode_pos3 = 0
@@ -108,6 +111,8 @@ def write_delta(cop, header1, header2, all_rows1, all_rows2, managed, outport):
       write_row("add", apply_correspondence(corr_23, row2),
                 key1, key2, key3, remark)
       add_count += 1
+
+  # All done with coproduct.  Reporting now.
 
   print("-- delta: %s carries, %s additions, %s removals, %s updates" %
         (carry_count, add_count, remove_count, update_count,),
