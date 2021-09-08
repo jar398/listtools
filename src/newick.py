@@ -21,8 +21,7 @@ def parse_newick(newick):
     id = gen()
 
     if n >= len(newick):
-      print("END")
-      return (None, n)
+      return n
 
     children = []
 
@@ -48,7 +47,10 @@ def parse_newick(newick):
     rows.append((str(id), name.strip(), str(parent),))
 
     return n
-  parse(0, MISSING)
+  n = parse(0, MISSING)
+  if n < len(newick):
+    print("! extra stuff after end of newick: %s" % newick[n:],
+          file=sys.stderr)
   return (row for row in rows)
 
 def generate_newick(rows):
@@ -65,7 +67,7 @@ def generate_newick(rows):
   for (key, row) in rows_dict.items():
     parent_id = row[parent_pos]
     if parent_id != MISSING:
-      if key in children:
+      if parent_id in children:
         children[parent_id].append(key)
       else:
         children[parent_id] = [key]
@@ -80,7 +82,7 @@ def generate_newick(rows):
       return "(%s)%s" % (childs, name)
     else:
       return name
-  return ".".join(map(lambda key:traverse(key), roots))
+  return ".".join(map(traverse, roots))
 
 if __name__ == '__main__':
   parser = argparse.ArgumentParser(description="""

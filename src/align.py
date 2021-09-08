@@ -28,9 +28,7 @@ def align(a_iterator, b_iterator, rm_sum_iterator):
   find_tipward_record_matches(a_roots, b_roots, rm_sum, sum)
   cache_xmrcas(a_roots, b_roots, sum)
 
-  # annotate_unmatched(a_roots, b_roots, sum)
-  build_trees(a_roots, b_roots, sum, rm_sum)
-  check_trees(a_roots, b_roots, sum)
+  roots = build_trees(a_roots, b_roots, sum, rm_sum)
 
   return generate_sum(sum)
 
@@ -110,16 +108,22 @@ def get_sum(iterator, a_usage_dict, b_usage_dict):
     key = row[key_pos]
     x = a_usage_dict.get(row[usage_a_pos])
     y = b_usage_dict.get(row[usage_b_pos])
-    connect(x, y, row[remark_pos], sum)
+    note_match(x, y, row[remark_pos], sum)
   return sum
 
-def connect(x, y, remark, sum):
+def note_match(x, y, remark, sum):
+  assert remark
   (key_to_union, in_a, in_b) = sum
   assert not x or mep_get(in_a, x, None) == None
   assert not y or mep_get(in_b, y, None) == None
   # Invent a key?? and store it in the sum ???
   # To avoid an A/B conflict we'd need the B key->usage map?
-  key = get_key(y) if y else get_key(x)
+  if y:
+    key = get_key(y)
+    if key in key_to_union: key = "B.%s" % key
+  else:
+    key = get_key(x)
+    if key in key_to_union: key = "A.%s" % key
   name = get_canonical(y) if y else get_canonical(x)
   assert name
   u = make_union(key, x, y, remark, name)
@@ -129,7 +133,7 @@ def connect(x, y, remark, sum):
   return u
 
 def combine_remarks(*remarks):
-  "|".join([r for r in remarks if r != MISSING])
+  return ";".join([r for r in remarks if r != MISSING])
 
 # -----------------------------------------------------------------------------
 # Get parent/child and accepted/synonym relationships
@@ -141,8 +145,8 @@ get_synonyms = prop.getter(synonyms_prop)
 set_children = prop.setter(children_prop)
 set_synonyms = prop.setter(synonyms_prop)
 
-def get_inferiors(y):
-  return get_children(y, []) + get_synonyms(y, [])
+def get_inferiors(p):
+  return get_children(p, []) + get_synonyms(p, [])
 
 def get_superior(x):
   return get_parent(x, None) or get_accepted(x, None)
@@ -189,8 +193,8 @@ levels = {}                     # global
 def cache_levels(roots):
   def cache(x, n):
     set_level(x, n)
-    for y in get_inferiors(x):
-      cache(y, n+1)
+    for c in get_inferiors(x):
+      cache(c, n+1)
   for root in roots:
     cache(root, 1)
 
@@ -207,7 +211,7 @@ def mrca(x, y):
   if x == y:
     return x
   else:
-    p = get_superior(x, None)
+    p = get_superior(x)
     if p == None:
       return None               # Foo
     else:
@@ -242,15 +246,19 @@ def find_tipward_record_matches(a_roots, b_roots, rm_sum, sum):
     return tipwards
 
   (_, rm_in_a, rm_in_b) = rm_sum
-  a_tipwards = half_find_tipward(a_roots, rm_in_a, out_a)
-  b_tipwards = half_find_tipward(b_roots, rm_in_b, out_b)
+  a_tipwards = half_find_tipward(a_roots, rm_in_a, out_b)
+  print("-- align: %s tipward record matches in A" % len(a_tipwards),
+        file=sys.stderr)
+  b_tipwards = half_find_tipward(b_roots, rm_in_b, out_a)
+  print("-- align: %s tipward record matches in B" % len(b_tipwards),
+        file=sys.stderr)
   count = 0
-  for (u_identity, u) in b_tipwards.items():
-    if u_identity in a_tipwards:
+  for u in b_tipwards.values():
+    if mep_get(a_tipwards, u, None):
       set_xmrca(out_a(u), out_b(u))
       set_xmrca(out_b(u), out_a(u))
       count += 1
-  print("-- %s tipward record matches" % count, file=sys.stderr)
+  print("-- align: %s tipward record matches" % count, file=sys.stderr)
 
 # -----------------------------------------------------------------------------
 # 7. how-related WITHIN hierarchy
@@ -354,72 +362,24 @@ def related_how(p, q):
 # p < xmrca(q); but is p < q?
 
 def seek_conflict(p, q):
-  c = get_xmrca(p)
-  if c == None: return (None, None)
-  rel = how_related(c, q)
+  o = get_xmrca(p)
+  if o == None: return (None, None)
+  rel = how_related(o, q)
   if rel == LT or rel == EQ:
     return (p, None)
   elif rel == DISJOINT:
     return (None, q)
+  assert rel == GT
   p_and_q = p_not_q = None                # in A
-  for ch in get_inferiors(p):
-    (ch_and_q, ch_not_q) = seek_conflict(ch, q)
-    if ch_and_q and ch_not_q:
-      return (ch_and_q, ch_not_q)
-    if ch_and_q: p_and_q = ch
-    if ch_not_q: p_not_q = ch
+  for x in get_inferiors(p):
+    (x_and_q, x_not_q) = seek_conflict(x, q)
+    if x_and_q and x_not_q:
+      return (x_and_q, x_not_q)
+    if x_and_q: p_and_q = x
+    if x_not_q: p_not_q = x
     if p_and_q and p_not_q:             # hack: cut it short
       return (p_and_q, p_not_q)
   return (p_and_q, p_not_q)
-
-# -----------------------------------------------------------------------------
-
-conflict_prop = prop.Property("conflict")
-get_conflict = prop.getter(conflict_prop)
-set_conflict = prop.setter(conflict_prop)
-
-# Determine whether x in A is consistent with the B hierarchy.
-# Let y = xmrca(x).
-# x is consistent with B if it's consistent with every child of y.
-# Do we know that x > c for all children c of y??
-# Yes, because if x <= c, then c would be the xmrca, not y.
-
-# This is merge.test_compatibility  in cldiff, sort of
-
-def annotate_unmatched(a_roots, b_roots, sum):
-  def traverse(x):
-    (_, in_a, _) = sum
-    if prop.get_identity(x) in in_a:
-      # Already congruent, or something
-      pass
-    else:
-      # Check for incompatibility of x with B
-      y = get_xmrca(x)
-      if y == None:
-        connect(x, None, ".add peripherally", sum)
-      else:
-        for d in get_inferiors(y):
-          (rel, e, f) = related_how(d, x)
-          if rel == CONFLICT:
-            set_conflict(x, (e, f))
-            connect(x, None, "conflict: %s | %s" % (e, f), sum)
-          else:
-            connect(x, None, ".add to hierarchy", sum)
-
-    # Now do the same for all descendants
-    for c in get_inferiors(x):
-      traverse(c)
-
-  for x in a_roots: traverse(x)
-
-  def traverse_b(y):
-    (_, _, in_b) = sum
-    if prop.get_identity(y) in in_b:
-      pass
-    else:
-      connect(None, y, MISSING, sum)
-
-  for y in b_roots: traverse_b(y)
 
 # -----------------------------------------------------------------------------
 
@@ -435,7 +395,7 @@ def annotate_unmatched(a_roots, b_roots, sum):
   x     k     y   rootward nodes in chains
   |           |
   |           m   record match to s
-  s  =  n  =  |
+  s  = (r) =  |
   |           t
   |  \     /  |
   |     k     |
@@ -445,13 +405,25 @@ def annotate_unmatched(a_roots, b_roots, sum):
   u  =  g  =  v   tipward nodes in chains
 """
 
+# Precondition: all ancestors of x have their parent set
+# Postcondition: x and all its ancestors have their parent set
+
 def build_trees(a_roots, b_roots, sum, rm_sum):
   (_, in_a, in_b) = sum
   (_, rm_in_a, rm_in_b) = rm_sum
 
+  def connect(x, y, remark):
+    assert remark
+    remarks = [remark]
+    if x:
+      remarks.append(get_remark(mep_get(rm_in_a, x)))
+    if y:
+      remarks.append(get_remark(mep_get(rm_in_b, y)))
+    return note_match(x, y, combine_remarks(*remarks), sum)
+
   def weave(x, u, v):
     # v and u need to be linked.
-    g = connect(u, v, "join point", sum)
+    g = connect(u, v, "join point")
 
     s = get_superior(u)
     t = get_superior(v)
@@ -462,48 +434,64 @@ def build_trees(a_roots, b_roots, sum, rm_sum):
       if s_done and t_done:
         break
       elif s_done:
-        k = connect(None, t, "upper t", sum)
+        k = connect(None, t, "upper t")
         t = get_superior(t)
       elif t_done:
-        k = connect(s, None, "upper s", sum)
+        k = connect(s, None, "upper s")
         s = get_superior(s)
       else:
-        n = mep_get(rm_in_a, s)
-        if n and out_b(n) == t:
-          k = connect(s, t, "record match in cluster", sum)
-          s = get_superior(s)
-          t = get_superior(t)
-        elif ((lambda m: m and get_xmrca(m) == u and get_level(m) <= get_level(t)) \
-              (out_b(n))):
-          k = connect(None, t, "t unmatched in cluster", sum)
-          t = get_superior(t)
+        r = mep_get(rm_in_a, s)
+        if r:
+          m = out_b(r)
+          if m == t:
+            k = connect(s, m, "record match in cluster")
+            s = get_superior(s)
+            t = get_superior(t)
+          elif m and get_xmrca(m) == u and get_level(m) < get_level(t):
+            k = connect(None, t, "t inferior to record match")
+            t = get_superior(t)
+          else:
+            k = connect(s, None, "near miss")
+            s = get_superior(s)
         else:    # no record match
-          k = connect(s, None, "s unmatched in cluster", sum)
+          k = connect(s, None, "no record matched in cluster")
           s = get_superior(s)
+      set_parent(g, k)
+      g = k
+    assert s == get_superior(x)
     return (k, s, t)
 
-  # Need to do this bottom up.
-
   def traverse(x):
-    p = get_parent(x, None)
-    v = get_xmrca(x)
-    if v == None:
-      k = connect(x, None, "unmatched", sum)
-      set_superior(k, get_mep(in_a, p))
-    else:
+    p = get_superior(x)
+    v = get_xmrca(x, None)
+    if v != None:
       u = get_xmrca(v)          # in A
       if how_related(x, u) == LT:
-        k = connect(x, None, "unmatched", sum)
+        k = connect(x, None, "internally unmatched")
         choose_parent(k, p, v, sum)
       else:
         (k, s, t) = weave(x, u, v)
-        assert s == p
         assert not t or mrca(t, v) == t
         choose_parent(k, s, t, sum)
         x = u
     # Deal with descendants of x, and inject x
     for c in get_inferiors(x): traverse(c)
+
   for x in a_roots: traverse(x)
+
+  finish(a_roots,
+         in_a,
+         lambda x: connect(x, None, "peripheral in A"))
+  finish(b_roots,
+         in_b,
+         lambda y: connect(None, y, "peripheral in B"))
+  unions = all_unions(sum)
+  print("align: %s nodes in sum" % len(unions), file=sys.stderr)
+
+  roots = collect_children(unions)
+  print("align: %s roots in sum" % len(roots), file=sys.stderr)
+  return roots
+
 
 # Returns either in_a(p) or in_b(q)
 # We are given
@@ -514,59 +502,70 @@ def build_trees(a_roots, b_roots, sum, rm_sum):
 
 def choose_parent(k, p, q, sum):
   (_, in_a, in_b) = sum
-  # No monotype chains.  Ordering is by tipward-match sets.
-  if p == None:
-    h = mep_get(in_b, q) if q else None
-  elif q == None:
-    h = mep_get(in_a, p)
-  else:
-    (rel, _, _) = related_how(p, q)
-    if rel == LT or rel == EQ:
-      h = mep_get(in_a, p)
-    elif rel == GT:
-      h = mep_get(in_b, q)
-    else:  # rel == CONFLICT
-      h = choose_parent(p, get_parent(q), sum)
-  set_superior(k, h)
+
+  def relax(q):
+    # No monotype chains.  Ordering is by tipward-match sets.
+    if p == None and q == None:
+      h = None
+    else:
+      if p == None:
+        h = mep_get(in_b, q)
+      elif q == None:
+        h = mep_get(in_a, p)
+      else:
+        (rel, _, _) = related_how(p, q)
+        if rel == LT or rel == EQ:
+          h = mep_get(in_a, p)
+        elif rel == GT:
+          h = mep_get(in_b, q)
+        elif rel == CONFLICT:
+          h = relax(get_superior(q))
+        else:
+          assert False
+    if h:
+      set_superior(k, h)
+    return h
+
+def finish(roots, inject, fasten):
+  def traverse(y):
+    print("finish: %s" % get_canonical(y), file=sys.stderr)
+    j = mep_get(inject, y, None)
+    if not j:
+      j = fasten(y)
+      print("  fasten: %s" % get_canonical(j), file=sys.stderr)
+      assert mep_get(inject, y) == j
+    if not get_superior(j):
+      q = get_superior(y)
+      if q:
+        h = mep_get(inject, q)
+        set_superior(j, h)
+        print("  parent of %s := %s" % (get_canonical(j), get_canonical(h)),
+              file=sys.stderr)
+        assert get_superior(j) == h
+    for c in get_inferiors(y): traverse(c)
+  for root in roots: traverse(root)
 
 # j is to be either a child or synonym of k
 
 def set_superior(j, k):
-  ja = out_a(j)
-  jb = out_b(j)
+  assert k
+  assert get_superior(j) == None
+  x = out_a(j)
+  y = out_b(j)
 
-  # If j has any children, then j is a child, not a synonym
-  if ((jb and get_children(jb, None)) or
-      (ja and get_children(ja, None))):
+  # If j has any children or synonyms, then j is a child, not a synonym
+  if ((x and len(get_inferiors(x)) > 0) or
+      (y and len(get_inferiors(y)) > 0)):
     set_parent(j, k)
 
   # If j is considered a synonym on both sides, then j is a synonym
-  elif ((not ja or get_accepted(ja, None)) and
-        (not jb or get_accepted(jb, None))):
+  elif y and get_accepted(y, None):
+    set_accepted(j, k)
+
+  elif not y and get_accepted(x, None):
     set_accepted(j, k)
 
   else: set_parent(j, k)
-
-def check_trees(a_roots, b_roots, sum):
-  (_, in_a, in_b) = sum
-  def traverse(x, in_a, out_a):
-    j = mep_get(in_a, x, None)
-    assert j
-    assert out_a(j) == x
-    for c in get_inferiors(x): traverse(c)
-  for root in a_roots: traverse(root, in_a, out_a)
-  for root in b_roots: traverse(root, in_b, out_b)
-
-  unions = {}
-  for union in in_a.values():
-    assert out_a(union, None)
-    mep_set(unions, union, union)
-  for union in in_b.values():
-    assert out_b(union, None)
-    mep_set(unions, union, union)
-  roots = collect_children(unions.values())
-  print("%s roots in sum" % len(roots))
-
 
 # -----------------------------------------------------------------------------
 # 14. emit the new sum with additional parent column
@@ -574,25 +573,27 @@ def check_trees(a_roots, b_roots, sum):
 # Returns a row generator
 
 def generate_sum(sum):
-  (key_to_union, _, _) = sum
-
   yield ["taxonID", "taxonID_A", "taxonID_B",
          "parentNameUsageID", "acceptedNameUsageID",
          "canonicalName", "remark"]
 
-  for (key, union) in key_to_union.items():
+  for union in all_unions(sum):
     a_usage = out_a(union, None)
     b_usage = out_b(union, None)
     name = (get_canonical(union, None) or get_canonical(b_usage, None)
             or get_canonical(a_usage, MISSING))
     p = get_parent(union, None)
     a = get_accepted(union, None)
-    yield [key,
+    yield [get_key(union),
            get_key(a_usage) if a_usage else MISSING,
            get_key(b_usage) if b_usage else MISSING,
            get_key(p) if p else MISSING,
            get_key(a) if a else MISSING,
            name, get_remark(union)]
+
+def all_unions(sum):
+  (key_to_union, _, _) = sum
+  return key_to_union.values()
 
 def write_generated(gen, outfile):
   writer = csv.writer(outfile)

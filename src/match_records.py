@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 
 """
+This code was written prior to property.py and align.py, and would
+probably be more pleasant to read if it used property.py.
+
 Here's what we're trying to do, as an n^2 method:
 
   For (record 1, record 2) pair, compute match score.
@@ -54,18 +57,19 @@ def compute_coproduct(a_table, b_table, pk_col_arg, index_by):
 
   (best_rows_in_file2, best_rows_in_file1) = \
     find_best_matches(header1, header2, all_rows1, all_rows2, pk_col)
-  print("# %s A rows with B match(es), %s B rows with A match(es)" %
+  print("# match_records: %s A rows with B match(es), %s B rows with A match(es)" %
         (len(best_rows_in_file2), len(best_rows_in_file1)),
         file=sys.stderr)
 
   def connect(key1, key2, remark):
+    assert remark
     # Choose an id in the coproduct
-    if key2:
+    if key2 != None:
       key3 = key2
     elif key1 in all_rows2:     # id collision
       row1 = all_rows1[key1]
       key3 = "%s$%s" % (key1, stable_hash(row1))
-      print(("-- id %s is used differently in the two inputs.\n" + \
+      print(("-- match_records: id %s is used differently in the two inputs.\n" + \
              "--   %s will replace it for the A input") % (key1, key3),
             file=sys.stderr)
     else:
@@ -76,17 +80,20 @@ def compute_coproduct(a_table, b_table, pk_col_arg, index_by):
       print("# %s" % (remark,), file=sys.stderr)
     return key3
 
-  def find_match(key1, best_rows_in_file2, best_rows_in_file1):
+  def find_match(key1, best_rows_in_file2, best_rows_in_file1,
+                 pk_pos1, pk_pos2):
     key2 = None
-    (row2, remark) = check_match(key1, best_rows_in_file2)
+    (row2, remark) = check_match(key1, best_rows_in_file2, pk_pos2)
+    assert remark
     if row2 != None:
       candidate = row2[pk_pos2]
-      (back1, remark2) = check_match(candidate, best_rows_in_file1)
+      (back1, remark2) = check_match(candidate, best_rows_in_file1, pk_pos1)
+      assert remark2
       if back1 != None:
         if back1[pk_pos1] == key1:
           # Mutual match!
           key2 = candidate
-          remark = MISSING
+          remark = ".mutual match"
         else:
           remark = (".round trip failed: %s -> %s -> %s" %
                     (key1, row2[pk_pos2], back1[pk_pos1]))
@@ -103,17 +110,20 @@ def compute_coproduct(a_table, b_table, pk_col_arg, index_by):
   seen2 = {}                    # injection B -> A+B
 
   for (key1, row1) in all_rows1.items():
-    (key2, remark) = find_match(key1, best_rows_in_file2, best_rows_in_file1)
-    # Store the correspondence
-    key3 = connect(key1, key2, remark)
-    if key2: seen2[key2] = key3
+    (key2, remark) = find_match(key1, best_rows_in_file2,
+                                best_rows_in_file1, pk_pos1, pk_pos2)
+    # Store the correspondence.  key2 may be None.
+    connect(key1, key2, remark)
+    if key2 != None:
+      seen2[key2] = True
 
   for (key2, row2) in all_rows2.items():
     if not key2 in seen2:
-      (key1, remark) = find_match(key2, best_rows_in_file1, best_rows_in_file2)
-      if key1:
+      (key1, remark) = find_match(key2, best_rows_in_file1,
+                                  best_rows_in_file2, pk_pos2, pk_pos1)
+      if key1 != None:
         # shouldn't happen
-        remark = "surprising match: %s <-> %s" % (key2, key1)
+        remark = "! surprising match: %s <-> %s" % (key2, key1)
       # Addition - why did it fail?
       # Unique match means outcompeted, probably?
       connect(None, key2, remark)
@@ -127,7 +137,7 @@ def compute_coproduct(a_table, b_table, pk_col_arg, index_by):
       bonly += 1
     else:
       aonly += 1
-  print("-- matching records: %s matched, %s in A unmatched, %s in B unmatched" %
+  print("-- match_records: %s matched, %s in A unmatched, %s in B unmatched" %
         (matched, aonly, bonly),
         file=sys.stderr)
 
@@ -135,19 +145,19 @@ def compute_coproduct(a_table, b_table, pk_col_arg, index_by):
 
 WAD_SIZE = 4
 
-def check_match(key1, best_rows_in_file2):
-  global pk_pos1, pk_pos2
+def check_match(key1, best_rows_in_file2, pk_pos2):
   best2 = best_rows_in_file2.get(key1)
   if best2:
     (score2, rows2) = best2
     if len(rows2) == 1:
-      return (rows2[0], ".unique")    # unique match
+      assert rows2[0]
+      return (rows2[0], ".unique match")
     elif len(rows2) < WAD_SIZE:
       keys2 = [row2[pk_pos2] for row2 in rows2]
       return (None, ("ambiguous: %s -> %s (score %s)" %
                      (key1, keys2, score2)))
     else:
-      return (None, ".highly ambiguous")
+      return (None, ".too many matches")
   else:
     return (None, ".no matches")
 
@@ -175,8 +185,8 @@ def find_best_matches(header1, header2, all_rows1, all_rows2, pk_col):
     best_rows_so_far2 = no_info
 
     for prop in row_properties(row1, header1, positions):
-      if prop_count % 500000 == 0:
-        print("# %s values" % prop_count, file=sys.stderr)
+      if prop_count > 0 and prop_count % 500000 == 0:
+        print("# %s property values..." % prop_count, file=sys.stderr)
       prop_count += 1
       for row2 in rows2_by_property.get(prop, []):
         key2 = row2[pk_pos2]
@@ -200,7 +210,7 @@ def find_best_matches(header1, header2, all_rows1, all_rows2, pk_col):
     if best_rows_so_far2 != no_info:
       best_rows_in_file2[key1] = best_rows_so_far2
 
-  print("# delta: indexed %s values" % prop_count, file=sys.stderr)
+  print("# match_records: indexed %s property values" % prop_count, file=sys.stderr)
   if len(all_rows1) > 0 and len(all_rows2) > 0:
     assert len(best_rows_in_file1) > 0
     assert len(best_rows_in_file2) > 0
@@ -271,7 +281,7 @@ def index_rows_by_property(all_rows, header):
       else:
         rows_by_property[property] = [row]
         entry_count += 1
-  print("# %s rows indexed by values" % (len(rows_by_property),),
+  print("# match_records: %s rows indexed by values" % (len(rows_by_property),),
         file=sys.stderr)
   return rows_by_property
 
