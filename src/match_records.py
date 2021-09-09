@@ -57,9 +57,9 @@ def compute_coproduct(a_table, b_table, pk_col_arg, index_by):
 
   (best_rows_in_file2, best_rows_in_file1) = \
     find_best_matches(header1, header2, all_rows1, all_rows2, pk_col)
-  print("# match_records: %s A rows with B match(es), %s B rows with A match(es)" %
-        (len(best_rows_in_file2), len(best_rows_in_file1)),
-        file=sys.stderr)
+  # print("# match_records: %s A rows with B match(es), %s B rows with A match(es)" %
+  #       (len(best_rows_in_file2), len(best_rows_in_file1)),
+  #       file=sys.stderr)
 
   def connect(key1, key2, remark):
     assert remark
@@ -137,7 +137,7 @@ def compute_coproduct(a_table, b_table, pk_col_arg, index_by):
       bonly += 1
     else:
       aonly += 1
-  print("-- match_records: %s matched, %s in A unmatched, %s in B unmatched" %
+  print("-- match_records: %s matches, %s in A unmatched, %s in B unmatched" %
         (matched, aonly, bonly),
         file=sys.stderr)
 
@@ -168,11 +168,11 @@ def find_best_matches(header1, header2, all_rows1, all_rows2, pk_col):
   global pk_pos1, pk_pos2
   assert len(all_rows2) > 0
   corr_12 = correspondence(header1, header2)
-  print("# correspondence: %s" % (corr_12,), file=sys.stderr)
+  # print("# correspondence: %s" % (corr_12,), file=sys.stderr)
   positions = indexed_positions(header1, INDEX_BY)
-  print("# indexed: %s" % positions, file=sys.stderr)
+  # print("# indexed: %s" % positions, file=sys.stderr)
   weights = get_weights(header1, header2, INDEX_BY)    # parallel to header2
-  print("# weights: %s" % weights, file=sys.stderr)
+  # print("# weights: %s" % weights, file=sys.stderr)
   rows2_by_property = index_rows_by_property(all_rows2, header2)
   no_info = (-1, [])
 
@@ -281,8 +281,8 @@ def index_rows_by_property(all_rows, header):
       else:
         rows_by_property[property] = [row]
         entry_count += 1
-  print("# match_records: %s rows indexed by values" % (len(rows_by_property),),
-        file=sys.stderr)
+  # print("# match_records: %s rows indexed by values" % (len(rows_by_property),),
+  #       file=sys.stderr)
   return rows_by_property
 
 # Future: exclude really ephemeral properties like taxonID

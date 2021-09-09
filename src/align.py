@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
-# Align to usage lists, with sensitivity to parent/child relations
+# Align two trees (given as DwC files i.e. usage lists), with
+# sensitivity to parent/child relations.
 
 import sys, csv
 from util import windex, MISSING
@@ -23,14 +24,15 @@ def align(a_iterator, b_iterator, rm_sum_iterator):
 
   # Read record matches
   rm_sum = get_sum(rm_sum_iterator, a_usage_dict, b_usage_dict)
+  find_tipward_record_matches(a_roots, b_roots, rm_sum)
+  cache_xmrcas(a_roots, b_roots)
 
+  # Merge the two trees
   sum = ({}, {}, {})
-  find_tipward_record_matches(a_roots, b_roots, rm_sum, sum)
-  cache_xmrcas(a_roots, b_roots, sum)
-
   roots = set_congruences(a_roots, b_roots, sum, rm_sum)
   roots = build_tree(a_roots, b_roots, sum, rm_sum)
 
+  # Emit tabular version of merged tree
   return generate_sum(sum)
 
 # -----------------------------------------------------------------------------
@@ -235,7 +237,7 @@ def mrca(x, y):
 
 # The tipward record matches are stored in the given sum object.
 
-def find_tipward_record_matches(a_roots, b_roots, rm_sum, sum):
+def find_tipward_record_matches(a_roots, b_roots, rm_sum):
 
   def half_find_tipward(roots, inject, outject):
     tipwards = {}               # mep
@@ -317,8 +319,7 @@ def half_xmrcas(x):
     set_xmrca(x, m)
   return m
 
-def cache_xmrcas(a_roots, b_roots, sum):
-  (_, in_a, in_b) = sum
+def cache_xmrcas(a_roots, b_roots):
   for root in a_roots:
     half_xmrcas(root)
   for root in b_roots:

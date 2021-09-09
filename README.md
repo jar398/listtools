@@ -1,67 +1,68 @@
 # listtools
 
-Tools for manipulating lists of things, and taxonomic checklists in particular.
+Tools for manipulating lists of things, and in particular, taxonomic
+checklists and hierarchies.
 
 This tool suite is intended to eventually replace the ['checklist
-diff'](https://github.com/jar398/cldiff) tool.  Work in progress
-includes matching lists with sensitivity to their hierarchies.
+diff'](https://github.com/jar398/cldiff) tool.  Although most
+list comparison functionality is in place, the logic for comparing
+hierarchies is still being debugged.
 
 ## Overview
 
-The 'tools' or 'scripts' in this repository manipulate tabular data
-in the form of CSV files.  Most of them act as filters and can be
-invoked from the Unix shell.  They can be sequenced into pipelines
-using '|' if desired.
+The 'tools' or 'scripts' or 'programs' in this repository manipulate
+tabular data in the form of CSV files.  Most of them act as filters
+and can be invoked from the Unix shell.  They can be sequenced into
+pipelines using '|' if desired.
 
 I have found it convenient to run the tools by using `make` applied to
 a suitable 'makefile'.  This way, intermediate objects can be cached
 in the local file system, avoiding expensive regeneration steps when
-an input required for producing such an object changes.
+inputs have not changed.
 
-For my testing I use python 3, `bash`, and GNU `make` exclusively.
+For my testing I use python 3, `bash`, and GNU `make` exclusively, all
+running on Debian Linux.
 
-### Terminology
+## Terminology - usages and taxa
+
+Many of the tools are completely generic over tabular data, but a few
+are specific to biodiversity information in the form of "Darwin Core"
+files.
 
 When I speak of a Darwin core (DwC) file I take this to mean (for
-purposes of these tools) a CSV file where each row describes a name
-(such as a Linnaean binomial) or a use of a name, in the context of
-all the other rows in the same file, and in the context of whatever we
-know about the origin of the file itself.  I am calling such things
-(names or uses of names) "usages" roughly following "taxonomic name usage"
-or TNU, although I don't pretend that "usage" here is as
-rigorous a notion as TNU.
+purposes of these tools) a CSV file where each row has information
+connected to a name, such as a Linnaean binomial.  The row is to be
+interpreted in the context of all the other rows in the same file and
+what they say about one another, and in the context of whatever we
+know about the origin of the file itself.  A row refers to the way the
+name is used or its "usage", roughly following the TDWG term
+"taxonomic name usage" or TNU.
 
-The primary key in such files is `taxonID` which is a bit confusing
-because the identifier for a usage row doesn't always identify a
-taxon: it is connected to a row in the file, and the file may imply
-that the row corresponds to a particular taxon, or not.  Multiple
-"usages" may correspond to the same taxon, so if we did have a taxon
-identifier, it would not identify a usage.  On the other hand, while a
-usage identifier (a `taxonID`) always identifies a usage, it may not
-be specific enough to identify a particular taxon.
+In some files a single name (string) might be used in multiple ways
+(homonyms), but if so each "way" or usage will have its own row.
 
-Other Darwin Core columns containing usage identifiers have column
-names that contain 'usage' as a morpheme, e.g. `parentNameUsageID`.
+The primary key in such files is `taxonID`, which is a misnomer.
+Certainly such a key identifies a row in the file, and the row has an
+associated usage, so we might say the `taxonID` "identifies" a usage,
+but whether a usage determines a "taxon" is a matter of debate.  In
+the case of synonyms, analysis could show that multiple "usages" might
+correspond to a single taxon, so multiple `taxonID`s could correspond
+to the same taxon, bringing the "taxon identifier" notion into doubt.
+On the other hand, while a primary identifier (a `taxonID`) always
+corresponds to a usage, the usage may not be clear or specific enough
+to identify any particular taxon.
 
-Sometimes a given taxonomic name is used in multiple ways in the same
-file (homonyms, hemihomonyms, etc.), in which case the usages are
-distinguished by their usage identifiers (and the contents of their
-respective rows, etc.).
+Further confusing things, a primary key (`taxonID`) is only unique
+within a particular file.
 
-Of course it is desirable that a usage should be interpreted as a
-particular taxon or "taxon concept", but often the central problem is
-that we don't know which taxon is meant, and we'd like to figure that
-out.  At least we know what the usage is.
+Other Darwin Core columns containing row or usage identifiers have
+column names that contain 'usage' as a morpheme,
+e.g. `parentNameUsageID`.
 
-In the EOL internals, usage rows (records) are called "nodes", but I
-avoid this word due to its various conflicting and restricting
+In the EOL internals, usage rows (records) are called "nodes".  I
+avoid the word "node" due to its various conflicting and restricting
 meanings, such as for graph database nodes in Neo4J.
 
-### Primary
-
-It's assumed that any file participating in these tools has a column
-containing a primary key, i.e. a column that always contains a value,
-and a different value for each row.
 
 ## The tools
 
