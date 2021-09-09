@@ -28,7 +28,8 @@ def align(a_iterator, b_iterator, rm_sum_iterator):
   find_tipward_record_matches(a_roots, b_roots, rm_sum, sum)
   cache_xmrcas(a_roots, b_roots, sum)
 
-  roots = build_trees(a_roots, b_roots, sum, rm_sum)
+  roots = set_congruences(a_roots, b_roots, sum, rm_sum)
+  roots = build_tree(a_roots, b_roots, sum, rm_sum)
 
   return generate_sum(sum)
 
@@ -114,8 +115,19 @@ def get_sum(iterator, a_usage_dict, b_usage_dict):
 def note_match(x, y, remark, sum):
   assert remark
   (key_to_union, in_a, in_b) = sum
-  assert not x or mep_get(in_a, x, None) == None
-  assert not y or mep_get(in_b, y, None) == None
+  if x and y:
+    j = mep_get(in_a, x, None)
+    assert mep_get(in_b, y, None) == j
+  elif x:
+    j = mep_get(in_a, x, None)
+  elif y:
+    j = mep_get(in_b, y, None)
+  else:
+    j = None
+  if j:
+    assert out_a(j) == x
+    assert out_b(j) == y
+    return j
   # Invent a key?? and store it in the sum ???
   # To avoid an A/B conflict we'd need the B key->usage map?
   if y:
@@ -125,8 +137,7 @@ def note_match(x, y, remark, sum):
     key = get_key(x)
     if key in key_to_union: key = "A.%s" % key
   name = get_canonical(y) if y else get_canonical(x)
-  assert name
-  u = make_union(key, x, y, remark, name)
+  u = make_union(key, x, y, remark, name or MISSING)
   if x: mep_set(in_a, x, u)
   if y: mep_set(in_b, y, u)
   mep_set(key_to_union, key, u)
@@ -154,8 +165,6 @@ def get_superior(x):
 def collect_children(items):
   roots = []
   for item in items:
-
-    assert get_canonical(item, None)
 
     # Add item to list of parent's children
     parent_item = get_parent(item, None)
@@ -247,17 +256,19 @@ def find_tipward_record_matches(a_roots, b_roots, rm_sum, sum):
 
   (_, rm_in_a, rm_in_b) = rm_sum
   a_tipwards = half_find_tipward(a_roots, rm_in_a, out_b)
-  print("-- align: %s tipward record matches in A" % len(a_tipwards),
-        file=sys.stderr)
   b_tipwards = half_find_tipward(b_roots, rm_in_b, out_a)
-  print("-- align: %s tipward record matches in B" % len(b_tipwards),
-        file=sys.stderr)
   count = 0
   for u in b_tipwards.values():
     if mep_get(a_tipwards, u, None):
       set_xmrca(out_a(u), out_b(u))
       set_xmrca(out_b(u), out_a(u))
       count += 1
+  if len(a_tipwards) != count:
+    print("-- align: %s tipward record matches in A" % len(a_tipwards),
+          file=sys.stderr)
+  if len(b_tipwards) != count:
+    print("-- align: %s tipward record matches in B" % len(b_tipwards),
+          file=sys.stderr)
   print("-- align: %s tipward record matches" % count, file=sys.stderr)
 
 # -----------------------------------------------------------------------------
@@ -269,18 +280,16 @@ LT = 2
 GT = 3
 DISJOINT = 4
 CONFLICT = 5
-GT_OR_CONFLICT = 6
 
 def how_related(x, y):
   (x1, y1) = find_peers(x, y)
-  if x1 == None:
-    return DISJOINT
-  elif x1 == y1:
-    return EQ
-  elif x1 == x:
-    return LT
-  elif y1 == y:
-    return GT
+  if x1 == y1:
+    if x == y:
+      return EQ
+    elif x1 == x:
+      return GT
+    else:
+      return LT
   else:
     return DISJOINT
 
@@ -383,43 +392,58 @@ def seek_conflict(p, q):
 
 # -----------------------------------------------------------------------------
 
-# 13. set parent pointers
-#   - build up new A/B match set by recursive descent
-#   - retract nullified terminal nodes
-#   - retract matched internal nodes (keep only matched)
-#   - add new internal matches (singletons)
+# Detect and record A/B congruences.
+# In the process of doing this, also set parent pointers in the sum
+# within "clusters".  A cluster is a set of nodes, in both trees, 
+# that all subtend the same set of tipward record matches.
+
+# At the end:
+# 1. congruences have been established as needed
+# 2. every node in every cluster has an assigned node in the union (injection)
+# 3. every assigned node for every node in every cluster - other than the
+#    rootward one - has its parent pointer set to another node in the
+#    cluster, forming a single linear chain.
 
 """
-  p  <= h =>  q   parents outside the chains
+Diagram explaining the variables used in "weave".  Rootward is toward
+the top.
+
+  p  <= h =>  q   parents outside the cluster
   v     |     v
-  x     k     y   rootward nodes in chains
+  x  ?  k  ?  y   rootward nodes in cluster
   |           |
   |           m   record match to s
   s  = (r) =  |
   |           t
   |  \     /  |
-  |     k     |
+  |     k     |   s, t, and k are the iteration variables
   |     |     |
-  |     j     |
+  |           |
   |  /     \  |
-  u  =  g  =  v   tipward nodes in chains
+  u  =  g  =  v   tipward nodes in cluster
 """
 
-# Precondition: all ancestors of x have their parent set
-# Postcondition: x and all its ancestors have their parent set
-
-def build_trees(a_roots, b_roots, sum, rm_sum):
-  (_, in_a, in_b) = sum
+def connector(rm_sum, sum):
   (_, rm_in_a, rm_in_b) = rm_sum
-
   def connect(x, y, remark):
     assert remark
     remarks = [remark]
     if x:
-      remarks.append(get_remark(mep_get(rm_in_a, x)))
+      j = mep_get(rm_in_a, x, None)
+      assert j
+      if j: remarks.append(get_remark(j))
     if y:
-      remarks.append(get_remark(mep_get(rm_in_b, y)))
+      j = mep_get(rm_in_b, y, None)
+      assert j
+      if j: remarks.append(get_remark(j))
     return note_match(x, y, combine_remarks(*remarks), sum)
+  return connect
+
+def set_congruences(a_roots, b_roots, sum, rm_sum):
+  (_, in_a, in_b) = sum
+  (_, rm_in_a, _) = rm_sum
+
+  connect = connector(rm_sum, sum)
 
   def weave(x, u, v):
     # v and u need to be linked.
@@ -440,6 +464,7 @@ def build_trees(a_roots, b_roots, sum, rm_sum):
         k = connect(s, None, "upper s")
         s = get_superior(s)
       else:
+        # Use record matching to connect cluster nodes when possible
         r = mep_get(rm_in_a, s)
         if r:
           m = out_b(r)
@@ -458,7 +483,6 @@ def build_trees(a_roots, b_roots, sum, rm_sum):
           s = get_superior(s)
       set_parent(g, k)
       g = k
-    assert s == get_superior(x)
     return (k, s, t)
 
   def traverse(x):
@@ -466,25 +490,28 @@ def build_trees(a_roots, b_roots, sum, rm_sum):
     v = get_xmrca(x, None)
     if v != None:
       u = get_xmrca(v)          # in A
-      if how_related(x, u) == LT:
-        k = connect(x, None, "internally unmatched")
-        choose_parent(k, p, v, sum)
-      else:
+      if how_related(x, u) != LT:
         (k, s, t) = weave(x, u, v)
-        assert not t or mrca(t, v) == t
-        choose_parent(k, s, t, sum)
-        x = u
+        # k is the rootward cluster node in sum
     # Deal with descendants of x, and inject x
     for c in get_inferiors(x): traverse(c)
 
   for x in a_roots: traverse(x)
 
-  finish(a_roots,
-         in_a,
-         lambda x: connect(x, None, "peripheral in A"))
+# -----------------------------------------------------------------------------
+# Now set the parent pointers for the merged tree
+
+def build_tree(a_roots, b_roots, sum, rm_sum):
+  (_, in_a, in_b) = sum
+  connect = connector(rm_sum, sum)
+  def fasten_a(x):
+    return connect(x, None, "peripheral in A")
+  def fasten_b(y):
+    return connect(None, y, "peripheral in B")
   finish(b_roots,
-         in_b,
-         lambda y: connect(None, y, "peripheral in B"))
+         in_b, in_a, fasten_b, fasten_a, True)
+  finish(a_roots,
+         in_a, in_b, fasten_a, fasten_b, False)
   unions = all_unions(sum)
   print("align: %s nodes in sum" % len(unions), file=sys.stderr)
 
@@ -492,58 +519,64 @@ def build_trees(a_roots, b_roots, sum, rm_sum):
   print("align: %s roots in sum" % len(roots), file=sys.stderr)
   return roots
 
+def cap(x, in_a, fasten):
+  j = mep_get(in_a, x, None)
+  if not j:
+    j = fasten(x)
+    assert mep_get(in_a, x) == j
+  return j
 
-# Returns either in_a(p) or in_b(q)
-# We are given
-#  (a) p in A and q in B such that p is the least node in A
-#   greater than x and q is the least node in B greater than x
-# We want to choose
-#  (b) h = the smaller of inj_a(p) and inj_b(q) in A+B
+def finish(roots, in_a, in_b, fasten_a, fasten_b, priority):
+  def traverse(x):
+    j = cap(x, in_a, fasten_a)
+    for c in get_inferiors(x): traverse(c)
+    if not get_superior(j):
+      (pq, ab) = determine_superior_in_sum(x, in_a, in_b, priority)
+      if pq:
+        if ab:
+          h = cap(pq, in_a, fasten_a)
+        else:
+          h = cap(pq, in_b, fasten_b)
+        set_superior(j, h)
+  for root in roots: traverse(root)
 
-def choose_parent(k, p, q, sum):
-  (_, in_a, in_b) = sum
-
+def determine_superior_in_sum(x, in_a, in_b, priority):
+  v = get_xmrca(x, None)
+  p = get_superior(x)
+  if v == None:
+    return (p, True)
+  u = get_xmrca(v)
+  q = v
+  # Ascend until we find a q that's definitely bigger than x
+  if how_related(x, u) != LT:
+    # In cluster
+    while True:
+      q = get_superior(q)
+      if not q or get_xmrca(q) != u:
+        break
   def relax(q):
     # No monotype chains.  Ordering is by tipward-match sets.
     if p == None and q == None:
-      h = None
+      return (None, None)
     else:
       if p == None:
-        h = mep_get(in_b, q)
+        return (q, False)
       elif q == None:
-        h = mep_get(in_a, p)
+        return (p, True)
       else:
         (rel, _, _) = related_how(p, q)
-        if rel == LT or rel == EQ:
-          h = mep_get(in_a, p)
-        elif rel == GT:
-          h = mep_get(in_b, q)
+        if rel == GT:
+          return (q, False)
+        elif rel == LT or rel == EQ:
+          return (p, True)
         elif rel == CONFLICT:
-          h = relax(get_superior(q))
+          if priority:          # is this is the priority tree,
+            return (p, True)
+          else:
+            return relax(get_superior(q))
         else:
           assert False
-    if h:
-      set_superior(k, h)
-    return h
-
-def finish(roots, inject, fasten):
-  def traverse(y):
-    print("finish: %s" % get_canonical(y), file=sys.stderr)
-    j = mep_get(inject, y, None)
-    if not j:
-      j = fasten(y)
-      print("  fasten: %s" % get_canonical(j), file=sys.stderr)
-      assert mep_get(inject, y) == j
-    if not get_superior(j):
-      q = get_superior(y)
-      if q:
-        h = mep_get(inject, q)
-        set_superior(j, h)
-        print("  parent of %s := %s" % (get_canonical(j), get_canonical(h)),
-              file=sys.stderr)
-        assert get_superior(j) == h
-    for c in get_inferiors(y): traverse(c)
-  for root in roots: traverse(root)
+  return relax(q)
 
 # j is to be either a child or synonym of k
 
@@ -580,8 +613,6 @@ def generate_sum(sum):
   for union in all_unions(sum):
     a_usage = out_a(union, None)
     b_usage = out_b(union, None)
-    name = (get_canonical(union, None) or get_canonical(b_usage, None)
-            or get_canonical(a_usage, MISSING))
     p = get_parent(union, None)
     a = get_accepted(union, None)
     yield [get_key(union),
@@ -589,7 +620,8 @@ def generate_sum(sum):
            get_key(b_usage) if b_usage else MISSING,
            get_key(p) if p else MISSING,
            get_key(a) if a else MISSING,
-           name, get_remark(union)]
+           get_canonical(union, MISSING),
+           get_remark(union)]
 
 def all_unions(sum):
   (key_to_union, _, _) = sum

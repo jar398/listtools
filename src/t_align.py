@@ -17,16 +17,31 @@ def test(n1, n2):
   write_generated((row for row in rows), sys.stdout)
   return newick.generate_newick((row for row in rows))
 
+def run_test(A, B, expect):
+  n3 = test(A, B)
+  if expect and n3 != expect:
+    print("\n**** A+B = %s != %s\n" % (n3, expect))
+  return n3
+
+def run_tests():
+  run_test("a", "a", "a")
+  run_test("(b)a", "(c)a", "(b,c)a")
+  run_test("(b)a", "(b)c", "((b)a)c")
+  run_test("(b,c)a", "(c,d)a", "(b,c,d)a")
+  run_test("((b,c)g,d)a", "(b,c,d)a", "((b,c)g,d)a")
+  run_test("(b,c,d)a", "((b,c)g,d)a", "((b,c)g,d)a")
+  run_test("((b,c)g,d,e)a", "(b,c,(d,e)h)a", "((b,c)g,(d,e)h)a")
+  # src/t_align.py "((b,c)g,d)a" "(b,(c,d)h)a" ...   LOSE
+
 if __name__ == '__main__':
   parser = argparse.ArgumentParser()
-  parser.add_argument('A')
-  parser.add_argument('B')
+  parser.add_argument('A', nargs='?', default=None)
+  parser.add_argument('B', nargs='?', default=None)
   parser.add_argument('--expect', default=None)
   args=parser.parse_args()
-  n3 = test(args.A, args.B)
-  if args.expect:
-    if n3 != args.expect:
-      print("A+B = %s != %s" ^ (n3, args.expect))
-      assert False
+
+  if args.A and args.B:
+    n3 = run_test(args.A, args.B, args.expect)
+    print("A+B = %s" % n3, file=sys.stderr)
   else:
-    print("A+B = %s" % n3)
+    run_tests()

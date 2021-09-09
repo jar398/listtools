@@ -64,15 +64,18 @@ def generate_newick(rows):
   rows_dict = {row[key_pos] : row for row in rows}
   children = {}
   roots = []
+  print("newick: %s rows" % len(rows_dict), file=sys.stderr)
   for (key, row) in rows_dict.items():
-    parent_id = row[parent_pos]
-    if parent_id != MISSING:
-      if parent_id in children:
-        children[parent_id].append(key)
+    parent_key = row[parent_pos]
+    if parent_key != MISSING:
+      if parent_key in children:
+        children[parent_key].append(key)
       else:
-        children[parent_id] = [key]
+        children[parent_key] = [key]
     else:
       roots.append(key)
+  print("newick: %s roots, %s superiors" % (len(roots), len(children)),
+        file=sys.stderr)
   def traverse(key):
     row = rows_dict[key]
     name = row[name_pos]
