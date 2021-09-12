@@ -69,7 +69,8 @@ def start_csv(inport, params, outport, pk_col, cleanp):
       accepteds_normalized += 1
 
     # Two ways to test whether a usage is accepted
-    au = row[accepted_usage_pos] if accepted_usage_pos != None else MISSING
+    usage_id = row[pk_pos_in]
+    au = row[accepted_pos] if accepted_pos != None else MISSING
     indication_1 = (au == MISSING or au == usage_id)
     stat = row[tax_status_pos] if tax_status_pos != None else "accepted"
     indication_2 = (stat == "accepted" or stat == "valid")

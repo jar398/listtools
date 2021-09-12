@@ -19,14 +19,14 @@ MAMMALIA=40674
 # EOL examples:
 
 # EOL DH 1.1 / 1.2 mammals only 
-# A=work/dh11-mammals B=work/dh12-mammals MAMMALIA=EOL-000000627548
-
-# EOL 0.9 / 1.1
-# time make A=work/dh09 B=work/dh11
+# time make A=work/dh11-mammals B=work/dh12-mammals MAMMALIA=EOL-000000627548
 
 # EOL 0.9 / 1.1 mammals only
 # time make A=work/dh09-mammals B=work/dh11-mammals \
 #   MAMMALIA=EOL-000000627548 INDEX=EOLid,scientificName,canonicalName
+
+# EOL 0.9 / 1.1
+# time make A=work/dh09 B=work/dh11
 
 # EOL 1.1 / 1.2
 # time make A=work/dh11 B=work/dh12

@@ -20,24 +20,24 @@ With some indexing, we can do it in approximately linear time.
 
 import sys, io, argparse, csv
 from functools import reduce
-from util import read_csv, windex, MISSING, \
+from util import ingest_csv, windex, MISSING, \
                  correspondence, precolumn, apply_correspondence
-from match_records import compute_coproduct, ingest_coproduct
+from match_records import compute_sum, ingest_sum
 
-def matchings(inport1, inport2, pk_col_arg, indexed, managed_arg,
-              coproduct_file, outport):
+def prepare_delta(inport1, inport2, pk_col_arg, indexed, managed_arg,
+              sum_file, outport):
   global INDEX_BY, pk_pos1, pk_pos2, pk_col
   pk_col = pk_col_arg
   INDEX_BY = indexed.split(",")    # kludge
 
-  a_table = read_csv(inport1, pk_col)
-  b_table = read_csv(inport2, pk_col)
+  a_table = ingest_csv(csv.reader(inport1), pk_col)
+  b_table = ingest_csv(csv.reader(inport2), pk_col)
 
-  if coproduct_file:
-    with open(coproduct_file, "r") as cofile:
-      cop = ingest_coproduct(cofile, pk_col)
+  if sum_file:
+    with open(sum_file, "r") as cofile:
+      cop = ingest_sum(csv.reader(cofile), pk_col)
   else:
-    cop = compute_coproduct(a_table, b_table, pk_col, INDEX_BY)
+    cop = compute_sum(a_table, b_table, pk_col, INDEX_BY)
 
   (header1, _) = a_table
   (header2, _) = b_table
@@ -47,7 +47,7 @@ def matchings(inport1, inport2, pk_col_arg, indexed, managed_arg,
 
   write_delta(cop, a_table, b_table, managed, outport)
 
-# Write coproduct in the form of an EOL-ish delta
+# Write sum in the form of an EOL-ish delta
 
 def write_delta(cop, a_table, b_table, managed, outport):
   global pk_col
@@ -112,25 +112,39 @@ def write_delta(cop, a_table, b_table, managed, outport):
                 key1, key2, key3, remark)
       add_count += 1
 
-  # All done with coproduct.  Reporting now.
+  # All done with the delta.  Reporting now.
 
   print("-- delta: %s carries, %s additions, %s removals, %s updates" %
         (carry_count, add_count, remove_count, update_count,),
         file=sys.stderr)
   for j in range(0, len(header2)):
-    (a, c, d, (qs, cs, ds)) = stats[j]
-    if a > 0:
-      x = [row2[pk_pos2] for row2 in qs]
-      print("--   %s: %s set %s" % (header2[j], a, x),
+    (q, c, d, (qs, cs, ds)) = stats[j]   # (set, modified, erased)
+    if q > 0:
+      print("--   %s: %s set" % (header2[j], q),
             file=sys.stderr)
+      for row2 in qs:
+        print("--     %s = %s: %s" %
+              (row2[pk_pos2], row2[windex(header2, "canonicalName")], row2[j]),
+              file=sys.stderr)
     if c > 0:
-      x = [row1[pk_pos1] for row1 in cs]
-      print("--   %s: %s modified %s" % (header2[j], c, x),
+      print("--   %s: %s modified" % (header2[j], c),
             file=sys.stderr)
+      for (row1, row2) in cs:
+        print("--     %s = %s: %s -> %s" %
+              (row2[pk_pos2],
+               row2[windex(header2, "canonicalName")],
+               row1[precolumn(corr_12, j)],
+               row2[j]),
+              file=sys.stderr)
     if d > 0:
-      x = [row1[pk_pos1] for row1 in ds]
-      print("--   %s: %s cleared %s" % (header2[j], d, x),
+      print("--   %s: %s cleared" % (header2[j], d),
             file=sys.stderr)
+      for row1 in ds:
+        print("--     %s = %s: %s" %
+              (row1[pk_pos1],
+               row1[windex(header1, "canonicalName")],
+               row1[precolumn(corr_12, j)]),
+              file=sys.stderr)
 
 # for readability
 SAMPLES = 3
@@ -147,16 +161,16 @@ def analyze_changes(row1, row2, managed_positions2, corr_12, stats):
       if pos1 != None: value1 = row1[pos1]
       ss = stats[pos2]
       if value1 != value2:
-        (a, c, d, (qs, cs, ds)) = ss
+        (q, c, d, (qs, cs, ds)) = ss
         if value1 == MISSING:
-          ss[0] += 1
-          if a < SAMPLES: qs.append(row2)
+          ss[0] += 1            # 0 = field set
+          if q < SAMPLES: qs.append(row2)
         elif value2 == MISSING: 
-          ss[2] += 1
+          ss[2] += 1            # 2 = field erased
           if d < SAMPLES: ds.append(row1)
         else:
-          ss[1] += 1
-          if c < SAMPLES: cs.append(row1)
+          ss[1] += 1            # 1 = field modified
+          if c < SAMPLES: cs.append((row1, row2))
         return True
   return False
 
@@ -164,12 +178,12 @@ def analyze_changes(row1, row2, managed_positions2, corr_12, stats):
 def test1():
   inport1 = io.StringIO(u"taxonID,bar\n1,2")
   inport2 = io.StringIO(u"taxonID,bar\n1,3")
-  matchings(inport1, inport2, sys.stdout)
+  prepare_delta(inport1, inport2, sys.stdout)
 
 def test():
   inport1 = io.StringIO(u"taxonID,bar\n1,dog\n2,cat")
   inport2 = io.StringIO(u"taxonID,bar\n91,cat\n93,pig")
-  matchings(inport1, inport2, sys.stdout)
+  prepare_delta(inport1, inport2, sys.stdout)
 
 
 if __name__ == '__main__':
@@ -194,9 +208,9 @@ if __name__ == '__main__':
                       help='names of columns under version control')
   parser.add_argument('--matches',
                       default=None,
-                      help='names of columns under version control')
+                      help='file containing A/B matches')
   # List of fields stored in database or graphdb should be an arg.
   args=parser.parse_args()
   with open(args.target, "r") as inport2:
-    matchings(sys.stdin, inport2, args.pk, args.index, args.manage,
-              args.matches, sys.stdout)
+    prepare_delta(sys.stdin, inport2, args.pk, args.index, args.manage,
+                  args.matches, sys.stdout)

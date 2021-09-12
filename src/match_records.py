@@ -28,19 +28,19 @@ from util import ingest_csv, windex, MISSING, \
 def match_records(a_reader, b_reader, pk_col="taxonID", index_by=["canonicalName"]):
   a_table = ingest_csv(a_reader, pk_col)
   b_table = ingest_csv(b_reader, pk_col)
-  cop = compute_coproduct(a_table, b_table, pk_col, index_by)
-  return generate_coproduct(cop, pk_col)
+  cop = compute_sum(a_table, b_table, pk_col, index_by)
+  return generate_sum(cop, pk_col)
 
-# Coproduct -> row generator
+# Sum -> row generator
 
-def generate_coproduct(cop, pk_col):
+def generate_sum(cop, pk_col):
   yield [pk_col, pk_col + "_A", pk_col + "_B", "remark"]
   for (key3, (key1, key2, remark)) in cop.items():
     yield [key3, key1, key2, remark]
 
-# Stuff -> coproduct (cf. delta.py)
+# table * table -> sum (cf. delta.py)
 
-def compute_coproduct(a_table, b_table, pk_col_arg, index_by):
+def compute_sum(a_table, b_table, pk_col_arg, index_by):
   global INDEX_BY, pk_col, pk_pos1, pk_pos2
   pk_col = pk_col_arg
   INDEX_BY = index_by    # kludge
@@ -63,7 +63,7 @@ def compute_coproduct(a_table, b_table, pk_col_arg, index_by):
 
   def connect(key1, key2, remark):
     assert remark
-    # Choose an id in the coproduct
+    # Choose an id in the sum
     if key2 != None:
       key3 = key2
     elif key1 in all_rows2:     # id collision
@@ -293,10 +293,9 @@ def row_properties(row, header, positions):
           if (i in positions and
               row[i] != MISSING)]
 
-# Inverse of write_coproduct
+# Inverse of write_sum
 
-def ingest_coproduct(cofile, pk_col):
-  reader = csv.reader(cofile)
+def ingest_sum(reader, pk_col):
   header = next(reader)
   pk_pos = windex(header, pk_col)
   pk_a_pos = windex(header, pk_col + "_A")
@@ -334,7 +333,7 @@ def main(inport1, inport2, pk_col, index_by, outport):
 if __name__ == '__main__':
   parser = argparse.ArgumentParser(description="""
     Standard input is the 'left' or 'A' usage records.
-    Standard output is the record-level coproduct A+B of the two inputs,
+    Standard output is the record-level sum A+B of the two inputs,
     with rows of the form [id-in-A+B, id-in-A, id-in-B, remark].
     """)
   parser.add_argument('--target',
