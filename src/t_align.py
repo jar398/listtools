@@ -31,6 +31,7 @@ def run_tests():
   run_test("((b,c)g,d)a", "(b,c,d)a", "((b,c)g,d)a")
   run_test("(b,c,d)a", "((b,c)g,d)a", "((b,c)g,d)a")
   run_test("((b,c)g,d,e)a", "(b,c,(d,e)h)a", "((b,c)g,(d,e)h)a")
+  run_test("((a,b)c,d)r", "((a,b)e,d)r", "((a,b)e,d)r")
   # src/t_align.py "((b,c)g,d)a" "(b,(c,d)h)a" ...   LOSE
 
 if __name__ == '__main__':

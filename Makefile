@@ -97,6 +97,23 @@ $(ROUND): $(DELTA) $A-narrow.csv $B-narrow.csv $P/apply.py
 	$P/subset.py --hierarchy $< --root $(MAMMALIA) < $< > $@.new
 	@mv -f $@.new $@
 
+RM=work/rm-$(shell basename $A)-$(shell basename $B).csv
+ALIGNMENT=work/alignment-$(shell basename $A)-$(shell basename $B).csv
+
+fuu: $(ALIGNMENT)
+
+$(RM): $A.csv $B.csv $P/match_records.py
+	@echo
+	@echo "--- COMPUTING RECORD MATCHES ---"
+	$P/match_records.py --target $B.csv --pk $(DELTA_KEY) --index $(INDEX) \
+		    < $A.csv > $(RM)
+
+$(ALIGNMENT): $(RM) $P/align.py
+	@echo
+	@echo "--- COMPUTING ALIGNMENT ---"
+	$P/align.py --target $B.csv --matches $(RM) \
+		    < $A.csv > $(ALIGNMENT)
+
 # ----------------------------------------------------------------------
 # EOL examples
 

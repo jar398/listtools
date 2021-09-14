@@ -62,7 +62,7 @@ def compute_sum(a_table, b_table, pk_col_arg, index_by):
   #       file=sys.stderr)
 
   def connect(key1, key2, remark):
-    assert remark
+    assert isinstance(remark, str)
     # Choose an id in the sum
     if key2 != None:
       key3 = key2
@@ -93,7 +93,7 @@ def compute_sum(a_table, b_table, pk_col_arg, index_by):
         if back1[pk_pos1] == key1:
           # Mutual match!
           key2 = candidate
-          remark = ".mutual match"
+          remark = MISSING
         else:
           remark = (".round trip failed: %s -> %s -> %s" %
                     (key1, row2[pk_pos2], back1[pk_pos1]))
