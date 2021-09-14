@@ -13,16 +13,8 @@ troublemaker = "0000000000"
 # Supervise the overall process
 
 def align(a_iterator, b_iterator, rm_sum_iterator):
-  a_usage_dict = load_usages(a_iterator)
-  b_usage_dict = load_usages(b_iterator)
-
-  # Collect children so we can say children[x]
-  a_roots = collect_children(a_usage_dict.values())
-  b_roots = collect_children(b_usage_dict.values())
-
-  # Prepare for doing within-tree MRCA operations
-  cache_levels(a_roots)
-  cache_levels(b_roots)
+  (a_usage_dict, a_roots) = load_usages(a_iterator)
+  (b_usage_dict, b_roots) = load_usages(b_iterator)
 
   # Read record matches
   rm_sum = get_sum(rm_sum_iterator, a_usage_dict, b_usage_dict)
@@ -31,11 +23,11 @@ def align(a_iterator, b_iterator, rm_sum_iterator):
 
   # Merge the two trees
   sum = ({}, {}, {})
-  roots = set_congruences(a_roots, b_roots, sum, rm_sum)
+  set_congruences(a_roots, b_roots, sum, rm_sum)
   roots = build_tree(a_roots, b_roots, sum, rm_sum)
 
   # Report
-  report(a_usage_dict.values(), rm_sum, sum)
+  report(rm_sum, sum)
 
   # Emit tabular version of merged tree
   return generate_sum(sum)
@@ -82,7 +74,14 @@ def load_usages(iterator):
     if accepted_key != MISSING:
       probe = key_to_usage.get(accepted_key)
       if probe: set_accepted(usage, probe)
-  return key_to_usage
+
+  # Collect children so we can say children[x]
+  roots = collect_children(key_to_usage.values())
+
+  # Prepare for doing within-tree MRCA operations
+  cache_levels(roots)
+
+  return (key_to_usage, roots)
 
 # -----------------------------------------------------------------------------
 # Sum file ingest
@@ -109,6 +108,8 @@ def mep_set(mep, x, j):
   mep[prop.get_identity(x)] = j
 
 
+# Load sum from a file or whatever
+
 def get_sum(iterator, a_usage_dict, b_usage_dict):
   header = next(iterator)
   key_pos = windex(header, "taxonID")
@@ -127,6 +128,7 @@ def get_sum(iterator, a_usage_dict, b_usage_dict):
 # Sadly, rows are repeated sometimes 
 
 def note_match(x, y, remark, sum):
+  global union_count
   assert isinstance(remark, str)
   (key_to_union, in_a, in_b) = sum
   if x:
@@ -155,11 +157,14 @@ def note_match(x, y, remark, sum):
     key = get_key(x)
     if key in key_to_union: key = "A.%s" % key
   name = get_canonical(y) if y else get_canonical(x)
-  u = make_union(key, x, y, remark, name or MISSING)
-  if x: mep_set(in_a, x, u)
-  if y: mep_set(in_b, y, u)
-  mep_set(key_to_union, key, u)
-  return u
+  j = make_union(key, x, y, remark, name or MISSING)
+  if x: mep_set(in_a, x, j)
+  if y: mep_set(in_b, y, j)
+  key_to_union[key] = j
+  union_count += 1
+  return j
+
+union_count = 0
 
 def combine_remarks(*remarks):
   return ";".join([r for r in remarks if r != MISSING])
@@ -472,22 +477,6 @@ the top.
   u  =  g  =  v   tipward nodes in cluster
 """
 
-def connector(rm_sum, sum):
-  (_, rm_in_a, rm_in_b) = rm_sum
-  def connect(x, y, remark):
-    assert remark
-    remarks = [remark]
-    if x:
-      j = mep_get(rm_in_a, x, None)
-      assert j
-      if j: remarks.append(get_remark(j))
-    if y:
-      j = mep_get(rm_in_b, y, None)
-      assert j
-      if j: remarks.append(get_remark(j))
-    return note_match(x, y, combine_remarks(*remarks), sum)
-  return connect
-
 def set_congruences(a_roots, b_roots, sum, rm_sum):
   (_, in_a, in_b) = sum
   (_, rm_in_a, _) = rm_sum
@@ -554,36 +543,64 @@ def set_congruences(a_roots, b_roots, sum, rm_sum):
 
   for x in a_roots: traverse(x)
 
+# Get remarks from rm_sum ... ?
+
+def connector(rm_sum, sum):
+  (_, rm_in_a, rm_in_b) = rm_sum
+  def connect(x, y, remark):
+    # Get remark from prior record match
+    if x:
+      j = mep_get(rm_in_a, x, None)
+    elif y:
+      j = mep_get(rm_in_b, y, None)
+    assert j
+    assert remark
+    remarks = [remark]
+    if out_a(j) == x and out_b(j) == y:
+      remarks.append(get_remark(j))
+    return note_match(x, y, combine_remarks(*remarks), sum)
+  return connect
+
 # -----------------------------------------------------------------------------
 # Now set the parent pointers for the merged tree
 
 def build_tree(a_roots, b_roots, sum, rm_sum):
-  (_, in_a, in_b) = sum
+  (key_to_union, in_a, in_b) = sum
   connect = connector(rm_sum, sum)
   def fasten_a(x):
     return connect(x, None, "peripheral in A")
   def fasten_b(y):
     return connect(None, y, "peripheral in B")
+  uc1 = union_count
   finish(b_roots,
          in_b, in_a, fasten_b, fasten_a, True)
+  uc2 = union_count
   finish(a_roots,
          in_a, in_b, fasten_a, fasten_b, False)
+  uc3 = union_count
   unions = all_unions(sum)
+  print("%s in_a, %s in_b, %s union keys, %s unions" %
+        (len(in_a), len(in_b), len(key_to_union), len(unions)),
+        file=sys.stderr)
+  print("%s %s %s %s" % (uc1, uc2-uc1, uc3-uc2, len(key_to_union)), file=sys.stderr)
 
   roots = collect_children(unions)
   print("align: %s nodes, %s roots in sum" % (len(unions), len(roots)),
         file=sys.stderr)
   return roots
 
-def cap(x, in_a, fasten):
-  j = mep_get(in_a, x, None)
-  if not j:
-    j = fasten(x)
-    assert mep_get(in_a, x) == j
-  return j
-
 def finish(roots, in_a, in_b, fasten_a, fasten_b, priority):
+  stats = [0, 0, 0]
+  def cap(x, in_a, fasten_a):
+    j = mep_get(in_a, x, None)
+    if not j:
+      j = fasten_a(x)
+      assert mep_get(in_a, x) == j
+      stats[2] += 1
+    return j
+
   def traverse(x):
+    stats[0] += 1
     j = cap(x, in_a, fasten_a)
     for c in get_inferiors(x): traverse(c)
     if not get_superior(j):
@@ -594,7 +611,9 @@ def finish(roots, in_a, in_b, fasten_a, fasten_b, priority):
         else:
           h = cap(pq, in_b, fasten_b)
         set_superior(j, h)
+        stats[1] += 1
   for root in roots: traverse(root)
+  print("# Finish: touched %s, sup %s, capped %s" % tuple(stats), file=sys.stderr)
 
 def determine_superior_in_sum(x, in_a, in_b, priority):
   p = get_superior(x)
@@ -664,27 +683,32 @@ def set_superior(j, k):
 # -----------------------------------------------------------------------------
 # Report on differences between record matches and hierarchy matches
 
-def report(a_usages, rm_sum, sum):
-  (_, rm_in_a, rm_in_b) = rm_sum
+def report(rm_sum, sum):
+  (key_to_union, rm_in_a, rm_in_b) = rm_sum
   (_, in_a, in_b) = sum
-  count = 0
-  for x in a_usages:
-    r = out_b(mep_get(rm_in_a, x))
-    j = out_b(mep_get(in_a, x))
+  drop_a = 0
+  drop_b = 0
+  for u in key_to_union.values():
+    x = out_a(u)
+    y = out_b(u)
+    z = out_b(mep_get(in_a, x)) if x else None
 
     def get_blurb(x): return get_canonical(x)
-    x_blurb = get_blurb(x)
-    r_blurb = get_blurb(r) if r else "[no match]"
-    j_blurb = get_blurb(j) if j else "[no match]"
+    x_blurb = get_blurb(x) if x else "[no match]"
+    y_blurb = get_blurb(y) if y else "[no match]"
+    z_blurb = get_blurb(z) if z else "[no match]"
 
-    if r != j:
-      if r and j:
-        print("  %s =(r) %s, =(h) %s" % (x_blurb, r_blurb, j_blurb),
-              file=sys.stderr)
-      else:
-        count += 1
-  if count > 0:
-    print("  Broken: %s" % count, file=sys.stderr)
+    if x:
+      if y != z:
+        if y and z:
+          print("  %s =(y) %s, =(h) %s" % (x_blurb, y_blurb, z_blurb),
+                file=sys.stderr)
+        else:
+          drop_a += 1
+    elif y:
+      drop_b += 1
+  if drop_a > 0 or drop_b > 0:
+    print("  Broken: %s / %s" % (drop_a, drop_b), file=sys.stderr)
     
 
 # -----------------------------------------------------------------------------
