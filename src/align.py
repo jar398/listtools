@@ -64,16 +64,16 @@ def load_usages(iterator):
     key_to_usage[key] = usage
     accepted_key = row[accepted_pos] if accepted_pos else MISSING
     if accepted_key == key: accepted_key = MISSING
-    temp.append((usage,
-                 row[parent_pos],
-                 accepted_key))
+    parent_key = row[parent_pos]
+    if accepted_key != MISSING: parent_key = MISSING
+    temp.append((usage, parent_key, accepted_key))
   for (usage, parent_key, accepted_key) in temp:
-    if parent_key != MISSING:
-      probe = key_to_usage.get(parent_key)
-      if probe: set_parent(usage, probe)
     if accepted_key != MISSING:
-      probe = key_to_usage.get(accepted_key)
-      if probe: set_accepted(usage, probe)
+      probe2 = key_to_usage.get(accepted_key)
+      if probe2: set_accepted(usage, probe2)
+    elif parent_key != MISSING:
+      probe1 = key_to_usage.get(parent_key)
+      if probe1: set_parent(usage, probe1)
 
   # Collect children so we can say children[x]
   roots = collect_children(key_to_usage.values())
@@ -82,6 +82,125 @@ def load_usages(iterator):
   cache_levels(roots)
 
   return (key_to_usage, roots)
+
+# -----------------------------------------------------------------------------
+# Get parent/child and accepted/synonym relationships
+
+children_prop = prop.Property("children")
+synonyms_prop = prop.Property("synonyms")
+get_children = prop.getter(children_prop)
+set_children = prop.setter(children_prop)
+get_synonyms = prop.getter(synonyms_prop)
+set_synonyms = prop.setter(synonyms_prop)
+
+def get_inferiors(p):
+  return (get_children(p, []) +
+          get_synonyms(p, []))
+
+def get_superior(x):
+  sup = get_parent(x, None) or get_accepted(x, None)
+  if sup:
+    if get_level(sup, 0) != get_level(x, 1) - 1:
+      print("# %s %s" % (get_level(sup), get_level(x)),
+            file=sys.stderr)
+      assert False
+  return sup
+
+def collect_children(items):
+  roots = []
+  for item in items:
+
+    # Add item to list of accepted's synonyms
+    accepted_item = get_accepted(item, None)
+    if accepted_item:
+      ch = get_synonyms(accepted_item, None)
+      if ch:
+        ch.append(item)
+      else:
+        set_synonyms(accepted_item, [item])
+
+    else:
+      # Add item to list of parent's children
+      parent_item = get_parent(item, None)
+      if parent_item:
+        ch = get_children(parent_item, None)
+        if ch:
+          ch.append(item)
+        else:
+          set_children(parent_item, [item])
+      else:
+        roots.append(item)
+
+  return roots
+
+# -----------------------------------------------------------------------------
+# 6. mrca
+
+# Cache every node's level (distance to root)
+#   simple recursive descent from roots
+
+level_prop = prop.Property("level")
+get_level = prop.getter(level_prop)
+set_level = prop.setter(level_prop)
+levels = {}                     # global
+
+def cache_levels(roots):
+  def cache(x, n, trail):
+    if get_key(x) in [get_key(t) for t in trail]:
+      for t in trail:
+        print("# %s -> %s %s" %
+              (get_key(t),
+               [get_key(c) for c in get_children(t)],
+               [get_key(c) for c in get_synonyms(t)],),
+              file=sys.stderr)
+      assert False
+    trail = trail + [x]
+    set_level(x, n)
+    for c in get_inferiors(x):
+      cache(c, n+1, trail)
+      assert get_superior(c) == x
+      assert get_level(c) == get_level(x) + 1
+  for root in roots:
+    cache(root, 1, [])
+
+def find_peers(x, y):
+  while get_level(x) < get_level(y):
+    if get_superior(y):
+      assert get_level(y) - 1 == get_level(get_superior(y))
+    y = get_superior(y)
+  while get_level(x) > get_level(y):
+    if get_superior(x):
+      assert get_level(x) - 1 == get_level(get_superior(x))
+    x = get_superior(x)
+  assert get_level(x) - get_level(y) == 0
+  return (x, y)
+
+def mrca(x, y):
+  (x, y) = find_peers(x, y)
+  while x and not (x is y):
+    if (not isinstance(get_level(x), int) or
+        not isinstance(get_level(y), int) or
+        get_level(x) != get_level(y)):
+      print("# x %s %s %s y %s %s %s" %
+            (get_key(x), get_canonical(x), get_level(x),
+             get_key(y), get_canonical(y), get_level(y)),
+            file=sys.stderr)
+      assert False
+    p = get_superior(x)
+    if p:
+      # Failing
+      if get_level(x) - 1 != get_level(p):
+        print("# x %s %s @%s\np %s %s @%s\ny %s %s @%s" %
+              (get_key(x), get_canonical(x), get_level(x),
+               get_key(p), get_canonical(p), get_level(p),
+               get_key(y), get_canonical(y), get_level(y)),
+              file=sys.stderr)
+        assert False
+    if get_superior(y):
+      assert get_level(y) - 1 == get_level(get_superior(y))
+    x = get_superior(x)
+    y = get_superior(y)
+  return x
 
 # -----------------------------------------------------------------------------
 # Sum file ingest
@@ -170,99 +289,6 @@ def combine_remarks(*remarks):
   return ";".join([r for r in remarks if r != MISSING])
 
 # -----------------------------------------------------------------------------
-# Get parent/child and accepted/synonym relationships
-
-children_prop = prop.Property("children")
-synonyms_prop = prop.Property("synonyms")
-get_children = prop.getter(children_prop)
-set_children = prop.setter(children_prop)
-get_synonyms = prop.getter(synonyms_prop)
-set_synonyms = prop.setter(synonyms_prop)
-
-def get_inferiors(p):
-  return (get_children(p, []) +
-          get_synonyms(p, []))
-
-def get_superior(x):
-  return get_parent(x, None) or get_accepted(x, None)
-
-def collect_children(items):
-  roots = []
-  for item in items:
-
-    # Add item to list of parent's children
-    parent_item = get_parent(item, None)
-    if parent_item:
-      ch = get_children(parent_item, None)
-      if ch:
-        ch.append(item)
-      else:
-        set_children(parent_item, [item])
-    else:
-      roots.append(item)
-
-    # Add item to list of accepted's synonyms
-    accepted_item = get_accepted(item, None)
-    if accepted_item:
-      ch = get_synonyms(accepted_item, None)
-      if ch:
-        ch.append(item)
-      else:
-        set_synonyms(accepted_item, [item])
-
-  return roots
-
-# -----------------------------------------------------------------------------
-# 6. mrca
-
-# Cache every node's level (distance to root)
-#   simple recursive descent from roots
-
-level_prop = prop.Property("level")
-get_level = prop.getter(level_prop)
-set_level = prop.setter(level_prop)
-levels = {}                     # global
-
-def cache_levels(roots):
-  def cache(x, n, trail):
-    if get_key(x) in [get_key(t) for t in trail]:
-      for t in trail:
-        print("%s -> %s %s" %
-              (get_key(t),
-               [get_key(c) for c in get_children(t)],
-               [get_key(c) for c in get_synonyms(t)],),
-              file=sys.stderr)
-      assert False
-    trail = trail + [x]
-    set_level(x, n)
-    for c in get_inferiors(x):
-      cache(c, n+1, trail)
-  for root in roots:
-    cache(root, 1, [])
-
-def find_peers(x, y):
-  if get_level(x) == get_level(y):
-    return (x, y)
-  elif get_level(x) < get_level(y):
-    return find_peers(x, get_superior(y))
-  else:
-    return find_peers(get_superior(x), y)
-
-def mrca(x, y):
-  (x, y) = find_peers(x, y)
-  if x == y:
-    return x
-  else:
-    p = get_superior(x)
-    if p == None:
-      return None               # Foo
-    else:
-      q = get_superior(y)
-      if q == None:
-        return None
-      return mrca(p, q)
-
-# -----------------------------------------------------------------------------
 # Analyze tipward record matches.
 
 # A set of record matches is a 'tipward record match set' if each
@@ -281,12 +307,13 @@ def find_tipward_record_matches(a_roots, b_roots, rm_sum):
         saw = traverse(child) or saw
       if not saw:
         u = mep_get(inject, x_usage)
-        y_usage = outject(u)
-        if y_usage:
+        if outject(u):
           if get_key(u).startswith(troublemaker):
             print("!! tipward: %s" % (get_key(u),), file=sys.stderr)
           mep_set(tipwards, u, u)
           return True
+        else:
+          return False
       return saw
     for root in roots:
       traverse(root)
@@ -304,16 +331,13 @@ def find_tipward_record_matches(a_roots, b_roots, rm_sum):
       set_xmrca(out_a(u), out_b(u))
       set_xmrca(out_b(u), out_a(u))
       count += 1
-    elif False:
-      print("-- Tipward in A but not in B: %s" % get_key(u),
-            file=sys.stderr)
   if len(a_tipwards) != count:
     print("-- align: %s tipward record matches in A" % len(a_tipwards),
           file=sys.stderr)
   if len(b_tipwards) != count:
     print("-- align: %s tipward record matches in B" % len(b_tipwards),
           file=sys.stderr)
-  print("-- align: %s tipward record matches" % count, file=sys.stderr)
+  print("-- align: %s net tipward record matches" % count, file=sys.stderr)
 
 # -----------------------------------------------------------------------------
 # 7. how-related WITHIN hierarchy
@@ -348,13 +372,14 @@ set_xmrca = prop.setter(xmrca_prop)
 def half_xmrcas(x):
   m = get_xmrca(x, None)
   if m:
+    assert get_level(m) > 0
     return m                    # Tipward record match
   for c in get_inferiors(x):
     n = half_xmrcas(c)
     if n:
+      assert get_level(n) > 0
       if m:
         m = mrca(m, n)
-        # If m is None here, then we need to merge roots!
       else:
         m = n
   if m:
@@ -369,6 +394,17 @@ def cache_xmrcas(a_roots, b_roots):
     half_xmrcas(root)
   for root in b_roots:
     half_xmrcas(root)
+  if True:
+    def check(x):
+      for c in get_inferiors(x): check(c)
+      y = get_xmrca(x, None)
+      if y and not get_xmrca(y, None):
+        print("!! x %s %s y %s %s" %
+              (get_key(x), get_canonical(x), get_key(y), get_canonical(x),),
+              file=sys.stderr)
+        assert False
+    for root in a_roots: check(root)
+    for root in b_roots: check(root)
 
 # -----------------------------------------------------------------------------
 
@@ -534,7 +570,7 @@ def set_congruences(a_roots, b_roots, sum, rm_sum):
       if v != None:
         u = get_xmrca(v, None)          # in A
         if get_key(x).startswith(troublemaker):
-          print("x %s v %s u %s" % (get_key(x), get_key(v), get_key(u)),
+          print("# x %s v %s u %s" % (get_key(x), get_key(v), get_key(u)),
                 file=sys.stderr)
         if u == x:  # and how_related(x, u) != LT:
           # u and v will be connected
@@ -571,26 +607,24 @@ def build_tree(a_roots, b_roots, sum, rm_sum):
     return connect(x, None, "peripheral in A")
   def fasten_b(y):
     return connect(None, y, "peripheral in B")
-  uc1 = union_count
-  finish(b_roots,
-         in_b, in_a, fasten_b, fasten_a, True)
-  uc2 = union_count
-  finish(a_roots,
-         in_a, in_b, fasten_a, fasten_b, False)
-  uc3 = union_count
-  unions = all_unions(sum)
-  print("%s in_a, %s in_b, %s union keys, %s unions" %
-        (len(in_a), len(in_b), len(key_to_union), len(unions)),
+  finish_sum(b_roots,
+             in_b, in_a, fasten_b, fasten_a, True)
+  finish_sum(a_roots,
+             in_a, in_b, fasten_a, fasten_b, False)
+  print("# %s in a, %s in b, %s union keys" %
+        (len(in_a), len(in_b), len(key_to_union)),
         file=sys.stderr)
-  print("%s %s %s %s" % (uc1, uc2-uc1, uc3-uc2, len(key_to_union)), file=sys.stderr)
 
+  unions = key_to_union.values()
   roots = collect_children(unions)
-  print("align: %s nodes, %s roots in sum" % (len(unions), len(roots)),
+  print("-- align: %s nodes, %s roots in sum" % (len(unions), len(roots)),
         file=sys.stderr)
   return roots
 
-def finish(roots, in_a, in_b, fasten_a, fasten_b, priority):
-  stats = [0, 0, 0]
+# Set parents of nodes whose parent wasn't set by 'weave'
+
+def finish_sum(roots, in_a, in_b, fasten_a, fasten_b, priority):
+  stats = [0, 0, 0, 0, 0]
   def cap(x, in_a, fasten_a):
     j = mep_get(in_a, x, None)
     if not j:
@@ -603,6 +637,8 @@ def finish(roots, in_a, in_b, fasten_a, fasten_b, priority):
     stats[0] += 1
     j = cap(x, in_a, fasten_a)
     for c in get_inferiors(x): traverse(c)
+    # All joint nodes derived from nodes descended from x
+    # have their superior node set at this point.
     if not get_superior(j):
       (pq, ab) = determine_superior_in_sum(x, in_a, in_b, priority)
       if pq:
@@ -612,51 +648,56 @@ def finish(roots, in_a, in_b, fasten_a, fasten_b, priority):
           h = cap(pq, in_b, fasten_b)
         set_superior(j, h)
         stats[1] += 1
+      else:
+        stats[3] += 1
+    else:
+      stats[4] += 1
   for root in roots: traverse(root)
-  print("# Finish: touched %s, sup %s, capped %s" % tuple(stats), file=sys.stderr)
+  print("# Finish: touched %s, set sup %s, capped %s, orphans %s, pass %s" % tuple(stats),
+        file=sys.stderr)
 
 def determine_superior_in_sum(x, in_a, in_b, priority):
   p = get_superior(x)
-  v = get_xmrca(x, None)
-  if v == None:
+  q = get_xmrca(x, None)
+  if q == None:
+    # No tipward matches in sight
     return (p, True)
-  u = get_xmrca(v, None)
+  u = get_xmrca(q, None)
   if u == None:
-    if False:
-      print("!! x %s p %s v %s" % (get_key(x), get_key(p), get_key(v)),
+    # How can a node that's an xmrca not itself have an xmrca?
+    if True:
+      print("!! x %s p %s q %s" % (get_key(x), get_key(p), get_key(q)),
             file=sys.stderr)
     return (p, True)
-  q = v
   # Ascend until we find a B-side ancestor that's definitely bigger than x
   # This isn't right for monotype chains but those are handled separately
   while q and get_xmrca(q, None) == u:
     q = get_superior(q)
-  # Ascend until we find a B-side ancestor that doesn't conflict with p
-  def relax(q):
+  # Ascend until we find a priority-side ancestor that doesn't conflict with p
+  while p or q:
     # No monotype chains.  Ordering is by tipward-match sets.
-    if p == None and q == None:
-      return (None, None)
+    if p == None:
+      return (q, False)
+    elif q == None:
+      return (p, True)
     else:
-      if p == None:
+      (rel, _, _) = related_how(p, q)
+      if rel == GT:
         return (q, False)
-      elif q == None:
+      elif rel == LT or rel == EQ:
         return (p, True)
-      else:
-        (rel, _, _) = related_how(p, q)
-        if rel == GT:
-          return (q, False)
-        elif rel == LT or rel == EQ:
+      else:                   # CONFLICT, DISJOINT
+        if False:
+          print("!! %s ? %s" % (get_key(p), get_key(q)),
+              file=sys.stderr)
+        if priority:
+          # Ignore conflicting low-priority candidate q
           return (p, True)
-        else:                   # CONFLICT, DISJOINT
-          if False:
-            print("!! %s ? %s" % (get_key(p), get_key(q)),
-                file=sys.stderr)
-          if priority:          # if this is the priority tree,
-            return (p, True)
-          else:
-            # set_coparent(...)
-            return relax(get_superior(q))
-  return relax(q)
+        else:
+          # Seek a nonconflicting high-priority candidate
+          pass
+    q = get_superior(q)
+  return (None, True)
 
 # j is to be either a child or synonym of k.  Figure out which.
 
@@ -708,7 +749,7 @@ def report(rm_sum, sum):
     elif y:
       drop_b += 1
   if drop_a > 0 or drop_b > 0:
-    print("  Broken: %s / %s" % (drop_a, drop_b), file=sys.stderr)
+    print("-- align: Broken: %s in A, %s in B" % (drop_a, drop_b), file=sys.stderr)
     
 
 # -----------------------------------------------------------------------------
