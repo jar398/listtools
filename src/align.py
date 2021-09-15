@@ -134,7 +134,7 @@ def collect_children(items):
   return roots
 
 # -----------------------------------------------------------------------------
-# 6. mrca
+# MRCA
 
 # Cache every node's level (distance to root)
 #   simple recursive descent from roots
@@ -142,62 +142,25 @@ def collect_children(items):
 level_prop = prop.Property("level")
 get_level = prop.getter(level_prop)
 set_level = prop.setter(level_prop)
-levels = {}                     # global
 
 def cache_levels(roots):
-  def cache(x, n, trail):
-    if get_key(x) in [get_key(t) for t in trail]:
-      for t in trail:
-        print("# %s -> %s %s" %
-              (get_key(t),
-               [get_key(c) for c in get_children(t)],
-               [get_key(c) for c in get_synonyms(t)],),
-              file=sys.stderr)
-      assert False
-    trail = trail + [x]
+  def cache(x, n):
     set_level(x, n)
     for c in get_inferiors(x):
-      cache(c, n+1, trail)
-      assert get_superior(c) == x
-      assert get_level(c) == get_level(x) + 1
+      cache(c, n+1)
   for root in roots:
-    cache(root, 1, [])
+    cache(root, 1)
 
 def find_peers(x, y):
   while get_level(x) < get_level(y):
-    if get_superior(y):
-      assert get_level(y) - 1 == get_level(get_superior(y))
     y = get_superior(y)
   while get_level(x) > get_level(y):
-    if get_superior(x):
-      assert get_level(x) - 1 == get_level(get_superior(x))
     x = get_superior(x)
-  assert get_level(x) - get_level(y) == 0
   return (x, y)
 
 def mrca(x, y):
   (x, y) = find_peers(x, y)
   while x and not (x is y):
-    if (not isinstance(get_level(x), int) or
-        not isinstance(get_level(y), int) or
-        get_level(x) != get_level(y)):
-      print("# x %s %s %s y %s %s %s" %
-            (get_key(x), get_canonical(x), get_level(x),
-             get_key(y), get_canonical(y), get_level(y)),
-            file=sys.stderr)
-      assert False
-    p = get_superior(x)
-    if p:
-      # Failing
-      if get_level(x) - 1 != get_level(p):
-        print("# x %s %s @%s\np %s %s @%s\ny %s %s @%s" %
-              (get_key(x), get_canonical(x), get_level(x),
-               get_key(p), get_canonical(p), get_level(p),
-               get_key(y), get_canonical(y), get_level(y)),
-              file=sys.stderr)
-        assert False
-    if get_superior(y):
-      assert get_level(y) - 1 == get_level(get_superior(y))
     x = get_superior(x)
     y = get_superior(y)
   return x
@@ -341,13 +304,13 @@ def find_tipward_record_matches(a_roots, b_roots, rm_sum):
 
 # -----------------------------------------------------------------------------
 # 7. how-related WITHIN hierarchy
-#   checklist.how_related
 
 EQ = 1
 LT = 2
 GT = 3
 DISJOINT = 4
 CONFLICT = 5
+rcc5_symbols = ['?', '=', '<', '>', '!', '><']
 
 def how_related(x, y):
   (x1, y1) = find_peers(x, y)
@@ -728,28 +691,25 @@ def report(rm_sum, sum):
   (key_to_union, rm_in_a, rm_in_b) = rm_sum
   (_, in_a, in_b) = sum
   drop_a = 0
-  drop_b = 0
   for u in key_to_union.values():
     x = out_a(u)
     y = out_b(u)
     z = out_b(mep_get(in_a, x)) if x else None
 
-    def get_blurb(x): return get_canonical(x)
-    x_blurb = get_blurb(x) if x else "[no match]"
-    y_blurb = get_blurb(y) if y else "[no match]"
-    z_blurb = get_blurb(z) if z else "[no match]"
+    def get_blurb(x): 
+      return get_canonical(x) if x else "[no match]"
 
     if x:
       if y != z:
         if y and z:
-          print("  %s =(y) %s, =(h) %s" % (x_blurb, y_blurb, z_blurb),
+          # Interesting: related_how(x, y)
+          print("  %s =(h) %s" %
+                (get_blurb(x), get_blurb(z)),
                 file=sys.stderr)
         else:
           drop_a += 1
-    elif y:
-      drop_b += 1
-  if drop_a > 0 or drop_b > 0:
-    print("-- align: Broken: %s in A, %s in B" % (drop_a, drop_b), file=sys.stderr)
+  if drop_a > 0:
+    print("-- align: %s broken in A" % (drop_a,), file=sys.stderr)
     
 
 # -----------------------------------------------------------------------------
