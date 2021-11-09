@@ -119,9 +119,9 @@ With `--drop`, it drops particular columns, keeping all the rest:
 Given input checklists A and B, finds the best unique mutual matches
 between the A records and the B records.
 
-    `--target` filename  - the B input.
-    `--pk` K - specify primary key; default `taxonID`
-    `--index` columns names - lists columns to be used for comparison,
+ * `--target` filename  - the B input.
+ * `--pk` K - specify primary key; default `taxonID`
+ * `--index` columns names - lists columns to be used for comparison,
       in priority order.
 
 Standard input is the A input.
@@ -186,18 +186,21 @@ the `mode` column of the delta.  The primary key in the delta is taken
 from A in the case of `remove` and `update` records.  The primary key
 from the B file is given in `new_pk` of the delta.
 
-The output contains only the managed columns (`--manage`), and matched
+The output contains only the managed columns (`--managed`), and matched
 rows are considered updated only if one of the managed columns
 differs.
 
 The matches are done on only a row-by-row basis and are not sensitive
-to hierarchy or other sources of meaning.  Usage rows may therefore be
-matched even when they must be interpreted as distinct taxa.  Such
-distinctions are to be discovered by future independent tools.
+to hierarchy or other sources of meaning.  Hierarchy and
+synonym-to-accepted links are treated the same as any other field and
+do not require identical contents, meaning that the overall comparison
+is not truly sensitive to hierarchy.  Usage rows may be matched even
+when consideration of hierarchy would require them to be interpreted
+as distinct taxa.  For hierarchy sensitive comparison see `align`, below.
 
 ### apply
 
-Applies a sorted delta B-A to sorted file A (which typically would be
+Applies a sorted delta, B-A, to a sorted file A (which typically would be
 the A file from which the delta was generated), generating a file B′.
 B′ will be projection of B to the given 'managed' columns, with
 perhaps the rows in a different order.
@@ -238,11 +241,11 @@ these columns:
 
 ### hierarchy
 
-This is specific to EOL.  It applies a usage id to page id mapping
+This is specific to EOL.  It applies a usage id to taxon id ('page id') mapping
 (in a file named by an argument) to a file full of usages to generate a file
-with one row per page, giving the parent of each page.
+with one row per taxon, giving the parent of each taxon.
 
-The resulting page list can be subjected to `delta` and `scatter` to
+The resulting taxon list can be subjected to `delta` and `scatter` to
 incrementally update an in-database hierarchy, etc.
 
 Columns expected: `taxonID`, `parentNameUsageID`,
@@ -267,7 +270,9 @@ Columns in the DwC output:
 
 ### newick
 
-An extremely rudimentary Newick notation parser.  The following
+An extremely rudimentary Newick notation parser.  
+
+The following
 accepts a Newick string on the command line and emits a CSV table with
 columns `taxonID`, `parentNameUsageID`, and `canonicalName`:
 
