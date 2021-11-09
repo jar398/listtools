@@ -61,7 +61,7 @@ DELTA_KEY ?= $(USAGE_KEY)
 INDEX ?= taxonID,EOLid,scientificName,canonicalName
 MANAGE ?= taxonID,scientificName,canonicalName,taxonRank,taxonomicStatus,nomenclaturalStatus,datasetID,source
 
-$(DELTA): $A.csv $B.csv $P/delta.py $P/match_records.py
+$(DELTA): $A.csv $B.csv $P/delta.py $P/match_records.py $P/property.py
 	@echo
 	@echo "--- COMPUTING DELTA ---"
 	set -o pipefail; \
@@ -108,7 +108,7 @@ $(RM): $A.csv $B.csv $P/match_records.py
 	$P/match_records.py --target $B.csv --pk $(DELTA_KEY) --index $(INDEX) \
 		    < $A.csv > $(RM)
 
-$(ALIGNMENT): $(RM) $P/align.py
+$(ALIGNMENT): $(RM) $P/align.py $P/property.py
 	@echo
 	@echo "--- COMPUTING ALIGNMENT ---"
 	$P/align.py --target $B.csv --matches $(RM) \

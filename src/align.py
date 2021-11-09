@@ -26,11 +26,52 @@ def align(a_iterator, b_iterator, rm_sum_iterator):
   set_congruences(a_roots, b_roots, sum, rm_sum)
   roots = build_tree(a_roots, b_roots, sum, rm_sum)
 
+  # Prepare to assign names
+  assign_canonicals(sum)
+
   # Report
   report(rm_sum, sum)
 
   # Emit tabular version of merged tree
   return generate_sum(sum)
+
+def assign_canonicals(sum):
+  (key_to_union, in_a, in_b) = sum
+  b_index_by_name = {}
+  for u in key_to_union.values():
+    y = out_b(u)
+    if y:
+      name = get_canonical(y, None)
+      if name:
+        b_index_by_name[name] = y
+  print("# %s B canonicals" % len(b_index_by_name),
+        file=sys.stderr)
+  count = 0
+  losers = 0
+  for u in key_to_union.values():
+    y = out_b(u)
+    if y:
+      name = get_canonical(y, None)
+    else:
+      x = out_a(u)
+      name = get_canonical(x, None)
+      if name in b_index_by_name:
+        y = b_index_by_name[name]
+        # related_how(x in A, y in B)
+        (rcc5, _, _, _) = related_how(x, y)
+        name = name + " sec. A"
+        print("  %s %s %s" %
+              (name,
+               rcc5_symbols[rcc5],
+               get_canonical(y, "[no canonical]")),
+              file=sys.stderr)
+    if name:
+      set_canonical(u, name)
+      count += 1
+    else:
+      losers += 1
+  print("# %s A+B canonicals (%s without)" % (count, losers),
+        file=sys.stderr)
 
 # -----------------------------------------------------------------------------
 # Hierarchy file ingest
@@ -39,7 +80,7 @@ key_prop = prop.Property("primary_key")
 get_key = prop.getter(key_prop)
 canonical_prop = prop.Property("canonical")
 get_canonical = prop.getter(canonical_prop)
-make_usage = prop.constructor(key_prop, canonical_prop)
+make_usage = prop.constructor(key_prop)
 
 parent_prop = prop.Property("parent")
 get_parent = prop.getter(parent_prop)
@@ -60,7 +101,9 @@ def load_usages(iterator):
   key_to_usage = {}
   for row in iterator:
     key = row[key_pos]
-    usage = make_usage(key, row[canonical_pos])
+    usage = make_usage(key)
+    name = row[canonical_pos]
+    if name: set_canonical(usage, name)
     key_to_usage[key] = usage
     accepted_key = row[accepted_pos] if accepted_pos else MISSING
     if accepted_key == key: accepted_key = MISSING
@@ -178,7 +221,8 @@ remark_prop = prop.Property("remark")
 get_remark = prop.getter(remark_prop)
 
 make_union = prop.constructor(key_prop, out_a_prop, out_b_prop,
-                              remark_prop, canonical_prop)
+                              remark_prop)
+set_canonical = prop.setter(canonical_prop)
 
 nodefault = []
 def mep_get(mep, x, default=nodefault):
@@ -190,7 +234,7 @@ def mep_set(mep, x, j):
   mep[prop.get_identity(x)] = j
 
 
-# Load sum from a file or whatever
+# Load record mathes from a file or whatever
 
 def get_sum(iterator, a_usage_dict, b_usage_dict):
   header = next(iterator)
@@ -238,8 +282,7 @@ def note_match(x, y, remark, sum):
   else:
     key = get_key(x)
     if key in key_to_union: key = "A.%s" % key
-  name = get_canonical(y) if y else get_canonical(x)
-  j = make_union(key, x, y, remark, name or MISSING)
+  j = make_union(key, x, y, remark)
   if x: mep_set(in_a, x, j)
   if y: mep_set(in_b, y, j)
   key_to_union[key] = j
@@ -310,7 +353,7 @@ LT = 2
 GT = 3
 DISJOINT = 4
 CONFLICT = 5
-rcc5_symbols = ['?', '=', '<', '>', '!', '><']
+rcc5_symbols = ['?', '=', '>', '<', '!', '><']
 
 def how_related(x, y):
   (x1, y1) = find_peers(x, y)
@@ -689,33 +732,37 @@ def set_superior(j, k):
 # Report on differences between record matches and hierarchy matches
 
 def report(rm_sum, sum):
-  (key_to_union, rm_in_a, rm_in_b) = rm_sum
-  (_, in_a, in_b) = sum
+  (rm_map, rm_in_a, rm_in_b) = rm_sum
+  (a_map, in_a, in_b) = sum
   drop_a = 0
-  for u in key_to_union.values():
-    x = out_a(u)
-
-    def get_blurb(x): 
-      return get_canonical(x) if x else "[no match]"
-
+  for r in rm_map.values():     # Record match
+    x = out_a(r)
     if x:
-      y = out_b(u)
-      z = out_b(mep_get(in_a, x)) if x else None
-      # Record match != hierarchy-sensitive match ?
+      zu = mep_get(in_a, x)     # Bridge
+      y = out_b(r)              # x record matches y
+      z = out_b(zu)             # x aligns to z
       if y != z:
+        # Record match != aligned
         if y and z:
-          (rcc5, _, _, _) = related_how(y, z)
-          # Interesting: related_how(x, y)
+          # related_how(x in A, y in B)
+          (rcc5, _, _, _) = related_how(x, y)
           print("  %s %s %s" %
-                (get_blurb(x),
+                (get_blurb(mep_get(in_b, y)),
                  rcc5_symbols[rcc5],
-                 get_blurb(z)),
+                 get_blurb(zu)),
                 file=sys.stderr)
         else:
           drop_a += 1
   if drop_a > 0:
     print("-- align: %s broken in A" % (drop_a,), file=sys.stderr)
     
+def get_blurb(r):
+  if r:
+    name = get_canonical(r, None)
+    if name != None: return name
+    return "[no canonical]"
+  else:
+    return "[no match]"
 
 # -----------------------------------------------------------------------------
 # 14. emit the new sum with additional parent column
@@ -738,7 +785,7 @@ def generate_sum(sum):
            get_key(p) if p else MISSING,
            get_key(a) if a else MISSING,
            get_canonical(union, MISSING),
-           get_remark(union)]
+           get_remark(union, MISSING)]
 
 def all_unions(sum):
   (key_to_union, _, _) = sum
