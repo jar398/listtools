@@ -124,7 +124,7 @@ def write_delta(cop, a_table, b_table, managed, outport):
             file=sys.stderr)
       for row2 in qs:
         print("--     %s = %s: %s" %
-              (row2[pk_pos2], row2[windex(header2, "canonicalName")], row2[j]),
+              (row2[pk_pos2], canonical_name(row2, header2), row2[j]),
               file=sys.stderr)
     if c > 0:
       print("--   %s: %s modified" % (header2[j], c),
@@ -132,7 +132,7 @@ def write_delta(cop, a_table, b_table, managed, outport):
       for (row1, row2) in cs:
         print("--     %s = %s: %s -> %s" %
               (row2[pk_pos2],
-               row2[windex(header2, "canonicalName")],
+               canonical_name(row2, header2),
                row1[precolumn(corr_12, j)],
                row2[j]),
               file=sys.stderr)
@@ -142,9 +142,16 @@ def write_delta(cop, a_table, b_table, managed, outport):
       for row1 in ds:
         print("--     %s = %s: %s" %
               (row1[pk_pos1],
-               row1[windex(header1, "canonicalName")],
+               canonical_name(row1, header1),
                row1[precolumn(corr_12, j)]),
               file=sys.stderr)
+
+def canonical_name(row, header):
+  col = windex(header, "canonicalName")
+  if col != None:
+    return row[col]
+  else:                         # foo
+    return row[windex(header, "taxonID") or 0]
 
 # for readability
 SAMPLES = 3

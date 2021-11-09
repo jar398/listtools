@@ -385,41 +385,42 @@ def related_how(p, q):
   c = get_xmrca(p, None)
   d = get_xmrca(q, None)
   if c == None or d == None:
-    return (DISJOINT, None, None)
+    return (DISJOINT, None, p, q)
   elif get_xmrca(c, None) == d:
     if p == d and q == c:
-      return (EQ, None, None)
+      return (EQ, p, None, None)
     else:
       cmp = ((get_level(d) - get_level(p)) -
              (get_level(c) - get_level(q)))
       if cmp < 0:
-        return (LT, None, None)
+        return (LT, None, None, None)
       elif cmp == 0:
         # TBD: Show more finesse
         # especially: make use of record matches between monotype chains
-        return (EQ, None, None)
+        return (EQ, None, None, None)
       else:
-        return (GT, None, None)
+        return (GT, None, None, None)
   else:
+    #  e   f   g
     # yes yes yes  CONFLICT
     # yes yes no   GT
     # no  yes no   EQ
     # no  yes yes  LT
     # yes no  yes  DISJOINT
     #  the other 3 cases can't occur
-    (e, f) = seek_conflict(p, q)
+    (e, f) = seek_conflict(p, q)       # Both in A
     if not e:
-      return (DISJOINT, e, f)
+      assert f
+      return (DISJOINT, None, f, q)    # g would be nice
     elif f:
-      (e2, f2) = seek_conflict(q, p)
-      if not e2:
-        return (DISJOINT, e2, f2)
-      elif f2:
-        return (CONFLICT, e, f)    # or (e, f, f2)?
+      (e2, g) = seek_conflict(q, p)   # Both in B
+      assert e2
+      if g:
+        return (CONFLICT, e, f, g)    # or (e, f, g)?
       else:
-        return (GT, e, f)
+        return (GT, e, f, None)
     else:
-      return (LT, e, None)
+      return (LT, e, None, None)    # g would be nice
 
 # p < xmrca(q); but is p < q?
 
@@ -644,7 +645,7 @@ def determine_superior_in_sum(x, in_a, in_b, priority):
     elif q == None:
       return (p, True)
     else:
-      (rel, _, _) = related_how(p, q)
+      (rel, _, _, _) = related_how(p, q)
       if rel == GT:
         return (q, False)
       elif rel == LT or rel == EQ:
@@ -693,18 +694,22 @@ def report(rm_sum, sum):
   drop_a = 0
   for u in key_to_union.values():
     x = out_a(u)
-    y = out_b(u)
-    z = out_b(mep_get(in_a, x)) if x else None
 
     def get_blurb(x): 
       return get_canonical(x) if x else "[no match]"
 
     if x:
+      y = out_b(u)
+      z = out_b(mep_get(in_a, x)) if x else None
+      # Record match != hierarchy-sensitive match ?
       if y != z:
         if y and z:
+          (rcc5, _, _, _) = related_how(y, z)
           # Interesting: related_how(x, y)
-          print("  %s =(h) %s" %
-                (get_blurb(x), get_blurb(z)),
+          print("  %s %s %s" %
+                (get_blurb(x),
+                 rcc5_symbols[rcc5],
+                 get_blurb(z)),
                 file=sys.stderr)
         else:
           drop_a += 1
@@ -757,6 +762,7 @@ if __name__ == '__main__':
   rm_sum_path = args.matches
 
   with open(b_path) as b_file:
+    # TBD: Compute sum if not provided ?
     with open(rm_sum_path) as rm_sum_file:
       sum = align(csv.reader(a_file),
                   csv.reader(b_file),

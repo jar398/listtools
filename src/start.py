@@ -22,7 +22,6 @@ def start_csv(inport, params, outport, pk_col, cleanp):
   can_pos = windex(in_header, "canonicalName")
   sci_pos = windex(in_header, "scientificName")
   source_pos = windex(in_header, "source")
-  dataset_pos = windex(in_header, "datasetID")
   landmark_pos = windex(in_header, "Landmark")
   if landmark_pos != None: in_header[landmark_pos] = "landmark_status"
   taxon_id_pos = windex(in_header, "taxonID")

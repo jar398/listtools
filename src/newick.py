@@ -57,7 +57,6 @@ def generate_newick(rows):
   header = next(rows)
   key_pos = windex(header, "taxonID")
   parent_pos = windex(header, "parentNameUsageID")
-  accepted_pos = windex(header, "acceptedNameUsageID")
   name_pos = windex(header, "canonicalName")
   assert key_pos != None
   assert parent_pos != None
