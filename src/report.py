@@ -28,21 +28,23 @@ def generate_report(al):
   same = [0]
   report = []
   report.append(("status", "A name", "B name", "rank"))
+  def get_blurb(z):
+    return get_canonical(z, None) or get_key(z)
   def traverse(u):
     x = out_a(u, None)
     y = out_b(u, None)
     if not x:
-      report.append(["new or split", MISSING,
-                     get_canonical(y, "???"),
+      report.append(["new/split/renamed", MISSING,
+                     get_blurb(y),
                      get_rank(y, MISSING)])
     elif not y:
-      report.append(["deprecated or lumped",
-                     get_canonical(x, "???"), MISSING,
+      report.append(["deprecated/lumped/renamed",
+                     get_blurb(x), MISSING,
                      get_rank(x, MISSING)])
     elif get_canonical(x, 123) != get_canonical(y, 456):
-      report.append(["changed name",
-                     get_canonical(x, "???"),
-                     get_canonical(y, "???"),
+      report.append(["renamed",
+                     get_blurb(x),
+                     get_blurb(y),
                      get_rank(y, MISSING)])
     else:
       # No change ... should check parent though

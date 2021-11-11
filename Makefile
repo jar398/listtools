@@ -101,7 +101,7 @@ RM=work/rm-$(shell basename $A)-$(shell basename $B).csv
 ALIGNMENT=work/alignment-$(shell basename $A)-$(shell basename $B).csv
 REPORT=work/report-$(shell basename $A)-$(shell basename $B).csv
 
-fuu: $(REPORT)
+report: $(REPORT)
 
 $(RM): $A.csv $B.csv $P/match_records.py
 	@echo

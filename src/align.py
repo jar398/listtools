@@ -715,26 +715,40 @@ def determine_superior_in_sum(x, in_a, in_b, priority):
   return (None, True)
 
 # j is to be either a child or synonym of k.  Figure out which.
+# Invariant: A synonym must have neither children nor synonyms.
 
 def set_superior(j, k):
   assert k
-  assert get_superior(j) == None
+  assert not get_superior(j)
+  assert not get_accepted(k, None)
   x = out_a(j)
   y = out_b(j)
-
-  # If j has any children or synonyms, then j is a child, not a synonym
-  if ((x and len(get_inferiors(x)) > 0) or
-      (y and len(get_inferiors(y)) > 0)):
-    set_parent(j, k)
-
-  # If j is considered a synonym on both sides, then j is a synonym
-  elif y and get_accepted(y, None):
-    set_accepted(j, k)
-
-  elif not y and get_accepted(x, None):
-    set_accepted(j, k)
-
-  else: set_parent(j, k)
+  if True:
+    if y:
+      if get_accepted(y, None):
+        assert not get_children(j, None)
+        assert not get_synonyms(j, None)
+        set_accepted(j, k)
+      else:
+        set_parent(j, k)
+    else:  # x
+      if get_accepted(x, None):
+        assert not get_children(j, None)
+        assert not get_synonyms(j, None)
+        set_accepted(j, k)
+      else:
+        set_parent(j, k)
+  else:
+    # If j has any children or synonyms, then j is a child, not a synonym
+    if ((x and len(get_inferiors(x)) > 0) or
+        (y and len(get_inferiors(y)) > 0)):
+      set_parent(j, k)
+    # If j is considered a synonym on both sides, then j is a synonym
+    elif y and get_accepted(y, None):
+      set_accepted(j, k)
+    elif not y and get_accepted(x, None):
+      set_accepted(j, k)
+    else: set_parent(j, k)
 
 # -----------------------------------------------------------------------------
 # Report on differences between record matches and hierarchy matches
