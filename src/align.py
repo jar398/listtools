@@ -6,6 +6,7 @@
 import sys, csv, argparse
 from util import windex, MISSING
 import property as prop
+from property import mep_get, mep_set
 
 troublemaker = "0000000000"
 
@@ -17,7 +18,7 @@ def align(a_iterator, b_iterator, rm_sum_iterator):
   (b_usage_dict, b_roots) = load_usages(b_iterator)
 
   # Read record matches
-  rm_sum = get_sum(rm_sum_iterator, a_usage_dict, b_usage_dict)
+  rm_sum = load_sum(rm_sum_iterator, a_usage_dict, b_usage_dict)
   find_tipward_record_matches(a_roots, b_roots, rm_sum)
   cache_xmrcas(a_roots, b_roots)
 
@@ -28,9 +29,6 @@ def align(a_iterator, b_iterator, rm_sum_iterator):
 
   # Prepare to assign names
   assign_canonicals(sum)
-
-  # Report
-  report(rm_sum, sum)
 
   # Emit tabular version of merged tree
   return generate_sum(sum)
@@ -57,14 +55,14 @@ def assign_canonicals(sum):
       name = get_canonical(x, None)
       if name in b_index_by_name:
         y = b_index_by_name[name]
-        # related_how(x in A, y in B)
-        (rcc5, _, _, _) = related_how(x, y)
         name = name + " sec. A"
-        print("  %s %s %s" %
-              (name,
-               rcc5_symbols[rcc5],
-               get_canonical(y, "[no canonical]")),
-              file=sys.stderr)
+        if False:
+          (rcc5, _, _, _) = related_how(x, y)
+          print("  %s %s %s" %
+                (name,
+                 rcc5_symbols[rcc5],
+                 get_canonical(y, "[no canonical]")),
+                file=sys.stderr)
     if name:
       set_canonical(u, name)
       count += 1
@@ -78,8 +76,15 @@ def assign_canonicals(sum):
 
 key_prop = prop.Property("primary_key")
 get_key = prop.getter(key_prop)
+
 canonical_prop = prop.Property("canonical")
 get_canonical = prop.getter(canonical_prop)
+set_canonical = prop.setter(canonical_prop)
+
+rank_prop = prop.Property("rank")
+get_rank = prop.getter(rank_prop)
+set_rank = prop.setter(rank_prop)
+
 make_usage = prop.constructor(key_prop)
 
 parent_prop = prop.Property("parent")
@@ -93,24 +98,30 @@ set_accepted = prop.setter(accepted_prop)
 def load_usages(iterator):
   header = next(iterator)
   key_pos = windex(header, "taxonID")
+  canonical_pos = windex(header, "canonicalName")
+  rank_pos = windex(header, "taxonRank")
   parent_pos = windex(header, "parentNameUsageID")
   accepted_pos = windex(header, "acceptedNameUsageID")
-  canonical_pos = windex(header, "canonicalName")
 
-  temp = []
+  fixup = []
   key_to_usage = {}
   for row in iterator:
     key = row[key_pos]
     usage = make_usage(key)
     name = row[canonical_pos]
-    if name: set_canonical(usage, name)
+    if name != MISSING: set_canonical(usage, name)
+    if rank_pos:
+      rank = row[rank_pos]
+      if rank != MISSING: set_rank(usage, rank)
     key_to_usage[key] = usage
+
     accepted_key = row[accepted_pos] if accepted_pos else MISSING
     if accepted_key == key: accepted_key = MISSING
     parent_key = row[parent_pos]
     if accepted_key != MISSING: parent_key = MISSING
-    temp.append((usage, parent_key, accepted_key))
-  for (usage, parent_key, accepted_key) in temp:
+    fixup.append((usage, parent_key, accepted_key))
+
+  for (usage, parent_key, accepted_key) in fixup:
     if accepted_key != MISSING:
       probe2 = key_to_usage.get(accepted_key)
       if probe2: set_accepted(usage, probe2)
@@ -222,21 +233,11 @@ get_remark = prop.getter(remark_prop)
 
 make_union = prop.constructor(key_prop, out_a_prop, out_b_prop,
                               remark_prop)
-set_canonical = prop.setter(canonical_prop)
-
-nodefault = []
-def mep_get(mep, x, default=nodefault):
-  if default is nodefault:
-    return mep[prop.get_identity(x)]
-  else:
-    return mep.get(prop.get_identity(x), default)
-def mep_set(mep, x, j):
-  mep[prop.get_identity(x)] = j
 
 
 # Load record mathes from a file or whatever
 
-def get_sum(iterator, a_usage_dict, b_usage_dict):
+def load_sum(iterator, a_usage_dict, b_usage_dict):
   header = next(iterator)
   key_pos = windex(header, "taxonID")
   usage_a_pos = windex(header, "taxonID_A")
@@ -353,7 +354,8 @@ LT = 2
 GT = 3
 DISJOINT = 4
 CONFLICT = 5
-rcc5_symbols = ['?', '=', '>', '<', '!', '><']
+UNCLEAR = 6     # co-synonyms of the same accepted
+rcc5_symbols = ['---', '=', '>', '<', '!', '><', '?']
 
 def how_related(x, y):
   (x1, y1) = find_peers(x, y)
@@ -364,6 +366,9 @@ def how_related(x, y):
       return GT
     else:
       return LT
+  elif (get_parent(x1, 123) == get_parent(y1, 456) and
+        get_accepted(x1, None) or get_accepted(y1, None)):
+    return UNCLEAR
   else:
     return DISJOINT
 
@@ -424,32 +429,32 @@ def cache_xmrcas(a_roots, b_roots):
 # By doing this twice, once in each direction, it's possible to
 # distinguish GT from CONFLICT.
 
+# Assumes neither p nor q is a synonym.
+
 def related_how(p, q):
   c = get_xmrca(p, None)
   d = get_xmrca(q, None)
   if c == None or d == None:
     return (DISJOINT, None, p, q)
-  elif get_xmrca(c, None) == d:
-    if p == d and q == c:
+  elif get_xmrca(c, None) == d:      # c <= d?
+    # They belong to a 'monotype' cluster.
+    # Not consistent with what 'weave' does.
+    # I hope the result doesn't matter a whole lot.
+    cmp = ((get_level(d) - get_level(p)) -
+           (get_level(c) - get_level(q)))
+    if cmp < 0:
+      return (LT, p, None, True)
+    elif cmp == 0:
       return (EQ, p, None, None)
     else:
-      cmp = ((get_level(d) - get_level(p)) -
-             (get_level(c) - get_level(q)))
-      if cmp < 0:
-        return (LT, None, None, None)
-      elif cmp == 0:
-        # TBD: Show more finesse
-        # especially: make use of record matches between monotype chains
-        return (EQ, None, None, None)
-      else:
-        return (GT, None, None, None)
+      return (GT, p, True, None)
   else:
     #  e   f   g
     # yes yes yes  CONFLICT
     # yes yes no   GT
-    # no  yes no   EQ
-    # no  yes yes  LT
-    # yes no  yes  DISJOINT
+    # yes no  no   EQ
+    # yes no  yes  LT
+    # no  yes yes  DISJOINT
     #  the other 3 cases can't occur
     (e, f) = seek_conflict(p, q)       # Both in A
     if not e:
@@ -463,7 +468,8 @@ def related_how(p, q):
       else:
         return (GT, e, f, None)
     else:
-      return (LT, e, None, None)    # g would be nice
+      # EQ case is covered above
+      return (LT, e, None, True)    # g would be nice
 
 # p < xmrca(q); but is p < q?
 
@@ -471,21 +477,23 @@ def seek_conflict(p, q):
   o = get_xmrca(p, None)
   if o == None: return (None, None)
   rel = how_related(o, q)
-  if rel == LT or rel == EQ:
-    return (p, None)
+  if rel == GT:
+    p_and_q = p_not_q = None                # in A
+    for x in get_inferiors(p):
+      (x_and_q, x_not_q) = seek_conflict(x, q)
+      if x_and_q and x_not_q:
+        return (x_and_q, x_not_q)
+      if x_and_q: 
+        p_and_q = x_and_q
+      if x_not_q:
+        p_not_q = x_not_q
+      if p_and_q and p_not_q:             # hack: cut it short
+        return (p_and_q, p_not_q)
+    return (p_and_q, p_not_q)
   elif rel == DISJOINT:
     return (None, q)
-  assert rel == GT
-  p_and_q = p_not_q = None                # in A
-  for x in get_inferiors(p):
-    (x_and_q2, x_not_q2) = seek_conflict(x, q)
-    if x_and_q2 and x_not_q2:
-      return (x_and_q2, x_not_q2)
-    if x_and_q2: p_and_q = x_and_q2
-    if x_not_q2: p_not_q = x_not_q2
-    if p_and_q and p_not_q:             # hack: cut it short
-      return (p_and_q, p_not_q)
-  return (p_and_q, p_not_q)
+  else:  # LT, EQ, UNCLEAR
+    return (p, None)
 
 # -----------------------------------------------------------------------------
 
@@ -759,7 +767,11 @@ def report(rm_sum, sum):
 def get_blurb(r):
   if r:
     name = get_canonical(r, None)
-    if name != None: return name
+    if name != None:
+      if get_accepted(r, None):
+        return name + " (synonym)"
+      else:
+        return name
     return "[no canonical]"
   else:
     return "[no match]"
@@ -798,7 +810,7 @@ def write_generated(gen, outfile):
 
 if __name__ == '__main__':
   parser = argparse.ArgumentParser(description="""
-    TBD
+    TBD.  stdin = A hierarchy
     """)
   parser.add_argument('--target', help="B hierarchy")
   parser.add_argument('--matches', help="record matches")

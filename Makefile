@@ -99,8 +99,9 @@ $(ROUND): $(DELTA) $A-narrow.csv $B-narrow.csv $P/apply.py
 
 RM=work/rm-$(shell basename $A)-$(shell basename $B).csv
 ALIGNMENT=work/alignment-$(shell basename $A)-$(shell basename $B).csv
+REPORT=work/report-$(shell basename $A)-$(shell basename $B).csv
 
-fuu: $(ALIGNMENT)
+fuu: $(REPORT)
 
 $(RM): $A.csv $B.csv $P/match_records.py
 	@echo
@@ -113,6 +114,12 @@ $(ALIGNMENT): $(RM) $P/align.py $P/property.py
 	@echo "--- COMPUTING ALIGNMENT ---"
 	$P/align.py --target $B.csv --matches $(RM) \
 		    < $A.csv > $(ALIGNMENT)
+
+$(REPORT): $(ALIGNMENT) $P/report.py $P/property.py
+	@echo
+	@echo "--- PREPARING REPORT ---"
+	$P/report.py --source $A.csv --alignment $(ALIGNMENT) \
+		    < $B.csv > $(REPORT)
 
 # ----------------------------------------------------------------------
 # EOL examples

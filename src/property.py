@@ -49,6 +49,16 @@ _Identity = Property(IDENTITY_KEY)
 
 get_identity = getter(_Identity)
 
+nodefault = []
+def mep_get(mep, x, default=nodefault):
+  if default is nodefault:
+    return mep[get_identity(x)]
+  else:
+    return mep.get(get_identity(x), default)
+def mep_set(mep, x, j):
+  mep[get_identity(x)] = j
+
+
 def inspect(y):
   if isinstance(y, dict):
     for (key, val) in y.items():
