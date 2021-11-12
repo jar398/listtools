@@ -363,7 +363,7 @@ GT = 3
 DISJOINT = 4
 CONFLICT = 5
 UNCLEAR = 6     # co-synonyms of the same accepted
-rcc5_symbols = ['---', '=', '>', '<', '!', '><', '?']
+rcc5_symbols = ['---', '=', '<', '>', '!', '><', '?']
 
 def how_related(x, y):
   (x1, y1) = find_peers(x, y)
@@ -815,8 +815,8 @@ def generate_sum(sum, roots, rm_sum):
   yield ["taxonID", "taxonID_A", "taxonID_B",
          "parentNameUsageID", "acceptedNameUsageID",
          "canonicalName", "previousID", "change", "remark"]
-  (_, in_a, _) = sum
-  (_, _, rm_in_b) = rm_sum
+  (_, in_a, in_b) = sum
+  (_, rm_in_a, rm_in_b) = rm_sum
 
   # was: for union in all_unions(sum): ...
 
@@ -825,13 +825,23 @@ def generate_sum(sum, roots, rm_sum):
     b_usage = out_b(union, None)
     p = get_parent(union, None)
     a = get_accepted(union, None)
-    z = out_a(mep_get(rm_in_b, b_usage), None) if b_usage else None
-    m = mep_get(in_a, z, None) if z else None
-    if z:
-      (rcc5, _, _, _) = related_how(z, b_usage)
-      sym = rcc5_symbols[rcc5]
+    z = m = None
+    sym = MISSING
+    if b_usage:
+      z = out_a(mep_get(rm_in_b, b_usage), None)
+      if z:
+        (rcc5, _, _, _) = related_how(z, b_usage)
+        sym = rcc5_symbols[rcc5]
+        m = mep_get(in_a, z, None)
+      # if a_usage and b_usage then "renamed"
+      # if b_usage then if get_xmrca(b_usage) then "collected"
     else:
-      sym = MISSING
+      z = out_b(mep_get(rm_in_a, a_usage), None)
+      if z:
+        (rcc5, _, _, _) = related_how(a_usage, z)
+        sym = rcc5_symbols[rcc5]
+        m = mep_get(in_b, z, None)
+      # if a_usage then if get_xmrca(a_usage) then "dissolved"
     return [get_key(union),
             get_key(a_usage) if a_usage else MISSING,
             get_key(b_usage) if b_usage else MISSING,

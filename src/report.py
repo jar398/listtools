@@ -33,7 +33,7 @@ def report(a_iter, b_iter, sum_iter):
   al = load_alignment(sum_iter, a_usage_dict, b_usage_dict)
   return generate_report(al)
 
-verbose = False
+include_unchanged = True
 
 def generate_report(al):
   (_, roots) = al
@@ -50,7 +50,7 @@ def generate_report(al):
     elif change == '=':
       if get_blurb(x) == get_blurb(y):
         comment = None
-        if verbose: comment = " "
+        if include_unchanged: comment = " "
       else:
         comment = "renamed"
     elif change == '<': comment = "widened"
@@ -65,7 +65,10 @@ def generate_report(al):
       if m == u:
         if get_blurb(x) == get_blurb(y):
           comment = None
-          if verbose: comment = " "
+          if (include_unchanged and
+              not (x and get_accepted(x, None)) and
+              not (y and get_accepted(y, None))):
+            comment = " "
         else:
           comment = "renamed"
       elif m:
@@ -82,17 +85,29 @@ def generate_report(al):
         comment = "deprecated/lumped/renamed"
 
     if comment:
-      yield [get_blurb(x),
-             get_blurb(y),
-             get_rank(y or x, MISSING),
+      rank = get_rank(y or x, MISSING)
+      noise = noises.get(rank, ". . . . .")
+      yield [get_blurb(x) + " " + noise,
+             noise + " " + get_blurb(y),
+             rank,
              comment]
     for c in get_children(u, []):
       for row in traverse(c): yield row
-    if verbose:
+    if include_unchanged and False:
       for s in get_synonyms(u, []):
         for row in traverse(s): yield row
   for root in roots:
     for row in traverse(root): yield row
+
+noises = {"subspecies": "",
+          "species": "_",
+          "subgenus": " _",
+          "genus": "_ _",
+          "subfamily": " _ _",
+          "family": "_ _ _",
+          "order": "_ _ _ _",
+          "class": "_ _ _ _ _",
+          }
 
 def get_blurb(z):
   if z:
