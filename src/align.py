@@ -31,7 +31,7 @@ def align(a_iterator, b_iterator, rm_sum_iterator):
   assign_canonicals(sum)
 
   # Emit tabular version of merged tree
-  return generate_sum(sum)
+  return generate_sum(sum, rm_sum)
 
 def assign_canonicals(sum):
   (key_to_union, in_a, in_b) = sum
@@ -81,6 +81,10 @@ canonical_prop = prop.Property("canonical")
 get_canonical = prop.getter(canonical_prop)
 set_canonical = prop.setter(canonical_prop)
 
+scientific_prop = prop.Property("scientific")
+get_scientific = prop.getter(scientific_prop)
+set_scientific = prop.setter(scientific_prop)
+
 rank_prop = prop.Property("rank")
 get_rank = prop.getter(rank_prop)
 set_rank = prop.setter(rank_prop)
@@ -99,6 +103,7 @@ def load_usages(iterator):
   header = next(iterator)
   key_pos = windex(header, "taxonID")
   canonical_pos = windex(header, "canonicalName")
+  scientific_pos = windex(header, "scientificName")
   rank_pos = windex(header, "taxonRank")
   parent_pos = windex(header, "parentNameUsageID")
   accepted_pos = windex(header, "acceptedNameUsageID")
@@ -110,6 +115,9 @@ def load_usages(iterator):
     usage = make_usage(key)
     name = row[canonical_pos]
     if name != MISSING: set_canonical(usage, name)
+    if scientific_pos:
+      sci = row[scientific_pos]
+      if sci != MISSING: set_scientific(usage, name)
     if rank_pos:
       rank = row[rank_pos]
       if rank != MISSING: set_rank(usage, rank)
@@ -780,7 +788,7 @@ def report(rm_sum, sum):
     
 def get_blurb(r):
   if r:
-    name = get_canonical(r, None)
+    name = get_canonical(r, None) or get_scientific(r, None)
     if name != None:
       if get_accepted(r, None):
         return name + " (synonym)"
@@ -795,22 +803,26 @@ def get_blurb(r):
 
 # Returns a row generator
 
-def generate_sum(sum):
+def generate_sum(sum, rm_sum):
   yield ["taxonID", "taxonID_A", "taxonID_B",
          "parentNameUsageID", "acceptedNameUsageID",
-         "canonicalName", "remark"]
-
+         "canonicalName", "previousID", "remark"]
+  (_, in_a, _) = sum
+  (_, _, rm_in_b) = rm_sum
   for union in all_unions(sum):
     a_usage = out_a(union, None)
     b_usage = out_b(union, None)
     p = get_parent(union, None)
     a = get_accepted(union, None)
+    z = out_a(mep_get(rm_in_b, b_usage), None) if b_usage else None
+    m = mep_get(in_a, z, None) if z else None
     yield [get_key(union),
            get_key(a_usage) if a_usage else MISSING,
            get_key(b_usage) if b_usage else MISSING,
            get_key(p) if p else MISSING,
            get_key(a) if a else MISSING,
            get_canonical(union, MISSING),
+           get_key(m) if m else MISSING,
            get_remark(union, MISSING)]
 
 def all_unions(sum):
