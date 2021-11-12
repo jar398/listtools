@@ -21,6 +21,10 @@ previous_prop = prop.Property("previous")
 get_previous = prop.getter(previous_prop)
 set_previous = prop.setter(previous_prop)
 
+change_prop = prop.Property("change")
+get_change = prop.getter(change_prop)
+set_change = prop.setter(change_prop)
+
 def report(a_iter, b_iter, sum_iter):
   (a_usage_dict, a_roots) = align.load_usages(a_iter)
   (b_usage_dict, b_roots) = align.load_usages(b_iter)
@@ -33,45 +37,62 @@ verbose = False
 
 def generate_report(al):
   (_, roots) = al
-  same = [0]
-  report = []
-  report.append(("A name", "B name", "rank", "comment"))
+  yield ("A name", "B name", "rank", "comment")
   def traverse(u):
     x = out_a(u, None)
     y = out_b(u, None)
-    m = get_previous(u, None)
-    if m == u:
+    change = get_change(u, None)
+    if not change:
+      if y:
+        comment = "new/split/renamed"
+      else:
+        comment = "deprecated/lumped/renamed"
+    elif change == '=':
       if get_blurb(x) == get_blurb(y):
         comment = None
         if verbose: comment = " "
-        same[0] += 1
       else:
         comment = "renamed"
-    elif m:
-      how = align.how_related(m, u)
-      if how == LT: comment = "widened"
-      elif how == GT: comment = "narrowed"
-      elif how == EQ: comment = "shouldn't happen"
-      elif how == UNCLEAR: comment = "synonym shenanigans"
-      else: comment = "reconstituted"
-    elif y:
-      comment = "new/split/renamed"
-    else:
-      assert m == None
-      comment = "deprecated/lumped/renamed"
+    elif change == '<': comment = "widened"
+    elif change == '>': comment = "narrowed"
+    elif change == '!': comment = "homonym/ambiguous/uncertain"
+    elif change == '><': comment = "conflict"
+    elif change == '?': comment = "synonym choice"
+    else: assert False
+
+    if False:
+      m = get_previous(u, None)
+      if m == u:
+        if get_blurb(x) == get_blurb(y):
+          comment = None
+          if verbose: comment = " "
+        else:
+          comment = "renamed"
+      elif m:
+        how = align.how_related(m, u)
+        if how == LT: comment = "widened"
+        elif how == GT: comment = "narrowed"
+        elif how == EQ: comment = "shouldn't happen"
+        elif how == UNCLEAR: comment = "synonym shenanigans"
+        else: comment = "reconstituted"
+      elif y:
+        comment = "new/split/renamed"
+      else:
+        assert m == None
+        comment = "deprecated/lumped/renamed"
+
     if comment:
-      report.append([get_blurb(x),
-                     get_blurb(y),
-                     get_rank(y or x, MISSING),
-                     comment])
-    for c in get_children(u, []): traverse(c)
+      yield [get_blurb(x),
+             get_blurb(y),
+             get_rank(y or x, MISSING),
+             comment]
+    for c in get_children(u, []):
+      for row in traverse(c): yield row
     if verbose:
-      for s in get_synonyms(u, []): traverse(s)
+      for s in get_synonyms(u, []):
+        for row in traverse(s): yield row
   for root in roots:
-    traverse(root)
-  print("Same: %s Different: %s" % (same[0], len(report)-1),
-        file=sys.stderr)
-  return report
+    for row in traverse(root): yield row
 
 def get_blurb(z):
   if z:
@@ -92,6 +113,7 @@ def load_alignment(iterator, a_usage_dict, b_usage_dict):
   usage_a_pos = windex(header, "taxonID_A")
   usage_b_pos = windex(header, "taxonID_B")
   previous_pos = windex(header, "previousID")
+  change_pos = windex(header, "change")
   parent_pos = windex(header, "parentNameUsageID")
   accepted_pos = windex(header, "acceptedNameUsageID")
 
@@ -107,12 +129,16 @@ def load_alignment(iterator, a_usage_dict, b_usage_dict):
     union = make_union(key, x, y)
     key_to_union[key] = union
 
-    accepted_key = row[accepted_pos] if accepted_pos else MISSING
+    accepted_key = row[accepted_pos] if accepted_pos != None else MISSING
     if accepted_key == key: accepted_key = MISSING
     parent_key = row[parent_pos]
     if accepted_key != MISSING: parent_key = MISSING
-    previous_key = row[previous_pos]
+    previous_key = row[previous_pos] if previous_pos != None else None
     fixup.append((union, parent_key, accepted_key, previous_key))
+    if change_pos != None:
+      change = row[change_pos]
+      if change != MISSING:
+        set_change(union, change)
 
   for (union, parent_key, accepted_key, previous_key) in fixup:
     if accepted_key != MISSING:

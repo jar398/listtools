@@ -31,7 +31,7 @@ def align(a_iterator, b_iterator, rm_sum_iterator):
   assign_canonicals(sum)
 
   # Emit tabular version of merged tree
-  return generate_sum(sum, rm_sum)
+  return generate_sum(sum, roots, rm_sum)
 
 def assign_canonicals(sum):
   (key_to_union, in_a, in_b) = sum
@@ -427,19 +427,27 @@ def cache_xmrcas(a_roots, b_roots):
 
 # -----------------------------------------------------------------------------
 
-# Compare two parent candidates, either x's parent p in A,
-# vs. its cross-mrca q in B.  Pick the smaller one to be the parent in
-# the sum.
-# Return values are (rcc5, e, f) where:
-#   e is < both p and q
-#   f is < p but ! q
-
-# By doing this twice, once in each direction, it's possible to
-# distinguish GT from CONFLICT.
-
-# Assumes neither p nor q is a synonym.
+# Compare an A node with a B node, obtaining the RCC5 relationship
+# that holds between them.
+# Return value is (rcc5, e, f, g) where:
+#   e is <= both p and q
+#   f is <= p but ! q
+#   g is <= q but ! p
 
 def related_how(p, q):
+  pa = get_accepted(p, p)
+  qa = get_accepted(q, q)
+  result = related_how_accepted(pa, qa)
+  (rcc5, _, _, _) = result
+  if (rcc5 == EQ and
+      (pa != p or qa != q) and
+      not (get_xmrca(p, None) == q and
+           get_xmrca(q, None) == p)):
+    return (UNCLEAR, _, _, _)
+  else:
+    return result
+
+def related_how_accepted(p, q):
   c = get_xmrca(p, None)
   d = get_xmrca(q, None)
   if c == None or d == None:
@@ -803,27 +811,42 @@ def get_blurb(r):
 
 # Returns a row generator
 
-def generate_sum(sum, rm_sum):
+def generate_sum(sum, roots, rm_sum):
   yield ["taxonID", "taxonID_A", "taxonID_B",
          "parentNameUsageID", "acceptedNameUsageID",
-         "canonicalName", "previousID", "remark"]
+         "canonicalName", "previousID", "change", "remark"]
   (_, in_a, _) = sum
   (_, _, rm_in_b) = rm_sum
-  for union in all_unions(sum):
+
+  # was: for union in all_unions(sum): ...
+
+  def compose_row(union):
     a_usage = out_a(union, None)
     b_usage = out_b(union, None)
     p = get_parent(union, None)
     a = get_accepted(union, None)
     z = out_a(mep_get(rm_in_b, b_usage), None) if b_usage else None
     m = mep_get(in_a, z, None) if z else None
-    yield [get_key(union),
-           get_key(a_usage) if a_usage else MISSING,
-           get_key(b_usage) if b_usage else MISSING,
-           get_key(p) if p else MISSING,
-           get_key(a) if a else MISSING,
-           get_canonical(union, MISSING),
-           get_key(m) if m else MISSING,
-           get_remark(union, MISSING)]
+    if z:
+      (rcc5, _, _, _) = related_how(z, b_usage)
+      sym = rcc5_symbols[rcc5]
+    else:
+      sym = MISSING
+    return [get_key(union),
+            get_key(a_usage) if a_usage else MISSING,
+            get_key(b_usage) if b_usage else MISSING,
+            get_key(p) if p else MISSING,
+            get_key(a) if a else MISSING,
+            get_canonical(union, MISSING),
+            get_key(m) if m else MISSING,
+            sym,
+            get_remark(union, MISSING)]
+  def traverse(union):
+    yield compose_row(union)
+    for inf in get_inferiors(union):
+      for row in traverse(inf): yield row
+  for root in roots:
+    for row in traverse(root): yield row
 
 def all_unions(sum):
   (key_to_union, _, _) = sum
