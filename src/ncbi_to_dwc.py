@@ -51,10 +51,16 @@ def emit_dwc(accepteds, synonyms, scinames, authorities, merged, outfile):
     # synonym is a taxonomic status, not a nomenclatural status
     if kind == "synonym": kind = None
     taxon_id = id + "." + spin
-    write_row(writer,
-              taxon_id, None, None, None,
-              id, None, text,
-              "synonym", kind)
+    if kind == "authority":    # shouldn't happen, but does
+      write_row(writer,
+                taxon_id, None, None, None,
+                id, text, None,    # scientificName
+                "synonym", kind)
+    else:
+      write_row(writer,
+                taxon_id, None, None, None,
+                id, None, text,   # canonicalName
+                "synonym", kind)
   for (old_id, new_id) in merged:
     canonical = "%s merged into %s" % (old_id, new_id)
     write_row(writer,

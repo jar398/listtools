@@ -4,6 +4,7 @@
 # sensitivity to parent/child relations.
 
 import sys, csv, argparse
+import util
 from util import windex, MISSING
 import property as prop
 from property import mep_get, mep_set
@@ -238,6 +239,7 @@ out_b_prop = prop.Property("out_b")
 out_b = prop.getter(out_b_prop)
 remark_prop = prop.Property("remark")
 get_remark = prop.getter(remark_prop)
+set_remark = prop.setter(remark_prop)
 
 make_union = prop.constructor(key_prop, out_a_prop, out_b_prop,
                               remark_prop)
@@ -546,7 +548,7 @@ the top.
 
 def set_congruences(a_roots, b_roots, sum, rm_sum):
   (_, in_a, in_b) = sum
-  (_, rm_in_a, _) = rm_sum
+  (_, rm_in_a, rm_in_b) = rm_sum
 
   connect = connector(rm_sum, sum)
 
@@ -554,7 +556,14 @@ def set_congruences(a_roots, b_roots, sum, rm_sum):
     # v and u need to be linked.
     if mep_get(in_b, v, None) != None:
       return
-    g = connect(u, v, "join point")
+
+    # Set the comment
+    
+    j = mep_get(rm_in_a, u)
+    if j == mep_get(rm_in_b, v):
+      g = connect(u, v, get_remark(j))
+    else:
+      g = connect(u, v, "join point")
 
     s = get_superior(u)
     t = get_superior(v)
@@ -624,7 +633,9 @@ def connector(rm_sum, sum):
     assert remark
     remarks = [remark]
     if out_a(j) == x and out_b(j) == y:
-      remarks.append(get_remark(j))
+      rem = get_remark(j)
+      if not rem in remarks:
+        remarks.append(rem)
     return note_match(x, y, combine_remarks(*remarks), sum)
   return connect
 
@@ -862,11 +873,6 @@ def all_unions(sum):
   (key_to_union, _, _) = sum
   return key_to_union.values()
 
-def write_generated(gen, outfile):
-  writer = csv.writer(outfile)
-  for row in gen:
-    writer.writerow(row)
-
 if __name__ == '__main__':
   parser = argparse.ArgumentParser(description="""
     TBD.  stdin = A hierarchy
@@ -885,4 +891,4 @@ if __name__ == '__main__':
       sum = align(csv.reader(a_file),
                   csv.reader(b_file),
                   csv.reader(rm_sum_file))
-      write_generated(sum, sys.stdout)
+      util.write_generated(sum, sys.stdout)

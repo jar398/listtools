@@ -14,7 +14,7 @@ def test(n1, n2):
   b_iterator = newick.parse_newick(n2)
   rows = align(a_iterator, b_iterator, rm_sum_iterator)
   #rows = [row for row in sum_iterator]
-  #write_generated((row for row in rows), sys.stdout)
+  #util.write_generated((row for row in rows), sys.stdout)
   return newick.generate_newick((row for row in rows))
 
 def run_test(A, B, expect):

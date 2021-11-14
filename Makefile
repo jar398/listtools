@@ -58,7 +58,7 @@ DELTA_KEY ?= $(USAGE_KEY)
 # Formerly: $P/project.py --keep $(MANAGE) <$< | ...
 # and	    $P/sortcsv.py --key $(USAGE_KEY) <$< >$@.new
 
-INDEX ?= taxonID,EOLid,scientificName,canonicalName
+INDEX ?= taxonID,EOLid,scientificName,canonicalName,canonicalStem,altKey
 MANAGE ?= taxonID,scientificName,canonicalName,taxonRank,taxonomicStatus,nomenclaturalStatus,datasetID,source
 
 $(DELTA): $A.csv $B.csv $P/delta.py $P/match_records.py $P/property.py
@@ -93,9 +93,11 @@ $(ROUND): $(DELTA) $A-narrow.csv $B-narrow.csv $P/apply.py
 	$P/sortcsv.py --key $(USAGE_KEY) >$@.new
 	@mv -f $@.new $@
 
-%-mammals.csv: %.csv $P/subset.py
+%-mammals-pre.csv: %.csv $P/subset.py
 	$P/subset.py --hierarchy $< --root $(MAMMALIA) < $< > $@.new
 	@mv -f $@.new $@
+
+%-mammals.csv: %-mammals-pre.csv
 
 RM=work/rm-$(shell basename $A)-$(shell basename $B).csv
 ALIGNMENT=work/alignment-$(shell basename $A)-$(shell basename $B).csv
@@ -226,6 +228,13 @@ work/ncbi202008.ncbi-url:
 	$P/ncbi_to_dwc.py `dirname $<` \
 	| $P/start.py --pk $(USAGE_KEY) \
 	| $P/sortcsv.py --key $(USAGE_KEY) > $@.new
+	@mv -f $@.new $@
+
+# Adjoin altKey column.  To skip this step change %-pre.csv to %.csv above.
+%.csv: %-pre.csv $P/extract_names.py $P/use_parse.py
+	$P/extract_names.py < $< \
+	| gnparser -s \
+	| $P/use_parse.py --source $< > $@.new
 	@mv -f $@.new $@
 
 # GBIF, mammals = 359

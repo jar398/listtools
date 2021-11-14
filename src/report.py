@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 
 import sys, csv, argparse
+import util, property as prop, align
 from util import windex, MISSING
-import property as prop, align
 from property import mep_get, mep_set
 
 from align import key_prop, get_key, \
@@ -10,7 +10,7 @@ from align import key_prop, get_key, \
   out_b_prop, out_b, \
   canonical_prop, get_canonical, \
   scientific_prop, get_scientific, \
-  remark_prop, get_remark, \
+  get_remark, set_remark, \
   get_parent, set_parent, \
   get_accepted, set_accepted, \
   get_children, get_synonyms, \
@@ -37,7 +37,7 @@ include_unchanged = True
 
 def generate_report(al):
   (_, roots) = al
-  yield ("A name", "B name", "rank", "comment")
+  yield ("A name", "B name", "rank", "comment", "remark")
   def traverse(u):
     x = out_a(u, None)
     y = out_b(u, None)
@@ -50,7 +50,10 @@ def generate_report(al):
     elif change == '=':
       if get_blurb(x) == get_blurb(y):
         comment = None
-        if include_unchanged: comment = " "
+        if (include_unchanged and
+            not (x and get_accepted(x, None)) and
+            not (y and get_accepted(y, None))):
+          comment = " "
       else:
         comment = "renamed"
     elif change == '<': comment = "widened"
@@ -60,37 +63,13 @@ def generate_report(al):
     elif change == '?': comment = "synonym choice"
     else: assert False
 
-    if False:
-      m = get_previous(u, None)
-      if m == u:
-        if get_blurb(x) == get_blurb(y):
-          comment = None
-          if (include_unchanged and
-              not (x and get_accepted(x, None)) and
-              not (y and get_accepted(y, None))):
-            comment = " "
-        else:
-          comment = "renamed"
-      elif m:
-        how = align.how_related(m, u)
-        if how == LT: comment = "widened"
-        elif how == GT: comment = "narrowed"
-        elif how == EQ: comment = "shouldn't happen"
-        elif how == UNCLEAR: comment = "synonym shenanigans"
-        else: comment = "reconstituted"
-      elif y:
-        comment = "new/split/renamed"
-      else:
-        assert m == None
-        comment = "deprecated/lumped/renamed"
-
+    remark = get_remark(u, None)
     if comment:
       rank = get_rank(y or x, MISSING)
       noise = noises.get(rank, ". . . . .")
       yield [get_blurb(x) + " " + noise,
              noise + " " + get_blurb(y),
-             rank,
-             comment]
+             rank, comment, remark]
     for c in get_children(u, []):
       for row in traverse(c): yield row
     if include_unchanged and False:
@@ -129,6 +108,7 @@ def load_alignment(iterator, a_usage_dict, b_usage_dict):
   usage_b_pos = windex(header, "taxonID_B")
   previous_pos = windex(header, "previousID")
   change_pos = windex(header, "change")
+  remark_pos = windex(header, "remark")
   parent_pos = windex(header, "parentNameUsageID")
   accepted_pos = windex(header, "acceptedNameUsageID")
 
@@ -154,6 +134,10 @@ def load_alignment(iterator, a_usage_dict, b_usage_dict):
       change = row[change_pos]
       if change != MISSING:
         set_change(union, change)
+    if remark_pos != None:
+      remark = row[remark_pos]
+      if remark != MISSING:
+        set_remark(union, remark)
 
   for (union, parent_key, accepted_key, previous_key) in fixup:
     if accepted_key != MISSING:
@@ -176,11 +160,6 @@ def load_alignment(iterator, a_usage_dict, b_usage_dict):
 
   return (key_to_union, roots)
 
-def write_generated(gen, outfile):
-  writer = csv.writer(outfile)
-  for row in gen:
-    writer.writerow(row)
-
 if __name__ == '__main__':
   parser = argparse.ArgumentParser(description="""
     TBD.  stdin = B hierarchy
@@ -198,4 +177,4 @@ if __name__ == '__main__':
       rep = report(csv.reader(a_file),
                    csv.reader(b_file),
                    csv.reader(sum_file))
-      write_generated(rep, sys.stdout)
+      util.write_generated(rep, sys.stdout)

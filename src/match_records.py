@@ -23,6 +23,13 @@ from functools import reduce
 from util import ingest_csv, windex, MISSING, \
                  correspondence, precolumn, stable_hash
 
+# 20 : 8 : 20 : 8
+
+index_by_limit = 20
+silly = 8
+
+unweights = None
+
 # Row generators -> row generator
 
 def match_records(a_reader, b_reader, pk_col="taxonID", index_by=["canonicalName"]):
@@ -43,6 +50,7 @@ def generate_sum(cop, pk_col):
 def compute_sum(a_table, b_table, pk_col_arg, index_by):
   global INDEX_BY, pk_col, pk_pos1, pk_pos2
   pk_col = pk_col_arg
+  assert len(index_by) < index_by_limit
   INDEX_BY = index_by    # kludge
 
   (header1, all_rows1) = a_table
@@ -70,39 +78,43 @@ def compute_sum(a_table, b_table, pk_col_arg, index_by):
       row1 = all_rows1[key1]
       key3 = "%s$%s" % (key1, stable_hash(row1))
       print(("-- match_records: id %s is used differently in the two inputs.\n" + \
-             "--   %s will replace it for the A input") % (key1, key3),
+             "--   %s\n" + \
+             "--   %s will replace it for the A input") %
+            (key1, remark, key3),
             file=sys.stderr)
     else:
       key3 = key1
     # Establish correspondences
     cop[key3] = (key1, key2, remark)
-    if remark != MISSING and not remark.startswith("."):
-      print("# %s" % (remark,), file=sys.stderr)
     return key3
 
   def find_match(key1, best_rows_in_file2, best_rows_in_file1,
                  pk_pos1, pk_pos2):
     key2 = None
-    (row2, remark) = check_match(key1, best_rows_in_file2, pk_pos2)
-    assert remark
+    (row2, remark2) = check_match(key1, best_rows_in_file2, pk_pos2)
+    assert remark2
     if row2 != None:
       candidate = row2[pk_pos2]
-      (back1, remark2) = check_match(candidate, best_rows_in_file1, pk_pos1)
-      assert remark2
+      (back1, remark1) = check_match(candidate, best_rows_in_file1, pk_pos1)
+      assert remark1
       if back1 != None:
         if back1[pk_pos1] == key1:
           # Mutual match!
           key2 = candidate
-          remark = MISSING
+          # remark2 and remark1 give fields
+          if remark2 == remark1:
+            remark = remark2
+          else:
+            remark = "%s / %s" % (remark2, remark1)
         else:
-          remark = (".round trip failed: %s -> %s -> %s" %
+          remark = ("round trip failed: %s -> %s -> %s" %
                     (key1, row2[pk_pos2], back1[pk_pos1]))
       else:
         # Probably an ambiguity {row1, row1'} <-> row2
-        remark = ".2 " + remark2
+        remark = remark1
     else:
       # No match in B, or an ambiguity row1 <-> {row2, row2'}
-      remark = ".1 " + remark
+      remark = remark2
     return (key2, remark)
 
   # -----
@@ -146,33 +158,42 @@ def compute_sum(a_table, b_table, pk_col_arg, index_by):
 WAD_SIZE = 4
 
 def check_match(key1, best_rows_in_file2, pk_pos2):
+  assert len(unweights) > 0
   best2 = best_rows_in_file2.get(key1)
   if best2:
     (score2, rows2) = best2
-    if len(rows2) == 1:
-      assert rows2[0]
-      return (rows2[0], ".unique match")
-    elif len(rows2) < WAD_SIZE:
-      keys2 = [row2[pk_pos2] for row2 in rows2]
-      return (None, ("ambiguous: %s -> %s (score %s)" %
-                     (key1, keys2, score2)))
+    reason = match_reason(score2, unweights)
+    if reason != None:
+      if len(rows2) == 1:
+        assert rows2[0]
+        return (rows2[0], reason)
+      elif len(rows2) < WAD_SIZE:
+        keys2 = [row2[pk_pos2] for row2 in rows2]
+        return (None, ("ambiguous: %s -> %s (%s)" %
+                       (key1, keys2, reason)))
+      else:
+        return (None, "too many matches (%s)" % reason)
     else:
-      return (None, ".too many matches")
+      return (None, "weak matches only (%x)" % score2)
   else:
-    return (None, ".no matches")
+    return (None, "no matches")
 
 # For each row in each input (A/B), compute the set of all best
 # (i.e. highest scoring) matches in the opposite input.
 
 def find_best_matches(header1, header2, all_rows1, all_rows2, pk_col):
-  global pk_pos1, pk_pos2
+  global pk_pos1, pk_pos2, unweights
   assert len(all_rows2) > 0
   corr_12 = correspondence(header1, header2)
-  # print("# correspondence: %s" % (corr_12,), file=sys.stderr)
   positions = indexed_positions(header1, INDEX_BY)
-  # print("# indexed: %s" % positions, file=sys.stderr)
-  weights = get_weights(header1, header2, INDEX_BY)    # parallel to header2
-  # print("# weights: %s" % weights, file=sys.stderr)
+  (weights, unweights) = get_weights(header1, header2, INDEX_BY)
+  if False:
+    print("# correspondence: %s" % (corr_12,), file=sys.stderr)
+    print("# indexed: %s" % positions, file=sys.stderr)
+    print("# weights: %s" % weights, file=sys.stderr)
+    print("# unweights: %s" %
+          ", ".join(["%x: %s" % (x, y) for (x, y) in unweights]),
+          file=sys.stderr)
   rows2_by_property = index_rows_by_property(all_rows2, header2)
   no_info = (-1, [])
 
@@ -237,32 +258,37 @@ def compute_score(row1, row2, corr_12, weights):
       if v1 == MISSING or v2 == MISSING:
         d = 1
       elif v1 == v2:
-        d = 100
+        d = 1 << (index_by_limit + silly)
       else:
         d = 0
       s += w * d
   return s
 
-# One weight for each column in file A
+def match_reason(score, unweights):
+  for (mask, col) in unweights:
+    if (score & mask) > 0: return col
+  print("# score = %x unweight len = %x" % (score, len(list(unweights))),
+        file=sys.stderr)
+  return None
+
+# Initialize weights.  One for each column in file A.
 
 def get_weights(header_b, header_a, index_by):
+  rev_index_by = index_by + []
+  rev_index_by.reverse()               # I hate this
+
+  masks = [1 << (silly + i) for i in range(0, len(rev_index_by))]
+
   weights = [(1 if col in header_b else 0) for col in header_a]
 
-  # Censor these
-  mode_pos = windex(header_b, "mode")
-  if mode_pos != None: weights[mode_pos] = 0
-
-  w = 100
-  loser = index_by + []
-  loser.reverse()               # I hate this
-  for col in loser:
+  for (col, mask) in zip(rev_index_by, masks):
     pos = windex(header_a, col)
-    if pos != None:
-      weights[pos] = w
-    w = w + w
-  return weights
+    if pos != None: weights[pos] = mask
+  masks.reverse()
+  return (weights, list(zip([mask << (index_by_limit+silly) for mask in masks],
+                            index_by)))
 
-LIMIT=100
+LIMIT=10
 
 def index_rows_by_property(all_rows, header):
   positions = indexed_positions(header, INDEX_BY)
@@ -347,7 +373,8 @@ if __name__ == '__main__':
                       default=indexed,
                       help='names of columns to match on')
   args=parser.parse_args()
+  inport1 = sys.stdin
   with open(args.target, "r") as inport2:
-    main(sys.stdin, inport2, args.pk,
+    main(inport1, inport2, args.pk,
          args.index.split(","), sys.stdout)
 

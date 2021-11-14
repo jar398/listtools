@@ -82,3 +82,9 @@ def stable_hash(lst, without=None):
     lst = lst + []
     del lst[without]
   return hashlib.sha1("^".join(lst).encode('utf-8')).hexdigest()[0:8]
+
+def write_generated(gen, outfile):
+  writer = csv.writer(outfile)
+  for row in gen:
+    writer.writerow(row)
+

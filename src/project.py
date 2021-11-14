@@ -36,7 +36,6 @@ def project(keep, drop, inport, outport):
     writer.writerow([row[position] for position in keep_positions])
 
 if __name__ == '__main__':
-  specified_columns = sys.argv[1]
   parser = argparse.ArgumentParser(description="""
     CSV rows are read from standard input and written to standard output.
     """)
