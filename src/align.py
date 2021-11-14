@@ -114,12 +114,13 @@ def load_usages(iterator):
   for row in iterator:
     key = row[key_pos]
     usage = make_usage(key)
-    name = row[canonical_pos]
-    if name != MISSING: set_canonical(usage, name)
-    if scientific_pos:
+    if canonical_pos != None:
+      name = row[canonical_pos]
+      if name != MISSING: set_canonical(usage, name)
+    if scientific_pos != None:
       sci = row[scientific_pos]
-      if sci != MISSING: set_scientific(usage, name)
-    if rank_pos:
+      if sci != MISSING: set_scientific(usage, sci)
+    if rank_pos != None:
       rank = row[rank_pos]
       if rank != MISSING: set_rank(usage, rank)
     key_to_usage[key] = usage
