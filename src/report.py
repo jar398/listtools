@@ -14,8 +14,7 @@ from align import key_prop, get_key, \
   get_parent, set_parent, \
   get_accepted, set_accepted, \
   get_children, get_synonyms, \
-  get_canonical, get_rank, \
-  EQ, LT, GT, DISJOINT, UNCLEAR
+  get_canonical, get_rank
 
 previous_prop = prop.Property("previous")
 get_previous = prop.getter(previous_prop)

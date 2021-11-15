@@ -645,15 +645,16 @@ def connector(rm_sum, sum):
 
 def build_tree(a_roots, b_roots, sum, rm_sum):
   (key_to_union, in_a, in_b) = sum
+  (_, rm_in_a, rm_in_b) = rm_sum
   connect = connector(rm_sum, sum)
   def fasten_a(x):
     return connect(x, None, "peripheral in A")
   def fasten_b(y):
     return connect(None, y, "peripheral in B")
   finish_sum(b_roots,
-             in_b, in_a, fasten_b, fasten_a, True)
+             in_b, in_a, fasten_b, fasten_a, True, rm_in_b)
   finish_sum(a_roots,
-             in_a, in_b, fasten_a, fasten_b, False)
+             in_a, in_b, fasten_a, fasten_b, False, rm_in_a)
   print("# %s in a, %s in b, %s union keys" %
         (len(in_a), len(in_b), len(key_to_union)),
         file=sys.stderr)
@@ -666,7 +667,7 @@ def build_tree(a_roots, b_roots, sum, rm_sum):
 
 # Set parents of nodes whose parent wasn't set by 'weave'
 
-def finish_sum(roots, in_a, in_b, fasten_a, fasten_b, priority):
+def finish_sum(a_roots, in_a, in_b, fasten_a, fasten_b, priority, rm_in_a):
   stats = [0, 0, 0, 0, 0]
   def cap(x, in_a, fasten_a):
     j = mep_get(in_a, x, None)
@@ -679,11 +680,14 @@ def finish_sum(roots, in_a, in_b, fasten_a, fasten_b, priority):
   def traverse(x):
     stats[0] += 1
     j = cap(x, in_a, fasten_a)
-    for c in get_inferiors(x): traverse(c)
+    for c in get_inferiors(x):
+      if get_xmrca(c, None): traverse(c)
+    for c in get_inferiors(x):
+      if not get_xmrca(c, None): traverse(c)
     # All joint nodes derived from nodes descended from x
     # have their superior node set at this point.
     if not get_superior(j):
-      (pq, ab) = determine_superior_in_sum(x, in_a, in_b, priority)
+      (pq, ab) = determine_superior_in_sum(x, priority)
       if pq:
         if ab:
           h = cap(pq, in_a, fasten_a)
@@ -695,52 +699,63 @@ def finish_sum(roots, in_a, in_b, fasten_a, fasten_b, priority):
         stats[3] += 1
     else:
       stats[4] += 1
-  for root in roots: traverse(root)
-  print("# Finish: touched %s, set sup %s, capped %s, orphans %s, pass %s" % tuple(stats),
-        file=sys.stderr)
 
-def determine_superior_in_sum(x, in_a, in_b, priority):
-  p = get_superior(x)
-  q = get_xmrca(x, None)
-  if q == None:
-    # No tipward matches in sight
-    return (p, True)
-  u = get_xmrca(q, None)
-  if u == None:
-    # How can a node that's an xmrca not itself have an xmrca?
-    if True:
-      print("!! x %s p %s q %s" % (get_key(x), get_key(p), get_key(q)),
-            file=sys.stderr)
-    return (p, True)
-  # Ascend until we find a B-side ancestor that's definitely bigger than x
-  # This isn't right for monotype chains but those are handled separately
-  while q and get_xmrca(q, None) == u:
-    q = get_superior(q)
-  # Ascend until we find a priority-side ancestor that doesn't conflict with p
-  while p or q:
-    # No monotype chains.  Ordering is by tipward-match sets.
+  def determine_superior_in_sum(x, priority):
+    # Two candidates for superior: superior in a, and xmrca in b
+    p = get_superior(x)         # p is in a
+    q = get_xmrca(x, None)      # q is in b
+    if q == None:
+      # No tipward matches in sight under x.
+      # If there is a record match to x, assume x is splitting it, and
+      # put x under it.
+      m = out_b(mep_get(rm_in_a, x), None)
+      if (m and get_xmrca(m, None) and
+          # Make sure p [parent of x in a] ≈ parent of m in b.
+          mep_get(in_a, p) == mep_get(in_b, get_superior(m))):
+        print("# Putting %s under %s" % (get_blurb(x), get_blurb(m)),
+              file=sys.stderr)
+        return (m, False)
+      else:
+        return (p, True)
+    u = get_xmrca(q, None)
+    assert u
+    # Ascend until we find a B-side ancestor that's definitely bigger than x
+    # This isn't right for monotype chains but those are handled separately
+    while q and get_xmrca(q, None) == u:
+      q = get_superior(q)
+    # Ascend until we find a priority-side ancestor that doesn't conflict with p
     if p == None:
       return (q, False)
-    elif q == None:
-      return (p, True)
-    else:
-      (rel, _, _, _) = related_how(p, q)
-      if rel == GT:
-        return (q, False)
-      elif rel == LT or rel == EQ:
+    while q:
+      # No monotype chains.  Ordering is by tipward-match sets.
+      if q == None:
         return (p, True)
-      else:                   # CONFLICT, DISJOINT
-        if False:
-          print("!! %s ? %s" % (get_key(p), get_key(q)),
-              file=sys.stderr)
-        if priority:
-          # Ignore conflicting low-priority candidate q
+      else:
+        (rel, _, _, _) = related_how(p, q)
+        if rel == GT:
+          return (q, False)
+        elif rel == LT or rel == EQ:
           return (p, True)
-        else:
-          # Seek a nonconflicting high-priority candidate
-          pass
-    q = get_superior(q)
-  return (None, True)
+        elif rel == CONFLICT:
+          if False:
+            print("!! %s ? %s" % (get_key(p), get_key(q)),
+                file=sys.stderr)
+          if priority:
+            # Ignore conflicting low-priority candidate q
+            return (p, True)
+          else:
+            # Seek a nonconflicting high-priority candidate
+            pass
+        else:                   # DISJOINT or UNCLEAR
+          assert False
+      q = get_superior(q)
+    return (None, True)
+
+  for root in a_roots: traverse(root)
+  print("# Finish: touched %s, set sup %s, capped %s, orphans %s, pass %s" % tuple(stats),
+        file=sys.stderr)
+  # end finish_sum
+
 
 # j is to be either a child or synonym of k.  Figure out which.
 # Invariant: A synonym must have neither children nor synonyms.

@@ -107,8 +107,10 @@ def compute_sum(a_table, b_table, pk_col_arg, index_by):
           else:
             remark = "%s / %s" % (remark2, remark1)
         else:
-          remark = ("round trip failed: %s -> %s -> %s" %
-                    (key1, row2[pk_pos2], back1[pk_pos1]))
+          b1 = back1[pk_pos1]
+          # wish there was a name here so we can see what's going on
+          remark = ("round trip failed: A %s -> B %s -> A %s" %
+                    (key1, row2[pk_pos2], b1))
       else:
         # Probably an ambiguity {row1, row1'} <-> row2
         remark = remark1
