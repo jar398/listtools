@@ -7,8 +7,8 @@
 # Default example:
 # Compare two versions of NCBI mammals
 
-A=work/ncbi201505-mammals
-B=work/ncbi202008-mammals
+A ?= work/ncbi201505-mammals
+B ?= work/ncbi202008-mammals
 MAMMALIA=40674
 
 # make A=work/ncbi201505-mammals B=work/ncbi202008-mammals
@@ -93,11 +93,11 @@ $(ROUND): $(DELTA) $A-narrow.csv $B-narrow.csv $P/apply.py
 	$P/sortcsv.py --key $(USAGE_KEY) >$@.new
 	@mv -f $@.new $@
 
-%-mammals-pre.csv: %.csv $P/subset.py
+%-mammals.csv: %.csv $P/subset.py
 	$P/subset.py --hierarchy $< --root $(MAMMALIA) < $< > $@.new
 	@mv -f $@.new $@
 
-%-mammals.csv: %-mammals-pre.csv
+%-mammals-gnp.csv: %-mammals.csv
 
 RM=work/rm-$(shell basename $A)-$(shell basename $B).csv
 ALIGNMENT=work/alignment-$(shell basename $A)-$(shell basename $B).csv
@@ -106,23 +106,23 @@ REPORT=work/report-$(shell basename $A)-$(shell basename $B).csv
 report: $(REPORT)
 alignment: $(ALIGNMENT)
 
-$(RM): $A.csv $B.csv $P/match_records.py
+$(RM): $A-gnp.csv $B-gnp.csv $P/match_records.py
 	@echo
 	@echo "--- COMPUTING RECORD MATCHES ---"
-	$P/match_records.py --target $B.csv --pk $(DELTA_KEY) --index $(INDEX) \
-		    < $A.csv > $(RM)
+	$P/match_records.py --target $B-gnp.csv --pk $(DELTA_KEY) --index $(INDEX) \
+		    < $A-gnp.csv > $(RM)
 
 $(ALIGNMENT): $(RM) $P/align.py $P/property.py
 	@echo
 	@echo "--- COMPUTING ALIGNMENT ---"
-	$P/align.py --target $B.csv --matches $(RM) \
-		    < $A.csv > $(ALIGNMENT)
+	$P/align.py --target $B-gnp.csv --matches $(RM) \
+		    < $A-gnp.csv > $(ALIGNMENT)
 
 $(REPORT): $(ALIGNMENT) $P/report.py $P/property.py
 	@echo
 	@echo "--- PREPARING REPORT ---"
-	$P/report.py --source $A.csv --alignment $(ALIGNMENT) \
-		    < $B.csv > $(REPORT)
+	$P/report.py --source $A-gnp.csv --alignment $(ALIGNMENT) \
+		    < $B-gnp.csv > $(REPORT)
 
 # ----------------------------------------------------------------------
 # EOL examples
@@ -230,12 +230,22 @@ work/ncbi202008.ncbi-url:
 	| $P/sortcsv.py --key $(USAGE_KEY) > $@.new
 	@mv -f $@.new $@
 
-# Adjoin altKey column.  To skip this step change %-pre.csv to %.csv above.
-%.csv: %-pre.csv $P/extract_names.py $P/use_parse.py
+# Adjoin altKey column.  To skip this change the rule to simply copy %.csv to %-gnp.csv above.
+%-gnp.csv: %.csv $P/extract_names.py $P/use_parse.py
 	$P/extract_names.py < $< \
 	| gnparser -s \
 	| $P/use_parse.py --source $< > $@.new
 	@mv -f $@.new $@
+
+# MDD
+
+work/mdd1.7.csv: $(HOME)/Downloads/MDD_DwC_versions/MDD_v1.7_6567species_inDwC.csv
+	cp -p $< $@
+work/mdd1.7-gnp.csv: work/mdd1.7.csv
+work/mdd1.6.csv: $(HOME)/Downloads/MDD_DwC_versions/MDD_v1.6_6557species_inDwC.csv
+	cp -p $< $@
+work/mdd1.6-gnp.csv: work/mdd1.6.csv
+
 
 # GBIF, mammals = 359
 

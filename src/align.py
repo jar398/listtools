@@ -709,7 +709,7 @@ def finish_sum(a_roots, in_a, in_b, fasten_a, fasten_b, priority, rm_in_a):
       # If there is a record match to x, assume x is splitting it, and
       # put x under it.
       m = out_b(mep_get(rm_in_a, x), None)
-      if (m and get_xmrca(m, None) and
+      if (m and p and get_xmrca(m, None) and
           # Make sure p [parent of x in a] ≈ parent of m in b.
           mep_get(in_a, p) == mep_get(in_b, get_superior(m))):
         print("# Putting %s under %s" % (get_blurb(x), get_blurb(m)),
