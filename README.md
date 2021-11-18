@@ -67,14 +67,16 @@ meanings, such as for graph database nodes in Neo4J.
 
 ## Installation
 
-If you have python3 then just about everything should run out of the box.
+Python 3, `bash`, and Gnu `make` are all assumed.
 
-The `Makefile` assumes `bash` and Gnu `make`.
+Install the python3 `regex` module (although it's easy to revert to
+the built-in `re` if you prefer not to).
 
 One of the `Makefile` rules uses `gnparser`, which has download
 instructions [here](https://github.com/gnames/gnparser#installation).
 `Makefile` assumes that `gnparser` can be located via your shell's `PATH`.
-It is easy to remove this dependency if desired.
+It is easy to remove this dependency if desired, with only a mild
+degradation in effectiveness.
 
 ## The tools
 

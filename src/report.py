@@ -32,7 +32,9 @@ def report(a_iter, b_iter, sum_iter):
   al = load_alignment(sum_iter, a_usage_dict, b_usage_dict)
   return generate_report(al)
 
-include_unchanged = True
+# Full style shows every concept in the sum.
+# Diff style only shows changed/new/removed concepts.
+use_diff_style = True
 
 def generate_report(al):
   (_, roots) = al
@@ -41,23 +43,46 @@ def generate_report(al):
     x = out_a(u, None)
     y = out_b(u, None)
     change = get_change(u, None)
-    if not change:
-      if y:
-        comment = "new/split/renamed"
-      else:
-        comment = "deprecated/lumped/renamed"
+    name_changed = (get_blurb(x) != get_blurb(y))
+    if not y:
+      comment = "deprecated/lumped/renamed"
+      # Never report added synonyms
+      if get_accepted(x, None): comment = None
+    elif not x:
+      comment = "new/split/renamed"
+      # Never report lost synonyms
+      if get_accepted(y, None): comment = None
+    elif not change:
+      # Not sure how this can happen!
+      comment = "uncertain/ambiguous"
     elif change == '=':
-      if get_blurb(x) == get_blurb(y):
+      comment = "="
+      # Never report on pure synonyms even if renamed
+      if ((not x or get_accepted(x, None)) and
+          (not y or get_accepted(y, None))):
         comment = None
-        if (include_unchanged and
-            not (x and get_accepted(x, None)) and
-            not (y and get_accepted(y, None))):
-          comment = " "
+      # In diff style, do not report on = pairs with unchanged name
+      elif not name_changed and use_diff_style:
+        comment = None
       else:
         comment = "renamed"
-    elif change == '<': comment = "widened"
-    elif change == '>': comment = "narrowed"
-    elif change == '!': comment = "homonym/ambiguous/uncertain"
+    elif change == '<':
+      if (y and x and
+          get_accepted(y, None) and
+          get_accepted(x, x) == get_accepted(y)):
+        comment = "synonymized under %s" % get_blurb(get_accepted(y))
+      elif name_changed:
+        comment = "lumped"
+      elif get_accepted(x, None):
+        if (y and x and
+            get_accepted(y, None)):
+          comment = None
+        else:
+          comment = "re-accepted synonym"
+      else:
+        comment = "widened"
+    elif change == '>': comment = "split" if name_changed else "narrowed"
+    elif change == '!': comment = "ambiguous/uncertain" if name_changed else "homonym??"
     elif change == '><': comment = "conflict"
     elif change == '?': comment = "synonym choice"
     else: assert False
@@ -66,14 +91,17 @@ def generate_report(al):
     if comment:
       rank = get_rank(y or x, MISSING)
       noise = noises.get(rank, ". . . . .")
-      yield [get_blurb(x) + " " + noise,
-             noise + " " + get_blurb(y),
+      bx = get_blurb(x)
+      if x and get_accepted(x, None): bx = "*" + bx
+      by = get_blurb(y)
+      if y and get_accepted(y, None): by = "*" + by
+      yield [bx + " " + noise,
+             noise + " " + by,
              rank, comment, remark]
     for c in get_children(u, []):
       for row in traverse(c): yield row
-    if include_unchanged and False:
-      for s in get_synonyms(u, []):
-        for row in traverse(s): yield row
+    for s in get_synonyms(u, []):
+      for row in traverse(s): yield row
   for root in roots:
     for row in traverse(root): yield row
 
@@ -89,7 +117,8 @@ noises = {"subspecies": "",
 
 def get_blurb(z):
   if z:
-    return get_canonical(z, None) or get_scientific(z, None) or get_key(z)
+    blurb = get_canonical(z, None) or get_scientific(z, None) or get_key(z)
+    return blurb
   else:
     return MISSING
 

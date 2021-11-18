@@ -2,13 +2,13 @@
 
 # Make use of the output of gnparse, by adding new columns to the checklist
 
-import sys, csv, re, argparse
+import sys, csv, argparse
+import regex
 import util
 from util import windex, MISSING
 
-#r = re.compile("\p{Uppercase_Letter}\p{Lowercase_Letter}+")
-
-auth_re = re.compile("[A-Z][A-Za-z'-]+")
+# auth_re = re.compile("[A-Z][A-Za-z'-]+")
+auth_re = regex.compile(u"\p{Uppercase_Letter}[\p{Letter}-]+")
 
 def use_parse(gn_iter, check_iter):
   header1 = next(gn_iter)
@@ -43,7 +43,7 @@ def use_parse(gn_iter, check_iter):
       part = auth_re.search(row1[auth_pos])
       if part: part = part[0]
       year = row1[year_pos]
-      if epithet != MISSING and part != MISSING and year != MISSING:
+      if epithet != MISSING and part and year != MISSING:
         altkey = "%s.%s.%s" % (epithet, part, year)
         altkey_count += 1
       if stem != MISSING:

@@ -498,7 +498,7 @@ def seek_conflict(p, q):
   rel = how_related(o, q)
   if rel == GT:
     p_and_q = p_not_q = None                # in A
-    for x in get_inferiors(p):
+    for x in get_children(p, []):           # Disjoint
       (x_and_q, x_not_q) = seek_conflict(x, q)
       if x_and_q and x_not_q:
         return (x_and_q, x_not_q)
@@ -506,6 +506,12 @@ def seek_conflict(p, q):
         p_and_q = x_and_q
       if x_not_q:
         p_not_q = x_not_q
+      if p_and_q and p_not_q:             # hack: cut it short
+        return (p_and_q, p_not_q)
+    for x in get_synonyms(p, []):
+      (x_and_q, _) = seek_conflict(x, q)
+      if x_and_q: 
+        p_and_q = x_and_q
       if p_and_q and p_not_q:             # hack: cut it short
         return (p_and_q, p_not_q)
     return (p_and_q, p_not_q)
@@ -575,10 +581,10 @@ def set_congruences(a_roots, b_roots, sum, rm_sum):
       if s_done and t_done:
         break
       elif s_done:
-        k = connect(None, t, "upper t")
+        k = connect(None, t, "right chain")
         t = get_superior(t)
       elif t_done:
-        k = connect(s, None, "upper s")
+        k = connect(s, None, "left chain")
         s = get_superior(s)
       else:
         # Use record matching to connect cluster nodes when possible
@@ -766,32 +772,23 @@ def set_superior(j, k):
   assert not get_accepted(k, None)
   x = out_a(j)
   y = out_b(j)
-  if True:
-    if y:
-      if get_accepted(y, None):
-        assert not get_children(j, None)
-        assert not get_synonyms(j, None)
-        set_accepted(j, k)
-      else:
-        set_parent(j, k)
-    else:  # x
-      if get_accepted(x, None):
-        assert not get_children(j, None)
-        assert not get_synonyms(j, None)
-        set_accepted(j, k)
-      else:
-        set_parent(j, k)
-  else:
-    # If j has any children or synonyms, then j is a child, not a synonym
-    if ((x and len(get_inferiors(x)) > 0) or
-        (y and len(get_inferiors(y)) > 0)):
+  # x and y might be synonym/accepted or accepted/synonym
+  if y:
+    if get_accepted(y, None):
+      # y a synonym; convert x from accepted to synonym, perhaps
+      assert not get_children(j, None)
+      assert not get_synonyms(j, None)
+      set_accepted(j, k)
+    else:
+      # y accepted; convert x from synonym to accepted, perhaps
       set_parent(j, k)
-    # If j is considered a synonym on both sides, then j is a synonym
-    elif y and get_accepted(y, None):
+  else:  # x
+    if get_accepted(x, None):
+      assert not get_children(j, None)
+      assert not get_synonyms(j, None)
       set_accepted(j, k)
-    elif not y and get_accepted(x, None):
-      set_accepted(j, k)
-    else: set_parent(j, k)
+    else:
+      set_parent(j, k)
 
 # -----------------------------------------------------------------------------
 # Report on differences between record matches and hierarchy matches
@@ -853,12 +850,12 @@ def generate_sum(sum, roots, rm_sum):
     p = get_parent(union, None)
     a = get_accepted(union, None)
     z = m = None
-    sym = MISSING
+    change = MISSING
     if b_usage:
       z = out_a(mep_get(rm_in_b, b_usage), None)
       if z:
         (rcc5, _, _, _) = related_how(z, b_usage)
-        sym = rcc5_symbols[rcc5]
+        change = rcc5_symbols[rcc5]
         m = mep_get(in_a, z, None)
       # if a_usage and b_usage then "renamed"
       # if b_usage then if get_xmrca(b_usage) then "collected"
@@ -866,7 +863,7 @@ def generate_sum(sum, roots, rm_sum):
       z = out_b(mep_get(rm_in_a, a_usage), None)
       if z:
         (rcc5, _, _, _) = related_how(a_usage, z)
-        sym = rcc5_symbols[rcc5]
+        change = rcc5_symbols[rcc5]
         m = mep_get(in_b, z, None)
       # if a_usage then if get_xmrca(a_usage) then "dissolved"
     return [get_key(union),
@@ -876,7 +873,7 @@ def generate_sum(sum, roots, rm_sum):
             get_key(a) if a else MISSING,
             get_canonical(union, MISSING),
             get_key(m) if m else MISSING,
-            sym,
+            change,
             get_remark(union, MISSING)]
   def traverse(union):
     yield compose_row(union)
