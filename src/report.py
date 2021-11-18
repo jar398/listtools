@@ -68,17 +68,13 @@ def generate_report(al):
         comment = "renamed"
     elif change == '<':
       if (y and x and
-          get_accepted(y, None) and
-          get_accepted(x, x) == get_accepted(y)):
-        comment = "synonymized under %s" % get_blurb(get_accepted(y))
+          get_accepted(y, None)):
+        if get_accepted(x, None):
+          comment = None      # synonym alignments are uninteresting
+        else:
+          comment = "synonymized under %s" % get_blurb(get_accepted(y))
       elif name_changed:
         comment = "lumped"
-      elif get_accepted(x, None):
-        if (y and x and
-            get_accepted(y, None)):
-          comment = None
-        else:
-          comment = "re-accepted synonym"
       else:
         comment = "widened"
     elif change == '>': comment = "split" if name_changed else "narrowed"
