@@ -32,22 +32,19 @@ def use_parse(gn_iter, check_iter):
     row1 = next(gn_iter)
     stem = MISSING
     altkey = MISSING
-    if row1[quality_pos] == "1":
+    # https://github.com/gnames/gnparser/blob/master/quality.md
+    if row1[quality_pos] == "1" or row1[quality_pos] == "2":
       stem = row1[stem_pos]
-      # Get species or subspecies epithet stem
-      space = str.rfind(stem, " ")
-      if space > 0:
-        epithet = stem[space+1:]
-      else:
-        epithet = stem
-      part = auth_re.search(row1[auth_pos])
-      if part: part = part[0]
-      year = row1[year_pos]
-      if epithet != MISSING and part and year != MISSING:
-        altkey = "%s.%s.%s" % (epithet, part, year)
-        altkey_count += 1
       if stem != MISSING:
         stem_count += 1
+        # Get species or subspecies epithet stem
+        epithet = stem.split(" ")[-1]
+        part = auth_re.search(row1[auth_pos])
+        if part: auth = part[0]
+        year = row1[year_pos]
+        if epithet != MISSING and part and year != MISSING:
+          altkey = "%s.%s.%s" % (epithet, auth, year)
+          altkey_count += 1
     yield row2 + [stem, altkey]
   print("# use_parse: added %s alt keys and %s stems for %s rows" %
         (altkey_count, stem_count, row_count),

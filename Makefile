@@ -245,6 +245,12 @@ work/mdd1.7-gnp.csv: work/mdd1.7.csv
 work/mdd1.6.csv: $(HOME)/Downloads/MDD_DwC_versions/MDD_v1.6_6557species_inDwC.csv
 	cp -p $< $@
 work/mdd1.6-gnp.csv: work/mdd1.6.csv
+work/mdd1.2.csv: $(HOME)/Downloads/MDD_DwC_versions/MDD_v1.2_6485species_inDwC.csv
+	cp -p $< $@
+work/mdd1.2-gnp.csv: work/mdd1.2.csv
+work/mdd1.1.csv: $(HOME)/Downloads/MDD_DwC_versions/MDD_v1.1_6526species_inDwC.csv
+	cp -p $< $@
+work/mdd1.1-gnp.csv: work/mdd1.1.csv
 
 
 # GBIF, mammals = 359

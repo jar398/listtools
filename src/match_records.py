@@ -77,11 +77,17 @@ def compute_sum(a_table, b_table, pk_col_arg, index_by):
     elif key1 in all_rows2:     # id collision
       row1 = all_rows1[key1]
       key3 = "%s$%s" % (key1, stable_hash(row1))
-      print(("-- match_records: id %s is used differently in the two inputs.\n" + \
-             "--   %s\n" + \
-             "--   %s will replace it for the A input") %
-            (key1, remark, key3),
-            file=sys.stderr)
+      if False:
+        row2 = all_rows2[key1]
+        print(("-- match_records: id %s is used differently in the two inputs.\n" + \
+               "--   %s vs. %s\n" + \
+               "--   %s\n" + \
+               "--   %s will replace it for the A input") %
+              (key1,
+               row1[windex(header1, "canonicalName")],
+               row2[windex(header2, "canonicalName")],
+               remark, key3),
+              file=sys.stderr)
     else:
       key3 = key1
     # Establish correspondences

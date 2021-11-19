@@ -9,7 +9,7 @@ from util import windex, MISSING
 import property as prop
 from property import mep_get, mep_set
 
-troublemaker = "0000000000"
+troublemaker = "1007176"
 
 # -----------------------------------------------------------------------------
 # Supervise the overall process
@@ -142,6 +142,15 @@ def load_usages(iterator):
   # Collect children so we can say children[x]
   roots = collect_children(key_to_usage.values())
 
+  # We really only want one root (this is so that mrca can work)
+  if True or len(roots) > 1:
+    top = make_usage("(top)")
+    set_canonical(top, "(top)")
+    key_to_usage["(top)"] = top
+    for root in roots: set_parent(root, top)
+    set_children(top, roots)
+    roots = [top]
+
   # Prepare for doing within-tree MRCA operations
   cache_levels(roots)
 
@@ -222,11 +231,20 @@ def find_peers(x, y):
     x = get_superior(x)
   return (x, y)
 
-def mrca(x, y):
-  (x, y) = find_peers(x, y)
-  while x and not (x is y):
+def mrca(x0, y0):
+  (x0, y0) = find_peers(x0, y0)
+  (x, y) = (x0, y0)
+  while not (x is y):
     x = get_superior(x)
+    if not x:
+      print("!! mrca off top: x0 %s y0 %s" % (get_key(x0), get_key(y0)),
+            file=sys.stderr)
+      break
     y = get_superior(y)
+    if not y:
+      print("!! mrca top off: x0 %s y0 %s" % (get_key(x0), get_key(y0)),
+            file=sys.stderr)
+      break
   return x
 
 # -----------------------------------------------------------------------------
@@ -261,6 +279,9 @@ def load_sum(iterator, a_usage_dict, b_usage_dict):
     x = a_usage_dict.get(row[usage_a_pos])
     y = b_usage_dict.get(row[usage_b_pos])
     note_match(x, y, row[remark_pos], sum)
+  note_match(a_usage_dict.get("(top)"),
+             b_usage_dict.get("(top)"),
+             'top', sum)
   return sum
 
 # Sadly, rows are repeated sometimes 
@@ -406,7 +427,7 @@ def half_xmrcas(x):
         m = n
   if m:
     if get_key(x).startswith(troublemaker):
-        print("!! xmrca(%s) = %s" % (get_key(x), get_key(m)),
+        print("!! xmrca(%s) := %s" % (get_key(x), get_key(m)),
               file=sys.stderr)
     set_xmrca(x, m)
   return m
@@ -421,7 +442,7 @@ def cache_xmrcas(a_roots, b_roots):
       for c in get_inferiors(x): check(c)
       y = get_xmrca(x, None)
       if y and not get_xmrca(y, None):
-        print("!! x %s %s y %s %s" %
+        print("!! non-mutual xmrca: x %s %s y %s %s" %
               (get_key(x), get_canonical(x), get_key(y), get_canonical(x),),
               file=sys.stderr)
         assert False
