@@ -90,6 +90,10 @@ rank_prop = prop.Property("rank")
 get_rank = prop.getter(rank_prop)
 set_rank = prop.setter(rank_prop)
 
+year_prop = prop.Property("year")
+get_year = prop.getter(year_prop)
+set_year = prop.setter(year_prop)
+
 make_usage = prop.constructor(key_prop)
 
 parent_prop = prop.Property("parent")
@@ -106,6 +110,7 @@ def load_usages(iterator):
   canonical_pos = windex(header, "canonicalName")
   scientific_pos = windex(header, "scientificName")
   rank_pos = windex(header, "taxonRank")
+  year_pos = windex(header, "year")
   parent_pos = windex(header, "parentNameUsageID")
   accepted_pos = windex(header, "acceptedNameUsageID")
 
@@ -123,6 +128,9 @@ def load_usages(iterator):
     if rank_pos != None:
       rank = row[rank_pos]
       if rank != MISSING: set_rank(usage, rank)
+    if year_pos != None:
+      year = row[year_pos]
+      if year != MISSING: set_year(usage, year)
     key_to_usage[key] = usage
 
     accepted_key = row[accepted_pos] if accepted_pos else MISSING

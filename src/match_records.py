@@ -382,7 +382,9 @@ if __name__ == '__main__':
                       help='names of columns to match on')
   args=parser.parse_args()
   inport1 = sys.stdin
+  index = args.index
+  assert index
   with open(args.target, "r") as inport2:
     main(inport1, inport2, args.pk,
-         args.index.split(","), sys.stdout)
+         index.split(","), sys.stdout)
 

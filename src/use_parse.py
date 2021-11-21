@@ -22,7 +22,7 @@ def use_parse(gn_iter, check_iter):
   auth_pos = windex(header1, "Authorship")
   year_pos = windex(header1, "Year")
   quality_pos = windex(header1, "Quality")
-  header2 = next(check_iter) + ["canonicalStem", "altKey"]
+  header2 = next(check_iter) + ["canonicalStem", "epithetAuthorYear", "year"]
   yield header2
   row_count = 0
   stem_count = 0
@@ -32,6 +32,7 @@ def use_parse(gn_iter, check_iter):
     row1 = next(gn_iter)
     stem = MISSING
     altkey = MISSING
+    year = row1[year_pos]
     # https://github.com/gnames/gnparser/blob/master/quality.md
     if row1[quality_pos] == "1" or row1[quality_pos] == "2":
       stem = row1[stem_pos]
@@ -41,11 +42,10 @@ def use_parse(gn_iter, check_iter):
         epithet = stem.split(" ")[-1]
         part = auth_re.search(row1[auth_pos])
         if part: auth = part[0]
-        year = row1[year_pos]
         if epithet != MISSING and part and year != MISSING:
           altkey = "%s.%s.%s" % (epithet, auth, year)
           altkey_count += 1
-    yield row2 + [stem, altkey]
+    yield row2 + [stem, altkey, year]
   print("# use_parse: added %s alt keys and %s stems for %s rows" %
         (altkey_count, stem_count, row_count),
         file=sys.stderr)

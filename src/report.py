@@ -14,7 +14,7 @@ from align import key_prop, get_key, \
   get_parent, set_parent, \
   get_accepted, set_accepted, \
   get_children, get_synonyms, \
-  get_canonical, get_rank
+  get_canonical, get_rank, get_year
 
 previous_prop = prop.Property("previous")
 get_previous = prop.getter(previous_prop)
@@ -38,7 +38,7 @@ use_diff_style = True
 
 def generate_report(al):
   (_, roots) = al
-  yield ("A name", "B name", "rank", "comment", "remark")
+  yield ("A name", "B name", "rank", "year", "comment", "remark")
   def traverse(u):
     x = out_a(u, None)
     y = out_b(u, None)
@@ -85,6 +85,7 @@ def generate_report(al):
 
     remark = get_remark(u, None)
     if comment:
+      year = get_year(y or x, MISSING)
       rank = get_rank(y or x, MISSING)
       noise = noises.get(rank, ". . . . .")
       bx = get_blurb(x)
@@ -93,7 +94,7 @@ def generate_report(al):
       if y and get_accepted(y, None): by = "*" + by
       yield [bx + " " + noise,
              noise + " " + by,
-             rank, comment, remark]
+             rank, year, comment, remark]
     for c in get_children(u, []):
       for row in traverse(c): yield row
     for s in get_synonyms(u, []):

@@ -38,6 +38,16 @@ MAMMALIA=40674
 # DELTA_KEY=EOLid MANAGE=EOLid,parentEOLid,taxonID,landmark_status \
 #   time make A=work/dh11-hier B=work/dh12-hier
 
+# BioKIC examples:
+
+# A=work/mdd1.2 B=work/mdd1.3 \
+# INDEX="scientificName,canonicalName,canonicalStem,epithetAuthorYear" \
+# make report
+
+# A=work/gbif20210303-mammals B=work/mdd1.0 \
+# INDEX="scientificName,canonicalName,canonicalStem,epithetAuthorYear" \
+# make report
+
 SHELL = /usr/bin/bash
 RAKE = cd ../plotter && rake
 P = src
@@ -58,7 +68,7 @@ DELTA_KEY ?= $(USAGE_KEY)
 # Formerly: $P/project.py --keep $(MANAGE) <$< | ...
 # and	    $P/sortcsv.py --key $(USAGE_KEY) <$< >$@.new
 
-INDEX ?= taxonID,EOLid,scientificName,canonicalName,canonicalStem,altKey
+INDEX ?= taxonID,EOLid,scientificName,canonicalName,canonicalStem,epithetAuthorYear
 MANAGE ?= taxonID,scientificName,canonicalName,taxonRank,taxonomicStatus,nomenclaturalStatus,datasetID,source
 
 $(DELTA): $A.csv $B.csv $P/delta.py $P/match_records.py $P/property.py
@@ -230,7 +240,8 @@ work/ncbi202008.ncbi-url:
 	| $P/sortcsv.py --key $(USAGE_KEY) > $@.new
 	@mv -f $@.new $@
 
-# Adjoin altKey column.  To skip this change the rule to simply copy %.csv to %-gnp.csv above.
+# Adjoin epithetAuthorYear column.  To skip this change the rule to
+# simply copy %.csv to %-gnp.csv above. 
 %-gnp.csv: %.csv $P/extract_names.py $P/use_parse.py
 	$P/extract_names.py < $< \
 	| gnparser -s \
@@ -245,12 +256,20 @@ work/mdd1.7-gnp.csv: work/mdd1.7.csv
 work/mdd1.6.csv: $(HOME)/Downloads/MDD_DwC_versions/MDD_v1.6_6557species_inDwC.csv
 	cp -p $< $@
 work/mdd1.6-gnp.csv: work/mdd1.6.csv
+work/mdd1.3.csv: $(HOME)/Downloads/MDD_DwC_versions/MDD_v1.3_6513species_inDwC.csv
+	cp -p $< $@
+work/mdd1.3-gnp.csv: work/mdd1.3.csv
 work/mdd1.2.csv: $(HOME)/Downloads/MDD_DwC_versions/MDD_v1.2_6485species_inDwC.csv
 	cp -p $< $@
 work/mdd1.2-gnp.csv: work/mdd1.2.csv
 work/mdd1.1.csv: $(HOME)/Downloads/MDD_DwC_versions/MDD_v1.1_6526species_inDwC.csv
 	cp -p $< $@
 work/mdd1.1-gnp.csv: work/mdd1.1.csv
+work/mdd1.0.csv: $(HOME)/Downloads/MDD_DwC_versions/MDD_v1_6495species_JMamm_inDwC.csv \
+		 $P/start.py
+	$P/start.py < $< --pk taxonID > $@.new
+	@mv -f $@.new $@
+work/mdd1.0-gnp.csv: work/mdd1.0.csv
 
 
 # GBIF, mammals = 359
@@ -273,6 +292,8 @@ work/gbif20210303.gbif-url:
 	$P/start.py --pk $(USAGE_KEY) --input `dirname $<`/Taxon.tsv >$@.new
 	@mv -f $@.new $@
 .PRECIOUS: %.csv
+
+work/gbif20210303-mammals-gnp.csv: work/gbif20210303-mammals.csv
 
 fuu: work/gbif20210303-mammals.csv
 
