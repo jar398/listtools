@@ -121,9 +121,10 @@ def generate_report(al, diff_mode):
       if x and get_accepted(x, None): bx = "*" + bx
       by = get_blurb(y)
       if y and get_accepted(y, None): by = "*" + by
-      yield [bx + " " + noise,
-             noise + " " + by,
-             rank, year, comment, remark]
+      if not diff_mode:
+        bx = bx + " " + noise
+        by = noise + " " + by
+      yield [bx, by, rank, year, comment, remark]
     for c in get_children(u, []):
       for row in traverse(c): yield row
     for s in get_synonyms(u, []):
@@ -223,6 +224,10 @@ if __name__ == '__main__':
     """)
   parser.add_argument('--source', help="A hierarchy")
   parser.add_argument('--alignment', help="alignment")
+  parser.add_argument('--diff', action='store_true',
+                      help="difference mode")
+  parser.add_argument('--full', action='store_false',
+                      help="full report")
   args=parser.parse_args()
 
   b_file = sys.stdin
