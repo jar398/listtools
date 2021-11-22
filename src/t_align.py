@@ -18,9 +18,12 @@ def test(n1, n2):
   return newick.generate_newick((row for row in rows))
 
 def run_test(A, B, expect):
+  print("\nTest: %s + %s" % (A, B))
+  print("  or %s + %s" % (newick.generate_newick(newick.parse_newick(A)),
+                          newick.generate_newick(newick.parse_newick(B))))
   n3 = test(A, B)
   if expect and n3 != expect:
-    print("\n**** A+B = %s != %s\n" % (n3, expect))
+    print("**** A+B = %s != %s\n" % (n3, expect))
   return n3
 
 def run_tests():

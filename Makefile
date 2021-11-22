@@ -120,19 +120,22 @@ $(RM): $A-gnp.csv $B-gnp.csv $P/match_records.py
 	@echo
 	@echo "--- COMPUTING RECORD MATCHES ---"
 	$P/match_records.py --target $B-gnp.csv --pk $(DELTA_KEY) --index $(INDEX) \
-		    < $A-gnp.csv > $(RM)
+		    < $A-gnp.csv > $@.new
+	@mv -f $@.new $@
 
 $(ALIGNMENT): $(RM) $P/align.py $P/property.py
 	@echo
 	@echo "--- COMPUTING ALIGNMENT ---"
 	$P/align.py --target $B-gnp.csv --matches $(RM) \
-		    < $A-gnp.csv > $(ALIGNMENT)
+		    < $A-gnp.csv > $@.new
+	@mv -f $@.new $@
 
 $(REPORT): $(ALIGNMENT) $P/report.py $P/property.py
 	@echo
 	@echo "--- PREPARING REPORT ---"
 	$P/report.py --source $A-gnp.csv --alignment $(ALIGNMENT) \
-		    < $B-gnp.csv > $(REPORT)
+		    < $B-gnp.csv > $@.new
+	@mv -f $@.new $@
 
 # ----------------------------------------------------------------------
 # EOL examples
