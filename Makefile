@@ -259,6 +259,16 @@ work/mdd1.7-gnp.csv: work/mdd1.7.csv
 work/mdd1.6.csv: $(HOME)/Downloads/MDD_DwC_versions/MDD_v1.6_6557species_inDwC.csv
 	cp -p $< $@
 work/mdd1.6-gnp.csv: work/mdd1.6.csv
+work/mdd1.5.csv: $(HOME)/Downloads/MDD_DwC_versions/MDD_v1.5_6554species_inDwC.csv \
+		 $P/start.py
+	$P/start.py < $< --pk taxonID > $@.new
+	@mv -f $@.new $@
+work/mdd1.5-gnp.csv: work/mdd1.5.csv
+work/mdd1.4.csv: $(HOME)/Downloads/MDD_DwC_versions/MDD_v1.4_6533species_inDwC.csv \
+		 $P/start.py
+	$P/start.py < $< --pk taxonID > $@.new
+	@mv -f $@.new $@
+work/mdd1.4-gnp.csv: work/mdd1.4.csv
 work/mdd1.3.csv: $(HOME)/Downloads/MDD_DwC_versions/MDD_v1.3_6513species_inDwC.csv
 	cp -p $< $@
 work/mdd1.3-gnp.csv: work/mdd1.3.csv

@@ -35,7 +35,7 @@ def start_csv(inport, params, outport, pk_col, cleanp):
   else:
     out_header = in_header
   pk_pos_out = windex(out_header, pk_col)
-  print("# Output header: %s" % (out_header,), file=sys.stderr)
+  # print("# Output header: %s" % (out_header,), file=sys.stderr)
 
   writer = csv.writer(outport) # CSV not TSV
   writer.writerow(out_header)
@@ -100,16 +100,18 @@ def start_csv(inport, params, outport, pk_col, cleanp):
     else:
       out_row = row
     pk = out_row[pk_pos_out]
-    if pk == MISSING:
-      text = "^".join(row)
-      pk = stable_hash(row)
+    if pk in seen_pks:
+      print("** %s is not a good primary key column.  Two or more rows with %s = %s\n" %
+            (pk_col, pk_col, pk),
+            file=sys.stderr)
+      pk = fresh_pk(row)
+      out_row[pk_pos_out] = pk
+    elif pk == MISSING:
+      pk = fresh_pk(row)
       minted += 1
       out_row[pk_pos_out] = pk
     assert pk != MISSING
-    if pk in seen_pks:
-      print("%s is not a good primary key column.  Two or more rows with %s = %s\n" %
-            (pk_col, pk_col, pk),
-            file=sys.stderr)
+    
     seen_pks[pk] = True
 
     writer.writerow(out_row)
@@ -123,6 +125,9 @@ def start_csv(inport, params, outport, pk_col, cleanp):
     print("start: trimmed extra values from %s rows" % (trimmed,),
           file=sys.stderr)
     
+def fresh_pk(row):
+  return stable_hash("^".join(row))
+
 """
 Let c = canonicalName from csv, s = scientificName from csv,
 sci = satisfies scientific name regex.

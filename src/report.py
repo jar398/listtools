@@ -24,67 +24,96 @@ change_prop = prop.Property("change")
 get_change = prop.getter(change_prop)
 set_change = prop.setter(change_prop)
 
-def report(a_iter, b_iter, sum_iter):
+def report(a_iter, b_iter, sum_iter, diff_mode):
   (a_usage_dict, a_roots) = align.load_usages(a_iter)
   (b_usage_dict, b_roots) = align.load_usages(b_iter)
   print("%s A usages, %s B usages" % (len(a_usage_dict), len(b_usage_dict)),
         file=sys.stderr)
   al = load_alignment(sum_iter, a_usage_dict, b_usage_dict)
-  return generate_report(al)
+  return generate_report(al, diff_mode)
 
 # Full style shows every concept in the sum.
 # Diff style only shows changed/new/removed concepts.
 use_diff_style = True
 
-def generate_report(al):
+def generate_report(al, diff_mode):
   (_, roots) = al
   yield ("A name", "B name", "rank", "year", "comment", "remark")
+  stats = {}
+  def tick(stat):
+    if stat in stats: stats[stat] += 1
+    else: stats[stat] = 1
   def traverse(u):
     x = out_a(u, None)
     y = out_b(u, None)
     change = get_change(u, None)
     name_changed = (get_blurb(x) != get_blurb(y))
     if not y:
-      comment = "deprecated/lumped/renamed"
       # Never report added synonyms
-      if get_accepted(x, None): comment = None
+      if get_accepted(x, None):
+        comment = None
+        tick("dropped synonym")
+      else:
+        comment = "deprecated/lumped/renamed"
+        tick("dropped accepted")
     elif not x:
-      comment = "new/split/renamed"
       # Never report lost synonyms
-      if get_accepted(y, None): comment = None
+      if get_accepted(y, None):
+        comment = None
+        tick("added synonym")
+      else:
+        comment = "new/split/renamed"
+        tick("added accepted")
     elif not change:
       # Not sure how this can happen!
       comment = "uncertain/ambiguous"
+      tick("uncertain")
     elif change == '=':
-      comment = "="
       # Never report on pure synonyms even if renamed
       if ((not x or get_accepted(x, None)) and
           (not y or get_accepted(y, None))):
         comment = None
-      # In diff style, do not report on = pairs with unchanged name
-      elif not name_changed and use_diff_style:
-        comment = None
-      else:
+        tick("kept synonym")
+      elif name_changed:
         comment = "renamed"
+        tick("renamed")
+      else:
+        if use_diff_style:
+          comment = None
+        else:
+          comment = "="
+        tick("kept")
     elif change == '<':
       if (y and x and
           get_accepted(y, None)):
         if get_accepted(x, None):
           comment = None      # synonym alignments are uninteresting
+          tick("kept synonym")
         else:
           comment = "synonymized under %s" % get_blurb(get_accepted(y))
+          tick("synonymized")
       elif name_changed:
         comment = "lumped"
+        tick("lumped")
       else:
         comment = "widened"
-    elif change == '>': comment = "split" if name_changed else "narrowed"
-    elif change == '!': comment = "ambiguous/uncertain" if name_changed else "homonym??"
-    elif change == '><': comment = "conflict"
-    elif change == '?': comment = "synonym choice"
+        tick("widened")
+    elif change == '>':
+      comment = "split" if name_changed else "narrowed"
+      tick(comment)
+    elif change == '!':
+      comment = "ambiguous/uncertain" if name_changed else "homonym??"
+      tick(comment)
+    elif change == '><':
+      comment = "conflict"
+      tick(comment)
+    elif change == '?':
+      comment = "synonym choice"
+      tick(comment)
     else: assert False
 
     remark = get_remark(u, None)
-    if comment:
+    if comment or not diff_mode:
       year = get_year(y or x, MISSING)
       rank = get_rank(y or x, MISSING)
       noise = noises.get(rank, ". . . . .")
@@ -101,6 +130,9 @@ def generate_report(al):
       for row in traverse(s): yield row
   for root in roots:
     for row in traverse(root): yield row
+  for key in sorted(stats.keys()):
+    print("%7d %s" % (stats[key], key), file=sys.stderr)
+
 
 noises = {"subspecies": "",
           "species": "_",
@@ -196,10 +228,12 @@ if __name__ == '__main__':
   b_file = sys.stdin
   a_path = args.source
   sum_path = args.alignment
+  diff_mode = True
 
   with open(a_path) as a_file:
     with open(sum_path) as sum_file:
       rep = report(csv.reader(a_file),
                    csv.reader(b_file),
-                   csv.reader(sum_file))
+                   csv.reader(sum_file),
+                   diff_mode)
       util.write_generated(rep, sys.stdout)
