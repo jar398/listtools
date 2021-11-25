@@ -10,8 +10,14 @@ import property as prop
 from property import mep_get, mep_set
 
 TOP = "[top]"
-troublemaker = "1007176"
 debug = False
+
+def is_top(x): return get_key(x) == TOP
+
+def monitor(x):
+  return (x and 
+          (get_canonical(x, None) == "Ornithorhynchus" or
+           get_canonical(x, None) == "Dermanura glauca"))
 
 # -----------------------------------------------------------------------------
 # Supervise the overall process
@@ -34,7 +40,7 @@ def align(a_iterator, b_iterator, rm_sum_iterator):
   assign_canonicals(sum)
 
   # Emit tabular version of merged tree
-  return generate_sum(sum, roots, rm_sum)
+  return generate_alignment(sum, roots, rm_sum)
 
 def assign_canonicals(sum):
   (key_to_union, in_a, in_b) = sum
@@ -139,18 +145,27 @@ def load_usages(iterator):
     if accepted_key == key: accepted_key = MISSING
     parent_key = row[parent_pos]
     if accepted_key != MISSING: parent_key = MISSING
+    assert parent_key != key
     fixup.append((usage, parent_key, accepted_key))
 
   for (usage, parent_key, accepted_key) in fixup:
     if accepted_key != MISSING:
       probe2 = key_to_usage.get(accepted_key)
-      if probe2: set_accepted(usage, probe2)
+      if probe2:
+        set_accepted(usage, probe2)
+        if monitor(usage) or monitor(probe1):
+          print("$ accepted %s := %s" % (get_blurb(usage), get_blurb(probe1)),
+                file=sys.stderr)
     elif parent_key != MISSING:
       probe1 = key_to_usage.get(parent_key)
-      if probe1: set_parent(usage, probe1)
+      if probe1:
+        set_parent(usage, probe1)
+        if monitor(usage) or monitor(probe1):
+          print("$ parent %s := %s" % (get_blurb(usage), get_blurb(probe1)),
+                file=sys.stderr)
 
   # Collect children so we can say children[x]
-  roots = collect_children(key_to_usage.values())
+  roots = collect_inferiors(key_to_usage.values())
 
   # We really only want one root (this is so that mrca can work)
   if True or len(roots) > 1:
@@ -189,13 +204,19 @@ def get_superior(x):
       assert False
   return sup
 
-def collect_children(items):
+# E.g. Glossophaga bakeri (in 1.7) split from Glossophaga commissarisi (in 1.6)
+
+def collect_inferiors(items):
   roots = []
+  seniors = 0
   for item in items:
 
     # Add item to list of accepted's synonyms
     accepted_item = get_accepted(item, None)
     if accepted_item:
+      # Filter out senior synonyms here
+      if seniority(item, accepted_item) == "senior synonym":
+        seniors += 1
       ch = get_synonyms(accepted_item, None)
       if ch:
         ch.append(item)
@@ -214,7 +235,30 @@ def collect_children(items):
       else:
         roots.append(item)
 
+  if seniors > 0:
+    print("-- Saw %s senior synonyms" % seniors,
+          file=sys.stderr)
   return roots
+
+# Is given synonym usage a senior synonym of its accepted usage?
+# In the case of splitting, we expect the synonym to be a senior
+# synonym of the item.
+
+# We could also look to see if taxonomicStatus is 'senior synonym'.
+
+# Hmm, if there's exactly one senior synonym, we should remember it as
+# being the 'split from' taxon.
+
+def seniority(item, accepted_item):
+  year1 = get_year(item, None)  # the synonym
+  year2 = get_year(accepted_item, None)
+  if year1 and year2:
+    if year1 <= year2:
+      return "senior synonym"
+    else:
+      return "junior synonym"
+  else:
+    return "synonym"
 
 # -----------------------------------------------------------------------------
 # MRCA
@@ -235,6 +279,7 @@ def cache_levels(roots):
     cache(root, 1)
 
 def find_peers(x, y):
+  assert x and y
   while get_level(x) < get_level(y):
     y = get_superior(y)
   while get_level(x) > get_level(y):
@@ -242,8 +287,8 @@ def find_peers(x, y):
   return (x, y)
 
 def mrca(x0, y0):
-  (x0, y0) = find_peers(x0, y0)
-  (x, y) = (x0, y0)
+  (x, y) = find_peers(x0, y0)
+  (x0, y0) = (x, y)    # save for error messages
   while not (x is y):
     x = get_superior(x)
     if not x:
@@ -330,6 +375,12 @@ def note_match(x, y, remark, sum):
   if y: mep_set(in_b, y, j)
   key_to_union[key] = j
   union_count += 1
+
+  if monitor(x) or monitor(y):
+    print("$ note match %s to %s; %s" %
+          (get_blurb(x), get_blurb(y), remark),
+          file=sys.stderr)
+
   return j
 
 union_count = 0
@@ -349,7 +400,7 @@ def combine_remarks(*remarks):
 def find_tipward_record_matches(a_roots, b_roots, rm_sum):
 
   def half_find_tipward(roots, inject, outject):
-    tipwards = {}               # mep
+    x_tipwards = {}               # mep
     def traverse(x_usage):
       saw = False
       for child in get_inferiors(x_usage):
@@ -357,16 +408,16 @@ def find_tipward_record_matches(a_roots, b_roots, rm_sum):
       if not saw:
         u = mep_get(inject, x_usage)
         if outject(u):
-          if get_key(u).startswith(troublemaker):
-            print("!! tipward: %s" % (get_key(u),), file=sys.stderr)
-          mep_set(tipwards, u, u)
+          if monitor(u):
+            print("$ tipward: %s" % (get_key(u),), file=sys.stderr)
+          mep_set(x_tipwards, u, u)
           return True
         else:
           return False
       return saw
     for root in roots:
       traverse(root)
-    return tipwards
+    return x_tipwards
 
   (_, rm_in_a, rm_in_b) = rm_sum
   a_tipwards = half_find_tipward(a_roots, rm_in_a, out_b)
@@ -374,8 +425,8 @@ def find_tipward_record_matches(a_roots, b_roots, rm_sum):
   count = 0
   for u in a_tipwards.values():
     if mep_get(b_tipwards, u, None):
-      if get_key(out_a(u)).startswith(troublemaker):
-        print("!! %s = %s" % (get_key(out_a(u)), get_key(out_b(u))),
+      if monitor(out_a(u)):
+        print("$ %s = %s" % (get_key(out_a(u)), get_key(out_b(u))),
               file=sys.stderr)
       set_xmrca(out_a(u), out_b(u))
       set_xmrca(out_b(u), out_a(u))
@@ -397,7 +448,9 @@ GT = 3
 DISJOINT = 4
 CONFLICT = 5
 UNCLEAR = 6     # co-synonyms of the same accepted
-rcc5_symbols = ['---', '=', '<', '>', '!', '><', '?']
+LT_OR_CONFLICT = 7
+GT_OR_CONFLICT = 8
+rcc5_symbols = ['---', '=', '<', '>', '!', '><', '?', '<?', '>?']
 
 def how_related(x, y):
   (x1, y1) = find_peers(x, y)
@@ -425,22 +478,35 @@ set_xmrca = prop.setter(xmrca_prop)
 def half_xmrcas(x):
   m = get_xmrca(x, None)
   if m:
-    assert get_level(m) > 0
     return m                    # Tipward record match
+  count = 0
   for c in get_inferiors(x):
     n = half_xmrcas(c)
     if n:
-      assert get_level(n) > 0
       if m:
         m = mrca(m, n)
       else:
         m = n
+      count += 1
+  if False and count == 1:
+    sup = get_superior(m)
+    if sup and not is_top(sup):
+      if mini_score(sup, x) > mini_score(m, x):
+        if monitor(m) or monitor(sup):
+          print("# Promoting %s from %s to %s" %
+                (get_blurb(x), get_blurb(m), get_blurb(sup)),
+                file=sys.stderr)
+        m = sup
   if m:
-    if get_key(x).startswith(troublemaker):
-        print("!! xmrca(%s) := %s" % (get_key(x), get_key(m)),
+    if monitor(x):
+        print("$ xmrca(%s) := %s" % (get_blurb(x), get_blurb(m)),
               file=sys.stderr)
     set_xmrca(x, m)
   return m
+
+def mini_score(y, x):
+  return ((1 if get_rank(y, 123) == get_rank(x, 456) else 0) +
+          (1 if get_canonical(y, 123) == get_canonical(x, 456) else 0))
 
 def cache_xmrcas(a_roots, b_roots):
   for root in a_roots:
@@ -477,64 +543,111 @@ def related_how(p, q):
       (pa != p or qa != q) and
       not (get_xmrca(p, None) == q and
            get_xmrca(q, None) == p)):
-    return (UNCLEAR, _, _, _)
+    return (UNCLEAR, "synonym", None, None)
   else:
+    # tag = result[1] if isinstance(result[1], str) else "..."
+    # print("$ %s %s %s" % (get_blurb(p), get_blurb(q), tag))
     return result
 
 def related_how_accepted(p, q):
-  c = get_xmrca(p, None)
-  d = get_xmrca(q, None)
-  if c == None or d == None:
-    return (DISJOINT, None, p, q)
-  elif get_xmrca(c, None) == d:      # c <= d?
-    # They belong to a 'monotype' cluster.
-    # Not consistent with what 'weave' does.
-    # I hope the result doesn't matter a whole lot.
-    cmp = ((get_level(d) - get_level(p)) -
-           (get_level(c) - get_level(q)))
-    if cmp < 0:
-      return (LT, p, None, True)
-    elif cmp == 0:
-      return (EQ, p, None, None)
-    else:
-      return (GT, p, True, None)
-  else:
-    #  e   f   g
-    # yes yes yes  CONFLICT
-    # yes yes no   GT
-    # yes no  no   EQ
-    # yes no  yes  LT
-    # no  yes yes  DISJOINT
-    #  the other 3 cases can't occur
-    (e, f) = seek_conflict(p, q)       # Both in A
-    if not e:
-      if not f:
-        print("!! Conflict situation %s / %s" % (get_blurb(p), get_blurb(q)),
-              file=sys.stderr)
-      return (DISJOINT, None, f, q)    # g would be nice
-    elif f:
-      (e2, g) = seek_conflict(q, p)   # Both in B
-      assert e2
-      if g:
-        return (CONFLICT, e, f, g)    # or (e, f, g)?
-      else:
-        return (GT, e, f, None)
-    else:
-      # EQ case is covered above
-      return (LT, e, None, True)    # g would be nice
 
-# p < xmrca(q); but is p < q?
+  c = get_xmrca(q, None)        # q <= c
+  if c == None: 
+    return (DISJOINT, "q is peripheral", p, q)
+  d = get_xmrca(p, None)        # p <= d
+  if d == None:
+    return (DISJOINT, "p is peripheral", p, q)
+
+  c_vs_p = how_related(c, p)
+  if c_vs_p == DISJOINT:
+    return (DISJOINT, "c ! p", None, None)
+  d_vs_q = how_related(d, q)
+  if d_vs_q == DISJOINT:
+    return (DISJOINT, "d ! q", None, None)
+
+  if d_vs_q == GT:
+    # Need to find out if there's anything in q that's not in p
+    # p <= d > q
+    (e, f) = seek_conflict(q, p)
+    if f:
+      return (CONFLICT, "conflict: %s not in p" % get_blurb(f), True, True)
+    else:
+      return (GT, "p < d > q", True, None)
+  elif c_vs_p == GT:
+    (e, f) = seek_conflict(p, q)
+    if f:
+      return (CONFLICT, "conflict: %s not in q" % get_blurb(f), True, True)
+    else:
+      return (LT, "p < c > q", True, None)
+
+  # p0 is the xmrca round-trip via d
+  # q0 is the xmrca round-trip via c
+  p0 = get_xmrca(d)             # d <= p0
+  q0 = get_xmrca(c)             # c <= q0
+
+  if d_vs_q == LT:
+    # Theorem: relation of p to p0 doesn't matter.  p <= p0 is good,
+    # p > p0 means within-cluster.
+    return (LT, "min{p, p0} <= d < q", True, None)
+  if lt(p, p0):
+    assert d_vs_q == EQ
+    return (LT, "p < p0 <= d = q", True, None)
+  if c_vs_p == LT:
+    # Theorem
+    return (GT, "min{q, q0} <= c < p", True, None)
+  if lt(q, q0):
+    assert c_vs_p == LT
+    return (GT, "q < q0 <= c = p", True, None)
+  else:
+    assert le(p0, p) and le(q0, q)
+    assert d_vs_q == EQ and c_vs_p == EQ
+  return compare_in_cluster(p, p0, q, q0)
+
+def compare_in_cluster(p, p0, q, q0):
+  if p == p0 and q == q0:
+    return (EQ, "p <= p0 <= d = q <= q0 <= c = p", True, None)
+  if p == p0:
+    return (LT, "< in cluster", None, True)
+  elif q == q0:                 # q > q0
+    return (GT, "> in cluster", True, None)
+  elif is_top(p): return (GT, "top >", True, None)
+  elif is_top(q): return (LT, "< top", None, True)
+  elif get_canonical(p) == get_canonical(q):
+    # TEMP KLUDGE
+    return (EQ, "= name", None, None)
+  elif True:
+    return ((LT, "< name", None, True)
+            if get_canonical(p) < get_canonical(q)
+            else (GT, "> name", True, None))
+  else:
+    print("!! Don't know how to compare %s to %s" %
+          (get_blurb(p), get_blurb(q)),
+          file=sys.stderr)
+    print("!! p0=%s c=%s q0=%s d=%s" %
+          (get_blurb(p0), get_blurb(c), get_blurb(q0), get_blurb(d)),
+          file=sys.stderr)
+    assert False
+
+def le(x, y): return mrca(x, y) == y
+def lt(x, y): return le(x, y) and x != y
+
+# Returns two sibling(?) descendants of p
+# Assumes initially that either p > q or p >< q
 
 def seek_conflict(p, q):
   o = get_xmrca(p, None)
   if o == None: return (None, None)
+
   rel = how_related(o, q)
-  if rel == GT:
+  if rel == LT:
+    return (p, None)
+  elif rel == DISJOINT:
+    return (None, q)
+  # EQ doesn't help much
+  else:                           # GT EQ
     p_and_q = p_not_q = None                # in A
     for x in get_children(p, []):           # Disjoint
       (x_and_q, x_not_q) = seek_conflict(x, q)
-      if x_and_q and x_not_q:
-        return (x_and_q, x_not_q)
       if x_and_q: 
         p_and_q = x_and_q
       if x_not_q:
@@ -548,10 +661,6 @@ def seek_conflict(p, q):
       if p_and_q and p_not_q:             # hack: cut it short
         return (p_and_q, p_not_q)
     return (p_and_q, p_not_q)
-  elif rel == DISJOINT:
-    return (None, q)
-  else:  # LT, EQ, UNCLEAR
-    return (p, None)
 
 # -----------------------------------------------------------------------------
 
@@ -571,19 +680,19 @@ def seek_conflict(p, q):
 Diagram explaining the variables used in "weave".  Rootward is toward
 the top.
 
-  p  <= h =>  q   parents outside the cluster
-  v     |     v
-  x  ?  k  ?  y   rootward nodes in cluster
-  |           |
-  |           m   record match to s
-  s  = (r) =  |
-  |           t
+  u  =  g  =  v   tipward nodes in cluster.  u <= x
   |  \     /  |
-  |     k     |   s, t, and k are the iteration variables
-  |     |     |
   |           |
-  |  /     \  |
-  u  =  g  =  v   tipward nodes in cluster
+  |     |     |
+  |     k     |   s, t, and k are the iteration variables
+  |  /     \  |    they progress downwards
+  |           t
+  s  = (r) =  |
+  |           m   record match to s
+  |           |
+  x  ?  k  ?  y   rootward nodes in cluster
+  ^     |     ^
+  p  <= h =>  q   parents outside the cluster
 """
 
 def set_congruences(a_roots, b_roots, sum, rm_sum):
@@ -591,16 +700,17 @@ def set_congruences(a_roots, b_roots, sum, rm_sum):
   (_, rm_in_a, rm_in_b) = rm_sum
 
   connect = connector(rm_sum, sum)
+  assert is_top(a_roots[0])
+  assert is_top(b_roots[0])
 
   def weave(u, v):
     if debug:
       print("# weaving %s with %s" % (get_blurb(u), get_blurb(v)), file=sys.stderr)
     # v and u need to be linked.
-    if mep_get(in_b, v, None) != None:
+    if mep_get(in_b, v, None):
       return
 
-    # Set the comment
-    
+    # Set the comment based on the record match
     j = mep_get(rm_in_a, u)
     if j == mep_get(rm_in_b, v):
       g = connect(u, v, get_remark(j))
@@ -611,8 +721,8 @@ def set_congruences(a_roots, b_roots, sum, rm_sum):
     t = get_superior(v)
     k = g
     while True:
-      s_done = (not s or get_xmrca(s, None) != v)
-      t_done = (not t or get_xmrca(t, None) != u)
+      s_done = (not s or get_xmrca(s, None) != v) # x
+      t_done = (not t or get_xmrca(t, None) != u) # y
       if s_done and t_done:
         break
       elif s_done:              # t not done, deal with t
@@ -631,35 +741,50 @@ def set_congruences(a_roots, b_roots, sum, rm_sum):
             s = get_superior(s)
             t = get_superior(t)
           elif m and get_xmrca(m, None) == u and get_level(m) < get_level(t):
-            k = connect(None, t, "t inferior to record match")
+            k = connect(None, t, "pursuing record match in cluster")
             t = get_superior(t)
           else:
-            k = connect(s, None, "near miss")
+            k = connect(s, None, "arbitrary superior choice")
+            # Could choose t, I think
             s = get_superior(s)
         else:    # no record match
           k = connect(s, None, "no record matched in cluster")
+          # Could choose t, I think
           s = get_superior(s)
       set_superior(g, k)
       if debug:
         print("# weave super %s = %s" % (get_blurb(j), get_blurb(k)), file=sys.stderr)
       g = k
-    #return (k, s, t)
 
   def traverse(x):
-    # Deal with descendants of x, and inject x, bottom up
-    for c in get_inferiors(x): traverse(c)
     # Skip if already processed
     if mep_get(in_a, x, None) == None:
+
       v = get_xmrca(x, None)      # in B
       if v != None:
         u = get_xmrca(v, None)          # in A
-        if get_key(x).startswith(troublemaker):
-          print("# x %s v %s u %s" % (get_key(x), get_key(v), get_key(u)),
-                file=sys.stderr)
-        if u == x:  # and how_related(x, u) != LT:
-          # u and v will be connected
+        # if x < u then x has no equivalent in B
+        # if x > u then they belong to a cluster and we need to weave it
+        if lt(x, u):
+          if monitor(x) or monitor(u):
+            print("$ no weave(%s, %s) from x= %s" % (get_blurb(u), get_blurb(v), get_blurb(x)),
+                  file=sys.stderr)
+          pass                  # will get set up in build_tree
+        else:
+          # x >= u is rootward in the cluster.  u is tipward.  u ≅ v.
+          if monitor(x):
+            print("$ weave(%s, %s) from x= %s" % (get_blurb(u), get_blurb(v), get_blurb(x)),
+                  file=sys.stderr)
+          assert get_xmrca(u, None) == v
           weave(u, v)
-          # k is the rootward cluster node in sum
+          if not mep_get(in_a, x, None):
+            print("! weave(%s, %s) from x= %s FAILED" %
+                  (get_blurb(u), get_blurb(v), get_blurb(x)),
+                  file=sys.stderr)
+            assert False
+
+    # Deal with descendants of x, and inject x, bottom up
+    for c in get_inferiors(x): traverse(c)
 
   for x in a_roots: traverse(x)
 
@@ -703,8 +828,8 @@ def build_tree(a_roots, b_roots, sum, rm_sum):
         file=sys.stderr)
 
   unions = key_to_union.values()
-  roots = collect_children(unions)
-  print("-- align: %s nodes, %s roots in sum" % (len(unions), len(roots)),
+  roots = collect_inferiors(unions)
+  print("-- align: %s usages, %s roots in sum" % (len(unions), len(roots)),
         file=sys.stderr)
   return roots
 
@@ -732,9 +857,9 @@ def finish_sum(a_roots, in_a, in_b, fasten_a, fasten_b, priority, rm_in_a):
     # have their superior node set at this point.
     if not get_superior(j):
       (pq, ab) = determine_superior_in_sum(x, priority)
-      if debug:
-        print("# superior of %s is %s in %s" %
-              (get_blurb(x), get_blurb(pq), "A" if ab else "B"),
+      if monitor(x):
+        print("$ superior of %s is %s in %s checklist" %
+              (get_blurb(x), get_blurb(pq), "same" if ab else "other"),
               file=sys.stderr)
 
       if pq:                    # parent is either p or q
@@ -753,14 +878,22 @@ def finish_sum(a_roots, in_a, in_b, fasten_a, fasten_b, priority, rm_in_a):
     else:
       stats[4] += 1
 
+    if not (get_superior(j) or is_top(j)):
+      print("!! Missing parent: %s = %s + %s" %
+            (get_blurb(out_a(j)), get_blurb(out_b(j)), get_blurb(j)),
+            file=sys.stderr)
+      assert False
+
   def ad_hoc_split(x, p):
+    if True: return False
     # If there is a record match to x, assume x is splitting it, and
     # put x under it.
     m = out_b(mep_get(rm_in_a, x), None)
     if (m and p and get_xmrca(m, None) and
         # Make sure p [parent of x in a] ≈ parent of m in b.
         mep_get(in_a, p, 123) == mep_get(in_b, get_superior(m), 456)):
-      print("# Putting %s under %s" % (get_blurb(x), get_blurb(m)),
+      print("# Inferring that %s split off, sibling to %s" %
+            (get_blurb(get_inferiors(m)[0]), get_blurb(m),),
             file=sys.stderr)
       if debug:
         print("# A-parent of %s is %s" % (get_blurb(x), get_blurb(m)), file=sys.stderr)
@@ -770,93 +903,44 @@ def finish_sum(a_roots, in_a, in_b, fasten_a, fasten_b, priority, rm_in_a):
 
   def determine_superior_in_sum(x, priority):
 
-    if debug:
-      print("# determine parent of %s" % (get_blurb(x)), file=sys.stderr)
-
-    if get_key(x) == TOP:
-      return (None, True)
+    if is_top(x): return (None, True)
 
     # Find minimal p, q such that either x < p <= q or x < q <= p.
     # If not priority, also require q does not conflict with p.
-    p = get_superior(x)         # p is in a
+    p = get_superior(x)         # p is in a (possibly top)
+    assert lt(x, p)
     m = ad_hoc_split(x, p)
     if m: return (m, False)
 
+    # This method can probably be made much more efficient, but for
+    # now at least it seems to work
+
     q = get_xmrca(x, None)      # q is in b
-    if q == None: return (p, True)
+    if q == None: return (p, True)    # peripheral
+    # q = get_accepted(q, q)     # parent can't be a synonym (Rhinolophus hirsutus)
 
-    if True:
-      # Take q up the b-lineage until x < q.
-      # If not priority, further ascend b-lineage until not (p >< q).
-      while related_how(x, q)[0] != LT:
-        # wait what if x is a synonym?
-        # if priority, then stop at conflict.
+    # Take q up the b-lineage until x < q.
+    # If not priority, further ascend b-lineage until not (p >< q).
+    while related_how(x, q)[0] != LT:
+      # wait what if x is a synonym?
+      # if priority, then stop at conflict.
+      if is_top(q):    # don't go up from top
+        print("!! %s %s %s" % (get_blurb(x),
+                               rcc5_symbols[related_how(x, q)[0]],
+                               get_blurb(q)),
+              file=sys.stderr)
+        assert False
+      q = get_superior(q)
+    if not priority:
+      # a tree (p, x) is low-priority.  Climb up to avoid conflict.
+      while related_how(p, q)[0] == CONFLICT:
+        assert not is_top(q)    # don't go up from top
         q = get_superior(q)
-      if not p:
-        return (q, False)
-      if not priority:
-        # a tree (p, x) is low-priority.  Climb up to avoid conflict.
-        while related_how(p, q)[0] == CONFLICT:
-          q = get_superior(q)
-      if related_how(p, q)[0] == GT:
-        return (q, False)
-      else:                     # LT EQ DISJOINT CONFLICT UNCLEAR
-        return (p, True)
-
-    else:
-      if q == None:
-        if debug:
-          print("# A-parent of %s = %s" % (get_blurb(x), get_blurb(p)), file=sys.stderr)
-        return (p, True)
-
-      u = get_xmrca(q, None)
-      assert u
-      # Ascend until we find a B-side ancestor that's definitely bigger than x
-      # This isn't right for monotype chains but those are handled separately
-      while q and get_xmrca(q, None) == u:
-        if debug:
-          print("# ascending B %s" % (get_blurb(q)), file=sys.stderr)
-        q = get_superior(q)
-      if p == None:
-        if debug:
-          print("# %s = B-parent of %s (c)" % (get_blurb(q), get_blurb(x)),
-                file=sys.stderr)
-        return (q, False)
-      # Ascend until we find a priority-side ancestor that doesn't conflict with p
-      while q:
-        # No monotype chains.  Ordering is by tipward-match sets.
-        if q == None:
-          if debug:
-            print("# candidate B-parent %s (a)" % (get_blurb(q)), file=sys.stderr)
-          return (p, True)
-        else:
-          (rel, _, _, _) = related_how(p, q)
-          if rel == GT:
-            if debug:
-              print("# candidate %s B-parent for %s (b)" % (get_blurb(q), get_blurb(x)),
-                    file=sys.stderr)
-            return (q, False)
-          elif rel == LT or rel == EQ:
-            print("# candidate %s B-parent for %s (c)" % (get_blurb(q), get_blurb(x)),
-                  file=sys.stderr)
-            return (p, True)
-          elif rel == CONFLICT:
-            if False:
-              print("!! %s >< %s" % (get_key(p), get_key(q)),
-                  file=sys.stderr)
-            if priority:
-              # Ignore conflicting low-priority candidate q
-              print("# candidate B-parent %s (d)" % (get_blurb(q)), file=sys.stderr)
-              return (p, True)
-            else:
-              # Seek a nonconflicting high-priority candidate
-              print("# candidate B-parent %s (e)" % (get_blurb(q)), file=sys.stderr)
-              pass
-          else:                   # DISJOINT or UNCLEAR
-            assert False
-        q = get_superior(q)
-        print("# candidate B-parent %s (f)" % (get_blurb(q)), file=sys.stderr)
-      return (None, True)
+    if related_how(p, q)[0] == GT:
+      assert related_how(x, q)[0] == LT
+      return (q, False)
+    else:                     # LT EQ DISJOINT CONFLICT UNCLEAR
+      return (p, True)
 
   for root in a_roots: traverse(root)
   print("# Finish: touched %s, set sup %s, capped %s, orphans %s, pass %s" % tuple(stats),
@@ -870,25 +954,32 @@ def finish_sum(a_roots, in_a, in_b, fasten_a, fasten_b, priority, rm_in_a):
 def set_superior(j, k):
   assert k
   assert not get_superior(j)
+  assert not is_top(j)
+  if j == k:
+    print("!! self-loop %s" % get_blurb(j), file=sys.stderr)
+    print("!! j = (%s, %s)" % (get_blurb(out_a(j)),
+                               get_blurb(out_b(j))),
+          file=sys.stderr)
+    assert j != k
   k = get_accepted(k, k)
+  if j == k:
+    print("!! self-cycle %s" % get_blurb(j), file=sys.stderr)
+    assert j != k
   x = out_a(j)
   y = out_b(j)
   # x and y might be synonym/accepted or accepted/synonym
-  if y:
-    if get_accepted(y, None):
-      # y a synonym; convert x from accepted to synonym, perhaps
-      assert not get_children(j, None)
-      assert not get_synonyms(j, None)
-      set_accepted(j, k)
-    else:
-      set_parent(j, k)
-  else:  # x
-    if get_accepted(x, None):
-      assert not get_children(j, None)
-      assert not get_synonyms(j, None)
-      set_accepted(j, k)
-    else:
-      set_parent(j, k)
+  if ((y and get_accepted(y, None)) or
+      (x and get_accepted(x, None))):
+    # y a synonym; convert x from accepted to synonym, perhaps
+    assert not get_children(j, None)
+    assert not get_synonyms(j, None)
+    set_accepted(j, k)
+  else:
+    set_parent(j, k)
+  if monitor(x) or monitor(y):
+    print("$ superior of %s := %s" % (get_blurb(j), get_blurb(k)),
+          file=sys.stderr)
+          
 
 # -----------------------------------------------------------------------------
 # Report on differences between record matches and hierarchy matches
@@ -943,9 +1034,10 @@ def get_subblurb(r):
 
 # Returns a row generator
 
-def generate_sum(sum, roots, rm_sum):
+def generate_alignment(sum, roots, rm_sum):
   yield ["taxonID", "taxonID_A", "taxonID_B",
          "parentNameUsageID", "acceptedNameUsageID",
+         "taxonomicStatus",
          "canonicalName", "previousID", "change", "remark"]
   (_, in_a, in_b) = sum
   (_, rm_in_a, rm_in_b) = rm_sum
@@ -979,8 +1071,10 @@ def generate_sum(sum, roots, rm_sum):
             get_key(b_usage) if b_usage else MISSING,
             get_proper_key(p) if p else MISSING,
             get_proper_key(a) if a else MISSING,
+            figure_taxonomic_status(union),
             get_canonical(union, MISSING),
-            get_key(m) if m else MISSING,
+            # m is record match
+            get_key(m) if m else MISSING, # = previousID for name
             change,
             get_remark(union, MISSING)]
   def traverse(union):
@@ -991,10 +1085,17 @@ def generate_sum(sum, roots, rm_sum):
   for root in roots:
     for row in traverse(root): yield row
 
+def figure_taxonomic_status(u):
+  u_basis = out_a(u, None) or out_b(u, None)
+  acc = get_accepted(u, None)
+  if acc:
+    return seniority(u_basis, acc)
+  else:
+    return "accepted"
+
 def get_proper_key(u):
-  key = get_key(u)
-  if key == TOP: return MISSING
-  return key
+  if is_top(u): return MISSING
+  else: return get_key(u)
 
 def all_unions(sum):
   (key_to_union, _, _) = sum

@@ -130,10 +130,13 @@ $(ALIGNMENT): $(RM) $P/align.py $P/property.py
 		    < $A-gnp.csv > $@.new
 	@mv -f $@.new $@
 
+REPORT_OPTION ?=
+
 $(REPORT): $(ALIGNMENT) $P/report.py $P/property.py
 	@echo
 	@echo "--- PREPARING REPORT ---"
 	$P/report.py --source $A-gnp.csv --alignment $(ALIGNMENT) \
+		    $(REPORT_OPTIONS) \
 		    < $B-gnp.csv > $@.new
 	@mv -f $@.new $@
 
@@ -313,3 +316,6 @@ fuu: work/gbif20210303-mammals.csv
 fuuu:
 	@echo $(dir a/b/c.d)
 	@echo $(basename a/b/c.d)
+
+test:
+	$P/t_align.py

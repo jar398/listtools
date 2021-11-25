@@ -32,9 +32,8 @@ def report(a_iter, b_iter, sum_iter, diff_mode):
   al = load_alignment(sum_iter, a_usage_dict, b_usage_dict)
   return generate_report(al, diff_mode)
 
-# Full style shows every concept in the sum.
-# Diff style only shows changed/new/removed concepts.
-use_diff_style = True
+# Full mode shows every concept in the sum.
+# Diff mode only shows changed/new/removed concepts.
 
 def generate_report(al, diff_mode):
   (_, roots) = al
@@ -48,7 +47,56 @@ def generate_report(al, diff_mode):
     y = out_b(u, None)
     change = get_change(u, None)
     name_changed = (get_blurb(x) != get_blurb(y))
-    if not y:
+    if change:
+      if change == '=':
+        if not x or not y:
+          comment = "meaning changed"
+          tick(comment)
+        # Never report on pure synonyms even if renamed
+        elif (get_accepted(x, None) and get_accepted(y, None)):
+          comment = None
+          tick("kept synonym")
+        elif name_changed:
+          comment = "renamed"
+          tick("renamed")
+        else:
+          if diff_mode:
+            comment = None
+          else:
+            comment = "="
+          tick("kept")
+      elif change == '<':
+        if (y and x and
+            get_accepted(y, None)):
+          if get_accepted(x, None):
+            comment = None      # synonym alignments are uninteresting
+            tick("kept synonym")
+          else:
+            comment = "synonymized under %s" % get_blurb(get_accepted(y))
+            tick("synonymized")
+        elif name_changed:
+          comment = "lumped"
+          tick("lumped")
+        else:
+          comment = "widened"
+          tick("widened")
+      elif change == '>':
+        comment = "split" if name_changed else "narrowed"
+        tick(comment)
+      elif change == '!':
+        comment = "ambiguous/uncertain" if name_changed else "homonym??"
+        tick(comment)
+      elif change == '><':
+        comment = "conflict"
+        tick(comment)
+      elif change == '?':
+        comment = "synonym choice"
+        tick(comment)
+      else: assert False
+
+    # Name doesn't occur in other checklist
+
+    elif not y:
       # Never report added synonyms
       if get_accepted(x, None):
         comment = None
@@ -64,53 +112,10 @@ def generate_report(al, diff_mode):
       else:
         comment = "new/split/renamed"
         tick("added accepted")
-    elif not change:
+    else:
       # Not sure how this can happen!
       comment = "uncertain/ambiguous"
       tick("uncertain")
-    elif change == '=':
-      # Never report on pure synonyms even if renamed
-      if ((not x or get_accepted(x, None)) and
-          (not y or get_accepted(y, None))):
-        comment = None
-        tick("kept synonym")
-      elif name_changed:
-        comment = "renamed"
-        tick("renamed")
-      else:
-        if use_diff_style:
-          comment = None
-        else:
-          comment = "="
-        tick("kept")
-    elif change == '<':
-      if (y and x and
-          get_accepted(y, None)):
-        if get_accepted(x, None):
-          comment = None      # synonym alignments are uninteresting
-          tick("kept synonym")
-        else:
-          comment = "synonymized under %s" % get_blurb(get_accepted(y))
-          tick("synonymized")
-      elif name_changed:
-        comment = "lumped"
-        tick("lumped")
-      else:
-        comment = "widened"
-        tick("widened")
-    elif change == '>':
-      comment = "split" if name_changed else "narrowed"
-      tick(comment)
-    elif change == '!':
-      comment = "ambiguous/uncertain" if name_changed else "homonym??"
-      tick(comment)
-    elif change == '><':
-      comment = "conflict"
-      tick(comment)
-    elif change == '?':
-      comment = "synonym choice"
-      tick(comment)
-    else: assert False
 
     remark = get_remark(u, None)
     if comment or not diff_mode:
@@ -190,12 +195,10 @@ def load_alignment(iterator, a_usage_dict, b_usage_dict):
     fixup.append((union, parent_key, accepted_key, previous_key))
     if change_pos != None:
       change = row[change_pos]
-      if change != MISSING:
-        set_change(union, change)
+      if change != MISSING: set_change(union, change)
     if remark_pos != None:
       remark = row[remark_pos]
-      if remark != MISSING:
-        set_remark(union, remark)
+      if remark != MISSING: set_remark(union, remark)
 
   for (union, parent_key, accepted_key, previous_key) in fixup:
     if accepted_key != MISSING:
@@ -209,7 +212,7 @@ def load_alignment(iterator, a_usage_dict, b_usage_dict):
       if probe: set_previous(union, probe)
 
   # Collect children so we can say children[x]
-  roots = align.collect_children(key_to_union.values())
+  roots = align.collect_inferiors(key_to_union.values())
 
   print("%s rows in alignment" % len(key_to_union),
         file=sys.stderr)
@@ -226,14 +229,14 @@ if __name__ == '__main__':
   parser.add_argument('--alignment', help="alignment")
   parser.add_argument('--diff', action='store_true',
                       help="difference mode")
-  parser.add_argument('--full', action='store_false',
+  parser.add_argument('--full', action='store_true',
                       help="full report")
   args=parser.parse_args()
 
   b_file = sys.stdin
   a_path = args.source
   sum_path = args.alignment
-  diff_mode = True
+  diff_mode = not args.full
 
   with open(a_path) as a_file:
     with open(sum_path) as sum_file:
