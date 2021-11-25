@@ -16,8 +16,7 @@ def is_top(x): return get_key(x) == TOP
 
 def monitor(x):
   return (x and 
-          (get_canonical(x, None) == "Ornithorhynchus" or
-           get_canonical(x, None) == "Dermanura glauca"))
+          (get_canonical(x, None) == "Myomyscus angolensis"))
 
 # -----------------------------------------------------------------------------
 # Supervise the overall process
@@ -488,7 +487,7 @@ def half_xmrcas(x):
       else:
         m = n
       count += 1
-  if False and count == 1:
+  if count == 1:
     sup = get_superior(m)
     if sup and not is_top(sup):
       if mini_score(sup, x) > mini_score(m, x):
@@ -577,18 +576,18 @@ def really_related_how(p, q):
     # Need to find out if there's anything in q that's not in p
     # p <= d > q
     (e, f) = seek_conflict(q, p)
-    if e and f:
+    if f:
       return (CONFLICT, "conflict: %s not in p" % get_blurb(f), True, True)
     elif e:
-      return (GT, "p < d > q", True, None)
+      return (GT, "checked", True, None)
     else:
       return (DISJOINT, "shouldn't happen??", None, None)
   elif c_vs_p == GT:
     (e, f) = seek_conflict(p, q)
-    if e and f:
+    if f:
       return (CONFLICT, "conflict: %s not in q" % get_blurb(f), True, True)
     elif e:
-      return (LT, "p < c > q", True, None)
+      return (LT, "checked", True, None)
     else:
       return (DISJOINT, "shouldn't happen?", None, None)
 
@@ -612,29 +611,31 @@ def really_related_how(p, q):
   return compare_in_cluster(p, p0, q, q0)
 
 def compare_in_cluster(p, p0, q, q0):
+  assert get_xmrca(q) == p0
+  assert get_xmrca(p) == q0
   if p == p0 and q == q0:
     return (EQ, "p <= p0 <= d = q <= q0 <= c = p", True, None)
   if p == p0:
     return (LT, "< in cluster", None, True)
   elif q == q0:                 # q > q0
     return (GT, "> in cluster", True, None)
-  elif is_top(p): return (GT, "top >", True, None)
-  elif is_top(q): return (LT, "< top", None, True)
+  elif is_top(p):
+    if is_top(q):
+      return (EQ, "top = top", True, None)
+    else:
+      return (GT, "top > q", True, None)
+  elif is_top(q): return (LT, "p < top", None, True)
   elif get_canonical(p) == get_canonical(q):
     # TEMP KLUDGE
-    return (EQ, "= name", None, None)
-  elif True:
-    return ((LT, "< name", None, True)
-            if get_canonical(p) < get_canonical(q)
-            else (GT, "> name", True, None))
+    return (EQ, "name= kludge in cluster", None, None)
   else:
-    print("!! Don't know how to compare %s to %s" %
-          (get_blurb(p), get_blurb(q)),
+    # SERIOUSLY need to do a proper record match somewhere.
+    print("!! Don't know how to compare %s to %s\n   p0=%s q0=%s" %
+          (get_blurb(p), get_blurb(q), get_blurb(p0), get_blurb(q0)),
           file=sys.stderr)
-    print("!! p0=%s c=%s q0=%s d=%s" %
-          (get_blurb(p0), get_blurb(c), get_blurb(q0), get_blurb(d)),
-          file=sys.stderr)
-    assert False
+    return ((LT, "name< kludge in cluster", None, True)
+            if get_canonical(p) < get_canonical(q)
+            else (GT, "name> kludge in cluster", True, None))
 
 def le(x, y): return mrca(x, y) == y
 def lt(x, y): return le(x, y) and x != y
@@ -650,8 +651,13 @@ def seek_conflict(p, q):
   if rel == LT:
     return (p, None)
   elif rel == DISJOINT:
-    return (None, q)
-  # EQ doesn't help much
+    return (None, p)
+  elif rel == UNCLEAR:
+    # EQ or GT.  Knowing EQ doesn't help much.
+    print("!! Equivocal: %s ? %s" %
+          (get_blurb(p), get_blurb(q)),
+          file=sys.stderr)
+    return (None, None)
   else:                           # GT EQ
     p_and_q = p_not_q = None                # in A
     for x in get_children(p, []):           # Disjoint
@@ -662,6 +668,8 @@ def seek_conflict(p, q):
         p_not_q = x_not_q
       if p_and_q and p_not_q:             # hack: cut it short
         return (p_and_q, p_not_q)
+    if p_and_q or p_not_q:
+      return (p_and_q, p_not_q)
     # No information from children.  Look at the synonyms.
     for x in get_synonyms(p, []):
       (x_and_q, x_not_q) = seek_conflict(x, q)
@@ -670,10 +678,12 @@ def seek_conflict(p, q):
       if x_not_q:
         p_not_q = x_not_q
       if p_and_q and p_not_q:             # hack: cut it short
-        print("!! Equivocal synonym evidence for %s vs. %s\n   %s ? %s" %
-          (get_blurb(p), get_blurb(q), get_blurb(p_and_q), get_blurb(p_not_q)),
-          file=sys.stderr)
-        return (None, None)
+        print("!! Inconclusive evidence for %s vs. %s\n   %s ? %s" %
+              (get_blurb(p), get_blurb(q),
+               get_blurb(p_and_q), get_blurb(p_not_q)),
+              file=sys.stderr)
+        # Just assume they're different
+        return (None, p_not_q)
     return (p_and_q, p_not_q)
 
 # -----------------------------------------------------------------------------
@@ -1035,7 +1045,7 @@ def get_blurb(r):
 def get_subblurb(r):
   if r:
     name = get_canonical(r, None) or get_scientific(r, None)
-    if name != None:
+    if name:
       if get_accepted(r, None):
         return "*" + name
       else:
