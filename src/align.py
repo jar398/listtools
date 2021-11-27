@@ -33,7 +33,7 @@ def align(a_iterator, b_iterator, rm_sum_iterator):
   # Merge the two trees
   sum = ({}, {}, {})
   set_congruences(a_roots, b_roots, sum, rm_sum)
-  roots = build_tree(a_roots, b_roots, sum, rm_sum)
+  roots = set_superiors(a_roots, b_roots, sum, rm_sum)
 
   # Prepare to assign names
   assign_canonicals(sum)
@@ -683,6 +683,12 @@ def seek_conflict(p, q):
 
 
 def compare_in_cluster(p, p0, q, q0):
+  if p == p0: return (LT, "> in cluster", None, None)
+  if q == q0: return (GT, "> in cluster", None, None)
+
+  if True:
+    return (UNCLEAR, "comparison with cluster", None, None)
+
   # if x > y then level x < level y
   cmp = ((get_level(p0) - get_level(p)) -
          (get_level(q0) - get_level(q)))
@@ -763,19 +769,18 @@ def set_congruences(a_roots, b_roots, sum, rm_sum):
   assert is_top(a_roots[0])
   assert is_top(b_roots[0])
 
+  # u = v
   def weave(u, v):
     if debug:
       print("# weaving %s with %s" % (get_blurb(u), get_blurb(v)), file=sys.stderr)
-    # v and u need to be linked.
     if mep_get(in_b, v, None):
       return
 
     # Set the comment based on the record match
-    j = mep_get(rm_in_a, u)
-    if j == mep_get(rm_in_b, v):
-      g = connect(u, v, get_remark(j))
-    else:
-      g = connect(u, v, "join point")
+    comment = "join point"
+    r = mep_get(rm_in_a, u)
+    if r == mep_get(rm_in_b, v): comment = get_remark(r)
+    g = connect(u, v, comment)
 
     s = get_superior(u)
     t = get_superior(v)
@@ -783,35 +788,14 @@ def set_congruences(a_roots, b_roots, sum, rm_sum):
     while True:
       s_done = (not s or get_xmrca(s, None) != v) # x
       t_done = (not t or get_xmrca(t, None) != u) # y
-      if s_done and t_done:
+
+      if s_done or t_done:
         break
-      elif s_done:              # t not done, deal with t
-        k = connect(None, t, "right chain")
-        t = get_superior(t)
-      elif t_done:              # s not done, deal with s
-        k = connect(s, None, "left chain")
-        s = get_superior(s)
       else:
-        # Use record matching to connect cluster nodes when possible
-        r = mep_get(rm_in_a, s)
-        if r:
-          m = out_b(r)
-          if m == t:
-            assert False        # Obsolete logic
-            k = connect(s, m, "record match in cluster")
-            s = get_superior(s)
-            t = get_superior(t)
-          elif m and get_xmrca(m, None) == u and get_level(m) < get_level(t):
-            k = connect(None, t, "pursuing record match in cluster")
-            t = get_superior(t)
-          else:
-            k = connect(s, None, "arbitrary superior choice")
-            # Could choose t, I think
-            s = get_superior(s)
-        else:    # no record match
-          k = connect(s, None, "no record matched in cluster")
-          # Could choose t, I think
-          s = get_superior(s)
+        # Advance s and t in lockstep.  Kind of gross
+        k = connect(s, t, "arbitrary unification in cluster")
+        s = get_superior(s)
+        t = get_superior(t)
       set_superior(g, k)
       if debug:
         print("# weave super %s = %s" % (get_blurb(j), get_blurb(k)), file=sys.stderr)
@@ -861,7 +845,7 @@ def connector(rm_sum, sum):
 # -----------------------------------------------------------------------------
 # Now set the parent pointers for the merged tree
 
-def build_tree(a_roots, b_roots, sum, rm_sum):
+def set_superiors(a_roots, b_roots, sum, rm_sum):
   (key_to_union, in_a, in_b) = sum
   (_, rm_in_a, rm_in_b) = rm_sum
   connect = connector(rm_sum, sum)
@@ -869,10 +853,10 @@ def build_tree(a_roots, b_roots, sum, rm_sum):
     return connect(x, None, "peripheral in A")
   def fasten_b(y):
     return connect(None, y, "peripheral in B")
-  finish_sum(b_roots,
-             in_b, in_a, fasten_b, fasten_a, True, rm_in_b)
-  finish_sum(a_roots,
-             in_a, in_b, fasten_a, fasten_b, False, rm_in_a)
+  half_set_superiors(b_roots, in_b, in_a,
+                     fasten_b, fasten_a, True, rm_in_b)
+  half_set_superiors(a_roots, in_a, in_b,
+                     fasten_a, fasten_b, False, rm_in_a)
   print("# %s in a, %s in b, %s union keys" %
         (len(in_a), len(in_b), len(key_to_union)),
         file=sys.stderr)
@@ -885,8 +869,10 @@ def build_tree(a_roots, b_roots, sum, rm_sum):
 
 # Set parents of nodes whose parent wasn't set by 'weave'
 
-def finish_sum(a_roots, in_a, in_b, fasten_a, fasten_b, priority, rm_in_a):
+def half_set_superiors(a_roots, in_a, in_b,
+                       fasten_a, fasten_b, priority, rm_in_a):
   stats = [0, 0, 0, 0, 0]
+
   def cap(x, in_a, fasten_a):
     j = mep_get(in_a, x, None)
     if not j:
@@ -934,23 +920,6 @@ def finish_sum(a_roots, in_a, in_b, fasten_a, fasten_b, priority, rm_in_a):
             file=sys.stderr)
       assert False
 
-  def ad_hoc_split(x, p):
-    if True: return False
-    # If there is a record match to x, assume x is splitting it, and
-    # put x under it.
-    m = out_b(mep_get(rm_in_a, x), None)
-    if (m and p and get_xmrca(m, None) and
-        # Make sure p [parent of x in a] ≈ parent of m in b.
-        mep_get(in_a, p, 123) == mep_get(in_b, get_superior(m), 456)):
-      print("# Inferring that %s split off, sibling to %s" %
-            (get_blurb(get_inferiors(m)[0]), get_blurb(m),),
-            file=sys.stderr)
-      if debug:
-        print("# A-parent of %s is %s" % (get_blurb(x), get_blurb(m)), file=sys.stderr)
-      return m
-    else:
-      return False
-
   def determine_superior_in_sum(x, priority):
 
     if is_top(x): return (None, True)
@@ -959,10 +928,8 @@ def finish_sum(a_roots, in_a, in_b, fasten_a, fasten_b, priority, rm_in_a):
     # If not priority, also require q does not conflict with p.
     p = get_superior(x)         # p is in a (possibly top)
     assert lt(x, p)
-    m = ad_hoc_split(x, p)
-    if m: return (m, False)
 
-    # This method can probably be made much more efficient, but for
+    # This method can probably be made more efficient, but for
     # now at least it seems to work
 
     q = get_xmrca(x, None)      # q is in b
@@ -971,26 +938,29 @@ def finish_sum(a_roots, in_a, in_b, fasten_a, fasten_b, priority, rm_in_a):
 
     # Take q up the b-lineage until x < q.
     # If not priority, further ascend b-lineage until not (p >< q).
-    while related_how(x, q)[0] != LT:
-      # wait what if x is a synonym?
-      # if priority, then stop at conflict.
-      if is_top(q):    # don't go up from top
-        print("!! %s %s %s" % (get_blurb(x),
-                               rcc5_symbols[related_how(x, q)[0]],
-                               get_blurb(q)),
-              file=sys.stderr)
-        assert False
+    while True:
+      rel = related_how(x, q)[0]   # One of: = ? >< <
+      if rel == LT: break          # All options are possible
+      if rel == UNCLEAR:
+        # Synonym of sibling?
+        if get_accepted(q, None) or get_accepted(x, None): break
+        else: # comparison within cluster...
+          print("# Within cluster: %s ? %s" % (get_blurb(p), get_blurb(q)),
+                file=sys.stderr)
       q = get_superior(q)
     if not priority:
       # a tree (p, x) is low-priority.  Climb up to avoid conflict.
-      while related_how(p, q)[0] == CONFLICT:
+      while True:
+        rel = related_how(p, q)[0]
+        if rel != CONFLICT: break
         # TBD: All these conflicting nodes need to turned into synonyms
         # of the final (rootward) unconflicting node.  Their nonconflicting
         # children should become children of the nonconflicting node.
         assert not is_top(q)    # don't go up from top
         q = get_superior(q)
-    if related_how(p, q)[0] == GT:
-      assert related_how(x, q)[0] == LT
+    else:
+      rel = related_how(p, q)[0]
+    if rel == GT:
       return (q, False)
     else:                     # LT EQ DISJOINT CONFLICT UNCLEAR
       return (p, True)
@@ -999,7 +969,7 @@ def finish_sum(a_roots, in_a, in_b, fasten_a, fasten_b, priority, rm_in_a):
   if debug:
    print("# Finish: touched %s, set sup %s, capped %s, orphans %s, pass %s" % tuple(stats),
          file=sys.stderr)
-  # end finish_sum
+  # end half_set_superiors
 
 
 # j is to be either a child or synonym of k.  Figure out which.

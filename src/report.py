@@ -70,7 +70,7 @@ def generate_report(al, diff_mode):
       else:
         # accepted -> accepted
         if name_changed:
-          comment = "renamed"
+          comment = "renamed accepted"
           tick(comment)
         else:
           comment = None if diff_mode else "kept"
@@ -94,15 +94,13 @@ def generate_report(al, diff_mode):
           comment = "widened"
         elif change == '>':
           comment = "narrowed"
-        elif change == '!':
-          comment = "moved"
         elif change == '><':
           comment = "changed incomparably"
         elif change == '?':
           # Not completely sure about this
-          comment = "promoted to accepted?"
+          comment = "promoted to accepted"
         else:
-          assert change == '='
+          # = or !
           comment = "match failure"
         if x: comment = "(%s)" % comment
         tick(comment)
