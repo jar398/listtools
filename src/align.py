@@ -611,9 +611,7 @@ def really_related_how(p, q):
   return compare_carefully(p, q)
 
 def compare_carefully(p, q):
-
   # Brute force
-  # Check if get_xmrca(p) > q ... ?
   (f1, e) = seek_conflict(p, q)
   (f2, g) = seek_conflict(q, p)
 
@@ -798,6 +796,7 @@ def set_superiors(a_roots, b_roots, sum, rm_sum):
 
 def half_set_superiors(a_roots, in_a, in_b, priority):
   stats = [0, 0, 0, 0, 0]
+  conflicts = {}
 
   def cap(x, in_a): return mep_get(in_a, x)
 
@@ -861,9 +860,7 @@ def half_set_superiors(a_roots, in_a, in_b, priority):
       while True:
         (rel, e, f, g) = related_how(p, q)
         if rel != CONFLICT: break     # what about UNCLEAR ?
-        print("* Conflict: %s ? %s\n  %s⊆A\\B %s⊆A∩B %s⊆B\\A" %
-              (get_blurb(p), get_blurb(q), get_blurb(e), get_blurb(f), get_blurb(g)),
-              file=sys.stderr)
+        note_conflict(p, q, e, f, g)
         # TBD: All these conflicting nodes need to turned into synonyms
         # of the final (rootward) unconflicting node.  Their nonconflicting
         # children should become children of the nonconflicting node.
@@ -876,12 +873,25 @@ def half_set_superiors(a_roots, in_a, in_b, priority):
     else:                     # LT EQ DISJOINT CONFLICT UNCLEAR
       return (p, True)
 
+  def note_conflict(x, y, e, f, g):
+    id = (prop.get_identity(x), prop.get_identity(y))
+    if not id in conflicts:
+      id2 = (prop.get_identity(y), prop.get_identity(x))
+      if not id2 in conflicts:
+        conflicts[id] = (x, y, e, f, g)
+
   for root in a_roots: traverse(root)
   if debug:
    print("# Finish: touched %s, set sup %s, capped %s, orphans %s, pass %s" % tuple(stats),
          file=sys.stderr)
   # end half_set_superiors
 
+  if len(conflicts) > 0:
+    print("* %s conflicts" % len(conflicts), file=sys.stderr)
+    writer = csv.writer(sys.stderr)
+    writer.writerow(["x", "y", "⊆ x\\y", "⊆ x∩y", "⊆ y\\x"])
+    for conflict in conflicts.values():
+      writer.writerow([get_blurb(z) for z in conflict])
 
 # j is to be either a child or synonym of k.  Figure out which.
 # Invariant: A synonym must have neither children nor synonyms.
@@ -945,24 +955,23 @@ def report(rm_sum, sum):
     print("-- align: %s broken in A" % (drop_a,), file=sys.stderr)
     
 def get_blurb(r):
-  if r:
+  if isinstance(r, dict):
     return (get_subblurb(r) or
             get_subblurb(out_b(r, None)) or
             get_subblurb(out_a(r, None)) or
             "[no canonical %s]" % get_key(r))
+  elif r:
+    return "-"                  # for conflict...
   else:
     return "[no match]"
 
 def get_subblurb(r):
-  if r:
-    name = get_canonical(r, None) or get_scientific(r, None)
-    if name:
-      if get_accepted(r, None):
-        return name + "*"     # attend to sort order
-      else:
-        return name
-  else:
-    return None
+  name = get_canonical(r, None) or get_scientific(r, None)
+  if name:
+    if get_accepted(r, None):
+      return name + "*"     # attend to sort order
+    else:
+      return name
 
 # -----------------------------------------------------------------------------
 # 14. emit the new sum with additional parent column
