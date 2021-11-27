@@ -15,8 +15,8 @@ debug = False
 def is_top(x): return get_key(x) == TOP
 
 def monitor(x):
-  return (x and 
-          (get_canonical(x, None) == "Myomyscus angolensis"))
+  # (x and (get_canonical(x, None) == "Myomyscus angolensis"))
+  return False
 
 # -----------------------------------------------------------------------------
 # Supervise the overall process
@@ -27,16 +27,6 @@ def align(a_iterator, b_iterator, rm_sum_iterator):
 
   # Read record matches
   rm_sum = load_sum(rm_sum_iterator, a_usage_dict, b_usage_dict)
-  assert is_top(a_usage_dict.get(TOP))
-  assert is_top(b_usage_dict.get(TOP))
-
-  a_top = a_roots[0]
-  b_top = b_roots[0]
-  assert is_top(a_top)
-  assert is_top(b_top)
-  (_, rm_in_a, rm_in_b) = rm_sum
-  assert out_b(mep_get(rm_in_a, a_top)) == b_top
-  assert out_a(mep_get(rm_in_b, b_top)) == a_top
 
   calculate_xmrcas(a_roots, b_roots, rm_sum)
 
@@ -244,7 +234,7 @@ def collect_inferiors(items):
       else:
         roots.append(item)
 
-  if seniors > 0:
+  if False and seniors > 0:     # Maybe interesting
     print("-- Saw %s senior synonyms" % seniors,
           file=sys.stderr)
   return roots
@@ -345,12 +335,22 @@ def load_sum(iterator, a_usage_dict, b_usage_dict):
     note_match(x, y, row[remark_pos], sum)
 
   # These pass somehow
-  assert is_top(a_usage_dict.get(TOP))
-  assert is_top(b_usage_dict.get(TOP))
+  a_top = a_usage_dict.get(TOP)
+  b_top = b_usage_dict.get(TOP)
+  assert is_top(a_top)
+  assert is_top(b_top)
 
   note_match(a_usage_dict.get(TOP),
              b_usage_dict.get(TOP),
              'top', sum)
+
+  # More sanity checks
+  (_, rm_in_a, rm_in_b) = sum
+  top = mep_get(rm_in_a, a_top)
+  assert mep_get(rm_in_b, b_top) == top
+  assert out_a(top) == a_top
+  assert out_b(top) == b_top
+
   return sum
 
 # Sadly, rows are repeated sometimes 
@@ -649,10 +649,8 @@ def seek_conflict(p, q):
     p_and_q = p_not_q = None                # in A
     for x in get_children(p, []):           # Disjoint
       (x_and_q, x_not_q) = seek_conflict(x, q)
-      if x_and_q: 
-        p_and_q = x_and_q
-      if x_not_q:
-        p_not_q = x_not_q
+      if x_and_q: p_and_q = x_and_q
+      if x_not_q: p_not_q = x_not_q
       if p_and_q and p_not_q:             # hack: cut it short
         return (p_and_q, p_not_q)
     if p_and_q or p_not_q:
@@ -660,20 +658,16 @@ def seek_conflict(p, q):
     # No information from children.  Look at the synonyms.
     for x in get_synonyms(p, []):
       (x_and_q, x_not_q) = seek_conflict(x, q)
-      if x_and_q: 
-        p_and_q = x_and_q
-      if x_not_q:
-        p_not_q = x_not_q
+      if x_and_q: p_and_q = x_and_q
+      if x_not_q: p_not_q = x_not_q
       if p_and_q and p_not_q:             # hack: cut it short
         if monitor(p) or monitor(q):
           print("!! Inconclusive evidence for %s vs. %s\n   %s ? %s" %
                 (get_blurb(p), get_blurb(q),
                  get_blurb(p_and_q), get_blurb(p_not_q)),
                 file=sys.stderr)
-        # Just assume they're different
-        return (None, p_not_q)
+        return (None, None)  # was: return (None, p_not_q)
     return (p_and_q, p_not_q)
-
 
 
 def compare_in_cluster(p, p0, q, q0):
@@ -791,6 +785,7 @@ def set_congruences(a_roots, b_roots, sum, rm_sum):
         if r:
           m = out_b(r)
           if m == t:
+            assert False        # Obsolete logic
             k = connect(s, m, "record match in cluster")
             s = get_superior(s)
             t = get_superior(t)
@@ -977,6 +972,9 @@ def finish_sum(a_roots, in_a, in_b, fasten_a, fasten_b, priority, rm_in_a):
     if not priority:
       # a tree (p, x) is low-priority.  Climb up to avoid conflict.
       while related_how(p, q)[0] == CONFLICT:
+        # TBD: All these conflicting nodes need to turned into synonyms
+        # of the final (rootward) unconflicting node.  Their nonconflicting
+        # children should become children of the nonconflicting node.
         assert not is_top(q)    # don't go up from top
         q = get_superior(q)
     if related_how(p, q)[0] == GT:

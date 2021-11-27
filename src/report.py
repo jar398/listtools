@@ -45,77 +45,67 @@ def generate_report(al, diff_mode):
   def traverse(u):
     x = out_a(u, None)
     y = out_b(u, None)
-    change = get_change(u, None)
+    change = get_change(u, None)   # relative to record match
     name_changed = (get_blurb(x) != get_blurb(y))
-    if change:
-      if change == '=':
-        if not x or not y:
-          comment = "meaning changed"
-          tick(comment)
-        # Never report on pure synonyms even if renamed
-        elif (get_accepted(x, None) and get_accepted(y, None)):
-          comment = None
-          tick("kept synonym")
-        elif name_changed:
-          comment = "renamed"
-          tick("renamed")
-        else:
-          if diff_mode:
-            comment = None
-          else:
-            comment = "="
-          tick("kept")
-      elif change == '<':
-        if (y and x and
-            get_accepted(y, None)):
-          if get_accepted(x, None):
-            comment = None      # synonym alignments are uninteresting
-            tick("kept synonym")
-          else:
-            comment = "synonymized under %s" % get_blurb(get_accepted(y))
-            tick("synonymized")
-        elif name_changed:
-          comment = "lumped"
-          tick("lumped")
-        else:
-          comment = "widened"
-          tick("widened")
-      elif change == '>':
-        comment = "split" if name_changed else "narrowed"
-        tick(comment)
-      elif change == '!':
-        comment = "ambiguous/uncertain" if name_changed else "homonym??"
-        tick(comment)
-      elif change == '><':
-        comment = "conflict"
-        tick(comment)
-      elif change == '?':
-        comment = "synonym choice"
-        tick(comment)
-      else: assert False
 
-    # Name doesn't occur in other checklist
-
-    elif not y:
-      # Never report added synonyms
+    if x and y:
       if get_accepted(x, None):
+        if get_accepted(y, None):
+          if name_changed:
+            # This doesn't happen
+            comment = "renamed synonym"
+            tick(comment)
+          else:
+            comment = "kept synonym"
+            tick(comment)
+          if diff_mode: comment = None
+        else:
+          # synonym -> accepted
+          comment = "promoted to accepted"
+          tick(comment)
+      elif get_accepted(y, None):
+        # accepted -> synonym
+        comment = "demoted to synonym"
+        tick(comment)
+      else:
+        # accepted -> accepted
+        if name_changed:
+          comment = "renamed"
+          tick(comment)
+        else:
+          comment = None if diff_mode else "kept"
+          tick("kept accepted")
+    else:
+      if x and get_accepted(x, None):
         comment = None
         tick("dropped synonym")
-      else:
-        comment = "deprecated/lumped/renamed"
-        tick("dropped accepted")
-    elif not x:
-      # Never report lost synonyms
-      if get_accepted(y, None):
+      elif y and get_accepted(y, None):
         comment = None
         tick("added synonym")
+      elif not change:            # who knows what happened
+        if y:
+          comment = "new/split/renamed"
+          tick("added accepted")
+        else:
+          comment = "deprecated/lumped/renamed"
+          tick("dropped accepted")
       else:
-        comment = "new/split/renamed"
-        tick("added accepted")
-    else:
-      # Not sure how this can happen!
-      comment = "uncertain/ambiguous"
-      tick("uncertain")
+        if change == '<':
+          comment = "widened"
+        elif change == '>':
+          comment = "narrowed"
+        elif change == '!':
+          comment = "moved"
+        elif change == '><':
+          comment = "changed incomparably"
+        elif change == '?':
+          # Not completely sure about this
+          comment = "promoted to accepted?"
+        else:
+          assert change == '='
+          comment = "match failure"
+        if x: comment = "(%s)" % comment
+        tick(comment)
 
     remark = get_remark(u, None)
     if comment or not diff_mode:
