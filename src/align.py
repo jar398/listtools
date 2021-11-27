@@ -620,9 +620,7 @@ def compare_carefully(p, q):
   if f1 or f2:
     if e:
       if g:
-        return (CONFLICT, "on careful examination: %s %s %s %s" %
-                (get_blurb(e), get_blurb(f1), get_blurb(f2),
-                 get_blurb(g)), e, g)
+        return (CONFLICT, e, f1 or f2, g)
       else:
         return (GT, "checked", None, True)
     elif g:
@@ -855,14 +853,17 @@ def half_set_superiors(a_roots, in_a, in_b, priority):
         # Synonym of sibling?
         if get_accepted(q, None) or get_accepted(x, None): break
         else: # comparison within cluster...
-          print("# Within cluster: %s ? %s" % (get_blurb(p), get_blurb(q)),
+          print("* Within cluster: %s ? %s" % (get_blurb(p), get_blurb(q)),
                 file=sys.stderr)
       q = get_superior(q)
     if not priority:
       # a tree (p, x) is low-priority.  Climb up to avoid conflict.
       while True:
-        rel = related_how(p, q)[0]
-        if rel != CONFLICT: break
+        (rel, e, f, g) = related_how(p, q)
+        if rel != CONFLICT: break     # what about UNCLEAR ?
+        print("* Conflict: %s ? %s\n  %s⊆A\\B %s⊆A∩B %s⊆B\\A" %
+              (get_blurb(p), get_blurb(q), get_blurb(e), get_blurb(f), get_blurb(g)),
+              file=sys.stderr)
         # TBD: All these conflicting nodes need to turned into synonyms
         # of the final (rootward) unconflicting node.  Their nonconflicting
         # children should become children of the nonconflicting node.
