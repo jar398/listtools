@@ -84,7 +84,7 @@ def generate_newick(rows):
       return "(%s)%s" % (childs, name)
     else:
       return name
-  return ".".join(map(traverse, roots))
+  return ",".join(map(traverse, roots))
 
 if __name__ == '__main__':
   parser = argparse.ArgumentParser(description="""

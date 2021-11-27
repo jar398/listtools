@@ -275,6 +275,9 @@ work/mdd1.4-gnp.csv: work/mdd1.4.csv
 work/mdd1.3.csv: $(HOME)/Downloads/MDD_DwC_versions/MDD_v1.3_6513species_inDwC.csv
 	cp -p $< $@
 work/mdd1.3-gnp.csv: work/mdd1.3.csv
+work/mdd1.31.csv: $(HOME)/Downloads/MDD_DwC_versions/MDD_v1.31_6513species_inDwC.csv
+	cp -p $< $@
+work/mdd1.31-gnp.csv: work/mdd1.3.csv
 work/mdd1.2.csv: $(HOME)/Downloads/MDD_DwC_versions/MDD_v1.2_6485species_inDwC.csv
 	cp -p $< $@
 work/mdd1.2-gnp.csv: work/mdd1.2.csv

@@ -23,19 +23,28 @@ def run_test(A, B, expect):
                           newick.generate_newick(newick.parse_newick(B))))
   n3 = test(A, B)
   if expect and n3 != expect:
-    print("**** A+B = %s != %s\n" % (n3, expect))
-  return n3
+    print("*** TEST FAILED *** A+B = %s != %s\n" % (n3, expect))
+    return 1
+  return 0
 
 def run_tests():
-  run_test("a", "a", "a")
-  run_test("(b)a", "(c)a", "(b,c)a")
-  run_test("(b)a", "(b)c", "((b)a)c")
-  run_test("(b,c)a", "(c,d)a", "(b,c,d)a")
-  run_test("((b,c)g,d)a", "(b,c,d)a", "((b,c)g,d)a")
-  run_test("(b,c,d)a", "((b,c)g,d)a", "((b,c)g,d)a")
-  run_test("((b,c)g,d,e)a", "(b,c,(d,e)h)a", "((b,c)g,(d,e)h)a")
-  run_test("((a,b)c,d)r", "((a,b)e,d)r", "((a,b)e,d)r")
-  # src/t_align.py "((b,c)g,d)a" "(b,(c,d)h)a" ...   LOSE
+  tests = [
+    ("a", "a", "a"),
+    ("(b)a", "(c)a", "(b,c)a"),
+    ("(b)a", "(b)c", "((b)a)c"),
+    ("(b,c)a", "(c,d)a", "(b,c,d)a"),
+    ("((b,c)g,d)a", "(b,c,d)a", "((b,c)g,d)a"),
+    ("(b,c,d)a", "((b,c)g,d)a", "((b,c)g,d)a"),
+    ("((b,c)g,d,e)a", "(b,c,(d,e)h)a", "((b,c)g,(d,e)h)a"),
+    ("((a,b)c,d)r", "((a,b)e,d)r", "((a,b)e,d)r"),
+    # src/t_align.py "((b,c)g,d)a" "(b,(c,d)h)a" ...   LOSE
+  ]
+  failures = 0
+  for (n1, n2, want) in tests:
+    failures += run_test(n1, n2, want)
+  if failures > 0:
+    print("\n*** %s tests failed\n" % failures, file=sys.stderr)
+  return failures
 
 if __name__ == '__main__':
   parser = argparse.ArgumentParser()
@@ -48,4 +57,5 @@ if __name__ == '__main__':
     n3 = run_test(args.A, args.B, args.expect)
     print("A+B = %s" % n3, file=sys.stderr)
   else:
-    run_tests()
+    failures = run_tests()
+    sys.exit(0 if failures == 0 else 1)

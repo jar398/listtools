@@ -39,10 +39,18 @@ def generate_report(al, diff_mode):
   (_, roots) = al
   yield ("A name", "B name", "rank", "year", "comment", "remark")
   stats = {}
-  def tick(stat):
-    if stat in stats: stats[stat] += 1
-    else: stats[stat] = 1
+  species_stats = {}
   def traverse(u):
+    def tick(stat):
+      if stat in stats:
+        s = stats[stat]
+      else:
+        s = [0, 0]
+        stats[stat] = s
+      s[0] += 1
+      rank = ((y and get_rank(y, None)) or (x and get_rank(x, None)))
+      if rank == "species":
+        s[1] += 1
     x = out_a(u, None)
     y = out_b(u, None)
     change = get_change(u, None)   # relative to record match
@@ -124,8 +132,9 @@ def generate_report(al, diff_mode):
       for row in traverse(s): yield row
   for root in roots:
     for row in traverse(root): yield row
-  for key in sorted(stats.keys()):
-    print("%7d %s" % (stats[key], key), file=sys.stderr)
+  for key in sorted(list(stats.keys())):
+    s = stats[key]
+    print("%7d %7s %s" % (s[0], s[1], key), file=sys.stderr)
 
 
 noises = {"subspecies": "",

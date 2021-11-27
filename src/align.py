@@ -31,8 +31,7 @@ def align(a_iterator, b_iterator, rm_sum_iterator):
   calculate_xmrcas(a_roots, b_roots, rm_sum)
 
   # Merge the two trees
-  sum = ({}, {}, {})
-  set_equivalences(a_roots, b_roots, sum, rm_sum)
+  sum = set_equivalences(a_roots, b_roots, rm_sum)
   roots = set_superiors(a_roots, b_roots, sum, rm_sum)
 
   # Prepare to assign names
@@ -65,7 +64,7 @@ def assign_canonicals(sum):
         y = b_index_by_name[name]
         name = name + " sec. A"
         if False:
-          (rcc5, _, _, _) = related_how(x, y)
+          rcc5 = related_how(x, y)[0]
           print("  %s %s %s" %
                 (name,
                  rcc5_symbols[rcc5],
@@ -426,7 +425,6 @@ def calculate_xmrcas(a_roots, b_roots, rm_sum):
   (_, rm_in_a, rm_in_b) = rm_sum
   def half_xmrcas(roots, record_match):
     def traverse(x):
-      count = 0
       y = None
       for c in get_inferiors(x):
         n = traverse(c)
@@ -435,7 +433,6 @@ def calculate_xmrcas(a_roots, b_roots, rm_sum):
             y = mrca(y, n)
           else:
             y = n
-          count += 1
       if y == None:
         y = record_match(x)     # See if this is a tipward match
       if y:
@@ -494,17 +491,65 @@ def fix_xmrcas(a_roots, b_roots, rm_sum):
   assert get_xmrca(b_top) == a_top # FAILS
 
 def check_xmrcas(a_roots, b_roots):
-  if True:
-    def check(x):
-      for c in get_inferiors(x): check(c)
-      y = get_xmrca(x, None)
-      if y and not get_xmrca(y, None):
-        print("!! non-mutual xmrca: x %s %s y %s %s" %
-              (get_key(x), get_canonical(x), get_key(y), get_canonical(x),),
+  def check(x):
+    for c in get_inferiors(x): check(c)
+    y = get_xmrca(x, None)
+    if y and not get_xmrca(y, None):
+      print("!! non-mutual xmrca: x %s %s y %s %s" %
+            (get_key(x), get_canonical(x), get_key(y), get_canonical(x),),
+            file=sys.stderr)
+      assert False
+  for root in a_roots: check(root)
+  for root in b_roots: check(root)
+
+# -----------------------------------------------------------------------------
+# Detect and record A/B equivalences.  At the end, every usage will be
+# part of the sum.
+
+def set_equivalences(a_roots, b_roots, rm_sum):
+  sum = ({}, {}, {})
+  (_, in_a, in_b) = sum
+  (_, rm_in_a, rm_in_b) = rm_sum
+
+  connect = connector(rm_sum, sum)
+  assert is_top(a_roots[0])
+  assert is_top(b_roots[0])
+
+  def traverse(x):
+    y = get_xmrca(x, None)      # in B
+    if y != None and x == get_xmrca(y, None):
+      # Mutual xmrca with xmrca... that means they're equivalent
+      connect(x, y)
+    else:
+      connect(x, None)
+      if monitor(x):
+        print("> Not equivalent(%s, %s)" % (get_blurb(x), get_blurb(y)),
               file=sys.stderr)
-        assert False
-    for root in a_roots: check(root)
-    for root in b_roots: check(root)
+    # Deal with descendants of x, and inject x, bottom up
+    for c in get_inferiors(x): traverse(c)
+  for x in a_roots: traverse(x)
+
+  def cotraverse(y):
+    if not mep_get(in_b, y, None):
+      connect(None, y)
+    for c in get_inferiors(y): cotraverse(c)
+  for y in b_roots: cotraverse(y)
+
+  return sum
+
+def connector(rm_sum, sum):
+  (_, rm_in_a, rm_in_b) = rm_sum
+  def connect(x, y):
+    remark = MISSING
+    # Get remark from prior record match
+    if x:
+      r = mep_get(rm_in_a, x, None)
+      if r and out_b(r) == y:
+        remark = get_remark(r, None)
+    if remark == MISSING and x and y:
+      remark = "inferred equivalent"
+    return note_match(x, y, remark, sum)
+  return connect
 
 # -----------------------------------------------------------------------------
 # 7. how-related WITHIN hierarchy
@@ -726,53 +771,6 @@ def le(x, y): return mrca(x, y) == y
 def lt(x, y): return le(x, y) and x != y
 
 # -----------------------------------------------------------------------------
-
-# Detect and record A/B equivalences.  At the end, every usage will be
-# part of the sum.
-
-def set_equivalences(a_roots, b_roots, sum, rm_sum):
-  (_, in_a, in_b) = sum
-  (_, rm_in_a, rm_in_b) = rm_sum
-
-  connect = connector(rm_sum, sum)
-  assert is_top(a_roots[0])
-  assert is_top(b_roots[0])
-
-  def traverse(x):
-    y = get_xmrca(x, None)      # in B
-    if y != None and x == get_xmrca(y, None):
-      # Mutual xmrca with xmrca... that means they're equivalent
-      connect(x, y)
-    else:
-      connect(x, None)
-      if monitor(x):
-        print("> Not equivalent(%s, %s)" % (get_blurb(x), get_blurb(y)),
-              file=sys.stderr)
-    # Deal with descendants of x, and inject x, bottom up
-    for c in get_inferiors(x): traverse(c)
-  for x in a_roots: traverse(x)
-
-  def cotraverse(y):
-    if not mep_get(in_b, y, None):
-      connect(None, y)
-    for c in get_inferiors(y): cotraverse(c)
-  for y in b_roots: cotraverse(y)
-
-def connector(rm_sum, sum):
-  (_, rm_in_a, rm_in_b) = rm_sum
-  def connect(x, y):
-    remark = MISSING
-    # Get remark from prior record match
-    if x:
-      r = mep_get(rm_in_a, x, None)
-      if r and out_b(r) == y:
-        remark = get_remark(r, None)
-    if remark == MISSING and x and y:
-      remark = "inferred equivalent"
-    return note_match(x, y, remark, sum)
-  return connect
-
-# -----------------------------------------------------------------------------
 # Now set the parent pointers for the merged tree
 
 def set_superiors(a_roots, b_roots, sum, rm_sum):
@@ -780,7 +778,7 @@ def set_superiors(a_roots, b_roots, sum, rm_sum):
   (_, rm_in_a, rm_in_b) = rm_sum
   connect = connector(rm_sum, sum)
 
-  half_set_superiors(b_roots, in_b, in_a, True)
+  half_set_superiors(b_roots, in_b, in_a, True)    # B is priority
   half_set_superiors(a_roots, in_a, in_b, False)
   print("# %s in a, %s in b, %s union keys" %
         (len(in_a), len(in_b), len(key_to_union)),
@@ -841,37 +839,32 @@ def half_set_superiors(a_roots, in_a, in_b, priority):
 
     q = get_xmrca(x, None)      # q is in b
     if q == None: return (p, True)    # peripheral
-    # q = get_accepted(q, q)     # parent can't be a synonym (Rhinolophus hirsutus)
 
-    # Take q up the b-lineage until x < q.
-    # If not priority, further ascend b-lineage until not (p >< q).
-    while True:
-      rel = related_how(x, q)[0]   # One of: = ? >< <
-      if rel == LT: break          # All options are possible
-      if rel == UNCLEAR:
-        # Synonym of sibling?
-        if get_accepted(q, None) or get_accepted(x, None): break
-        else: # comparison within cluster...
-          print("* Within cluster: %s ? %s" % (get_blurb(p), get_blurb(q)),
-                file=sys.stderr)
+    # We know x < p.
+    # Take q up the a-lineage until x < q or q >= p, skipping over
+    # conflict/disjoint/unclear.
+    while related_how(x, q)[0] != LT:
+      assert not is_top(q)
       q = get_superior(q)
-    if not priority:
-      # a tree (p, x) is low-priority.  Climb up to avoid conflict.
-      while True:
-        (rel, e, f, g) = related_how(p, q)
-        if rel != CONFLICT: break     # what about UNCLEAR ?
-        note_conflict(p, q, e, f, g)
-        # TBD: All these conflicting nodes need to turned into synonyms
-        # of the final (rootward) unconflicting node.  Their nonconflicting
-        # children should become children of the nonconflicting node.
-        assert not is_top(q)    # don't go up from top
-        q = get_superior(q)
-    else:
-      rel = related_how(p, q)[0]
-    if rel == GT:
-      return (q, False)
-    else:                     # LT EQ DISJOINT CONFLICT UNCLEAR
-      return (p, True)
+
+    # Now q is a candidate parent.  Need to compare p and q now,
+    # ascending p lineage if needed to get clarity.
+    while True:
+      (rel2, g, f, e) = related_how(q, p)
+      if rel2 == LT or rel2 == EQ:
+        return (q, False)
+      elif rel2 == GT:
+        return (p, True)
+      elif priority:
+        # Never skip over priority-side ancestors.
+        return (p, True)
+
+      # Report on why we q is an unsuitable parent for x.
+      print("* %s is unsuitable as parent for %s because %s %s" %
+            (get_blurb(p), get_blurb(x), rcc5_symbols[rel2], get_blurb(q)),
+            file=sys.stderr)
+      if rel2 == CONFLICT: note_conflict(p, q, e, f, g)
+      p = get_superior(p)
 
   def note_conflict(x, y, e, f, g):
     id = (prop.get_identity(x), prop.get_identity(y))
@@ -884,10 +877,9 @@ def half_set_superiors(a_roots, in_a, in_b, priority):
   if debug:
    print("# Finish: touched %s, set sup %s, capped %s, orphans %s, pass %s" % tuple(stats),
          file=sys.stderr)
-  # end half_set_superiors
 
   if len(conflicts) > 0:
-    print("* %s conflicts" % len(conflicts), file=sys.stderr)
+    print("* %s conflicts.  Report follows." % len(conflicts), file=sys.stderr)
     writer = csv.writer(sys.stderr)
     writer.writerow(["x", "y", "⊆ x\\y", "⊆ x∩y", "⊆ y\\x"])
     for conflict in conflicts.values():
@@ -943,7 +935,7 @@ def report(rm_sum, sum):
         # Record match != aligned
         if y and z:
           # related_how(x in A, y in B)
-          (rcc5, _, _, _) = related_how(x, y)
+          rcc5 = related_how(x, y)[0]
           print("  %s %s %s" %
                 (get_blurb(mep_get(in_b, y)),
                  rcc5_symbols[rcc5],
@@ -998,7 +990,7 @@ def generate_alignment(sum, roots, rm_sum):
     if b_usage:
       z = out_a(mep_get(rm_in_b, b_usage), None)
       if z:
-        (rcc5, _, _, _) = related_how(z, b_usage)
+        rcc5 = related_how(z, b_usage)[0]
         change = rcc5_symbols[rcc5]
         m = mep_get(in_a, z, None)
       # if a_usage and b_usage then "renamed"
@@ -1006,7 +998,7 @@ def generate_alignment(sum, roots, rm_sum):
     else:
       z = out_b(mep_get(rm_in_a, a_usage), None)
       if z:
-        (rcc5, _, _, _) = related_how(a_usage, z)
+        rcc5 = related_how(a_usage, z)[0]
         change = rcc5_symbols[rcc5]
         m = mep_get(in_b, z, None)
       # if a_usage then if get_xmrca(a_usage) then "dissolved"
