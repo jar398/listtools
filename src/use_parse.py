@@ -19,6 +19,7 @@ def use_parse(gn_iter, check_iter):
     assert False
   stem_pos = windex(header1, "CanonicalStem")
   assert stem_pos
+  canonical_pos = windex(header1, "CanonicalFull")
   auth_pos = windex(header1, "Authorship")
   year_pos = windex(header1, "Year")
   quality_pos = windex(header1, "Quality")
@@ -27,6 +28,8 @@ def use_parse(gn_iter, check_iter):
   row_count = 0
   stem_count = 0
   altkey_count = 0
+  canon_count = 0
+  have_pos = windex(header2, "canonical")
   for row2 in check_iter:
     row_count += 1
     row1 = next(gn_iter)
@@ -45,9 +48,15 @@ def use_parse(gn_iter, check_iter):
         if epithet != MISSING and part and year != MISSING:
           altkey = "%s.%s.%s" % (epithet, auth, year)
           altkey_count += 1
+
+      if (have_pos and row2[have_pos] == MISSING and
+          row1[canonical_pos] != MISSING):
+        row2[have_pos] = row1[canonical_pos]
+        canon_count += 1
+
     yield row2 + [stem, altkey, year]
-  print("# use_parse: added %s alt keys and %s stems for %s rows" %
-        (altkey_count, stem_count, row_count),
+  print("# use_parse: added %s alt keys, %s stems, %s canonicals for %s rows" %
+        (altkey_count, stem_count, canon_count, row_count),
         file=sys.stderr)
 
 if __name__ == '__main__':

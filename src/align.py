@@ -138,6 +138,7 @@ def load_usages(iterator):
     if year_pos != None:
       year = row[year_pos]
       if year != MISSING: set_year(usage, year)
+
     key_to_usage[key] = usage
 
     accepted_key = row[accepted_pos] if accepted_pos else MISSING
@@ -147,21 +148,38 @@ def load_usages(iterator):
     assert parent_key != key
     fixup.append((usage, parent_key, accepted_key))
 
+  seniors = 0
   for (usage, parent_key, accepted_key) in fixup:
     if accepted_key != MISSING:
-      probe2 = key_to_usage.get(accepted_key)
-      if probe2:
-        set_accepted(usage, probe2)
-        if monitor(usage) or monitor(probe1):
-          print("> accepted %s := %s" % (get_blurb(usage), get_blurb(probe1)),
-                file=sys.stderr)
+      accepted_usage = key_to_usage.get(accepted_key)
+      if accepted_usage:
+        set_accepted(usage, accepted_usage)
+        # Filter out senior synonyms here
+        if seniority(usage, accepted_usage) == "senior synonym":
+          seniors += 1
+          del key_to_usage[get_key(usage)] # ????
+        else:
+          if monitor(usage) or monitor(accepted_usage):
+            print("> accepted %s := %s" %
+                  (get_blurb(usage), get_blurb(accespted_usage)),
+                  file=sys.stderr)
+      else:
+        print("-- Dangling accepted: %s -> %s" % (get_key(usage), accepted_key),
+              file=sys.stderr)
     elif parent_key != MISSING:
-      probe1 = key_to_usage.get(parent_key)
-      if probe1:
-        set_parent(usage, probe1)
-        if monitor(usage) or monitor(probe1):
-          print("> parent %s := %s" % (get_blurb(usage), get_blurb(probe1)),
+      parent_usage = key_to_usage.get(parent_key)
+      if parent_usage:
+        set_parent(usage, parent_usage)
+        if monitor(usage) or monitor(parent_usage):
+          print("> parent %s := %s" % (get_blurb(usage), get_blurb(parent_usage)),
                 file=sys.stderr)
+      else:
+        print("-- Dangling parent: %s -> %s" % (get_key(usage), parent_key),
+              file=sys.stderr)
+
+  if seniors > 0:     # Maybe interesting
+    print("Suppressed %s senior synonyms" % seniors,
+          file=sys.stderr)
 
   # Collect children so we can say children[x]
   roots = collect_inferiors(key_to_usage.values())
@@ -207,15 +225,11 @@ def get_superior(x):
 
 def collect_inferiors(items):
   roots = []
-  seniors = 0
   for item in items:
 
     # Add item to list of accepted's synonyms
     accepted_item = get_accepted(item, None)
     if accepted_item:
-      # Filter out senior synonyms here
-      if seniority(item, accepted_item) == "senior synonym":
-        seniors += 1
       ch = get_synonyms(accepted_item, None)
       if ch:
         ch.append(item)
@@ -234,9 +248,6 @@ def collect_inferiors(items):
       else:
         roots.append(item)
 
-  if False and seniors > 0:     # Maybe interesting
-    print("-- Saw %s senior synonyms" % seniors,
-          file=sys.stderr)
   return roots
 
 # Is given synonym usage a senior synonym of its accepted usage?
@@ -332,7 +343,8 @@ def load_sum(iterator, a_usage_dict, b_usage_dict):
     key = row[key_pos]
     x = a_usage_dict.get(row[usage_a_pos])
     y = b_usage_dict.get(row[usage_b_pos])
-    note_match(x, y, row[remark_pos], sum)
+    if x or y:
+      note_match(x, y, row[remark_pos], sum)
 
   # These pass somehow
   a_top = a_usage_dict.get(TOP)
@@ -1065,7 +1077,7 @@ def get_subblurb(r):
     name = get_canonical(r, None) or get_scientific(r, None)
     if name:
       if get_accepted(r, None):
-        return "*" + name
+        return name + "*"     # attend to sort order
       else:
         return name
   else:

@@ -65,8 +65,8 @@ def generate_report(al, diff_mode):
           tick(comment)
       elif get_accepted(y, None):
         # accepted -> synonym
-        comment = "demoted to synonym"
-        tick(comment)
+        comment = "lumped into %s" % get_blurb(get_accepted(y))
+        tick("demoted to synonym")
       else:
         # accepted -> accepted
         if name_changed:
@@ -113,9 +113,9 @@ def generate_report(al, diff_mode):
       rank = get_rank(y or x, MISSING)
       noise = noises.get(rank, ". . . . .")
       bx = get_blurb(x)
-      if x and get_accepted(x, None): bx = "*" + bx
+      if x and get_accepted(x, None): bx = bx + "*"
       by = get_blurb(y)
-      if y and get_accepted(y, None): by = "*" + by
+      if y and get_accepted(y, None): by = by + "*"
       if not diff_mode:
         bx = bx + " " + noise
         by = noise + " " + by
@@ -204,7 +204,7 @@ def load_alignment(iterator, a_usage_dict, b_usage_dict):
   # Collect children so we can say children[x]
   roots = align.collect_inferiors(key_to_union.values())
 
-  print("%s rows in alignment" % len(key_to_union),
+  print("%s taxon concepts in alignment" % len(key_to_union),
         file=sys.stderr)
 
   align.cache_levels(roots)
