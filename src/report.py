@@ -101,7 +101,7 @@ def generate_report(al, diff_mode):
           comment = "promoted to accepted"
         else:
           # = or !
-          comment = "match failure"
+          comment = "alignment failure"
         if x: comment = "(%s)" % comment
         tick(comment)
 

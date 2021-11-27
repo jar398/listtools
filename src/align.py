@@ -32,7 +32,7 @@ def align(a_iterator, b_iterator, rm_sum_iterator):
 
   # Merge the two trees
   sum = ({}, {}, {})
-  set_congruences(a_roots, b_roots, sum, rm_sum)
+  set_equivalences(a_roots, b_roots, sum, rm_sum)
   roots = set_superiors(a_roots, b_roots, sum, rm_sum)
 
   # Prepare to assign names
@@ -366,6 +366,7 @@ def load_sum(iterator, a_usage_dict, b_usage_dict):
   return sum
 
 # Sadly, rows are repeated sometimes 
+# This function applies to both record match sums and to alignments
 
 def note_match(x, y, remark, sum):
   global union_count
@@ -730,38 +731,10 @@ def lt(x, y): return le(x, y) and x != y
 
 # -----------------------------------------------------------------------------
 
-# Detect and record A/B congruences.
-# In the process of doing this, also set parent pointers in the sum
-# within "clusters".  A cluster is a set of nodes, in both trees, 
-# that all subtend the same set of tipward record matches.
+# Detect and record A/B equivalences.  At the end, every usage will be
+# part of the sum.
 
-# At the end:
-# 1. congruences have been established as needed
-# 2. every node in every cluster has an assigned node in the union (injection)
-# 3. every assigned node for every node in every cluster - other than the
-#    rootward one - has its parent pointer set to another node in the
-#    cluster, forming a single linear chain.
-
-"""
-Diagram explaining the variables used in "weave".  Rootward is toward
-the top.
-
-  u  =  g  =  v   tipward nodes in cluster.  u <= x
-  |  \     /  |
-  |           |
-  |     |     |
-  |     k     |   s, t, and k are the iteration variables
-  |  /     \  |    they progress downwards
-  |           t
-  s  = (r) =  |
-  |           m   record match to s
-  |           |
-  x  ?  k  ?  y   rootward nodes in cluster
-  ^     |     ^
-  p  <= h =>  q   parents outside the cluster
-"""
-
-def set_congruences(a_roots, b_roots, sum, rm_sum):
+def set_equivalences(a_roots, b_roots, sum, rm_sum):
   (_, in_a, in_b) = sum
   (_, rm_in_a, rm_in_b) = rm_sum
 
@@ -769,77 +742,38 @@ def set_congruences(a_roots, b_roots, sum, rm_sum):
   assert is_top(a_roots[0])
   assert is_top(b_roots[0])
 
-  # u = v
-  def weave(u, v):
-    if debug:
-      print("# weaving %s with %s" % (get_blurb(u), get_blurb(v)), file=sys.stderr)
-    if mep_get(in_b, v, None):
-      return
-
-    # Set the comment based on the record match
-    comment = "join point"
-    r = mep_get(rm_in_a, u)
-    if r == mep_get(rm_in_b, v): comment = get_remark(r)
-    g = connect(u, v, comment)
-
-    s = get_superior(u)
-    t = get_superior(v)
-    k = g
-    while True:
-      s_done = (not s or get_xmrca(s, None) != v) # x
-      t_done = (not t or get_xmrca(t, None) != u) # y
-
-      if s_done or t_done:
-        break
-      else:
-        # Advance s and t in lockstep.  Kind of gross
-        k = connect(s, t, "arbitrary unification in cluster")
-        s = get_superior(s)
-        t = get_superior(t)
-      set_superior(g, k)
-      if debug:
-        print("# weave super %s = %s" % (get_blurb(j), get_blurb(k)), file=sys.stderr)
-      g = k
-
   def traverse(x):
-    # Skip if already processed
-    if mep_get(in_a, x, None) == None:
-
-      y = get_xmrca(x, None)      # in B
-      if y != None and x == get_xmrca(y, None):
-        # Mutual xmrca with xmrca... that means they're equivalent
-        if monitor(x):
-          print("> weave(%s, %s)" % (get_blurb(x), get_blurb(y)),
-                file=sys.stderr)
-        weave(x, y)
-      else:
-        if monitor(x):
-          print("> Not weaving(%s, %s)" % (get_blurb(x), get_blurb(y)),
-                file=sys.stderr)
-
+    y = get_xmrca(x, None)      # in B
+    if y != None and x == get_xmrca(y, None):
+      # Mutual xmrca with xmrca... that means they're equivalent
+      connect(x, y)
+    else:
+      connect(x, None)
+      if monitor(x):
+        print("> Not equivalent(%s, %s)" % (get_blurb(x), get_blurb(y)),
+              file=sys.stderr)
     # Deal with descendants of x, and inject x, bottom up
     for c in get_inferiors(x): traverse(c)
-
   for x in a_roots: traverse(x)
 
-# Get remarks from rm_sum ... ?
+  def cotraverse(y):
+    if not mep_get(in_b, y, None):
+      connect(None, y)
+    for c in get_inferiors(y): cotraverse(c)
+  for y in b_roots: cotraverse(y)
 
 def connector(rm_sum, sum):
   (_, rm_in_a, rm_in_b) = rm_sum
-  def connect(x, y, remark):
+  def connect(x, y):
+    remark = MISSING
     # Get remark from prior record match
     if x:
-      j = mep_get(rm_in_a, x, None)
-    elif y:
-      j = mep_get(rm_in_b, y, None)
-    assert j
-    assert remark
-    remarks = [remark]
-    if out_a(j) == x and out_b(j) == y:
-      rem = get_remark(j)
-      if not rem in remarks:
-        remarks.append(rem)
-    return note_match(x, y, combine_remarks(*remarks), sum)
+      r = mep_get(rm_in_a, x, None)
+      if r and out_b(r) == y:
+        remark = get_remark(r, None)
+    if remark == MISSING and x and y:
+      remark = "inferred equivalent"
+    return note_match(x, y, remark, sum)
   return connect
 
 # -----------------------------------------------------------------------------
@@ -849,14 +783,9 @@ def set_superiors(a_roots, b_roots, sum, rm_sum):
   (key_to_union, in_a, in_b) = sum
   (_, rm_in_a, rm_in_b) = rm_sum
   connect = connector(rm_sum, sum)
-  def fasten_a(x):
-    return connect(x, None, "peripheral in A")
-  def fasten_b(y):
-    return connect(None, y, "peripheral in B")
-  half_set_superiors(b_roots, in_b, in_a,
-                     fasten_b, fasten_a, True, rm_in_b)
-  half_set_superiors(a_roots, in_a, in_b,
-                     fasten_a, fasten_b, False, rm_in_a)
+
+  half_set_superiors(b_roots, in_b, in_a, True)
+  half_set_superiors(a_roots, in_a, in_b, False)
   print("# %s in a, %s in b, %s union keys" %
         (len(in_a), len(in_b), len(key_to_union)),
         file=sys.stderr)
@@ -867,58 +796,39 @@ def set_superiors(a_roots, b_roots, sum, rm_sum):
         file=sys.stderr)
   return roots
 
-# Set parents of nodes whose parent wasn't set by 'weave'
+# Set parents
 
-def half_set_superiors(a_roots, in_a, in_b,
-                       fasten_a, fasten_b, priority, rm_in_a):
+def half_set_superiors(a_roots, in_a, in_b, priority):
   stats = [0, 0, 0, 0, 0]
 
-  def cap(x, in_a, fasten_a):
-    j = mep_get(in_a, x, None)
-    if not j:
-      j = fasten_a(x)
-      stats[2] += 1
-    assert mep_get(in_a, x) == j
-    return j
+  def cap(x, in_a): return mep_get(in_a, x)
 
   def traverse(x):
-
     stats[0] += 1
-    j = cap(x, in_a, fasten_a)
     for c in get_inferiors(x):
       if get_xmrca(c, None): traverse(c)
     for c in get_inferiors(x):
       if not get_xmrca(c, None): traverse(c)
     # All joint nodes derived from nodes descended from x
     # have their superior node set at this point.
+    j = cap(x, in_a)
     if not get_superior(j):
       (pq, ab) = determine_superior_in_sum(x, priority)
       if monitor(x):
         print("> superior of %s will be %s in %s checklist" %
               (get_blurb(x), get_blurb(pq), "same" if ab else "other"),
               file=sys.stderr)
-
       if pq:                    # parent is either p or q
         if ab:                  # parent is in A, not in B
-          h = cap(pq, in_a, fasten_a)
+          h = cap(pq, in_a)
         else:
-          h = cap(pq, in_b, fasten_b)
+          h = cap(pq, in_b)
         set_superior(j, h)
         if debug:
           print("# finish super %s = %s" % (get_blurb(j), get_blurb(h)), file=sys.stderr)
         stats[1] += 1
       else:
-        if debug:
-          print("# hmm pq %s no superior why not?" % (get_blurb(j)), file=sys.stderr)
-        stats[3] += 1
-    else:
-      stats[4] += 1
-
-    if not (get_superior(j) or is_top(j)):
-      print("!! Missing parent: %s = %s + %s" %
-            (get_blurb(out_a(j)), get_blurb(out_b(j)), get_blurb(j)),
-            file=sys.stderr)
-      assert False
+        stats[4] += 1
 
   def determine_superior_in_sum(x, priority):
 
