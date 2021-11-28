@@ -14,11 +14,12 @@ from align import key_prop, get_key, \
   get_parent, set_parent, \
   get_accepted, set_accepted, \
   get_children, get_synonyms, \
-  get_canonical, get_rank, get_year
+  get_canonical, get_rank, get_year, \
+  rcc5_symbols
 
 previous_prop = prop.Property("previous")
-get_previous = prop.getter(previous_prop)
-set_previous = prop.setter(previous_prop)
+get_record_match = prop.getter(previous_prop)
+set_record_match = prop.setter(previous_prop)
 
 change_prop = prop.Property("change")
 get_change = prop.getter(change_prop)
@@ -53,6 +54,14 @@ def generate_report(al, diff_mode):
         s[1] += 1
     x = out_a(u, None)
     y = out_b(u, None)
+    m = get_record_match(u, None)
+
+    # WORK IN PROGRESS
+    if False and y and m:
+      change2 = rcc5_symbols[related_how(m, y)[0]]
+    else:
+      change2 = None
+
     change = get_change(u, None)   # relative to record match
     name_changed = (get_blurb(x) != get_blurb(y))
 
@@ -98,6 +107,7 @@ def generate_report(al, diff_mode):
           comment = "deprecated/lumped/renamed"
           tick("dropped accepted")
       else:
+        # New taxon concept with prior record match
         if change == '<':
           comment = "widened"
         elif change == '>':
@@ -105,7 +115,8 @@ def generate_report(al, diff_mode):
         elif change == '><':
           comment = "changed incomparably"
         elif change == '?':
-          # Not completely sure about this
+          # Accepted with sibling synonym or within-cluster peer.
+          # No way to distinguish.
           comment = "promoted to accepted"
         else:
           # = or !
@@ -166,7 +177,7 @@ def load_alignment(iterator, a_usage_dict, b_usage_dict):
   remark_pos = windex(header, "remark")
   usage_a_pos = windex(header, "taxonID_A")
   usage_b_pos = windex(header, "taxonID_B")
-  previous_pos = windex(header, "previousID")
+  record_match_pos = windex(header, "recordMatch")  # an id in A
   change_pos = windex(header, "change")
   remark_pos = windex(header, "remark")
   parent_pos = windex(header, "parentNameUsageID")
@@ -188,8 +199,8 @@ def load_alignment(iterator, a_usage_dict, b_usage_dict):
     if accepted_key == key: accepted_key = MISSING
     parent_key = row[parent_pos]
     if accepted_key != MISSING: parent_key = MISSING
-    previous_key = row[previous_pos] if previous_pos != None else None
-    fixup.append((union, parent_key, accepted_key, previous_key))
+    record_match_key = row[record_match_pos] if record_match_pos != None else None
+    fixup.append((union, parent_key, accepted_key, record_match_key))
     if change_pos != None:
       change = row[change_pos]
       if change != MISSING: set_change(union, change)
@@ -197,16 +208,16 @@ def load_alignment(iterator, a_usage_dict, b_usage_dict):
       remark = row[remark_pos]
       if remark != MISSING: set_remark(union, remark)
 
-  for (union, parent_key, accepted_key, previous_key) in fixup:
+  for (union, parent_key, accepted_key, record_match_key) in fixup:
     if accepted_key != MISSING:
       probe = key_to_union.get(accepted_key)
       if probe: set_accepted(union, probe)
     elif parent_key != MISSING:
       probe = key_to_union.get(parent_key)
       if probe: set_parent(union, probe)
-    if previous_key != MISSING:
-      probe = key_to_union.get(previous_key)
-      if probe: set_previous(union, probe)
+    if record_match_key != MISSING:
+      probe = a_usage_dict.get(record_match_key)
+      if probe: set_record_match(union, probe)
 
   # Collect children so we can say children[x]
   roots = align.collect_inferiors(key_to_union.values())
@@ -224,6 +235,7 @@ if __name__ == '__main__':
     """)
   parser.add_argument('--source', help="A hierarchy")
   parser.add_argument('--alignment', help="alignment")
+  parser.add_argument('--matches', help="record matches")
   parser.add_argument('--diff', action='store_true',
                       help="difference mode")
   parser.add_argument('--full', action='store_true',
@@ -232,13 +244,15 @@ if __name__ == '__main__':
 
   b_file = sys.stdin
   a_path = args.source
-  sum_path = args.alignment
+  alignment_path = args.alignment
+  matches_path = args.matches
   diff_mode = not args.full
 
   with open(a_path) as a_file:
-    with open(sum_path) as sum_file:
-      rep = report(csv.reader(a_file),
-                   csv.reader(b_file),
-                   csv.reader(sum_file),
-                   diff_mode)
-      util.write_generated(rep, sys.stdout)
+    with open(alignment_path) as alignment_file:
+      with open(matches_path) as matches_file:
+        rep = report(csv.reader(a_file),
+                     csv.reader(b_file),
+                     csv.reader(alignment_file),
+                     diff_mode)
+        util.write_generated(rep, sys.stdout)

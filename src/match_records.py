@@ -30,9 +30,12 @@ silly = 8
 
 unweights = None
 
+default_index_by = ["scientificName", "epithetAuthorYear",
+                    "canonicalName", "canonicalStem"]
+
 # Row generators -> row generator
 
-def match_records(a_reader, b_reader, pk_col="taxonID", index_by=["canonicalName"]):
+def match_records(a_reader, b_reader, pk_col="taxonID", index_by=default_index_by):
   a_table = ingest_csv(a_reader, pk_col)
   b_table = ingest_csv(b_reader, pk_col)
   cop = compute_sum(a_table, b_table, pk_col, index_by)
@@ -41,9 +44,9 @@ def match_records(a_reader, b_reader, pk_col="taxonID", index_by=["canonicalName
 # Sum -> row generator
 
 def generate_sum(cop, pk_col):
-  yield [pk_col, pk_col + "_A", pk_col + "_B", "remark"]
-  for (key3, (key1, key2, remark)) in cop.items():
-    yield [key3, key1, key2, remark]
+  yield [pk_col + "_A", pk_col + "_B", "remark"]
+  for (key1, key2, remark) in cop:
+    yield [key1, key2, remark]
 
 # table * table -> sum (cf. delta.py)
 
@@ -61,7 +64,7 @@ def compute_sum(a_table, b_table, pk_col_arg, index_by):
   assert pk_pos1 != None 
   assert pk_pos2 != None
 
-  cop = {}
+  cop = []
 
   (best_rows_in_file2, best_rows_in_file1) = \
     find_best_matches(header1, header2, all_rows1, all_rows2, pk_col)
@@ -91,14 +94,14 @@ def compute_sum(a_table, b_table, pk_col_arg, index_by):
     else:
       key3 = key1
     # Establish correspondences
-    cop[key3] = (key1, key2, remark)
+    cop.append((key1, key2, remark))
     return key3
 
   def find_match(key1, best_rows_in_file2, best_rows_in_file1,
                  pk_pos1, pk_pos2):
     key2 = None
     (row2, remark2) = check_match(key1, best_rows_in_file2, pk_pos2)
-    assert remark2
+    # remark = MISSING means no matches
     if row2 != None:
       candidate = row2[pk_pos2]
       (back1, remark1) = check_match(candidate, best_rows_in_file1, pk_pos1)
@@ -150,7 +153,7 @@ def compute_sum(a_table, b_table, pk_col_arg, index_by):
 
   # Print stats on outcome
   aonly = bonly = matched = 0
-  for (key3, (key1, key2, remark)) in cop.items():
+  for (key1, key2, remark) in cop:
     if key1 != None and key2 != None:
       matched += 1
     elif key1 == None:
@@ -184,7 +187,7 @@ def check_match(key1, best_rows_in_file2, pk_pos2):
     else:
       return (None, "weak matches only (%x)" % score2)
   else:
-    return (None, "no matches")
+    return (None, MISSING)
 
 # For each row in each input (A/B), compute the set of all best
 # (i.e. highest scoring) matches in the opposite input.
@@ -326,25 +329,6 @@ def row_properties(row, header, positions):
           for i in range(0, len(header))
           if (i in positions and
               row[i] != MISSING)]
-
-# Inverse of write_sum
-
-def ingest_sum(reader, pk_col):
-  header = next(reader)
-  pk_pos = windex(header, pk_col)
-  pk_a_pos = windex(header, pk_col + "_A")
-  pk_b_pos = windex(header, pk_col + "_B")
-  remark_pos = windex(header, "remark")
-  assert pk_pos != None and pk_a_pos != None and pk_b_pos != None
-  assert remark_pos != None
-  cop = {}
-  for row in reader:
-    a = row[pk_a_pos]
-    if a == MISSING: a = None
-    a = row[pk_b_pos]
-    if b == MISSING: b = None
-    cop[row[pk_pos]] = (a, b, row[remark+pos])
-  return cop
 
 # Test
 def test1():

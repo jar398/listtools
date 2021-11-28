@@ -132,12 +132,13 @@ $(ALIGNMENT): $(RM) $P/align.py $P/property.py
 
 REPORT_OPTION ?=
 
-$(REPORT): $(ALIGNMENT) $P/report.py $P/property.py
+$(REPORT): $(ALIGNMENT) $(RM) $P/report.py $P/property.py
 	@echo
 	@echo "--- PREPARING REPORT ---"
 	$P/report.py --source $A-gnp.csv --alignment $(ALIGNMENT) \
-		    $(REPORT_OPTIONS) \
-		    < $B-gnp.csv > $@.new
+		     --matches $(RM) \
+		     $(REPORT_OPTIONS) \
+		     < $B-gnp.csv > $@.new
 	@mv -f $@.new $@
 
 # ----------------------------------------------------------------------

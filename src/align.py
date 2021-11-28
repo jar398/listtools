@@ -8,6 +8,7 @@ import util
 from util import windex, MISSING
 import property as prop
 from property import mep_get, mep_set
+import match_records
 
 TOP = "[top]"
 debug = False
@@ -21,11 +22,15 @@ def monitor(x):
 # -----------------------------------------------------------------------------
 # Supervise the overall process
 
-def align(a_iterator, b_iterator, rm_sum_iterator):
+def align(a_iterator, b_iterator, rm_sum_iterator=None):
+  if rm_sum_iterator == None:
+    # Need to copy the iterators!
+    (a_iterator, a_iterator_copy) = dup_iterator(a_iterator)
+    (b_iterator, b_iterator_copy) = dup_iterator(b_iterator)
+    rm_sum_iterator = match_records.match_records(a_iterator_copy, b_iterator_copy)
+  # Load record matches
   (a_usage_dict, a_roots) = load_usages(a_iterator)
   (b_usage_dict, b_roots) = load_usages(b_iterator)
-
-  # Read record matches
   rm_sum = load_sum(rm_sum_iterator, a_usage_dict, b_usage_dict)
 
   calculate_xmrcas(a_roots, b_roots, rm_sum)
@@ -39,6 +44,10 @@ def align(a_iterator, b_iterator, rm_sum_iterator):
 
   # Emit tabular version of merged tree
   return generate_alignment(sum, roots, rm_sum)
+
+def dup_iterator(iter):
+  clunk = list(iter)
+  return ((x for x in clunk), (x for x in clunk))
 
 def assign_canonicals(sum):
   (key_to_union, in_a, in_b) = sum
@@ -332,14 +341,12 @@ make_union = prop.constructor(key_prop, out_a_prop, out_b_prop,
 
 def load_sum(iterator, a_usage_dict, b_usage_dict):
   header = next(iterator)
-  key_pos = windex(header, "taxonID")
   usage_a_pos = windex(header, "taxonID_A")
   usage_b_pos = windex(header, "taxonID_B")
   remark_pos = windex(header, "remark")
 
   sum = ({}, {}, {})
   for row in iterator:
-    key = row[key_pos]
     x = a_usage_dict.get(row[usage_a_pos])
     y = b_usage_dict.get(row[usage_b_pos])
     if x or y:
@@ -793,13 +800,10 @@ def set_superiors(a_roots, b_roots, sum, rm_sum):
 # Set parents
 
 def half_set_superiors(a_roots, in_a, in_b, priority):
-  stats = [0, 0, 0, 0, 0]
-  conflicts = {}
 
   def cap(x, in_a): return mep_get(in_a, x)
 
   def traverse(x):
-    stats[0] += 1
     for c in get_inferiors(x):
       if get_xmrca(c, None): traverse(c)
     for c in get_inferiors(x):
@@ -821,9 +825,8 @@ def half_set_superiors(a_roots, in_a, in_b, priority):
         set_superior(j, h)
         if debug:
           print("# finish super %s = %s" % (get_blurb(j), get_blurb(h)), file=sys.stderr)
-        stats[1] += 1
-      else:
-        stats[4] += 1
+
+  ejections = {}
 
   def determine_superior_in_sum(x, priority):
 
@@ -847,43 +850,57 @@ def half_set_superiors(a_roots, in_a, in_b, priority):
       assert not is_top(q)
       q = get_superior(q)
 
+    loser = None                # most rootward bad p
+
     # Now q is a candidate parent.  Need to compare p and q now,
     # ascending p lineage if needed to get clarity.
     while True:
-      (rel2, g, f, e) = related_how(q, p)
-      if rel2 == LT or rel2 == EQ:
-        return (q, False)
-      elif rel2 == GT:
-        return (p, True)
+      result = related_how(q, p)
+      rel2 = result[0]
+      if rel2 == LT:
+        result = (q, False)
+        break
+      elif rel2 == GT or rel2 == EQ:
+        result = (p, True)
+        break
       elif priority:
         # Never skip over priority-side ancestors.
-        return (p, True)
-
-      # Report on why we q is an unsuitable parent for x.
-      print("* %s is unsuitable as parent for %s because %s %s" %
-            (get_blurb(p), get_blurb(x), rcc5_symbols[rel2], get_blurb(q)),
-            file=sys.stderr)
-      if rel2 == CONFLICT: note_conflict(p, q, e, f, g)
+        result = (p, True)
+        break
+      else:
+        # Report on why we think q is an unsuitable parent.
+        loser = (p, result)
       p = get_superior(p)
-
-  def note_conflict(x, y, e, f, g):
-    id = (prop.get_identity(x), prop.get_identity(y))
-    if not id in conflicts:
-      id2 = (prop.get_identity(y), prop.get_identity(x))
-      if not id2 in conflicts:
-        conflicts[id] = (x, y, e, f, g)
+    if loser:
+      (p_bad, result_bad) = loser
+      mep_set(ejections, q, (q, p, p_bad, result_bad))
+    return result
 
   for root in a_roots: traverse(root)
-  if debug:
-   print("# Finish: touched %s, set sup %s, capped %s, orphans %s, pass %s" % tuple(stats),
-         file=sys.stderr)
 
-  if len(conflicts) > 0:
-    print("* %s conflicts.  Report follows." % len(conflicts), file=sys.stderr)
+  if len(ejections) > 0:
+    print("* %s ejections.  Report follows." % len(ejections),
+          file=sys.stderr)
     writer = csv.writer(sys.stderr)
-    writer.writerow(["x", "y", "⊆ x\\y", "⊆ x∩y", "⊆ y\\x"])
-    for conflict in conflicts.values():
-      writer.writerow([get_blurb(z) for z in conflict])
+    writer.writerow(["x", "rcc5", "y", "⊆ x-y", "⊆ x∩y", "⊆ y-x"])
+    for (q, new_p, p, result) in ejections.values():
+      (rel2, e, f, g) = result
+      # Need to remove q from the merged hierarchy.  Turn it into a synonym
+      # of new_p and move its inferiors there.
+      j = mep_get(in_b, q)
+      k = mep_get(in_a, new_p)
+      set_parent(j, None)
+      set_accepted(j, k)
+      for c in get_children(q, []): set_parent(mep_get(in_b, c), k)
+      set_children(j, [])
+      for c in get_synonyms(q, []): set_accepted(mep_get(in_b, c), k)
+      set_synonyms(j, [])
+      if rel2 == CONFLICT:
+        writer.writerow((get_blurb(q), rcc5_symbols[rel2], get_blurb(p),
+                         get_blurb(e), get_blurb(f), get_blurb(g)))
+      else:   # UNCLEAR or DISJOINT
+        writer.writerow((get_blurb(q), rcc5_symbols[rel2], get_blurb(p),
+                         MISSING, MISSING, MISSING))
 
 # j is to be either a child or synonym of k.  Figure out which.
 # Invariant: A synonym must have neither children nor synonyms.
@@ -974,7 +991,7 @@ def generate_alignment(sum, roots, rm_sum):
   yield ["taxonID", "taxonID_A", "taxonID_B",
          "parentNameUsageID", "acceptedNameUsageID",
          "taxonomicStatus",
-         "canonicalName", "previousID", "change", "remark"]
+         "canonicalName", "recordMatch", "change", "remark"]
   (_, in_a, in_b) = sum
   (_, rm_in_a, rm_in_b) = rm_sum
 
@@ -1000,7 +1017,7 @@ def generate_alignment(sum, roots, rm_sum):
       if z:
         rcc5 = related_how(a_usage, z)[0]
         change = rcc5_symbols[rcc5]
-        m = mep_get(in_b, z, None)
+        m = out_a(mep_get(in_b, z, None))
       # if a_usage then if get_xmrca(a_usage) then "dissolved"
     return [get_key(union),
             get_key(a_usage) if a_usage else MISSING,
@@ -1010,7 +1027,7 @@ def generate_alignment(sum, roots, rm_sum):
             figure_taxonomic_status(union),
             get_canonical(union, MISSING),
             # m is record match
-            get_key(m) if m else MISSING, # = previousID for name
+            get_key(m) if m else MISSING, # = recordMatch for name
             change,
             get_remark(union, MISSING)]
   def traverse(union):
@@ -1049,10 +1066,14 @@ if __name__ == '__main__':
   b_path = args.target
   rm_sum_path = args.matches
 
+  a_iter = csv.reader(a_file)
   with open(b_path) as b_file:
+    b_iter = csv.reader(b_file)
     # TBD: Compute sum if not provided ?
-    with open(rm_sum_path) as rm_sum_file:
-      sum = align(csv.reader(a_file),
-                  csv.reader(b_file),
-                  csv.reader(rm_sum_file))
-      util.write_generated(sum, sys.stdout)
+    if rm_sum_path:
+      with open(rm_sum_path) as rm_sum_file:
+        rm_sum_iter = csv.reader(rm_sum_file)
+        sum = align(a_iter, b_iter, rm_sum_iter)
+    else:
+      sum = align(a_iter, b_iter)
+    util.write_generated(sum, sys.stdout)
