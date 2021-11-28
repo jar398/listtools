@@ -519,8 +519,6 @@ def set_equivalences(a_roots, b_roots, rm_sum):
   (_, rm_in_a, rm_in_b) = rm_sum
 
   connect = connector(rm_sum, sum)
-  assert is_top(a_roots[0])
-  assert is_top(b_roots[0])
 
   def traverse(x):
     y = get_xmrca(x, None)      # in B
@@ -797,84 +795,51 @@ def set_superiors(a_roots, b_roots, sum, rm_sum):
         file=sys.stderr)
   return roots
 
-# Set parents
+# Set parents in the 'a' hierarchy, which might be high priority (B)
+# or low priority (A).
 
 def half_set_superiors(a_roots, in_a, in_b, priority):
 
-  def cap(x, in_a): return mep_get(in_a, x)
-
-  def traverse(x):
-    for c in get_inferiors(x):
-      if get_xmrca(c, None): traverse(c)
-    for c in get_inferiors(x):
-      if not get_xmrca(c, None): traverse(c)
-    # All joint nodes derived from nodes descended from x
-    # have their superior node set at this point.
-    j = cap(x, in_a)
-    if not get_superior(j):
-      (pq, ab) = determine_superior_in_sum(x, priority)
-      if monitor(x):
-        print("> superior of %s will be %s in %s checklist" %
-              (get_blurb(x), get_blurb(pq), "same" if ab else "other"),
-              file=sys.stderr)
-      if pq:                    # parent is either p or q
-        if ab:                  # parent is in A, not in B
-          h = cap(pq, in_a)
-        else:
-          h = cap(pq, in_b)
-        set_superior(j, h)
-        if debug:
-          print("# finish super %s = %s" % (get_blurb(j), get_blurb(h)), file=sys.stderr)
-
   ejections = {}
 
-  def determine_superior_in_sum(x, priority):
+  def traverse(x):
+    choose_superior(x, priority)
+    for c in get_inferiors(x): traverse(c)
 
-    if is_top(x): return (None, True)
-
-    # Find minimal p, q such that either x < p <= q or x < q <= p.
-    # If not priority, also require q does not conflict with p.
+  def choose_superior(x, priority):
+    if is_top(x): return None
     p = get_superior(x)         # p is in a (possibly top)
-    assert lt(x, p)
-
-    # This method can probably be made more efficient, but for
-    # now at least it seems to work
-
-    q = get_xmrca(x, None)      # q is in b
-    if q == None: return (p, True)    # peripheral
-
-    # We know x < p.
-    # Take q up the a-lineage until x < q or q >= p, skipping over
-    # conflict/disjoint/unclear.
-    while related_how(x, q)[0] != LT:
-      assert not is_top(q)
-      q = get_superior(q)
-
-    loser = None                # most rootward bad p
-
-    # Now q is a candidate parent.  Need to compare p and q now,
-    # ascending p lineage if needed to get clarity.
-    while True:
-      result = related_how(q, p)
-      rel2 = result[0]
-      if rel2 == LT:
-        answer = (q, False)
-        break
-      elif rel2 == GT or rel2 == EQ:
-        answer = (p, True)
-        break
-      elif priority:
-        # Never skip over priority-side ancestors.
-        answer = (p, True)
-        break
+    answer = get_superior(mep_get(in_a, x))
+    if not answer:
+      q = get_xmrca(x, None)      # q is in b
+      if q == None:
+        answer = mep_get(in_a, p)    # peripheral
       else:
-        # Report on why we think q is an unsuitable parent.
-        loser = (p, result)
-      p = get_superior(p)
-    if loser:
-      (p_bad, result_bad) = loser
-      mep_set(ejections, q, (q, p, p_bad, result_bad))
-      answer = (None, True)  # gets demoted later on
+        while True:
+          rel = related_how(x, q)[0]
+          if rel == EQ or rel == GT:    # GT case should never happen
+            q = get_superior(q)
+          else:
+            break
+        answer = choose_nearest(p, q, priority)
+      set_superior(mep_get(in_a, x), answer)
+    return answer
+
+  # Pick the most rootward of the two
+
+  def choose_nearest(p, q, priority):
+    result = related_how(p, q)
+    rel = result[0]
+    if rel == LT or rel == EQ:
+      answer = mep_get(in_a, p)
+    elif rel == GT:
+      answer = mep_get(in_b, q)
+    elif priority:
+      answer = choose_nearest(p, get_superior(q), priority)
+    else:
+      # a = A = low priority
+      answer = choose_nearest(get_superior(p), q, priority)
+      mep_set(ejections, p, (p, result, q, answer))
     return answer
 
   for root in a_roots: traverse(root)
@@ -883,25 +848,40 @@ def half_set_superiors(a_roots, in_a, in_b, priority):
     print("* %s ejections.  Report follows." % len(ejections),
           file=sys.stderr)
     writer = csv.writer(sys.stderr)
-    writer.writerow(["x in A", "rcc5", "y in B", "⊆ x-y", "⊆ x∩y", "⊆ y-x"])
-    for (q, good_p, p, result) in ejections.values():
-      (rel2, e, f, g) = result
-      # Need to remove q from the merged hierarchy.  Turn it into a synonym
-      # of good_p and move its inferiors there.
-      j = mep_get(in_b, q)
-      k = mep_get(in_a, good_p)
-      assert not get_superior(j)
-      set_accepted(j, k)        # Demote!
-      # Move children in merged.  Children haven't been set yet.
-      print("# Moving %s inferiors from bad q to good p" % len(get_inferiors(q)),
-            file=sys.stderr)
-      for c in get_inferiors(q): set_superior(mep_get(in_b, c), k)
-      if rel2 == CONFLICT:
-        writer.writerow((get_blurb(q), rcc5_symbols[rel2], get_blurb(p),
-                         get_blurb(e), get_blurb(f), get_blurb(g)))
-      else:   # UNCLEAR or DISJOINT
-        writer.writerow((get_blurb(q), rcc5_symbols[rel2], get_blurb(p),
-                         MISSING, MISSING, MISSING))
+    writer.writerow(["p in A", "rcc5", "q in B", "⊆ p-q", "⊆ p∩q", "⊆ q-p", "p∨q"])
+    for (p_eject, result, q, safe) in ejections.values():
+      (rel2, g, f, e) = result
+      # Need to remove q_eject from the merged hierarchy.  Turn it into a synonym
+      # of safe and move its inferiors there.
+      ejector = mep_get(in_a, p_eject)
+      if get_parent(ejector, None):
+        set_parent(ejector, None)   # Detach it from the A hierarchy
+        # Move the children to a safe place.
+        for c in get_children(p_eject, []):
+          j = mep_get(in_a, c)
+          set_parent(j, safe)
+          add_remark(j, "Child of ejected")
+        for c in get_synonyms(p_eject, []):
+          j = mep_get(in_a, c)
+          set_accepted(j, safe)
+          add_remark(j, "Synonym of ejected")
+        # Demote the failing node to a synonym
+        add_remark(ejector, "Demoted because ejected")
+        set_accepted(ejector, safe)
+        if rel2 == CONFLICT:
+          writer.writerow((get_blurb(p_eject), rcc5_symbols[rel2], get_blurb(q),
+                           get_blurb(e), get_blurb(f), get_blurb(g),
+                           get_blurb(safe)))
+        else:   # UNCLEAR or DISJOINT
+          writer.writerow((get_blurb(p_eject), rcc5_symbols[rel2], get_blurb(q),
+                           MISSING, MISSING, MISSING, get_blurb(safe)))
+
+def add_remark(x, rem):
+  have = get_remark(x, None)
+  if have:
+    set_remark(x, have + '|' + rem)
+  else:
+    set_remark(x, rem)
 
 # j is to be either a child or synonym of k.  Figure out which.
 # Invariant: A synonym must have neither children nor synonyms.
@@ -966,22 +946,27 @@ def report(rm_sum, sum):
     
 def get_blurb(r):
   if isinstance(r, dict):
-    return (get_subblurb(r) or
-            get_subblurb(out_b(r, None)) or
-            get_subblurb(out_a(r, None)) or
-            "[no canonical %s]" % get_key(r))
+    s = get_subblurb(r)
+    if s: return s
+    s = get_subblurb(out_b(r, None))
+    if s: return "A." + s
+    s = get_subblurb(out_a(r, None))
+    if s: return "B." + s
+    return "[no name %s]" % get_key(r)
   elif r:
-    return "-"                  # for conflict...
+    return "[not a dict]"
   else:
     return "[no match]"
 
 def get_subblurb(r):
-  name = get_canonical(r, None) or get_scientific(r, None)
-  if name:
-    if get_accepted(r, None):
-      return name + "*"     # attend to sort order
-    else:
-      return name
+  if r:
+    name = get_canonical(r, None) or get_scientific(r, None)
+    if name:
+      if get_accepted(r, None):
+        return name + "*"     # attend to sort order
+      else:
+        return name
+  return None
 
 # -----------------------------------------------------------------------------
 # 14. emit the new sum with additional parent column

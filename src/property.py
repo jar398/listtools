@@ -51,10 +51,11 @@ get_identity = getter(_Identity)
 
 nodefault = []
 def mep_get(mep, x, default=nodefault):
+  id = get_identity(x)
   if default is nodefault:
-    return mep[get_identity(x)]
+    return mep[id]
   else:
-    return mep.get(get_identity(x), default)
+    return mep.get(id, default)
 def mep_set(mep, x, j):
   mep[get_identity(x)] = j
 
