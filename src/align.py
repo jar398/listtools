@@ -858,14 +858,14 @@ def half_set_superiors(a_roots, in_a, in_b, priority):
       result = related_how(q, p)
       rel2 = result[0]
       if rel2 == LT:
-        result = (q, False)
+        answer = (q, False)
         break
       elif rel2 == GT or rel2 == EQ:
-        result = (p, True)
+        answer = (p, True)
         break
       elif priority:
         # Never skip over priority-side ancestors.
-        result = (p, True)
+        answer = (p, True)
         break
       else:
         # Report on why we think q is an unsuitable parent.
@@ -874,7 +874,8 @@ def half_set_superiors(a_roots, in_a, in_b, priority):
     if loser:
       (p_bad, result_bad) = loser
       mep_set(ejections, q, (q, p, p_bad, result_bad))
-    return result
+      answer = (None, True)  # gets demoted later on
+    return answer
 
   for root in a_roots: traverse(root)
 
@@ -882,19 +883,19 @@ def half_set_superiors(a_roots, in_a, in_b, priority):
     print("* %s ejections.  Report follows." % len(ejections),
           file=sys.stderr)
     writer = csv.writer(sys.stderr)
-    writer.writerow(["x", "rcc5", "y", "⊆ x-y", "⊆ x∩y", "⊆ y-x"])
-    for (q, new_p, p, result) in ejections.values():
+    writer.writerow(["x in A", "rcc5", "y in B", "⊆ x-y", "⊆ x∩y", "⊆ y-x"])
+    for (q, good_p, p, result) in ejections.values():
       (rel2, e, f, g) = result
       # Need to remove q from the merged hierarchy.  Turn it into a synonym
-      # of new_p and move its inferiors there.
+      # of good_p and move its inferiors there.
       j = mep_get(in_b, q)
-      k = mep_get(in_a, new_p)
-      set_parent(j, None)
-      set_accepted(j, k)
-      for c in get_children(q, []): set_parent(mep_get(in_b, c), k)
-      set_children(j, [])
-      for c in get_synonyms(q, []): set_accepted(mep_get(in_b, c), k)
-      set_synonyms(j, [])
+      k = mep_get(in_a, good_p)
+      assert not get_superior(j)
+      set_accepted(j, k)        # Demote!
+      # Move children in merged.  Children haven't been set yet.
+      print("# Moving %s inferiors from bad q to good p" % len(get_inferiors(q)),
+            file=sys.stderr)
+      for c in get_inferiors(q): set_superior(mep_get(in_b, c), k)
       if rel2 == CONFLICT:
         writer.writerow((get_blurb(q), rcc5_symbols[rel2], get_blurb(p),
                          get_blurb(e), get_blurb(f), get_blurb(g)))
