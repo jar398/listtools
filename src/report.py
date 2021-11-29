@@ -125,7 +125,6 @@ def generate_report(al, ma, diff_mode):
         if x: comment = "(%s)" % comment
         tick(comment)
 
-    remarks = get_remarks(u, None)
     if comment or not diff_mode:
       rank = get_rank(y or x, MISSING)
       noise = noises.get(rank, ". . . . .")
@@ -136,6 +135,7 @@ def generate_report(al, ma, diff_mode):
       if not diff_mode:
         bx = bx + " " + noise
         by = noise + " " + by
+      add_remark(u, comment)
       yield [bx, by, rank, comment, remarks]
     for c in get_children(u, []):
       for row in traverse(c): yield row

@@ -114,7 +114,7 @@ def compute_sum(a_table, b_table, pk_col_arg, index_by):
           if remark2 == remark1:
             remark = remark2
           else:
-            remark = "%s|%s" % (remark2, remark1)
+            remark = "%s; %s" % (remark2, remark1)
         else:
           b1 = back1[pk_pos1]
           # wish there was a name here so we can see what's going on

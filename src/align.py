@@ -523,23 +523,34 @@ def set_equivalences(a_roots, b_roots, rm_sum):
   connect = connector(rm_sum, sum)
 
   def traverse(x):
+    mem = False
+    for c in get_inferiors(x):
+      mem = traverse(c) | mem
     y = get_xmrca(x, None)      # in B
     if y != None and x == get_xmrca(y, None):
       # Mutual xmrca with xmrca... that means they're equivalent
-      connect(x, y)
+      j = connect(x, y)
+
+      # If there was a record match, preserve reason
+      r = mep_get(rm_in_a, x, None)
+      if r and out_b(r) == y:
+        add_remark(j, get_remarks(r))
+
+      # If internal node match, make a note of it
+      if mem: add_remark(j, "consistent membership")
+      return True
     else:
       connect(x, None)
       if monitor(x):
         print("> Not equivalent(%s, %s)" % (get_blurb(x), get_blurb(y)),
               file=sys.stderr)
-    # Deal with descendants of x, and inject x, bottom up
-    for c in get_inferiors(x): traverse(c)
+      return False
   for x in a_roots: traverse(x)
 
   def cotraverse(y):
+    for c in get_inferiors(y): cotraverse(c)
     if not mep_get(in_b, y, None):
       connect(None, y)
-    for c in get_inferiors(y): cotraverse(c)
   for y in b_roots: cotraverse(y)
 
   return sum
@@ -547,15 +558,7 @@ def set_equivalences(a_roots, b_roots, rm_sum):
 def connector(rm_sum, sum):
   (_, rm_in_a, rm_in_b) = rm_sum
   def connect(x, y):
-    remark = MISSING
-    # Get remark from prior record match
-    if x:
-      r = mep_get(rm_in_a, x, None)
-      if r and out_b(r) == y:
-        remark = get_remarks(r, None)
-    if remark == MISSING and x and y:
-      remark = "inferred equivalent"
-    return note_match(x, y, remark, sum)
+    return note_match(x, y, MISSING, sum)
   return connect
 
 # -----------------------------------------------------------------------------
@@ -785,7 +788,7 @@ def set_superiors(a_roots, b_roots, sum, rm_sum):
   (_, rm_in_a, rm_in_b) = rm_sum
   connect = connector(rm_sum, sum)
 
-  half_set_superiors(b_roots, in_b, in_a, True)    # B is priority
+  half_set_superiors(b_roots, in_b, in_a, True)    # first, B = priority
   half_set_superiors(a_roots, in_a, in_b, False)
   print("# %s in a, %s in b, %s union keys" %
         (len(in_a), len(in_b), len(key_to_union)),
@@ -811,7 +814,8 @@ def half_set_superiors(a_roots, in_a, in_b, priority):
   def choose_superior(x, priority):
     if is_top(x): return None
     p = get_superior(x)         # p is in a (possibly top)
-    answer = get_superior(mep_get(in_a, x))
+    u = mep_get(in_a, x)
+    answer = get_superior(u)
     if not answer:
       q = get_xmrca(x, None)      # q is in b
       if q == None:
@@ -824,7 +828,7 @@ def half_set_superiors(a_roots, in_a, in_b, priority):
           else:
             break
         answer = choose_nearest(p, q, priority)
-      set_superior(mep_get(in_a, x), answer)
+      set_superior(u, answer)
     return answer
 
   # Pick the most rootward of the two
@@ -850,37 +854,46 @@ def half_set_superiors(a_roots, in_a, in_b, priority):
     print("* %s ejections.  Report follows." % len(ejections),
           file=sys.stderr)
     writer = csv.writer(sys.stderr)
-    writer.writerow(["p in A", "rcc5", "q in B", "⊆ p-q", "⊆ p∩q", "⊆ q-p", "p∨q"])
+    writer.writerow(["p in A", "rcc5", "q in B", "⊆ p-q", "⊆ p∩q",
+                     "⊆ q-p", "p∨q", "degraded"])
     for (p_eject, result, q, safe) in ejections.values():
-      (rel2, g, f, e) = result
       # Need to remove q_eject from the merged hierarchy.  Turn it into a synonym
       # of safe and move its inferiors there.
       ejector = mep_get(in_a, p_eject)
+      degraded = 0
       if get_parent(ejector, None):
         set_parent(ejector, None)   # Detach it from the A hierarchy
         # Move the children to a safe place.
-        for c in get_children(p_eject, []):
+        # N.b. inferiors of j have not been set yet
+        for c in get_inferiors(p_eject):
           j = mep_get(in_a, c)
-          set_parent(j, safe)
-          add_remark(j, "child of ejected")
-        for c in get_synonyms(p_eject, []):
-          j = mep_get(in_a, c)
-          set_accepted(j, safe)
-          add_remark(j, "synonym of ejected")
+          if get_superior(j) == ejector:
+            # set_alt_parent(j, ejector)
+            change_superior(j, safe)
+            if get_accepted(j, False):
+              add_remark(j, "synonym of ejected %s" % get_blurb(ejector))
+            else:
+              add_remark(j, "child of ejected %s" % get_blurb(ejector))
+            degraded += 1
+
         # Demote the failing node to a synonym
         add_remark(ejector, "demoted because ejected")
+        # set_alt_parent(ejector, get_parent(ejector))
         set_accepted(ejector, safe)
+
+        (rel2, g, f, e) = result
         if rel2 == CONFLICT:
           writer.writerow((get_blurb(p_eject), rcc5_symbols[rel2], get_blurb(q),
                            get_blurb(e), get_blurb(f), get_blurb(g),
-                           get_blurb(safe)))
+                           get_blurb(safe), str(degraded)))
         else:   # UNCLEAR or DISJOINT
           writer.writerow((get_blurb(p_eject), rcc5_symbols[rel2], get_blurb(q),
-                           MISSING, MISSING, MISSING, get_blurb(safe)))
+                           MISSING, MISSING, MISSING,
+                           get_blurb(safe), str(degraded)))
 
 def add_remark(x, rem):
   have = get_remarks(x, None)
-  if have:
+  if have != MISSING:
     set_remarks(x, have + '|' + rem)
   else:
     set_remarks(x, rem)
@@ -889,8 +902,11 @@ def add_remark(x, rem):
 # Invariant: A synonym must have neither children nor synonyms.
 
 def set_superior(j, k):
-  assert k
   assert not get_superior(j)
+  change_superior(j, k)
+
+def change_superior(j, k):
+  assert k
   assert not is_top(j)
   if j == k:
     print("!! self-loop %s" % get_blurb(j), file=sys.stderr)
@@ -950,10 +966,11 @@ def get_blurb(r):
   if isinstance(r, dict):
     s = get_subblurb(r)
     if s: return s
-    s = get_subblurb(out_b(r, None))
-    if s: return "A." + s
-    s = get_subblurb(out_a(r, None))
-    if s: return "B." + s
+    s1 = get_subblurb(out_b(r, None))
+    s2 = get_subblurb(out_a(r, None))
+    if s1 and (s1 == s2): return s1
+    if s1: return "B." + s1
+    if s2: return "A." + s2
     return "[no name %s]" % get_key(r)
   elif r:
     return "[not a dict]"
