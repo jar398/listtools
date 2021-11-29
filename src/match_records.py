@@ -41,12 +41,12 @@ def match_records(a_reader, b_reader, pk_col="taxonID", index_by=default_index_b
   cop = compute_sum(a_table, b_table, pk_col, index_by)
   return generate_sum(cop, pk_col)
 
-# Sum -> row generator
+# Sum -> row generator.
 
-def generate_sum(cop, pk_col):
-  yield [pk_col + "_A", pk_col + "_B", "remark"]
-  for (key1, key2, remark) in cop:
-    yield [key1, key2, remark]
+def generate_sum(coproduct, pk_col):
+  yield [pk_col + "_A", pk_col + "_B", "remarks"]
+  for (key1, key2, remarks) in coproduct:
+    yield [key1, key2, remarks]
 
 # table * table -> sum (cf. delta.py)
 
@@ -64,7 +64,7 @@ def compute_sum(a_table, b_table, pk_col_arg, index_by):
   assert pk_pos1 != None 
   assert pk_pos2 != None
 
-  cop = []
+  coproduct = []
 
   (best_rows_in_file2, best_rows_in_file1) = \
     find_best_matches(header1, header2, all_rows1, all_rows2, pk_col)
@@ -94,7 +94,7 @@ def compute_sum(a_table, b_table, pk_col_arg, index_by):
     else:
       key3 = key1
     # Establish correspondences
-    cop.append((key1, key2, remark))
+    coproduct.append((key1, key2, remark))
     return key3
 
   def find_match(key1, best_rows_in_file2, best_rows_in_file1,
@@ -114,7 +114,7 @@ def compute_sum(a_table, b_table, pk_col_arg, index_by):
           if remark2 == remark1:
             remark = remark2
           else:
-            remark = "%s / %s" % (remark2, remark1)
+            remark = "%s|%s" % (remark2, remark1)
         else:
           b1 = back1[pk_pos1]
           # wish there was a name here so we can see what's going on
@@ -153,7 +153,7 @@ def compute_sum(a_table, b_table, pk_col_arg, index_by):
 
   # Print stats on outcome
   aonly = bonly = matched = 0
-  for (key1, key2, remark) in cop:
+  for (key1, key2, remark) in coproduct:
     if key1 != None and key2 != None:
       matched += 1
     elif key1 == None:
@@ -164,7 +164,7 @@ def compute_sum(a_table, b_table, pk_col_arg, index_by):
         (matched, aonly, bonly),
         file=sys.stderr)
 
-  return cop
+  return coproduct
 
 WAD_SIZE = 4
 

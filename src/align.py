@@ -39,7 +39,7 @@ def align(a_iterator, b_iterator, rm_sum_iterator=None):
   sum = set_equivalences(a_roots, b_roots, rm_sum)
   roots = set_superiors(a_roots, b_roots, sum, rm_sum)
 
-  # Prepare to assign names
+  # Assign names
   assign_canonicals(sum)
 
   # Emit tabular version of merged tree
@@ -66,9 +66,11 @@ def assign_canonicals(sum):
     y = out_b(u)
     if y:
       name = get_canonical(y, None)
+      sci_name = get_scientific(y, None)
     else:
       x = out_a(u)
       name = get_canonical(x, None)
+      sci_name = get_scientific(x, None)
       if name in b_index_by_name:
         y = b_index_by_name[name]
         name = name + " sec. A"
@@ -82,7 +84,10 @@ def assign_canonicals(sum):
     if name:
       set_canonical(u, name)
       count += 1
-    else:
+    if sci_name:
+      set_scientific(u, sci_name)
+      count += 1
+    if not name and not sci_name:
       losers += 1
   print("# %s A+B canonicals (%s without)" % (count, losers),
         file=sys.stderr)
@@ -329,12 +334,12 @@ out_a_prop = prop.Property("out_a")
 out_a = prop.getter(out_a_prop)
 out_b_prop = prop.Property("out_b")
 out_b = prop.getter(out_b_prop)
-remark_prop = prop.Property("remark")
-get_remark = prop.getter(remark_prop)
-set_remark = prop.setter(remark_prop)
+remarks_prop = prop.Property("remarks")
+get_remarks = prop.getter(remarks_prop)
+set_remarks = prop.setter(remarks_prop)
 
 make_union = prop.constructor(key_prop, out_a_prop, out_b_prop,
-                              remark_prop)
+                              remarks_prop)
 
 
 # Load record mathes from a file or whatever
@@ -343,14 +348,14 @@ def load_sum(iterator, a_usage_dict, b_usage_dict):
   header = next(iterator)
   usage_a_pos = windex(header, "taxonID_A")
   usage_b_pos = windex(header, "taxonID_B")
-  remark_pos = windex(header, "remark")
+  remarks_pos = windex(header, "remarks")
 
   sum = ({}, {}, {})
   for row in iterator:
     x = a_usage_dict.get(row[usage_a_pos])
     y = b_usage_dict.get(row[usage_b_pos])
     if x or y:
-      note_match(x, y, row[remark_pos], sum)
+      note_match(x, y, row[remarks_pos], sum)
 
   # These pass somehow
   a_top = a_usage_dict.get(TOP)
@@ -388,7 +393,7 @@ def note_match(x, y, remark, sum):
     assert out_a(j) == x
     if out_b(j) != y:
       print("!! %s -> %s (%s)\n!! but := %s (%s)" %
-            (get_key(x), get_key(out_b(j)), get_remark(j),
+            (get_key(x), get_key(out_b(j)), get_remarks(j),
              get_key(y), remark),
             file=sys.stderr)
     assert out_b(j) == y
@@ -417,9 +422,6 @@ def note_match(x, y, remark, sum):
   return j
 
 union_count = 0
-
-def combine_remarks(*remarks):
-  return ";".join([r for r in remarks if r != MISSING])
 
 # -----------------------------------------------------------------------------
 # 8. Cross-mrcas
@@ -550,7 +552,7 @@ def connector(rm_sum, sum):
     if x:
       r = mep_get(rm_in_a, x, None)
       if r and out_b(r) == y:
-        remark = get_remark(r, None)
+        remark = get_remarks(r, None)
     if remark == MISSING and x and y:
       remark = "inferred equivalent"
     return note_match(x, y, remark, sum)
@@ -860,13 +862,13 @@ def half_set_superiors(a_roots, in_a, in_b, priority):
         for c in get_children(p_eject, []):
           j = mep_get(in_a, c)
           set_parent(j, safe)
-          add_remark(j, "Child of ejected")
+          add_remark(j, "child of ejected")
         for c in get_synonyms(p_eject, []):
           j = mep_get(in_a, c)
           set_accepted(j, safe)
-          add_remark(j, "Synonym of ejected")
+          add_remark(j, "synonym of ejected")
         # Demote the failing node to a synonym
-        add_remark(ejector, "Demoted because ejected")
+        add_remark(ejector, "demoted because ejected")
         set_accepted(ejector, safe)
         if rel2 == CONFLICT:
           writer.writerow((get_blurb(p_eject), rcc5_symbols[rel2], get_blurb(q),
@@ -877,11 +879,11 @@ def half_set_superiors(a_roots, in_a, in_b, priority):
                            MISSING, MISSING, MISSING, get_blurb(safe)))
 
 def add_remark(x, rem):
-  have = get_remark(x, None)
+  have = get_remarks(x, None)
   if have:
-    set_remark(x, have + '|' + rem)
+    set_remarks(x, have + '|' + rem)
   else:
-    set_remark(x, rem)
+    set_remarks(x, rem)
 
 # j is to be either a child or synonym of k.  Figure out which.
 # Invariant: A synonym must have neither children nor synonyms.
@@ -977,7 +979,7 @@ def generate_alignment(sum, roots, rm_sum):
   yield ["taxonID", "taxonID_A", "taxonID_B",
          "parentNameUsageID", "acceptedNameUsageID",
          "taxonomicStatus",
-         "canonicalName", "recordMatch", "change", "remark"]
+         "canonicalName", "scientificName", "recordMatch", "change", "remarks"]
   (_, in_a, in_b) = sum
   (_, rm_in_a, rm_in_b) = rm_sum
 
@@ -1012,10 +1014,11 @@ def generate_alignment(sum, roots, rm_sum):
             get_proper_key(a) if a else MISSING,
             figure_taxonomic_status(union),
             get_canonical(union, MISSING),
+            get_scientific(union, MISSING),
             # m is record match
             get_key(m) if m else MISSING, # = recordMatch for name
             change,
-            get_remark(union, MISSING)]
+            get_remarks(union, MISSING)]
   def traverse(union):
     if get_key(union) != TOP:
       yield compose_row(union)

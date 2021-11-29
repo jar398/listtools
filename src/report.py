@@ -10,11 +10,11 @@ from align import key_prop, get_key, \
   out_b_prop, out_b, \
   canonical_prop, get_canonical, \
   scientific_prop, get_scientific, \
-  get_remark, set_remark, \
+  get_remarks, set_remarks, \
   get_parent, set_parent, \
   get_accepted, set_accepted, \
   get_children, get_synonyms, \
-  get_canonical, get_rank, get_year, \
+  get_canonical, get_rank, \
   rcc5_symbols
 
 previous_prop = prop.Property("previous")
@@ -25,20 +25,21 @@ change_prop = prop.Property("change")
 get_change = prop.getter(change_prop)
 set_change = prop.setter(change_prop)
 
-def report(a_iter, b_iter, sum_iter, diff_mode):
+def report(a_iter, b_iter, alignment_iter, matches_iter, diff_mode):
   (a_usage_dict, a_roots) = align.load_usages(a_iter)
   (b_usage_dict, b_roots) = align.load_usages(b_iter)
   print("%s A usages, %s B usages" % (len(a_usage_dict), len(b_usage_dict)),
         file=sys.stderr)
-  al = load_alignment(sum_iter, a_usage_dict, b_usage_dict)
-  return generate_report(al, diff_mode)
+  al = load_alignment(alignment_iter, a_usage_dict, b_usage_dict)
+  ma = align.load_sum(matches_iter, a_usage_dict, b_usage_dict)
+  return generate_report(al, ma, diff_mode)
 
 # Full mode shows every concept in the sum.
 # Diff mode only shows changed/new/removed concepts.
 
-def generate_report(al, diff_mode):
+def generate_report(al, ma, diff_mode):
   (_, roots) = al
-  yield ("A name", "B name", "rank", "year", "comment", "remark")
+  yield ("A name", "B name", "rank", "comment", "remarks")
   stats = {}
   species_stats = {}
   def traverse(u):
@@ -124,9 +125,8 @@ def generate_report(al, diff_mode):
         if x: comment = "(%s)" % comment
         tick(comment)
 
-    remark = get_remark(u, None)
+    remarks = get_remarks(u, None)
     if comment or not diff_mode:
-      year = get_year(y or x, MISSING)
       rank = get_rank(y or x, MISSING)
       noise = noises.get(rank, ". . . . .")
       bx = get_blurb(x)
@@ -136,7 +136,7 @@ def generate_report(al, diff_mode):
       if not diff_mode:
         bx = bx + " " + noise
         by = noise + " " + by
-      yield [bx, by, rank, year, comment, remark]
+      yield [bx, by, rank, comment, remarks]
     for c in get_children(u, []):
       for row in traverse(c): yield row
     for s in get_synonyms(u, []):
@@ -174,14 +174,18 @@ def load_alignment(iterator, a_usage_dict, b_usage_dict):
   # taxonID,taxonID_A,taxonID_B,parentNameUsageID,acceptedNameUsageID,
   #   canonicalName,remark
   key_pos = windex(header, "taxonID")
-  remark_pos = windex(header, "remark")
   usage_a_pos = windex(header, "taxonID_A")
   usage_b_pos = windex(header, "taxonID_B")
-  record_match_pos = windex(header, "recordMatch")  # an id in A
-  change_pos = windex(header, "change")
-  remark_pos = windex(header, "remark")
   parent_pos = windex(header, "parentNameUsageID")
   accepted_pos = windex(header, "acceptedNameUsageID")
+  remarks_pos = windex(header, "remarks")
+  if key_pos == None or usage_a_pos == None:
+    print("!! Not an alignment file %s" % (header,), file=sys.stderr)
+    assert False
+
+  # Phase these out
+  record_match_pos = windex(header, "recordMatch")  # an id in A
+  change_pos = windex(header, "change")
 
   key_to_union = {}   # taxonID -> union
   fixup = []
@@ -204,9 +208,9 @@ def load_alignment(iterator, a_usage_dict, b_usage_dict):
     if change_pos != None:
       change = row[change_pos]
       if change != MISSING: set_change(union, change)
-    if remark_pos != None:
-      remark = row[remark_pos]
-      if remark != MISSING: set_remark(union, remark)
+    if remarks_pos != None:
+      remarks = row[remarks_pos]
+      if remarks != MISSING: set_remarks(union, remarks)
 
   for (union, parent_key, accepted_key, record_match_key) in fixup:
     if accepted_key != MISSING:
@@ -254,5 +258,6 @@ if __name__ == '__main__':
         rep = report(csv.reader(a_file),
                      csv.reader(b_file),
                      csv.reader(alignment_file),
+                     csv.reader(matches_file),
                      diff_mode)
         util.write_generated(rep, sys.stdout)
