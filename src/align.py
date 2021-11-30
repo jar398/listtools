@@ -16,8 +16,7 @@ debug = False
 def is_top(x): return get_key(x) == TOP
 
 def monitor(x):
-  # (x and (get_canonical(x, None) == "Myomyscus angolensis"))
-  return False
+  return (x and (get_canonical(x, None) == "Tachyglossus australis"))
 
 # -----------------------------------------------------------------------------
 # Supervise the overall process
@@ -35,12 +34,14 @@ def align(a_iterator, b_iterator, rm_sum_iterator=None):
 
   calculate_xmrcas(a_roots, b_roots, rm_sum)
 
-  # Merge the two trees
+  # Connect the two trees
   sum = set_equivalences(a_roots, b_roots, rm_sum)
-  roots = set_superiors(a_roots, b_roots, sum, rm_sum)
 
   # Assign names
   assign_canonicals(sum)
+
+  # Create a single merged hierarchy
+  roots = set_superiors(a_roots, b_roots, sum, rm_sum)
 
   # Emit tabular version of merged tree
   return generate_alignment(sum, roots, rm_sum)
@@ -60,7 +61,7 @@ def assign_canonicals(sum):
         b_index_by_name[name] = y
   print("# %s B canonicals" % len(b_index_by_name),
         file=sys.stderr)
-  count = 0
+  count = sci_count = 0
   losers = 0
   for u in key_to_union.values():
     y = out_b(u)
@@ -72,24 +73,17 @@ def assign_canonicals(sum):
       name = get_canonical(x, None)
       sci_name = get_scientific(x, None)
       if name in b_index_by_name:
-        y = b_index_by_name[name]
         name = name + " sec. A"
-        if False:
-          rcc5 = related_how(x, y)[0]
-          print("  %s %s %s" %
-                (name,
-                 rcc5_symbols[rcc5],
-                 get_canonical(y, "[no canonical]")),
-                file=sys.stderr)
     if name:
       set_canonical(u, name)
       count += 1
     if sci_name:
       set_scientific(u, sci_name)
-      count += 1
+      sci_count += 1
     if not name and not sci_name:
       losers += 1
-  print("# %s A+B canonicals (%s without)" % (count, losers),
+  print("# %s canonicals, %s scientifics, %s nameless" %
+        (count, sci_count, losers),
         file=sys.stderr)
 
 # -----------------------------------------------------------------------------
@@ -174,7 +168,7 @@ def load_usages(iterator):
         else:
           if monitor(usage) or monitor(accepted_usage):
             print("> accepted %s := %s" %
-                  (get_blurb(usage), get_blurb(accespted_usage)),
+                  (get_blurb(usage), get_blurb(accepted_usage)),
                   file=sys.stderr)
       else:
         print("-- Dangling accepted: %s -> %s" % (get_key(usage), accepted_key),
@@ -302,27 +296,24 @@ def cache_levels(roots):
     cache(root, 1)
 
 def find_peers(x, y):
-  assert x and y
   while get_level(x) < get_level(y):
     y = get_superior(y)
   while get_level(x) > get_level(y):
     x = get_superior(x)
   return (x, y)
 
+def le(x, y):
+  while get_level(x) > get_level(y):
+    x = get_superior(x)
+  return x == y
+
+def lt(x, y): return le(x, y) and x != y
+
 def mrca(x0, y0):
   (x, y) = find_peers(x0, y0)
-  (x0, y0) = (x, y)    # save for error messages
   while not (x is y):
     x = get_superior(x)
-    if not x:
-      print("!! mrca off top: x0 %s y0 %s" % (get_key(x0), get_key(y0)),
-            file=sys.stderr)
-      break
     y = get_superior(y)
-    if not y:
-      print("!! mrca top off: x0 %s y0 %s" % (get_key(x0), get_key(y0)),
-            file=sys.stderr)
-      break
   return x
 
 # -----------------------------------------------------------------------------
@@ -600,16 +591,6 @@ def how_related(x, y):
 
 def related_how(p, q):
   result = really_related_how(p, q)
-  if False:
-    result2 = really_related_how(q, p)
-    want = result2[0]
-    if want == LT: want = GT
-    elif want == GT: want = LT
-    if want != result[0]:
-      print("!! Comparison is asymmetric: %s %s %s because %s\n   vs. %s because %s" %
-            (get_blurb(p), rcc5_symbols[result[0]], get_blurb(q),
-             result[1], rcc5_symbols[result2[0]], result2[1]),
-            file=sys.stderr)
   if (result[0] == DISJOINT and
       (get_accepted(p, None) or get_accepted(q, None)) and
       get_superior(p) == get_superior(q)):
@@ -624,18 +605,21 @@ def related_how(p, q):
 def really_related_how(p, q):
 
   d = get_xmrca(p, None)        # p ? d
+  if d:
+    p0 = get_xmrca(d, None)     # d <= p0
+    assert p0
+  else:
+    p0 = p
+
   c = get_xmrca(q, None)        # q ? c
+  if c:
+    q0 = get_xmrca(c, None)     # c <= q0
+    assert q0
+  else:
+    q0 = q
 
-  if c == None: return (DISJOINT, "q is peripheral", p, q)
-  if d == None: return (DISJOINT, "p is peripheral", p, q)
-
-  # p0 is the xmrca round-trip via d
-  # q0 is the xmrca round-trip via c
-  p0 = get_xmrca(d, None)             # d <= p0
-  q0 = get_xmrca(c, None)             # c <= q0
-
-  if p0 == None: return (DISJOINT, "q is peripheral?", p, q)
-  if q0 == None: return (DISJOINT, "p is peripheral?", p, q)
+  if not c and not d:
+    return (DISJOINT, "both peripheral", None, None)
 
   # We can now test relative order of p, c, p0 and q, d, q0
   # subject to d <= p0 and c <= q0
@@ -644,24 +628,29 @@ def really_related_how(p, q):
 
   p0_le_p = le(p0, p)
   q0_le_q = le(q0, q)
-  p_lesseq_q = (le(p, c) and q0_le_q)
-  q_lesseq_p = (le(q, d) and p0_le_p)
+  p_lesseq_q = (c and le(p, c) and q0_le_q)
+  q_lesseq_p = (q and le(q, d) and p0_le_p)
 
   if p_lesseq_q:
     if p != c:
       return (LT, "p < c <= q0 <= q", None, None)
     elif q0 != q:
       return (LT, "p <= c <= q0 < q", None, None)
-    elif q_lesseq_p:
-      return (EQ, "p <= c <= q0 <= q <= d <= p0 <= p", None, None)
   if q_lesseq_p:
     if q != d:
       return (GT, "q < d <= p0 <= p", None, None)
     elif p0 != p:
       return (GT, "q <= d <= p0 < p", None, None)
+  if p_lesseq_q and q_lesseq_p:
+    return (EQ, "p <= c <= q0 <= q <= d <= p0 <= p", None, None)
 
   if p0_le_p and p0 == c and q0_le_q and q0 == d:
     return compare_in_cluster(p, p0, q, q0)
+
+  # Hmm, tricky.  A peripheral node is either disjoint from or less
+  # than each node in the other tree.  Both cases are handled above.
+  # Therefore neither p nor q is peripheral at this point.
+  assert c and d
 
   return compare_carefully(p, q)
 
@@ -679,13 +668,15 @@ def compare_carefully(p, q):
     elif g:
       return (LT, "checked", True, None)
     else:
-      if False and not (f1 and f2):
-        print("!! Missing f1/f2. %s ? %s" % (get_blurb(p), get_blurb(q)),
+      # A node and one of its synonyms
+      if monitor(p) or monitor(q):      
+        print("!! Unclear - %s ? %s\n   %s, %s" %
+              (get_blurb(p), get_blurb(q), get_blurb(f1), get_blurb(f2)),
               file=sys.stderr)
-      return (EQ, "checked ??", True, None) # shouldn't happen?
+      return (UNCLEAR, "checked ??", True, True)
   elif e or g:
     return (DISJOINT, "checked", p, q)
-  else:
+  else:                         # Within a cluster
     if monitor(p) or monitor(q):
       print("!! Unclear. %s ? %s" % (get_blurb(p), get_blurb(q)),
             file=sys.stderr)
@@ -696,8 +687,9 @@ def compare_carefully(p, q):
 
 def seek_conflict(p, q):
   o = get_xmrca(p, None)
-  if o == None: return (None, None)
-
+  if o == None:
+    # Peripheral - no way to know
+    return (None, None) #  ????????????
   rel = how_related(o, q)
   if rel == LT:
     return (p, None)
@@ -708,7 +700,7 @@ def seek_conflict(p, q):
       print("!! Equivocal: %s ? %s" %
             (get_blurb(p), get_blurb(q)),
             file=sys.stderr)
-    return (None, None)
+    return (p, p)     # (None, None)
   else:    # GT EQ
     p_and_q = p_not_q = None                # in A
     for x in get_children(p, []):           # Disjoint
@@ -730,7 +722,8 @@ def seek_conflict(p, q):
                 (get_blurb(p), get_blurb(q),
                  get_blurb(p_and_q), get_blurb(p_not_q)),
                 file=sys.stderr)
-        return (None, None)  # was: return (None, p_not_q)
+        # return (None, None)  # was: return (None, p_not_q)
+        return (p_and_q, p_not_q)
     return (p_and_q, p_not_q)
 
 
@@ -777,9 +770,6 @@ def compare_in_cluster_2(p, p0, q, q0):
             if get_canonical(p) < get_canonical(q)
             else (GT, "name> kludge in cluster", True, None))
 
-def le(x, y): return mrca(x, y) == y
-def lt(x, y): return le(x, y) and x != y
-
 # -----------------------------------------------------------------------------
 # Now set the parent pointers for the merged tree
 
@@ -805,7 +795,7 @@ def set_superiors(a_roots, b_roots, sum, rm_sum):
 
 def half_set_superiors(a_roots, in_a, in_b, priority):
 
-  ejections = {}
+  elisions = {}
 
   def traverse(x):
     choose_superior(x, priority)
@@ -845,55 +835,55 @@ def half_set_superiors(a_roots, in_a, in_b, priority):
     else:
       # a = A = low priority
       answer = choose_nearest(get_superior(p), q, priority)
-      mep_set(ejections, p, (p, result, q, answer))
+      mep_set(elisions, p, (p, result, q, answer))
     return answer
 
   for root in a_roots: traverse(root)
 
-  if len(ejections) > 0:
-    print("* %s ejections.  Report follows." % len(ejections),
+  if len(elisions) > 0:
+    print("* %s elisions.  Report follows." % len(elisions),
           file=sys.stderr)
     writer = csv.writer(sys.stderr)
     writer.writerow(["p in A", "rcc5", "q in B", "⊆ p-q", "⊆ p∩q",
                      "⊆ q-p", "p∨q", "degraded"])
-    for (p_eject, result, q, safe) in ejections.values():
+    for (p_elide, result, q, safe) in elisions.values():
       # Need to remove q_eject from the merged hierarchy.  Turn it into a synonym
       # of safe and move its inferiors there.
-      ejector = mep_get(in_a, p_eject)
+      eliding = mep_get(in_a, p_elide)
+      (rel2, g, f, e) = result
+      set_parent(eliding, None)   # Detach it from the A hierarchy
+      # Move the p-side children to a safe place.
       degraded = 0
-      if get_parent(ejector, None):
-        set_parent(ejector, None)   # Detach it from the A hierarchy
-        # Move the children to a safe place.
-        # N.b. inferiors of j have not been set yet
-        for c in get_inferiors(p_eject):
-          j = mep_get(in_a, c)
-          if get_superior(j) == ejector:
-            # set_alt_parent(j, ejector)
-            change_superior(j, safe)
-            if get_accepted(j, False):
-              add_remark(j, "synonym of ejected %s" % get_blurb(ejector))
-            else:
-              add_remark(j, "child of ejected %s" % get_blurb(ejector))
-            degraded += 1
+      for c in get_inferiors(p_elide):
+        j = mep_get(in_a, c)
+        if get_superior(j) == eliding:
+          # set_alt_parent(j, eliding)
+          change_superior(j, safe)
+          if get_accepted(j, False):
+            add_remark(j, "synonym of elided %s" % get_blurb(eliding))
+          else:
+            add_remark(j, "child of elided %s" % get_blurb(eliding))
+          degraded += 1
 
-        # Demote the failing node to a synonym
-        add_remark(ejector, "demoted because ejected")
-        # set_alt_parent(ejector, get_parent(ejector))
-        set_accepted(ejector, safe)
+      # Demote the ejecting node to a synonym
+      add_remark(eliding, ("elided because %s %s; parent was %s" %
+                           (rcc5_symbols[rel2], get_blurb(q),
+                            get_blurb(get_superior(p_elide)))))
+      # set_alt_parent(eliding, get_parent(eliding))
+      set_accepted(eliding, safe)
 
-        (rel2, g, f, e) = result
-        if rel2 == CONFLICT:
-          writer.writerow((get_blurb(p_eject), rcc5_symbols[rel2], get_blurb(q),
-                           get_blurb(e), get_blurb(f), get_blurb(g),
-                           get_blurb(safe), str(degraded)))
-        else:   # UNCLEAR or DISJOINT
-          writer.writerow((get_blurb(p_eject), rcc5_symbols[rel2], get_blurb(q),
-                           MISSING, MISSING, MISSING,
-                           get_blurb(safe), str(degraded)))
+      if rel2 == CONFLICT:
+        writer.writerow((get_blurb(p_elide), rcc5_symbols[rel2], get_blurb(q),
+                         get_blurb(e), get_blurb(f), get_blurb(g),
+                         get_blurb(safe), str(degraded)))
+      else:   # UNCLEAR or DISJOINT
+        writer.writerow((get_blurb(p_elide), rcc5_symbols[rel2], get_blurb(q),
+                         MISSING, MISSING, MISSING,
+                         get_blurb(safe), str(degraded)))
 
 def add_remark(x, rem):
   have = get_remarks(x, None)
-  if have != MISSING:
+  if have and have != MISSING:
     set_remarks(x, have + '|' + rem)
   else:
     set_remarks(x, rem)

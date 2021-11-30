@@ -15,7 +15,7 @@ from align import key_prop, get_key, \
   get_accepted, set_accepted, \
   get_children, get_synonyms, \
   get_canonical, get_rank, \
-  rcc5_symbols
+  rcc5_symbols, add_remark
 
 previous_prop = prop.Property("previous")
 get_record_match = prop.getter(previous_prop)
@@ -136,7 +136,7 @@ def generate_report(al, ma, diff_mode):
         bx = bx + " " + noise
         by = noise + " " + by
       add_remark(u, comment)
-      yield [bx, by, rank, comment, remarks]
+      yield [bx, by, rank, comment, get_remarks(u, MISSING)]
     for c in get_children(u, []):
       for row in traverse(c): yield row
     for s in get_synonyms(u, []):
