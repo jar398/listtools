@@ -16,7 +16,7 @@ debug = False
 def is_top(x): return get_key(x) == TOP
 
 def monitor(x):
-  return (x and (get_canonical(x, None) == "Tachyglossus australis"))
+  return (x and get_canonical(x, None).startswith("Metachirus"))
 
 # -----------------------------------------------------------------------------
 # Supervise the overall process
@@ -59,8 +59,9 @@ def assign_canonicals(sum):
       name = get_canonical(y, None)
       if name:
         b_index_by_name[name] = y
-  print("# %s B canonicals" % len(b_index_by_name),
-        file=sys.stderr)
+  if debug:
+    print("# %s B canonicals" % len(b_index_by_name),
+          file=sys.stderr)
   count = sci_count = 0
   losers = 0
   for u in key_to_union.values():
@@ -82,9 +83,10 @@ def assign_canonicals(sum):
       sci_count += 1
     if not name and not sci_name:
       losers += 1
-  print("# %s canonicals, %s scientifics, %s nameless" %
-        (count, sci_count, losers),
-        file=sys.stderr)
+  if debug:
+    print("# %s canonicals, %s scientifics, %s nameless" %
+          (count, sci_count, losers),
+          file=sys.stderr)
 
 # -----------------------------------------------------------------------------
 # Hierarchy file ingest
@@ -417,86 +419,118 @@ union_count = 0
 # -----------------------------------------------------------------------------
 # 8. Cross-mrcas
 
+center_prop = prop.Property("center")
+get_center = prop.getter(center_prop)
+set_center = prop.setter(center_prop)
+
 xmrca_prop = prop.Property("xmrca")
 get_xmrca = prop.getter(xmrca_prop)
 set_xmrca = prop.setter(xmrca_prop)
 
-def calculate_xmrcas(a_roots, b_roots, rm_sum):
-  (_, rm_in_a, rm_in_b) = rm_sum
-  def half_xmrcas(roots, record_match):
-    def traverse(x):
-      y = None
-      for c in get_inferiors(x):
-        n = traverse(c)
-        if n:
-          if y:
-            y = mrca(y, n)
-          else:
-            y = n
-      if y == None:
-        y = record_match(x)     # See if this is a tipward match
-      if y:
-        if monitor(x):
-            print("> xmrca(%s) := %s" % (get_blurb(x), get_blurb(y)),
-                  file=sys.stderr)
-        set_xmrca(x, y)
-      return y
-    for root in roots: traverse(root)
-  half_xmrcas(a_roots, lambda x:out_b(mep_get(rm_in_a, x)))
-  half_xmrcas(b_roots, lambda y:out_a(mep_get(rm_in_b, y)))
+only_prop = prop.Property("only") # or 'monotype'
+get_only = prop.getter(only_prop)
+set_only = prop.setter(only_prop)
 
-  fix_xmrcas(a_roots, b_roots, rm_sum)
+def calculate_xmrcas(a_roots, b_roots, rm_sum):
+  calculate_centers(a_roots, b_roots, rm_sum)
+
+def calculate_centers(a_roots, b_roots, rm_sum):
+  (_, rm_in_a, rm_in_b) = rm_sum
+  def half(roots, other, record_match):
+    def traverse(x):
+      only = None
+      y = None                  # mrca of the central children
+      for c in get_inferiors(x):
+        y_c = traverse(c)         # in b
+        if y_c:
+          if y:
+            y = mrca(y, y_c)
+            only = None
+          else:
+            y = y_c
+            only = y_c
+      if not y:
+        # Match tip to tip or to internal node (asymmetric center)
+        y = record_match(x)
+      if y:
+        set_center(x, y)
+        if monitor(x):
+          print("> center(%s) := %s %s" % (get_blurb(x), get_blurb(y), not not only),
+                file=sys.stderr)
+        if only and not is_top(x):        
+          assert y == only
+          if monitor(x):
+            print("> only(%s) := %s" % (get_blurb(x), get_blurb(only)),
+                  file=sys.stderr)
+          set_only(x, only)
+      return y
+    for root in roots:
+      traverse(root)
+      set_center(root, other)
+  half(a_roots, b_roots[0], lambda x:out_b(mep_get(rm_in_a, x)))
+  half(b_roots, a_roots[0], lambda y:out_a(mep_get(rm_in_b, y)))
+
+  set_xmrcas(a_roots, b_roots, rm_sum)
   check_xmrcas(a_roots, b_roots)
 
-# Use record matches to resolve correspondence within clusters
+# Use record matches to improve xmrcas within clusters
 
-def fix_xmrcas(a_roots, b_roots, rm_sum):
+def set_xmrcas(a_roots, b_roots, rm_sum):
   (_, rm_in_a, rm_in_b) = rm_sum
-  def half_fix(roots, record_match):
-    def traverse(x):
-      y = record_match(x)
-      if y:
-        y0 = get_xmrca(x)
-        x0 = get_xmrca(y0)
-        if le(x0, x):
-          # assert get_xmrca(x0) == y0 !! why not?
-          if get_xmrca(y) == x0:
-            # y is in the x0/y0 cluster
-            if y != y0:
-              z = x
-              while z and get_xmrca(z) == y0:
-                if monitor(x):
-                 print("# Fixing A %s: %s -> %s" %
-                      (get_blurb(z), get_blurb(get_xmrca(z)), get_blurb(y)),
-                      file=sys.stderr)
-                set_xmrca(z, y)
-                z = get_superior(z)
-            if x != x0:
-              z = y
-              while z and get_xmrca(z) == x0:
-                if monitor(x):
-                 print("# Fixing B %s: %s -> %s" %
-                      (get_blurb(z), get_blurb(get_xmrca(z)), get_blurb(x)),
-                      file=sys.stderr)
-                set_xmrca(z, x)
-                z = get_superior(z)
-      for c in get_inferiors(x):
-        traverse(c)
-    for root in roots: traverse(root)
-  half_fix(a_roots, lambda x:out_b(mep_get(rm_in_a, x)))
-  half_fix(b_roots, lambda y:out_a(mep_get(rm_in_b, y)))
-  a_top = a_roots[0]
-  b_top = b_roots[0]
-  assert get_xmrca(a_top) == b_top
-  assert get_xmrca(b_top) == a_top # FAILS
+  def half(roots, top, record_match):
+    def traverse(x, y_upper):
+      d = get_center(x, None)
+      assert y_upper
+      if is_top(x) or not d or is_top(d):
+        y = top
+      elif get_only(x, None):
+        # Go just rootward of center
+        y = get_superior(d)
+        assert y
+
+        # See if record match (even more rootward) can override
+        r = record_match(x)    # on the other side
+        if r:
+          # Match has to be to another only taxon...
+          # and it has to be rootward of x's center ('only')...
+          # and it has to have the same center as x's center
+          if (get_only(r, None) and le(y, r) and 
+              get_center(r) == get_center(d)):
+            if monitor(x):
+              # assert lt(s, y_upper)  etc etc
+              print("> Record match for %s" %
+                    (get_blurb(x),),
+                    file=sys.stderr)
+            # Cleave the cluster!
+            y = r
+      else:
+        # Not linear, so no change to xmrca, but propagate.
+        y = d or y_upper
+      assert not d or le(d, y)
+      if d != y:
+        if monitor(x):
+          print("> %s: center %s -> xmrca %s, only=%s" %
+                (get_blurb(x), get_blurb(d),
+                 get_blurb(y), not not get_only(x, None)),
+                file=sys.stderr)
+      set_xmrca(x, y)
+      for c in get_inferiors(x): traverse(c, y)
+    for x in roots:
+      traverse(x, top)
+
+  def equivalent(x, y):
+    return x == get_center(y) and get_center(x) == y
+
+  half(a_roots, b_roots[0], lambda x:out_b(mep_get(rm_in_a, x)))
+  half(b_roots, a_roots[0], lambda y:out_a(mep_get(rm_in_b, y)))
 
 def check_xmrcas(a_roots, b_roots):
   def check(x):
     for c in get_inferiors(x): check(c)
     y = get_xmrca(x, None)
     if y and not get_xmrca(y, None):
-      print("!! non-mutual xmrca: x %s %s y %s %s" %
-            (get_key(x), get_canonical(x), get_key(y), get_canonical(x),),
+      print("!! Non-mutual xmrca: x %s y %s" %
+            (get_blurb(x), get_blurb(x)),
             file=sys.stderr)
       assert False
   for root in a_roots: check(root)
@@ -516,7 +550,7 @@ def set_equivalences(a_roots, b_roots, rm_sum):
   def traverse(x):
     mem = False
     for c in get_inferiors(x):
-      mem = traverse(c) | mem
+      mem = traverse(c) or mem
     y = get_xmrca(x, None)      # in B
     if y != None and x == get_xmrca(y, None):
       # Mutual xmrca with xmrca... that means they're equivalent
@@ -590,6 +624,7 @@ def how_related(x, y):
 #   g is <= q but ! p
 
 def related_how(p, q):
+  assert p and q
   result = really_related_how(p, q)
   if (result[0] == DISJOINT and
       (get_accepted(p, None) or get_accepted(q, None)) and
@@ -607,14 +642,17 @@ def really_related_how(p, q):
   d = get_xmrca(p, None)        # p ? d
   if d:
     p0 = get_xmrca(d, None)     # d <= p0
-    assert p0
   else:
     p0 = p
+
+  if monitor(p) or monitor(p0):
+   if not le(p, p0):
+    print("%s not<= %s <= %s" % (get_blurb(p), get_blurb(d), get_blurb(p0)),
+          file=sys.stderr)
 
   c = get_xmrca(q, None)        # q ? c
   if c:
     q0 = get_xmrca(c, None)     # c <= q0
-    assert q0
   else:
     q0 = q
 
@@ -631,30 +669,18 @@ def really_related_how(p, q):
   p_lesseq_q = (c and le(p, c) and q0_le_q)
   q_lesseq_p = (q and le(q, d) and p0_le_p)
 
-  if p_lesseq_q:
-    if p != c:
-      return (LT, "p < c <= q0 <= q", None, None)
-    elif q0 != q:
-      return (LT, "p <= c <= q0 < q", None, None)
-  if q_lesseq_p:
-    if q != d:
-      return (GT, "q < d <= p0 <= p", None, None)
-    elif p0 != p:
-      return (GT, "q <= d <= p0 < p", None, None)
   if p_lesseq_q and q_lesseq_p:
     return (EQ, "p <= c <= q0 <= q <= d <= p0 <= p", None, None)
-
-  if p0_le_p and p0 == c and q0_le_q and q0 == d:
-    return compare_in_cluster(p, p0, q, q0)
+  if p_lesseq_q and (p != c or q0 != q):
+    return (LT, "p <= c <= q0 <= q", None, None)
+  if q_lesseq_p and (q != d or p0 != p):
+    return (GT, "q <= d <= p0 <= p", None, None)
 
   # Hmm, tricky.  A peripheral node is either disjoint from or less
   # than each node in the other tree.  Both cases are handled above.
   # Therefore neither p nor q is peripheral at this point.
   assert c and d
 
-  return compare_carefully(p, q)
-
-def compare_carefully(p, q):
   # Brute force
   (f1, e) = seek_conflict(p, q)
   (f2, g) = seek_conflict(q, p)
@@ -668,7 +694,7 @@ def compare_carefully(p, q):
     elif g:
       return (LT, "checked", True, None)
     else:
-      # A node and one of its synonyms
+      # Not enough information to be able to decide
       if monitor(p) or monitor(q):      
         print("!! Unclear - %s ? %s\n   %s, %s" %
               (get_blurb(p), get_blurb(q), get_blurb(f1), get_blurb(f2)),
@@ -686,7 +712,7 @@ def compare_carefully(p, q):
 # Assumes initially that either p > q or p >< q
 
 def seek_conflict(p, q):
-  o = get_xmrca(p, None)
+  o = get_center(p, None)
   if o == None:
     # Peripheral - no way to know
     return (None, None) #  ????????????
@@ -726,52 +752,8 @@ def seek_conflict(p, q):
         return (p_and_q, p_not_q)
     return (p_and_q, p_not_q)
 
-
-def compare_in_cluster(p, p0, q, q0):
-  if p == p0: return (LT, "> in cluster", None, None)
-  if q == q0: return (GT, "> in cluster", None, None)
-
-  if True:
-    return (UNCLEAR, "comparison with cluster", None, None)
-
-  # if x > y then level x < level y
-  cmp = ((get_level(p0) - get_level(p)) -
-         (get_level(q0) - get_level(q)))
-  print("# Kludge: %s - %s = %s" % (get_blurb(p), get_blurb(q), cmp),
-        file=sys.stderr)
-  if cmp == 0:
-    return (EQ, "Kludge: = in cluster", None, None)
-  elif cmp > 0:
-    return (GT, "Kludge: > in cluster", True, None)
-  else:
-    return (LT, "Kludge: < in cluster", None, True)
-
-def compare_in_cluster_2(p, p0, q, q0):
-  if p == p0 and q == q0:
-    return (EQ, "p <= p0 <= d = q <= q0 <= c = p", True, None)
-  if p == p0:
-    return (LT, "< in cluster", None, True)
-  elif q == q0:                 # q > q0
-    return (GT, "> in cluster", True, None)
-  elif is_top(p):
-    if is_top(q):
-      return (EQ, "top = top", True, None)
-    else:
-      return (GT, "top > q", True, None)
-  elif is_top(q): return (LT, "p < top", None, True)
-  elif get_canonical(p) == get_canonical(q):
-    # TEMP KLUDGE
-    return (EQ, "name= kludge in cluster", None, None)
-  else:
-    print("!! Don't know how to compare %s to %s\n   p0=%s q0=%s" %
-          (get_blurb(p), get_blurb(q), get_blurb(p0), get_blurb(q0)),
-          file=sys.stderr)
-    return ((LT, "name< kludge in cluster", None, True)
-            if get_canonical(p) < get_canonical(q)
-            else (GT, "name> kludge in cluster", True, None))
-
 # -----------------------------------------------------------------------------
-# Now set the parent pointers for the merged tree
+# Now set the parent pointers for the spanning tree
 
 def set_superiors(a_roots, b_roots, sum, rm_sum):
   (key_to_union, in_a, in_b) = sum
@@ -780,9 +762,10 @@ def set_superiors(a_roots, b_roots, sum, rm_sum):
 
   half_set_superiors(b_roots, in_b, in_a, True)    # first, B = priority
   half_set_superiors(a_roots, in_a, in_b, False)
-  print("# %s in a, %s in b, %s union keys" %
-        (len(in_a), len(in_b), len(key_to_union)),
-        file=sys.stderr)
+  if debug:
+    print("# %s in a, %s in b, %s union keys" %
+          (len(in_a), len(in_b), len(key_to_union)),
+          file=sys.stderr)
 
   unions = key_to_union.values()
   roots = collect_inferiors(unions)
@@ -811,12 +794,10 @@ def half_set_superiors(a_roots, in_a, in_b, priority):
       if q == None:
         answer = mep_get(in_a, p)    # peripheral
       else:
-        while True:
-          rel = related_how(x, q)[0]
-          if rel == EQ or rel == GT:    # GT case should never happen
-            q = get_superior(q)
-          else:
-            break
+        rel = related_how(x, q)[0]
+        assert rel != GT
+        if rel == EQ:    # GT case should never happen
+          q = get_superior(q)
         answer = choose_nearest(p, q, priority)
       set_superior(u, answer)
     return answer
@@ -824,6 +805,7 @@ def half_set_superiors(a_roots, in_a, in_b, priority):
   # Pick the most rootward of the two
 
   def choose_nearest(p, q, priority):
+    assert p and q
     result = related_how(p, q)
     rel = result[0]
     if rel == LT or rel == EQ:
@@ -840,12 +822,13 @@ def half_set_superiors(a_roots, in_a, in_b, priority):
 
   for root in a_roots: traverse(root)
 
-  if len(elisions) > 0:
+  # Report on elisions (well wait, what are these semantically?)
+
+  def report_on_elisions(elisions):
     print("* %s elisions.  Report follows." % len(elisions),
           file=sys.stderr)
-    writer = csv.writer(sys.stderr)
-    writer.writerow(["p in A", "rcc5", "q in B", "⊆ p-q", "⊆ p∩q",
-                     "⊆ q-p", "p∨q", "degraded"])
+    yield(["p in A", "rcc5", "q in B", "⊆ p-q", "⊆ p∩q",
+           "⊆ q-p", "p∨q", "multi-parent"])
     for (p_elide, result, q, safe) in elisions.values():
       # Need to remove q_eject from the merged hierarchy.  Turn it into a synonym
       # of safe and move its inferiors there.
@@ -877,9 +860,14 @@ def half_set_superiors(a_roots, in_a, in_b, priority):
                          get_blurb(e), get_blurb(f), get_blurb(g),
                          get_blurb(safe), str(degraded)))
       else:   # UNCLEAR or DISJOINT
-        writer.writerow((get_blurb(p_elide), rcc5_symbols[rel2], get_blurb(q),
-                         MISSING, MISSING, MISSING,
-                         get_blurb(safe), str(degraded)))
+        yield((get_blurb(p_elide), rcc5_symbols[rel2], get_blurb(q),
+               MISSING, MISSING, MISSING,
+               get_blurb(safe), str(degraded)))
+
+  if len(elisions) > 0:
+    writer = csv.writer(sys.stderr)
+    for row in report_on_elisions(elisions):
+      writer.writerow(row)
 
 def add_remark(x, rem):
   have = get_remarks(x, None)

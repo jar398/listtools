@@ -17,7 +17,7 @@ def test(n1, n2):
   #util.write_generated((row for row in rows), sys.stdout)
   return newick.generate_newick((row for row in rows))
 
-def run_test(A, B, expect):
+def run_test(A, B, expect, noisy):
   print("\nTest: %s + %s" % (A, B))
   print("  or %s + %s" % (newick.generate_newick(newick.parse_newick(A)),
                           newick.generate_newick(newick.parse_newick(B))))
@@ -25,6 +25,8 @@ def run_test(A, B, expect):
   if expect and n3 != expect:
     print("*** TEST FAILED *** A+B = %s != %s\n" % (n3, expect))
     return 1
+  elif noisy:
+    print(n3)
   return 0
 
 def run_tests():
@@ -41,7 +43,7 @@ def run_tests():
   ]
   failures = 0
   for (n1, n2, want) in tests:
-    failures += run_test(n1, n2, want)
+    failures += run_test(n1, n2, want, False)
   if failures > 0:
     print("\n*** %s tests failed\n" % failures, file=sys.stderr)
   return failures
@@ -54,7 +56,7 @@ if __name__ == '__main__':
   args=parser.parse_args()
 
   if args.A and args.B:
-    n3 = run_test(args.A, args.B, args.expect)
+    n3 = run_test(args.A, args.B, args.expect, True)
     print("A+B = %s" % n3, file=sys.stderr)
   else:
     failures = run_tests()
