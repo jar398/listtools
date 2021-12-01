@@ -479,8 +479,10 @@ def set_xmrcas(a_roots, b_roots, rm_sum):
   (_, rm_in_a, rm_in_b) = rm_sum
   def half(roots, top, record_match):
     def traverse(x, y_upper):
-      d = get_center(x, None)
       assert y_upper
+      d = get_center(x, None)
+      assert not get_only(x, None) == (get_center(d, None) == x)
+      
       if is_top(x) or not d or is_top(d):
         y = top
       elif get_only(x, None):
