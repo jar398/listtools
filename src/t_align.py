@@ -18,7 +18,7 @@ def test(n1, n2):
   return newick.generate_newick((row for row in rows))
 
 def run_test(A, B, expect, noisy):
-  print("\nTest: %s + %s" % (A, B))
+  print("\nsrc/t_align.py '%s' '%s'" % (A, B))
   print("  or %s + %s" % (newick.generate_newick(newick.parse_newick(A)),
                           newick.generate_newick(newick.parse_newick(B))))
   n3 = test(A, B)
@@ -33,7 +33,7 @@ def run_tests():
   tests = [
     ("a", "a", "a"),
     ("(b)a", "(c)a", "(b,c)a"),
-    ("(b)a", "(b)c", "((b)a)c"),
+    #("(b)a", "(b)c", "((b)a)c"),
     ("(b,c)a", "(c,d)a", "(b,c,d)a"),
     ("((b,c)g,d)a", "(b,c,d)a", "((b,c)g,d)a"),
     ("(b,c,d)a", "((b,c)g,d)a", "((b,c)g,d)a"),

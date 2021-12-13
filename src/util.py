@@ -3,7 +3,7 @@
 
 import sys, io, argparse, csv, hashlib
 
-MISSING = ''
+MISSING = ''  # property.MISSING
 
 def read_csv(inport, pk_col=None, key=None):
   return ingest_csv(csv.reader(inport), pk_col, key)
@@ -87,4 +87,24 @@ def write_generated(gen, outfile):
   writer = csv.writer(outfile)
   for row in gen:
     writer.writerow(row)
+
+
+# 
+
+def log(mess):
+  print(mess, file=sys.stderr)
+
+
+# moved from property.py
+
+_nodefault = []
+def mep(): return {}
+def mep_get(mep, x, default=_nodefault):
+  id = x.id
+  if default is _nodefault:
+    return mep[id]
+  else:
+    return mep.get(id, default)
+def mep_set(mep, x, j):
+  mep[x.id] = j
 

@@ -1,14 +1,19 @@
 #!/usr/bin/env python3
 
+NEW_STYLE = True
+
 # Align two trees (given as DwC files i.e. usage lists), with
 # sensitivity to parent/child relations.
 
 import sys, csv, argparse
 import util
-from util import windex, MISSING
+from util import windex, MISSING, log
 import property as prop
 from property import mep_get, mep_set
+import dwcfile
 import match_records
+from rcc5 import *
+from checklist import Source, make_sum, get_checklist
 
 TOP = "[top]"
 debug = False
@@ -16,199 +21,86 @@ debug = False
 def is_top(x): return get_key(x) == TOP
 
 def monitor(x):
-  return (x and get_canonical(x, None).startswith("Metachirus"))
+  return (x and len(get_canonical(x, None)) == 1) #.startswith("Metachirus"))
+
+alt_parent_prop = prop.Property("alt_parent") # Next bigger
+get_alt_parent = prop.getter(alt_parent_prop)
+set_alt_parent = prop.setter(alt_parent_prop)
 
 # -----------------------------------------------------------------------------
 # Supervise the overall process
 
 def align(a_iterator, b_iterator, rm_sum_iterator=None):
+  global rm_sum  # foo
   if rm_sum_iterator == None:
     # Need to copy the iterators!
     (a_iterator, a_iterator_copy) = dup_iterator(a_iterator)
     (b_iterator, b_iterator_copy) = dup_iterator(b_iterator)
     rm_sum_iterator = match_records.match_records(a_iterator_copy, b_iterator_copy)
+  A = dwcfile.load_source(a_iterator, "A")
+  B = dwcfile.load_source(b_iterator, "B")
   # Load record matches
-  (a_usage_dict, a_roots) = load_usages(a_iterator)
-  (b_usage_dict, b_roots) = load_usages(b_iterator)
-  rm_sum = load_sum(rm_sum_iterator, a_usage_dict, b_usage_dict)
+  rm_sum = load_sum(rm_sum_iterator, A, B)
 
-  calculate_xmrcas(a_roots, b_roots, rm_sum)
+  sum = checklist.make_sum(A, B, "")
+  forge_links(sum, rm_sum)   # Find links to other checklist for all nodes (lower bounds)
 
-  # Connect the two trees
-  sum = set_equivalences(a_roots, b_roots, rm_sum)
-
-  # Assign names
-  assign_canonicals(sum)
+  # Create sum and connect the two trees
+  analyze_order(sum, rm_sum)
 
   # Create a single merged hierarchy
-  roots = set_superiors(a_roots, b_roots, sum, rm_sum)
+  roots = spanning_tree(A, B, sum)
 
   # Emit tabular version of merged tree
-  return generate_alignment(sum, roots, rm_sum)
+  return emit_spanning_tree(sum, roots, rm_sum)
 
 def dup_iterator(iter):
   clunk = list(iter)
   return ((x for x in clunk), (x for x in clunk))
 
-def assign_canonicals(sum):
-  (key_to_union, in_a, in_b) = sum
-  b_index_by_name = {}
-  for u in key_to_union.values():
-    y = out_b(u)
-    if y:
-      name = get_canonical(y, None)
-      if name:
-        b_index_by_name[name] = y
-  if debug:
-    print("# %s B canonicals" % len(b_index_by_name),
-          file=sys.stderr)
-  count = sci_count = 0
-  losers = 0
-  for u in key_to_union.values():
-    y = out_b(u)
-    if y:
-      name = get_canonical(y, None)
-      sci_name = get_scientific(y, None)
-    else:
-      x = out_a(u)
-      name = get_canonical(x, None)
-      sci_name = get_scientific(x, None)
-      if name in b_index_by_name:
-        name = name + " sec. A"
-    if name:
-      set_canonical(u, name)
-      count += 1
-    if sci_name:
-      set_scientific(u, sci_name)
-      sci_count += 1
-    if not name and not sci_name:
-      losers += 1
-  if debug:
-    print("# %s canonicals, %s scientifics, %s nameless" %
-          (count, sci_count, losers),
-          file=sys.stderr)
-
 # -----------------------------------------------------------------------------
-# Hierarchy file ingest
 
-key_prop = prop.Property("primary_key")
-get_key = prop.getter(key_prop)
+def pick_unique(x):
+  unique = get_unique(x, None)
+  if unique: return unique
+  unique = suggestion or get_canonical(x, None) or get_key(x)
+  i = 1
+  while unique in get_checklist(x).index.by_unique_dict:
+    log("# %s is in by_unique_dict !?? %s -> %s" %
+        (unique,
+         get_key(source.index.by_unique_dict.get(unique)),
+         key))
+    unique = "%s(%s)" % (canonical, i)
+    i += 1
+  set_unique(x, unique)
+  get_checklist(x).index.by_unique_dict[unique] = x
+  return x
 
-canonical_prop = prop.Property("canonical")
-get_canonical = prop.getter(canonical_prop)
-set_canonical = prop.setter(canonical_prop)
-
-scientific_prop = prop.Property("scientific")
-get_scientific = prop.getter(scientific_prop)
-set_scientific = prop.setter(scientific_prop)
-
-rank_prop = prop.Property("rank")
-get_rank = prop.getter(rank_prop)
-set_rank = prop.setter(rank_prop)
-
-year_prop = prop.Property("year")
-get_year = prop.getter(year_prop)
-set_year = prop.setter(year_prop)
-
-make_usage = prop.constructor(key_prop)
-
-parent_prop = prop.Property("parent")
-get_parent = prop.getter(parent_prop)
-set_parent = prop.setter(parent_prop)
-
-accepted_prop = prop.Property("accepted")
-get_accepted = prop.getter(accepted_prop)
-set_accepted = prop.setter(accepted_prop)
-
-def load_usages(iterator):
-  header = next(iterator)
-  key_pos = windex(header, "taxonID")
-  canonical_pos = windex(header, "canonicalName")
-  scientific_pos = windex(header, "scientificName")
-  rank_pos = windex(header, "taxonRank")
-  year_pos = windex(header, "year")
-  parent_pos = windex(header, "parentNameUsageID")
-  accepted_pos = windex(header, "acceptedNameUsageID")
-
-  fixup = []
-  key_to_usage = {}
-  for row in iterator:
-    key = row[key_pos]
-    usage = make_usage(key)
-    if canonical_pos != None:
-      name = row[canonical_pos]
-      if name != MISSING: set_canonical(usage, name)
-    if scientific_pos != None:
-      sci = row[scientific_pos]
-      if sci != MISSING: set_scientific(usage, sci)
-    if rank_pos != None:
-      rank = row[rank_pos]
-      if rank != MISSING: set_rank(usage, rank)
-    if year_pos != None:
-      year = row[year_pos]
-      if year != MISSING: set_year(usage, year)
-
-    key_to_usage[key] = usage
-
-    accepted_key = row[accepted_pos] if accepted_pos else MISSING
-    if accepted_key == key: accepted_key = MISSING
-    parent_key = row[parent_pos]
-    if accepted_key != MISSING: parent_key = MISSING
-    assert parent_key != key
-    fixup.append((usage, parent_key, accepted_key))
-
-  seniors = 0
-  for (usage, parent_key, accepted_key) in fixup:
-    if accepted_key != MISSING:
-      accepted_usage = key_to_usage.get(accepted_key)
-      if accepted_usage:
-        set_accepted(usage, accepted_usage)
-        # Filter out senior synonyms here
-        if seniority(usage, accepted_usage) == "senior synonym":
-          seniors += 1
-          del key_to_usage[get_key(usage)] # ????
-        else:
-          if monitor(usage) or monitor(accepted_usage):
-            print("> accepted %s := %s" %
-                  (get_blurb(usage), get_blurb(accepted_usage)),
-                  file=sys.stderr)
-      else:
-        print("-- Dangling accepted: %s -> %s" % (get_key(usage), accepted_key),
-              file=sys.stderr)
-    elif parent_key != MISSING:
-      parent_usage = key_to_usage.get(parent_key)
-      if parent_usage:
-        set_parent(usage, parent_usage)
-        if monitor(usage) or monitor(parent_usage):
-          print("> parent %s := %s" % (get_blurb(usage), get_blurb(parent_usage)),
-                file=sys.stderr)
-      else:
-        print("-- Dangling parent: %s -> %s" % (get_key(usage), parent_key),
-              file=sys.stderr)
-
-  if seniors > 0:     # Maybe interesting
-    print("Suppressed %s senior synonyms" % seniors,
-          file=sys.stderr)
-
+def init_roots(source):
   # Collect children so we can say children[x]
-  roots = collect_inferiors(key_to_usage.values())
+  roots = collect_inferiors(source.index.by_key_dict.values())
 
   # We really only want one root (this is so that mrca can work)
   if True or len(roots) > 1:
-    top = make_usage(TOP)
+    top = make_usage(TOP, source)
+    pick_unique(top)
     set_canonical(top, TOP)
-    key_to_usage[TOP] = top
+    source.index.by_key_dict[TOP] = top
     for root in roots: set_parent(root, top)
     set_children(top, roots)
     roots = [top]
+  else:
+    top = roots[0]
+  source.top = top
 
   # Prepare for doing within-tree MRCA operations
   cache_levels(roots)
 
-  return (key_to_usage, roots)
+  source.roots = roots
+  return source
 
 # -----------------------------------------------------------------------------
-# Get parent/child and accepted/synonym relationships
+# Collect parent/child and accepted/synonym relationships
 
 children_prop = prop.Property("children")
 synonyms_prop = prop.Property("synonyms")
@@ -224,10 +116,12 @@ def get_inferiors(p):
 def get_superior(x):
   sup = get_parent(x, None) or get_accepted(x, None)
   if sup:
-    if get_level(sup, 0) != get_level(x, 1) - 1:
-      print("# %s %s" % (get_level(sup), get_level(x)),
-            file=sys.stderr)
-      assert False
+    assert get_checklist(x) is get_checklist(sup)
+    if get_level(x, None):
+      if get_level(sup, 999) != get_level(x, 999) - 1:
+        print("# %s %s" % (get_level(sup), get_level(x)),
+              file=sys.stderr)
+        assert False
   return sup
 
 # E.g. Glossophaga bakeri (in 1.7) split from Glossophaga commissarisi (in 1.6)
@@ -280,10 +174,12 @@ def seniority(item, accepted_item):
     return "synonym"
 
 # -----------------------------------------------------------------------------
-# MRCA
+# MRCA within the same checklist
 
 # Cache every node's level (distance to root)
 #   simple recursive descent from roots
+
+# Level is contravariant with RCC5: x < y implies level(x) > level(y)
 
 level_prop = prop.Property("level")
 get_level = prop.getter(level_prop)
@@ -297,6 +193,19 @@ def cache_levels(roots):
   for root in roots:
     cache(root, 1)
 
+# E.g. level(x) >= level(y)  should imply  x <= y  if not disjoint
+
+def le(x, y):
+  y1 = x     # proceeds down to y
+  # if {level(x) >= level(y1) >= level(y)}, then x <= y1 <= y or disjoint
+  stop = get_level(y)
+  while get_level(y1) > stop:
+    y1 = get_superior(y1)    # y1 > previously, level(y1) < previously
+  # level(y) = level(y1) <= level(x)
+  return y1 == y    # Not > and not disjoint
+
+def lt(x, y): return le(x, y) and x != y
+
 def find_peers(x, y):
   while get_level(x) < get_level(y):
     y = get_superior(y)
@@ -304,111 +213,125 @@ def find_peers(x, y):
     x = get_superior(x)
   return (x, y)
 
-def le(x, y):
-  while get_level(x) > get_level(y):
-    x = get_superior(x)
-  return x == y
-
-def lt(x, y): return le(x, y) and x != y
-
-def mrca(x0, y0):
-  (x, y) = find_peers(x0, y0)
+def mrca(x, y):
+  if x == BOTTOM: return y
+  if y == BOTTOM: return x
+  (x, y) = find_peers(x, y)
   while not (x is y):
     x = get_superior(x)
     y = get_superior(y)
   return x
+
+def relation(x, y):             # Within a single tree
+  (x1, y1) = find_peers(x, y)    # Decrease levels as needed
+  assert not x1.checklist is y1.checklist
+  if x1 == y1:
+    if x == y:
+      return EQ
+    elif x1 == x:
+      return LT     # y > y1 = x
+    elif y1 == y:
+      return GT     # x > x1 = y
+    else:
+      assert False
+  else:
+    x2 = get_accepted(x1, x1)
+    y2 = get_accepted(y1, x1)
+    if x2 == y2:                                  # Same accepted
+      if x1 != x2 and y1 != y2: return NOINFO    # synonym ? synonym
+      if x1 != x2: return LE                      # synonym <= accepted
+      else:        return GE                      # accepted >= synonym
+    else:
+      return DISJOINT
 
 # -----------------------------------------------------------------------------
 # Sum file ingest
 
 # Record-match file ingest
 
-out_a_prop = prop.Property("out_a")
-out_a = prop.getter(out_a_prop)
-out_b_prop = prop.Property("out_b")
-out_b = prop.getter(out_b_prop)
 remarks_prop = prop.Property("remarks")
 get_remarks = prop.getter(remarks_prop)
 set_remarks = prop.setter(remarks_prop)
 
-make_union = prop.constructor(key_prop, out_a_prop, out_b_prop,
-                              remarks_prop)
-
 
 # Load record mathes from a file or whatever
 
-def load_sum(iterator, a_usage_dict, b_usage_dict):
+def load_sum(iterator, A, B):
   header = next(iterator)
   usage_a_pos = windex(header, "taxonID_A")
   usage_b_pos = windex(header, "taxonID_B")
   remarks_pos = windex(header, "remarks")
 
-  sum = ({}, {}, {})
+  rm_sum = make_sum(B, A, "match")
   for row in iterator:
-    x = a_usage_dict.get(row[usage_a_pos])
-    y = b_usage_dict.get(row[usage_b_pos])
+    x = A.index.by_key_dict.get(row[usage_a_pos])
+    y = B.index.by_key_dict.get(row[usage_b_pos])
     if x or y:
-      note_match(x, y, row[remarks_pos], sum)
+      rm_sum.connect(x, y, row[remarks_pos])
+    # To do: save other fields ??
 
-  # These pass somehow
-  a_top = a_usage_dict.get(TOP)
-  b_top = b_usage_dict.get(TOP)
-  assert is_top(a_top)
-  assert is_top(b_top)
-
-  note_match(a_usage_dict.get(TOP),
-             b_usage_dict.get(TOP),
-             'top', sum)
-
-  # More sanity checks
-  (_, rm_in_a, rm_in_b) = sum
-  top = mep_get(rm_in_a, a_top)
-  assert mep_get(rm_in_b, b_top) == top
-  assert out_a(top) == a_top
-  assert out_b(top) == b_top
-
-  return sum
+  return rm_sum
 
 # Sadly, rows are repeated sometimes 
 # This function applies to both record match sums and to alignments
 
-def note_match(x, y, remark, sum):
+def really_connect(sum, x, y, remark):
   global union_count
-  assert isinstance(remark, str)
-  (key_to_union, in_a, in_b) = sum
-  if x:
-    j = mep_get(in_a, x, None)
-  elif y:
-    j = mep_get(in_b, y, None)
-  else:
-    j = None
+  if x and y:
+    assert is_top(x) == is_top(y), \
+      "connecting %s to %s" % (get_blurb(x), get_blurb(y))
+  j1 = sum.in_left(x, None) if x else None
+  j2 = sum.in_right(y, None) if y else None
+  if j1 and j2: assert j1 == j2
+  j = j1 or j2
   if j:
-    assert out_a(j) == x
-    if out_b(j) != y:
-      print("!! %s -> %s (%s)\n!! but := %s (%s)" %
-            (get_key(x), get_key(out_b(j)), get_remarks(j),
-             get_key(y), remark),
-            file=sys.stderr)
-    assert out_b(j) == y
-    assert mep_get(in_a, x, None) == j
-    assert mep_get(in_b, y, None) == j
+    assert sum.out_left(j) == x and sum.out_right(j) == y, \
+      ("want <%s,%s>\n  but already have <%s,%s>  ;%s" %
+       (get_unique(x), get_unique(y), 
+        get_unique(sum.out_left(j)), get_unique(sum.out_right(j)),
+        get_remarks(j)))
+    if x: assert sum.in_left(x) == j
+    if y: assert sum.in_right(y) == j
     return j
   # Invent a key?? and store it in the sum ???
   # To avoid an A/B conflict we'd need the B key->usage map?
   if y:
     key = get_key(y)
-    if key in key_to_union: key = "B.%s" % key
+    if key in sum.index.by_key_dict: key = "B.%s" % key
   else:
     key = get_key(x)
-    if key in key_to_union: key = "A.%s" % key
-  j = make_union(key, x, y, remark)
-  if x: mep_set(in_a, x, j)
-  if y: mep_set(in_b, y, j)
-  key_to_union[key] = j
+    if key in sum.index.by_key_dict: key = "A.%s" % key
+  
+  if y:
+    if x:
+      assert get_unique(x, None), get_blurb(x)
+      assert get_unique(y, None), get_blurb(y)
+      (p, q) = (get_unique(x), get_unique(y))
+      if p == q:
+        unique = "<%s>" % p
+      else:
+        unique = "<%s,%s>" % (p, q)
+    else:
+      unique = "<,%s>" % pick_unique(y)
+  else: unique = "<%s,>" % pick_unique(x)
+
+  j = make_union(x, y, sum)
+  if x:
+    mep_set(sum.in_left_dict, x, j)
+    mep_set(sum.out_left_dict, j, x)
+    set_out_A(j, x)
+    add_sourced_remark(j, x)
+  if y:
+    mep_set(sum.in_right_dict, y, j)
+    mep_set(sum.out_right_dict, j, y)
+    set_out_B(j, y)
+    add_sourced_remark(j, y)
+  sum.index.by_key_dict[key] = j
+  sum.index.by_unique_dict[unique] = j
   union_count += 1
 
   if monitor(x) or monitor(y):
-    print("> note match %s to %s; %s" %
+    print("> note: connecting %s to %s; %s" %
           (get_blurb(x), get_blurb(y), remark),
           file=sys.stderr)
 
@@ -416,360 +339,393 @@ def note_match(x, y, remark, sum):
 
 union_count = 0
 
+def add_sourced_remark(j, z):
+  rem = get_remarks(z, None)
+  if rem:
+    add_remark(j, "%s:%s" % (z.source.name, rem))
+
 # -----------------------------------------------------------------------------
-# 8. Cross-mrcas
+# Links between checklists
 
-center_prop = prop.Property("center")
-get_center = prop.getter(center_prop)
-set_center = prop.setter(center_prop)
+# Explanation of 'linkage' (lower bound).
+# We're seeking an interpretation [·] of A+B that is consistent with
+# whatever the interpretations A and B are.
+# To do this we need to construct a child/parent relationship in A+B
+# satisfying:
+#   parent[x] = the least z in A+B such that z > x (i.e. [x] ⊂ [z]).
+# This is done bottom up: z is replaced by its parent for as long as
+# [x] ⊄ [z].
+# At each stage we know the relation between z and x, although it
+# may not be an RCC5 relation.  The pair (relation, candidate) is
+# called x's 'link'.  Initially the link is just (LINKED y)
+# where y is computed by bounds analysis.
 
-xmrca_prop = prop.Property("xmrca")
-get_xmrca = prop.getter(xmrca_prop)
-set_xmrca = prop.setter(xmrca_prop)
+# The 'link' is always ? to z, and is cranked up to the parent if
+# necessary (so that we can capture EQ relationships along the way).
 
-only_prop = prop.Property("only") # or 'monotype'
-get_only = prop.getter(only_prop)
-set_only = prop.setter(only_prop)
+# The purpose of LINKED is to speed up comparisons in the
+# inner loop of cross_not_le - you never need to descend below the
+# link, because we know it's contained entirely in both x and y.
 
-def calculate_xmrcas(a_roots, b_roots, rm_sum):
-  calculate_centers(a_roots, b_roots, rm_sum)
+link_prop = prop.Property("link")
+get_link = prop.getter(link_prop)
+set_link = prop.setter(link_prop)
 
-def calculate_centers(a_roots, b_roots, rm_sum):
-  (_, rm_in_a, rm_in_b) = rm_sum
-  def half(roots, other, record_match):
-    def traverse(x):
-      only = None
-      y = None                  # mrca of the central children
-      for c in get_inferiors(x):
-        y_c = traverse(c)         # in b
-        if y_c:
-          if y:
-            y = mrca(y, y_c)
-            only = None
-          else:
-            y = y_c
-            only = y_c
-      if not y:
-        # Match tip to tip or to internal node (asymmetric center)
-        y = record_match(x)
-      if y:
-        set_center(x, y)
-        if monitor(x):
-          print("> center(%s) := %s %s" % (get_blurb(x), get_blurb(y), not not only),
-                file=sys.stderr)
-        if only and not is_top(x):        
-          assert y == only
-          if monitor(x):
-            print("> only(%s) := %s" % (get_blurb(x), get_blurb(only)),
-                  file=sys.stderr)
-          set_only(x, only)
-      return y
-    for root in roots:
-      traverse(root)
-      set_center(root, other)
-  half(a_roots, b_roots[0], lambda x:out_b(mep_get(rm_in_a, x)))
-  half(b_roots, a_roots[0], lambda y:out_a(mep_get(rm_in_b, y)))
+BOTTOM = None
 
-  set_xmrcas(a_roots, b_roots, rm_sum)
-  check_xmrcas(a_roots, b_roots)
+def half_forge_links(AB, rm_AB):
 
-# Use record matches to improve xmrcas within clusters
+  def traverse(u):              # u in A
+    for c in A_inferiors(u): traverse(c)
+    ry = calculate_link(c_j)
+    if ry:
+      (rel, y_j) = ry
+      if monitor(u):
+        log("> link(%s) := (%s, %s)" %
+            (get_blurb(u), rcc5_symbol(rel), get_blurb(y)))
 
-def set_xmrcas(a_roots, b_roots, rm_sum):
-  (_, rm_in_a, rm_in_b) = rm_sum
-  def half(roots, top, record_match):
-    def traverse(x, y_upper):
-      assert y_upper
-      d = get_center(x, None)
-      assert not get_only(x, None) == (get_center(d, None) == x)
-      
-      if is_top(x) or not d or is_top(d):
-        y = top
-      elif get_only(x, None):
-        # Go just rootward of center
-        y = get_superior(d)
-        assert y
+      set_bound(x, ry)
+    return ry
 
-        # See if record match (even more rootward) can override
-        r = record_match(x)    # on the other side
-        if r:
-          # Match has to be to another only taxon...
-          # and it has to be rootward of x's center ('only')...
-          # and it has to have the same center as x's center
-          if (get_only(r, None) and le(y, r) and 
-              get_center(r) == get_center(d)):
-            if monitor(x):
-              # assert lt(s, y_upper)  etc etc
-              print("> Record match for %s" %
-                    (get_blurb(x),),
-                    file=sys.stderr)
-            # Cleave the cluster!
-            y = r
+  def calculate_link(x, AB):   # x in AB
+    # y = functools.reduce(mrca, A_inferiors(u), BOTTOM)
+    y = BOTTOM                  # mrca of opposite mrcas
+    for c in A_inferiors(u):
+      (y_c, more_c) = traverse(c)
+      y = mrca(y, y_c)
+
+    if y != BOTTOM:
+      return (LINKED, y)
+    else:
+      r = record_match(y)
+      # Necessarily [x] <= [r], so link is (LE, r)
+      return (EQ, AB.in_left(r)) if r else (BOTTOM, NOINFO)    # hmm.  helps caching
+
+  def record_match(u):          # u in A+B
+    y = out_left(u)             # y in A
+    r = out_right(rm_AB.in_left(y))
+    return AB.in_right(r) if r else None
+
+  for root in AB.A.roots: traverse(root)
+
+def forge_links(AB, rm_AB):
+  half_forge_links(AB.flip(), rm_AB.flip())
+  half_forge_links(AB, rm_AB)
+
+def A_inferiors(x, AB):
+  return (AB.inject(c) for c in get_inferiors(out_left(x)))
+
+def get_xmrca(x, AB):           # compatibility kludge
+  return link_to_xmrca(get_bound(x), AB)
+def link_to_xmrca(ry, AB):
+  (rel, y) = ry                # x rel y
+  if y == BOTTOM: return None
+  if rel == EQ: return (y, 0)
+  else: return (y, -1)
+
+# -----------------------------------------------------------------------------
+# Detect and record A/B equivalences
+
+#  p  ?  q  ?  x0        - parents
+#  ∨     ∨     ∥
+#  x  →  y  →  x0  ?  x
+
+def half_analyze_order(sum, rm_sum):
+  assert sum.A is rm_sum.A and sum.B is rm_sum.B
+
+  sum.rm_sum = sum              # ??
+
+  # Start with [x] ⊃ [y]
+
+  # Eventual link y_final will satisfy y rel y_final
+  # rel starts out being LINKED, or LE for tips
+
+  # Find smallest z such that x < z
+
+  def peer_or_superior(x):
+    ry = get_link(x)            # Start here and go rootward
+    (rel, y) = ry
+    if rel & DISJOINT != 0: return ry
+    while True:
+      z = peer_or_superior_candidate(x, y)
+      if is_peer_or_superior(z): break
+      y = get_superior_same_side(z)
+    assert sum_le(x, y)
+    return ry
+
+    # Different clusters
+    else:
+      # y is in a bigger cluster - do nothing, keep going rootward
+      return (BOTTOM, NOINFO)
+
+  def sum_superior(x):
+    ry = peer_or_superior(x)    # LT, LE, or EQ
+    if ry[0] == LT: return 
+    if ry[0] == EQ: return 
+    assert ry[0] == LE
+
+  # Assumes ry is a peer or superior candidate
+  def is_peer_or_superior(ry):
+    (rel, y) = ry
+    return rel & ~GE == 0
+
+  # Find least z among {p, y, q} subject to x <= z
+
+  def superior_candidate(x, y):
+    p = get_superior_same_side(x)
+    q = get_superior_same_side(y)
+    # Consider candidates p, y, and q
+    def good_enough(z):     # winner must be smallest of the three
+      return (sum_le(x, z) and
+              sum_le(z, p) and
+              sum_le(z, y) and
+              sum_le(z, q))
+    z = None
+    if   good_enough(p): z = p
+    elif good_enough(y): z = y
+    elif good_enough(q): z = q
+    else: return get_bound(p)    # ?
+    return (LE, z)
+
+  def brute_eq(x, y):
+    return sum_ge(x, y) and sum_ge(y, x)
+
+  def in_same_cluster(y, x):    # is y in same cluster as x
+    (rel2, x0) = sum.get_bound(y)
+    return le(x0, x)
+
+  # TDB: Write a really simple one that works
+  def brute_propagate(x):
+    for c in get_inferiors(x):
+      super = peer_or_superior(c)
+    if super: set_superior(x, super)
+
+  def propagate(x, y = None):
+    if y == None:
+      (rel1, y) =  sum.get_bound(x) # almost always LINKED, LE at tips
+      # or, y = parent(d) ??
+    (rel2, x0) = sum.get_bound(y)
+    if le(x0, x):
+      # SAME CLUSTER - maybe room for improvement
+      r = record_match(x)
+      if rel2 == LE:
+        # Tip matching something - take least option
+        link = (EQ, y)
+      elif get_mono(x, None) == y0 or get_superior_same_side(x) == y0:
+        # Ambiguous on the A side
+        ...
       else:
-        # Not linear, so no change to xmrca, but propagate.
-        y = d or y_upper
-      assert not d or le(d, y)
-      if d != y:
-        if monitor(x):
-          print("> %s: center %s -> xmrca %s, only=%s" %
-                (get_blurb(x), get_blurb(d),
-                 get_blurb(y), not not get_only(x, None)),
-                file=sys.stderr)
-      set_xmrca(x, y)
-      for c in get_inferiors(x): traverse(c, y)
-    for x in roots:
-      traverse(x, top)
+        # Internal to internal or to tip
+        q = get_superior_same_side(y)
+        q0 = sum.get_bound(q)[1]
+        if q0 == x0:
+          # AMBIGUOUS - look for record match
+          r = record_match(x)
+          if r == y:
+            bound = (EQ, y) # Success!
+          elif r == q:
+            connect(None, y)    # Skip this one
+            y = q               # Go toward root
+          else:
+            # Choice between y and q must be resolved by brute force, I think
+            # q to y could still be any of < > = ><.  Not = I suppose.
+            # Just call it a reciprocal conflict though - this is a race
+            # since the outcome will depend on which polarity is processed
+            # first?
+            # CONFLICT if cross_not_le(x, y, sum) else LT
+            bound = (UNRESOLVED, y)
+        else:
+          # Unambiguous in B, answer is y by process of elimination
+          bound = (EQ, y)
+    else:
+      # Different clusters - x < y - y is parent of x, if x's parent isn't
+      bound = (LT, y)
 
-  def equivalent(x, y):
-    return x == get_center(y) and get_center(x) == y
-
-  half(a_roots, b_roots[0], lambda x:out_b(mep_get(rm_in_a, x)))
-  half(b_roots, a_roots[0], lambda y:out_a(mep_get(rm_in_b, y)))
-
-def check_xmrcas(a_roots, b_roots):
-  def check(x):
-    for c in get_inferiors(x): check(c)
-    y = get_xmrca(x, None)
-    if y and not get_xmrca(y, None):
-      print("!! Non-mutual xmrca: x %s y %s" %
-            (get_blurb(x), get_blurb(x)),
-            file=sys.stderr)
-      assert False
-  for root in a_roots: check(root)
-  for root in b_roots: check(root)
-
-# -----------------------------------------------------------------------------
-# Detect and record A/B equivalences.  At the end, every usage will be
-# part of the sum.
-
-def set_equivalences(a_roots, b_roots, rm_sum):
-  sum = ({}, {}, {})
-  (_, in_a, in_b) = sum
-  (_, rm_in_a, rm_in_b) = rm_sum
-
-  connect = connector(rm_sum, sum)
+    if lt(x, x0): return False
+    # Ambiguous iff child or parent is in same cluster.
+    return get_mono(x, None) == y0 or get_superior_same_side(x) == y0
 
   def traverse(x):
+    # TBD: sum.connect(x, None)
+
     mem = False
     for c in get_inferiors(x):
       mem = traverse(c) or mem
-    y = get_xmrca(x, None)      # in B
-    if y != None and x == get_xmrca(y, None):
-      # Mutual xmrca with xmrca... that means they're equivalent
-      j = connect(x, y)
+    y = get_equivalent(x, AB)
+    if y != None:
+      j = sum.connect(y, x)
 
       # If there was a record match, preserve reason
-      r = mep_get(rm_in_a, x, None)
-      if r and out_b(r) == y:
-        add_remark(j, get_remarks(r))
-
-      # If internal node match, make a note of it
-      if mem: add_remark(j, "consistent membership")
-      return True
+      r = record_match(x)
+      if r and r == y:
+        add_remark(j, get_remarks(r, None))
+      elif mem:
+        # If internal node match, make a note of it
+        add_remark(j, "consistent membership")
+      mem = True
     else:
-      connect(x, None)
+      sum.connect(None, x)
       if monitor(x):
-        print("> Not equivalent(%s, %s)" % (get_blurb(x), get_blurb(y)),
-              file=sys.stderr)
-      return False
-  for x in a_roots: traverse(x)
+        log("> %s has no equivalent in %s" %
+            (get_blurb(x), sum.A.name))
+    assert sum.inject(x)
+    return mem
 
-  def cotraverse(y):
-    for c in get_inferiors(y): cotraverse(c)
-    if not mep_get(in_b, y, None):
-      connect(None, y)
-  for y in b_roots: cotraverse(y)
+  def record_match(x):
+    r = rm_sum.in_right(x)
+    return sum.out_left(r) if r else None
+
+  for x in get_inferiors(sum.B.top): traverse(x)
+
+def analyze_order(sum, rm_sum):
+  sum.top = sum.connect(sum.A.top, sum.B.top)
+  half_analyze_order(sum, rm_sum)
+  half_analyze_order(sum.flip(), rm_sum.flip())
+
+  # Assign names - for Newick - too early
+  assign_canonicals(sum)
 
   return sum
 
-def connector(rm_sum, sum):
-  (_, rm_in_a, rm_in_b) = rm_sum
-  def connect(x, y):
-    return note_match(x, y, MISSING, sum)
-  return connect
+def sum_eq(x, y):
+  if x == y: return True
+  if get_checklist(x) == get_checklist(y): return False
+  else:
+    assert get_checklist(x) == get_checklist(y).flip()
+    (x_rel, y2) == get_bound(x)
+    (y_rel, x2) == get_bound(x)
+    return ((x_rel == EQ and y == y2) or
+            (y_rel == EQ and x == x2) or
+            quick_eq(x, y))
+
+# wait, this is not exact
+
+def sum_le(x, y):
+  AB = get_checklist(x)
+  u = out_left(x)
+  v = out_left(y)
+  if same_side(x, y):
+    return le(u, v)
+  else:
+    (rel, y2) == get_bound(x)
+    # BLAH BLAH
+    if ((rel == EQ or rel == LE) and le(out_left(y2), y)):
+      return True
+    return quick_le(u, v, AB)
+
+def same_side(x, y):
+  if get_checklist(x) == get_checklist(y):
+    return True # eg AB==AB
+  else:
+    assert get_checklist(x).flip() == get_checklist(y)
+    return False
 
 # -----------------------------------------------------------------------------
-# 7. how-related WITHIN hierarchy
+# Some approximate methods for cross-checklist relationships
 
-EQ = 1
-LT = 2
-GT = 3
-DISJOINT = 4
-CONFLICT = 5
-UNCLEAR = 6     # co-synonyms of the same accepted
-LT_OR_CONFLICT = 7
-GT_OR_CONFLICT = 8
-rcc5_symbols = ['---', '=', '<', '>', '!', '><', '?', '<?', '>?']
+def quick_eq(x, y):
+  return (quick_le(x, y) and
+          quick_le(y, x))
 
-def how_related(x, y):
-  (x1, y1) = find_peers(x, y)
-  if x1 == y1:
-    if x == y:
-      return EQ
-    elif x1 == x:
-      return GT
-    else:
-      return LT
-  elif ((get_accepted(x1, None) or get_accepted(y1, None)) and
-        get_superior(x1) == get_superior(y1)):
-    return UNCLEAR
+# Find y, if any, in other checklist, such that x = y
+
+def get_equivalent(x, AB):
+  y = quick_bound(x, AB)
+  return y if x is quick_bound(y, AB) else None
+
+def quick_le(x, y, AB):
+  y1 = quick_bound(x, AB)
+  return y1 and le(y1, y)
+
+# Find least y in other checklist such that x <= y, if any
+
+def quick_bound(x, AB):
+  # get_proper(get_xmrca(x))
+  yt = get_xmrca(x, AB) or get_xmrca(attachment_point(x, AB), AB)
+  assert yt
+  y1 = get_proper(yt, AB)
+  if monitor(x):
+    log("> link for %s is %s" % (get_blurb(x), get_blurb(y1)))
+  return y1
+
+def attachment_point(x, AB):        # For peripheral nodes
+  x1 = get_superior_same_side(x)
+  if get_xmrca(x1, AB):
+    return x1
   else:
-    return DISJOINT
+    return attachment_point(x1)
+
+# Most rootward node in SAME checklist having same shared-tipward set as x,
+# i.e. an ancestor that is guaranteed to be non-conflicting.
+# This gets us to the 'top' of 'monotypic' chains.
+# Cf. find_xmrca(x), above, which goes to the 'bottom' of the chain.
+# (conflict pairs can also form chains ... think about this.
+#   p1 < p2 < p3 < p4, q1 < q2 < q3 < q4, 
+#   p1 >< q1, p2 >< q2, p3 ≈ q3, p4 ≈ q4 )
+
+def get_proper(xt, AB):      # Maybe cache this?
+  if xt == None: return None    # foo
+  # while superior(x1) == xmrca(x): x1 = superior(x1)
+  (x, tweakx) = xt
+  assert x
+  if tweakx > 0:
+    x2 = get_superior_same_side(x)
+    log("> using tweak %s to force %s to superior %s" %
+        (tweakx, get_blurb(x), get_blurb(x2)))
+    if x2: x = x2
+  yt = get_xmrca(x, AB)    # proper must have same xmrca
+  if yt:
+    (y0, tweak0) = yt
+    x1 = x
+    while x1:
+      if is_top(x1): break
+      x2 = get_superior(x1)
+      x2t = get_xmrca(x2, AB)
+      if not x2t: break
+      (y2, tweak2) = x2t
+      if y2 != y0: break    # want: y2 >= y0
+      # tweak2 < tweak0 means tweak2 is rootward of tweak0 (like levels)
+      if tweak2 < tweak0:
+        log("> using tweaks to rule out %s as more proper for %s (@ %s)" %
+             (get_blurb(x2), get_blurb(x), get_blurb(y0)))
+        break
+      if monitor(x):
+        log("> proper to superior: %s -> %s, %s -> %s" %
+            (get_blurb(x1), get_blurb(y0), get_blurb(x2), get_blurb(y2)))
+      x1 = x2
+    if monitor(x):
+      log("> proper(%s) = %s" % (get_blurb(x), get_blurb(x1)))
+    return x1
+  else:  
+    return x
+
+# Estimate RCC5 relationship ACROSS trees
+
+def quick_relation(x, y, AB):
+  y1 = quick_bound(x, AB)
+  x1 = quick_bound(y, AB)
+  if le(y1, y):
+    return EQ if le(x1, x) else LT
+  if le(x1, x):
+    return GT
+  rel1 = relation(x1, x)
+  rel2 = relation(y1, y)
+  return rel1 if rel1 == reverse_relation(rel2) else CONFLICT
 
 # -----------------------------------------------------------------------------
+# Create a spanning tree by setting parent pointers.
 
-# Compare an A node with a B node, obtaining the RCC5 relationship
-# that holds between them.
-# Return value is (rcc5, e, f, g) where:
-#   e is <= both p and q
-#   f is <= p but ! q
-#   g is <= q but ! p
-
-def related_how(p, q):
-  assert p and q
-  result = really_related_how(p, q)
-  if (result[0] == DISJOINT and
-      (get_accepted(p, None) or get_accepted(q, None)) and
-      get_superior(p) == get_superior(q)):
-    result = (UNCLEAR, "synonym", None, None)
-  if monitor(p) or monitor(q):
-    tag = result[1] if isinstance(result[1], str) else "..."
-    print("> %s %s %s because %s" %
-          (get_blurb(p), rcc5_symbols[result[0]], get_blurb(q), tag),
-          file=sys.stderr)
-  return result
-
-def really_related_how(p, q):
-
-  d = get_xmrca(p, None)        # p ? d
-  if d:
-    p0 = get_xmrca(d, None)     # d <= p0
-  else:
-    p0 = p
-
-  if monitor(p) or monitor(p0):
-   if not le(p, p0):
-    print("%s not<= %s <= %s" % (get_blurb(p), get_blurb(d), get_blurb(p0)),
-          file=sys.stderr)
-
-  c = get_xmrca(q, None)        # q ? c
-  if c:
-    q0 = get_xmrca(c, None)     # c <= q0
-  else:
-    q0 = q
-
-  if not c and not d:
-    return (DISJOINT, "both peripheral", None, None)
-
-  # We can now test relative order of p, c, p0 and q, d, q0
-  # subject to d <= p0 and c <= q0
-
-  # p ? c <= q0 ? q      and vice versa, p ? p0 >= d ? q
-
-  p0_le_p = le(p0, p)
-  q0_le_q = le(q0, q)
-  p_lesseq_q = (c and le(p, c) and q0_le_q)
-  q_lesseq_p = (q and le(q, d) and p0_le_p)
-
-  if p_lesseq_q and q_lesseq_p:
-    return (EQ, "p <= c <= q0 <= q <= d <= p0 <= p", None, None)
-  if p_lesseq_q and (p != c or q0 != q):
-    return (LT, "p <= c <= q0 <= q", None, None)
-  if q_lesseq_p and (q != d or p0 != p):
-    return (GT, "q <= d <= p0 <= p", None, None)
-
-  # Hmm, tricky.  A peripheral node is either disjoint from or less
-  # than each node in the other tree.  Both cases are handled above.
-  # Therefore neither p nor q is peripheral at this point.
-  assert c and d
-
-  # Brute force
-  (f1, e) = seek_conflict(p, q)
-  (f2, g) = seek_conflict(q, p)
-
-  if f1 or f2:
-    if e:
-      if g:
-        return (CONFLICT, e, f1 or f2, g)
-      else:
-        return (GT, "checked", None, True)
-    elif g:
-      return (LT, "checked", True, None)
-    else:
-      # Not enough information to be able to decide
-      if monitor(p) or monitor(q):      
-        print("!! Unclear - %s ? %s\n   %s, %s" %
-              (get_blurb(p), get_blurb(q), get_blurb(f1), get_blurb(f2)),
-              file=sys.stderr)
-      return (UNCLEAR, "checked ??", True, True)
-  elif e or g:
-    return (DISJOINT, "checked", p, q)
-  else:                         # Within a cluster
-    if monitor(p) or monitor(q):
-      print("!! Unclear. %s ? %s" % (get_blurb(p), get_blurb(q)),
-            file=sys.stderr)
-    return (UNCLEAR, "checked", None, None)
-
-# Returns two sibling(?) descendants of p
-# Assumes initially that either p > q or p >< q
-
-def seek_conflict(p, q):
-  o = get_center(p, None)
-  if o == None:
-    # Peripheral - no way to know
-    return (None, None) #  ????????????
-  rel = how_related(o, q)
-  if rel == LT:
-    return (p, None)
-  elif rel == DISJOINT:
-    return (None, p)
-  elif rel == UNCLEAR:
-    if monitor(p) or monitor(q):
-      print("!! Equivocal: %s ? %s" %
-            (get_blurb(p), get_blurb(q)),
-            file=sys.stderr)
-    return (p, p)     # (None, None)
-  else:    # GT EQ
-    p_and_q = p_not_q = None                # in A
-    for x in get_children(p, []):           # Disjoint
-      (x_and_q, x_not_q) = seek_conflict(x, q)
-      if x_and_q: p_and_q = x_and_q
-      if x_not_q: p_not_q = x_not_q
-      if p_and_q and p_not_q:             # hack: cut it short
-        return (p_and_q, p_not_q)
-    if p_and_q or p_not_q:
-      return (p_and_q, p_not_q)
-    # No information from children.  Look at the synonyms.
-    for x in get_synonyms(p, []):
-      (x_and_q, x_not_q) = seek_conflict(x, q)
-      if x_and_q: p_and_q = x_and_q
-      if x_not_q: p_not_q = x_not_q
-      if p_and_q and p_not_q:             # hack: cut it short
-        if monitor(p) or monitor(q):
-          print("!! Inconclusive evidence for %s vs. %s\n   %s ? %s" %
-                (get_blurb(p), get_blurb(q),
-                 get_blurb(p_and_q), get_blurb(p_not_q)),
-                file=sys.stderr)
-        # return (None, None)  # was: return (None, p_not_q)
-        return (p_and_q, p_not_q)
-    return (p_and_q, p_not_q)
-
-# -----------------------------------------------------------------------------
-# Now set the parent pointers for the spanning tree
-
-def set_superiors(a_roots, b_roots, sum, rm_sum):
-  (key_to_union, in_a, in_b) = sum
-  (_, rm_in_a, rm_in_b) = rm_sum
-  connect = connector(rm_sum, sum)
-
-  half_set_superiors(b_roots, in_b, in_a, True)    # first, B = priority
-  half_set_superiors(a_roots, in_a, in_b, False)
+def spanning_tree(A, B, sum):
+  # First time, B is high priority, A is low (per usual)
+  # Second time, B is low priority, A is high (reversed)
+  half_spanning_tree(sum)
+  half_spanning_tree(sum.flip())
   if debug:
     print("# %s in a, %s in b, %s union keys" %
-          (len(in_a), len(in_b), len(key_to_union)),
+          (len(sum.in_left_dict), len(sum.in_b_dict), len(sum.index.by_key_dict)),
           file=sys.stderr)
 
-  unions = key_to_union.values()
+  unions = sum.index.by_key_dict.values()
   roots = collect_inferiors(unions)
   print("-- align: %s usages, %s roots in sum" % (len(unions), len(roots)),
         file=sys.stderr)
@@ -778,128 +734,124 @@ def set_superiors(a_roots, b_roots, sum, rm_sum):
 # Set parents in the 'a' hierarchy, which might be high priority (B)
 # or low priority (A).
 
-def half_set_superiors(a_roots, in_a, in_b, priority):
-
+def half_spanning_tree(sum):
+  a = sum.A
+  b = sum.B
+  b_priority = sum.b_priority
   elisions = {}
 
+  # For each node a, set a's superior's spanning tree node, if unset.
+
   def traverse(x):
-    choose_superior(x, priority)
+    j = sum.in_left(x)
+    if not get_superior(j):
+      sup = spanning_superior(j)
+      if sup:
+        assert get_checklist(j) is get_checklist(sup), \
+          "checklists differ: %s %s" % (get_blurb(j), get_blurb(sup))
+        set_superior(j, sup, sum)
     for c in get_inferiors(x): traverse(c)
 
-  def choose_superior(x, priority):
-    if is_top(x): return None
-    p = get_superior(x)         # p is in a (possibly top)
-    u = mep_get(in_a, x)
-    answer = get_superior(u)
-    if not answer:
-      q = get_xmrca(x, None)      # q is in b
-      if q == None:
-        answer = mep_get(in_a, p)    # peripheral
-      else:
-        rel = related_how(x, q)[0]
-        assert rel != GT
-        if rel == EQ:    # GT case should never happen
-          q = get_superior(q)
-        answer = choose_nearest(p, q, priority)
-      set_superior(u, answer)
-    return answer
+  def spanning_superior(j):
+    x = sum.out_left(j)
+    y = sum.out_right(j)
+    if x: p = get_superior(x)
+    if y: q = get_superior(y)
+    if not x or not p:
+      return sum.in_right(q) if q else None
+    if not y or not q:
+      return sum.in_left(p) if p else None
+    return cross_min(p, q, sum)
 
-  # Pick the most rootward of the two
-
-  def choose_nearest(p, q, priority):
-    assert p and q
-    result = related_how(p, q)
-    rel = result[0]
-    if rel == LT or rel == EQ:
-      answer = mep_get(in_a, p)
-    elif rel == GT:
-      answer = mep_get(in_b, q)
-    elif priority:
-      answer = choose_nearest(p, get_superior(q), priority)
+  def cross_min(p, q, sum):
+    if not p: return sum.in_right(q) if q else None
+    if not q: return sum.in_left(p)
+    if cross_le(p, q, sum): return sum.in_left(p)
+    if cross_le(q, p, sum): return sum.in_right(q)
+    if b_priority:
+      p1 = get_superior(p)      # Skip p, which conflicts
+      return cross_min(p1, q, sum) if p1 else sum.in_right(q)
     else:
-      # a = A = low priority
-      answer = choose_nearest(get_superior(p), q, priority)
-      mep_set(elisions, p, (p, result, q, answer))
-    return answer
+      q1 = get_superior(q)
+      return cross_min(p, q1, sum) if q1 else sum.in_left(p)
 
-  for root in a_roots: traverse(root)
-
-  # Report on elisions (well wait, what are these semantically?)
-
-  def report_on_elisions(elisions):
-    print("* %s elisions.  Report follows." % len(elisions),
-          file=sys.stderr)
-    yield(["p in A", "rcc5", "q in B", "⊆ p-q", "⊆ p∩q",
-           "⊆ q-p", "p∨q", "multi-parent"])
-    for (p_elide, result, q, safe) in elisions.values():
-      # Need to remove q_eject from the merged hierarchy.  Turn it into a synonym
-      # of safe and move its inferiors there.
-      eliding = mep_get(in_a, p_elide)
-      (rel2, g, f, e) = result
-      set_parent(eliding, None)   # Detach it from the A hierarchy
-      # Move the p-side children to a safe place.
-      degraded = 0
-      for c in get_inferiors(p_elide):
-        j = mep_get(in_a, c)
-        if get_superior(j) == eliding:
-          # set_alt_parent(j, eliding)
-          change_superior(j, safe)
-          if get_accepted(j, False):
-            add_remark(j, "synonym of elided %s" % get_blurb(eliding))
-          else:
-            add_remark(j, "child of elided %s" % get_blurb(eliding))
-          degraded += 1
-
-      # Demote the ejecting node to a synonym
-      add_remark(eliding, ("elided because %s %s; parent was %s" %
-                           (rcc5_symbols[rel2], get_blurb(q),
-                            get_blurb(get_superior(p_elide)))))
-      # set_alt_parent(eliding, get_parent(eliding))
-      set_accepted(eliding, safe)
-
-      if rel2 == CONFLICT:
-        writer.writerow((get_blurb(p_elide), rcc5_symbols[rel2], get_blurb(q),
-                         get_blurb(e), get_blurb(f), get_blurb(g),
-                         get_blurb(safe), str(degraded)))
-      else:   # UNCLEAR or DISJOINT
-        yield((get_blurb(p_elide), rcc5_symbols[rel2], get_blurb(q),
-               MISSING, MISSING, MISSING,
-               get_blurb(safe), str(degraded)))
+  for root in sum.A.roots: traverse(root)
 
   if len(elisions) > 0:
     writer = csv.writer(sys.stderr)
-    for row in report_on_elisions(elisions):
+    for row in report_on_elisions(elisions, sum):
       writer.writerow(row)
 
+# Report on elisions (well wait, what are these semantically?)
+
+def report_on_elisions(elisions, sum):
+  print("* %s elisions.  Report follows." % len(elisions),
+        file=sys.stderr)
+  yield(["p in A", "rcc5", "q in B", "⊆ p-q", "⊆ p∩q #1", "⊆ p∩q #2",
+         "⊆ q-p", "p∨q", "multi-parent"])
+  for (p_elide, q, safe) in elisions.values():
+    safe = get_superior(sum.in_right(q))
+    # Need to remove q_eject from the spanning hierarchy.  Turn it into a synonym
+    # of safe and move its inferiors there.
+    eliding = sum.in_left(p_elide)
+    (rel2, e, f1, f2, g) = get_conflict_proof(p, q, sum)
+    set_parent(eliding, None)   # Detach it from the A hierarchy
+    # Move the p-side children to a safe place.
+    degraded = 0
+    for c in get_inferiors(p_elide):
+      j = sum.in_left(c)
+      if get_superior(j) == eliding:
+        # set_alt_parent(j, eliding)
+        change_superior(j, safe)
+        if get_accepted(j, False):
+          add_remark(j, "synonym of elided %s" % get_blurb(eliding))
+        else:
+          add_remark(j, "child of elided %s" % get_blurb(eliding))
+        degraded += 1
+
+    # Demote the ejecting node to a synonym
+    add_remark(eliding, ("elided because %s %s; parent was %s" %
+                         (rcc5_symbol(rel2), get_blurb(q),
+                          get_blurb(get_superior(p_elide)))))
+    # set_alt_parent(eliding, get_parent(eliding))
+    set_accepted(eliding, safe)
+
+    if rel2 == CONFLICT:
+      writer.writerow((get_blurb(p_elide), rcc5_symbol(rel2), get_blurb(q),
+                       get_blurb(e), get_blurb(f1), get_blurb(f1), get_blurb(g),
+                       get_blurb(safe), str(degraded)))
+    else:   # NOINFO or DISJOINT
+      yield((get_blurb(p_elide), rcc5_symbol(rel2), get_blurb(q),
+             MISSING, MISSING, MISSING,
+             get_blurb(safe), str(degraded)))
+
 def add_remark(x, rem):
-  have = get_remarks(x, None)
-  if have and have != MISSING:
-    set_remarks(x, have + '|' + rem)
-  else:
-    set_remarks(x, rem)
+  if rem:
+    have = get_remarks(x, None)
+    if have and have != MISSING:
+      set_remarks(x, have + '|' + rem)
+    else:
+      set_remarks(x, rem)
 
 # j is to be either a child or synonym of k.  Figure out which.
 # Invariant: A synonym must have neither children nor synonyms.
 
-def set_superior(j, k):
-  assert not get_superior(j)
-  change_superior(j, k)
-
-def change_superior(j, k):
+def set_superior(j, k, sum):
   assert k
+  assert get_checklist(j) is get_checklist(k)
   assert not is_top(j)
   if j == k:
     print("!! self-loop %s" % get_blurb(j), file=sys.stderr)
-    print("!! j = (%s, %s)" % (get_blurb(out_a(j)),
-                               get_blurb(out_b(j))),
+    print("!! j = (%s, %s)" % (get_blurb(sum.out_left(j)),
+                               get_blurb(sum.out_right(j))),
           file=sys.stderr)
     assert j != k
   k = get_accepted(k, k)
   if j == k:
     print("!! self-cycle %s" % get_blurb(j), file=sys.stderr)
     assert j != k
-  x = out_a(j)
-  y = out_b(j)
+  x = sum.out_left(j)
+  y = sum.out_right(j)
   # x and y might be synonym/accepted or accepted/synonym
   if ((y and get_accepted(y, None)) or
       (x and get_accepted(x, None))):
@@ -913,41 +865,262 @@ def change_superior(j, k):
     print("> superior of %s := %s" % (get_blurb(j), get_blurb(k)),
           file=sys.stderr)
           
+# -----------------------------------------------------------------------------
+
+# Complete implementation of RCC5 decisions
+
+# Now, exact methods for cross-checklist relationships
+
+def cross_relation(x, y, AB):
+  return quick_relation(x, y, AB) or brute_relation(x, y, AB)
+  
+# Exact computation of relationship across trees
+# Assumes they're neither = nor !
+
+def brute_relation(x, y, AB):
+  if cross_not_le(x, y, AB):
+    # relation is GT, CONFLICT, or DISJOINT
+    if cross_not_le(y, x, AB):
+      # CONFLICT or DISJOINT
+      return CONFLICT   # DISJOINT should have been caught by quick_relation
+    else:
+      # LT or EQ
+      return LT                 # EQ is caught by quick_relation
+  elif cross_not_le(y, x, AB):
+    # CONFLICT or DISJOINT
+    return CONFLICT
+
+def cross_le(x, y, AB):
+  return cross_not_le(y, x, AB) and not cross_not_le(x, y, AB)
+
+# Return descendant of p that is not in q, if any
+
+def cross_not_le(p, q, AB):
+  def search(p1, q):
+    if quick_le(p1, q, AB):
+      return None
+    else:
+      infs = get_inferiors(p1)
+      if len(infs) > 0:
+        for c in infs:
+          if search(c, q):
+            return c
+        return None
+      else:
+        return p1    #Tip not found by quick_le ... ?
+  c = search(p, q)
+  if monitor(c) or monitor(p) or monitor(q):
+    if c:
+      log("> %s seems to be <= %s" % (get_blurb(p), get_blurb(q)))
+    else:
+      log("> %s proves that %s is not <= %s" %
+          (get_blurb(c), get_blurb(p), get_blurb(q)))
+
+  return c
+
+# For debugging
+
+def get_conflict_proof(p, q, AB):
+  def le_or_conflict_proof(p, q):
+    qt = get_xmrca(p, AB)
+    if not qt: return (None, None)
+    (tweak, q1) = qt
+    rel = relation(q1, q)
+    if rel == LT:
+      return (None, p)          # p < q
+    elif rel == DISJOINT:
+      return (p, None)          # p ! q
+    e = f = None
+    for c in get_children(p, []):
+      (ec, fc) = get_conflict_proof(x, q)
+      if e == None or get_accepted(ec): e = ec
+      if f == None or get_accepted(fc): f = fc
+      return (e, f)
+  (e, f1) = le_or_conflict_proof(p, q)
+  (g, f2) = le_or_conflict_proof(q, p)
+  return (CONFLICT, e, f1, f2, g)
+
+def assign_canonicals(sum):
+  in_left_dict = sum.in_left_dict
+  in_b_dict = sum.in_b_dict
+  b_index_by_name = {}
+  for u in sum.index.by_key_dict.values():
+    y = sum.out_right(u)
+    if y:
+      name = get_canonical(y, None)
+      if name:
+        b_index_by_name[name] = y
+  if debug:
+    print("# %s B canonicals" % len(b_index_by_name),
+          file=sys.stderr)
+  count = sci_count = 0
+  losers = 0
+  for u in sum.index.by_key_dict.values():
+    y = sum.out_right(u)
+    if y:
+      name = get_canonical(y, None)
+      sci_name = get_scientific(y, None)
+    else:
+      x = sum.out_left(u)
+      name = get_canonical(x, None)
+      sci_name = get_scientific(x, None)
+      if name in b_index_by_name:
+        name = name + " sec. A"
+    if name:
+      set_canonical(u, name)
+      count += 1
+    if sci_name:
+      set_scientific(u, sci_name)
+      sci_count += 1
+    if not name and not sci_name:
+      losers += 1
+  if debug:
+    print("# %s canonicals, %s scientifics, %s nameless" %
+          (count, sci_count, losers),
+          file=sys.stderr)
+
+
+# -----------------------------------------------------------------------------
+
+# Read and write Darwin Core files
+#   Stream of row <-> Source structure
+
+# Darwin Core CSV format hierarchy file ingest
+
+key_prop = prop.Property("taxonID")
+get_key = prop.getter(key_prop)
+
+make_usage = prop.constructor(key_prop, checklist_prop)
+
+# Usually table columns
+
+canonical_prop = prop.Property("canonicalName")
+get_canonical = prop.getter(canonical_prop)
+set_canonical = prop.setter(canonical_prop)
+
+scientific_prop = prop.Property("scientificName")
+get_scientific = prop.getter(scientific_prop)
+set_scientific = prop.setter(scientific_prop)
+
+rank_prop = prop.Property("taxonRank")
+get_rank = prop.getter(rank_prop)
+set_rank = prop.setter(rank_prop)
+
+year_prop = prop.Property("year")
+get_year = prop.getter(year_prop)
+set_year = prop.setter(year_prop)
+
+# Not usually table columns
+
+parent_prop = prop.Property("parent") # Next bigger
+get_parent = prop.getter(parent_prop)
+set_parent = prop.setter(parent_prop)
+
+accepted_prop = prop.Property("accepted")
+get_accepted = prop.getter(accepted_prop)
+set_accepted = prop.setter(accepted_prop)
+
+unique_prop = prop.Property("unique")
+get_unique = prop.getter(unique_prop)
+set_unique = prop.setter(unique_prop)
+
+def load_source(iterator, name):
+  source = Source(name)
+
+  header = next(iterator)
+  if NEW_STYLE:
+    plan = make_plan_from_header(header)
+    get_parent_key = getter(get_property("parentNameUsageID"))
+    get_accepted_key = getter(get_property("accedptedNameUsageID"))
+  else:
+    parent_pos = windex(header, "parentNameUsageID")
+    accepted_pos = windex(header, "acceptedNameUsageID")
+
+    key_pos = windex(header, "taxonID")
+    canonical_pos = windex(header, "canonicalName")
+    scientific_pos = windex(header, "scientificName")
+    rank_pos = windex(header, "taxonRank")
+    year_pos = windex(header, "year")
+
+  fixup = []
+  for row in iterator:
+    if NEW_STYLE:
+      usage = prop.construct(plan, row)
+      parent_key = get_parent_key(usage)
+      accepted_key = get_accepted_key(usage)
+    else:
+      key = row[key_pos]
+      usage = make_usage(key, source)
+      canonical = row[canonical_pos] if canonical_pos else MISSING
+      if canonical != MISSING: set_canonical(usage, canonical)
+      if scientific_pos != None:
+        sci = row[scientific_pos]
+        if sci != MISSING: set_scientific(usage, sci)
+      if rank_pos != None:
+        rank = row[rank_pos]
+        if rank != MISSING: set_rank(usage, rank)
+      if year_pos != None:
+        year = row[year_pos]
+        if year != MISSING: set_year(usage, year)
+      accepted_key = row[accepted_pos] if accepted_pos else MISSING
+      if accepted_key == key: accepted_key = MISSING
+      parent_key = row[parent_pos]
+      if accepted_key != MISSING: parent_key = MISSING
+      assert parent_key != key
+
+    source.index.by_key_dict[key] = usage
+    fixup.append((usage, parent_key, accepted_key))
+
+  seniors = 0
+  for (usage, parent_key, accepted_key) in fixup:
+    if accepted_key != MISSING:
+      accepted_usage = source.index.by_key_dict.get(accepted_key)
+      if accepted_usage:
+        set_accepted(usage, accepted_usage)
+        # Filter out senior synonyms here
+        if seniority(usage, accepted_usage) == "senior synonym":
+          seniors += 1
+          del source.index.by_key_dict[get_key(usage)] # ????
+        else:
+          if monitor(usage) or monitor(accepted_usage):
+            print("> accepted %s := %s" %
+                  (get_blurb(usage), get_blurb(accepted_usage)),
+                  file=sys.stderr)
+      else:
+        print("-- Dangling accepted: %s -> %s" % (get_key(usage), accepted_key),
+              file=sys.stderr)
+    elif parent_key != MISSING:
+      parent_usage = source.index.by_key_dict.get(parent_key)
+      if parent_usage:
+        set_parent(usage, parent_usage)
+        if monitor(usage) or monitor(parent_usage):
+          print("> parent %s := %s" % (get_blurb(usage), get_blurb(parent_usage)),
+                file=sys.stderr)
+      else:
+        print("-- Dangling parent: %s -> %s" % (get_key(usage), parent_key),
+              file=sys.stderr)
+
+  if seniors > 0:     # Maybe interesting
+    print("Suppressed %s senior synonyms" % seniors,
+          file=sys.stderr)
+
+  return init_roots(source)
+
 
 # -----------------------------------------------------------------------------
 # Report on differences between record matches and hierarchy matches
+# r could be either a base usage record or a union
 
-def report(rm_sum, sum):
-  (rm_map, rm_in_a, rm_in_b) = rm_sum
-  (a_map, in_a, in_b) = sum
-  drop_a = 0
-  for r in rm_map.values():     # Record match
-    x = out_a(r)
-    if x:
-      zu = mep_get(in_a, x)     # Bridge
-      y = out_b(r)              # x record matches y
-      z = out_b(zu)             # x aligns to z
-      if y != z:
-        # Record match != aligned
-        if y and z:
-          # related_how(x in A, y in B)
-          rcc5 = related_how(x, y)[0]
-          print("  %s %s %s" %
-                (get_blurb(mep_get(in_b, y)),
-                 rcc5_symbols[rcc5],
-                 get_blurb(zu)),
-                file=sys.stderr)
-        else:
-          drop_a += 1
-  if drop_a > 0:
-    print("-- align: %s broken in A" % (drop_a,), file=sys.stderr)
-    
 def get_blurb(r):
   if isinstance(r, dict):
+    u = get_unique(r, None)    # string
+    if u:
+      return "%s.%s" % (get_checklist(r).name, u)
+
     s = get_subblurb(r)
     if s: return s
-    s1 = get_subblurb(out_b(r, None))
-    s2 = get_subblurb(out_a(r, None))
+    s1 = get_subblurb(out_B(r, None))
+    s2 = get_subblurb(out_A(r, None))
     if s1 and (s1 == s2): return s1
     if s1: return "B." + s1
     if s2: return "A." + s2
@@ -972,44 +1145,54 @@ def get_subblurb(r):
 
 # Returns a row generator
 
-def generate_alignment(sum, roots, rm_sum):
-  yield ["taxonID", "taxonID_A", "taxonID_B",
-         "parentNameUsageID", "acceptedNameUsageID",
-         "taxonomicStatus",
-         "canonicalName", "scientificName", "recordMatch", "change", "remarks"]
-  (_, in_a, in_b) = sum
-  (_, rm_in_a, rm_in_b) = rm_sum
-
-  # was: for union in all_unions(sum): ...
+def emit_spanning_tree(sum, roots, rm_sum):
+  if new_style:
+    def generate_usages():
+      yield union
+    generate_rows(generate_usages(),
+                  [key_prop,
+                   ?, ?,
+                   parent_id_prop,
+                   accepted_id_prop,
+                   taxonomic_status_prop,
+                   scientific_name_prop,
+                   ])
+  else:
+    yield ["taxonID", "taxonID_A", "taxonID_B",
+           "parentNameUsageID", "acceptedNameUsageID",
+           "taxonomicStatus",
+           "canonicalName", "scientificName", "recordMatch", "change", "remarks"]
+    in_left_dict = sum.in_left_dict
+    in_b_dict = sum.in_b_dict
+    rm_in_left_dict = rm_sum.in_left_dict
+    rm_in_b_dict = rm_sum.in_b_dict
 
   def compose_row(union):
-    a_usage = out_a(union, None)
-    b_usage = out_b(union, None)
+    a_usage = sum.out_left(union)
+    b_usage = sum.out_right(union)
     p = get_parent(union, None)
     a = get_accepted(union, None)
     z = m = None
     change = MISSING
     if b_usage:
-      z = out_a(mep_get(rm_in_b, b_usage), None)
+      z = sum.out_left(mep_get(rm_in_b_dict, b_usage))
       if z:
-        rcc5 = related_how(z, b_usage)[0]
-        change = rcc5_symbols[rcc5]
-        m = mep_get(in_a, z, None)
+        rcc5 = cross_relation(z, b_usage, sum)
+        change = rcc5_symbol(rcc5)
+        m = mep_get(in_a_dict, z, None)
       # if a_usage and b_usage then "renamed"
-      # if b_usage then if get_xmrca(b_usage) then "collected"
     else:
-      z = out_b(mep_get(rm_in_a, a_usage), None)
+      z = sum.out_right(rm_sum.in_left(a_usage))
       if z:
-        rcc5 = related_how(a_usage, z)[0]
-        change = rcc5_symbols[rcc5]
-        m = out_a(mep_get(in_b, z, None))
-      # if a_usage then if get_xmrca(a_usage) then "dissolved"
+        rcc5 = cross_relation(a_usage, z, sum)
+        change = rcc5_symbol(rcc5)
+        m = sum.out_left(mep_get(in_b_dict, z, None))
     return [get_key(union),
             get_key(a_usage) if a_usage else MISSING,
             get_key(b_usage) if b_usage else MISSING,
             get_proper_key(p) if p else MISSING,
             get_proper_key(a) if a else MISSING,
-            figure_taxonomic_status(union),
+            figure_taxonomic_status(union, sum),
             get_canonical(union, MISSING),
             get_scientific(union, MISSING),
             # m is record match
@@ -1024,8 +1207,8 @@ def generate_alignment(sum, roots, rm_sum):
   for root in roots:
     for row in traverse(root): yield row
 
-def figure_taxonomic_status(u):
-  u_basis = out_a(u, None) or out_b(u, None)
+def figure_taxonomic_status(u, sum):
+  u_basis = sum.out_right(u) or sum.out_left(u)
   acc = get_accepted(u, None)
   if acc:
     return seniority(u_basis, acc)
@@ -1036,15 +1219,12 @@ def get_proper_key(u):
   if is_top(u): return MISSING
   else: return get_key(u)
 
-def all_unions(sum):
-  (key_to_union, _, _) = sum
-  return key_to_union.values()
 
 if __name__ == '__main__':
   parser = argparse.ArgumentParser(description="""
-    TBD.  stdin = A hierarchy
+    TBD.  stdin = the A checklist
     """)
-  parser.add_argument('--target', help="B hierarchy")
+  parser.add_argument('--target', help="the B checklist")
   parser.add_argument('--matches', help="record matches")
   args=parser.parse_args()
 

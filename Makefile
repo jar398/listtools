@@ -41,11 +41,11 @@ MAMMALIA=40674
 # BioKIC examples:
 
 # A=work/mdd1.2 B=work/mdd1.3 \
-# INDEX="scientificName,canonicalName,canonicalStem,epithetAuthorYear" \
+# INDEX="scientificName,canonicalName,canonicalStem,tipe" \
 # make report
 
 # A=work/gbif20210303-mammals B=work/mdd1.0 \
-# INDEX="scientificName,canonicalName,canonicalStem,epithetAuthorYear" \
+# INDEX="scientificName,canonicalName,canonicalStem,tipe" \
 # make report
 
 SHELL = /usr/bin/bash
@@ -68,7 +68,7 @@ DELTA_KEY ?= $(USAGE_KEY)
 # Formerly: $P/project.py --keep $(MANAGE) <$< | ...
 # and	    $P/sortcsv.py --key $(USAGE_KEY) <$< >$@.new
 
-INDEX ?= taxonID,EOLid,scientificName,canonicalName,canonicalStem,epithetAuthorYear
+INDEX ?= taxonID,EOLid,scientificName,canonicalName,canonicalStem,tipe
 MANAGE ?= taxonID,scientificName,canonicalName,taxonRank,taxonomicStatus,nomenclaturalStatus,datasetID,source
 
 $(DELTA): $A.csv $B.csv $P/delta.py $P/match_records.py $P/property.py
@@ -247,7 +247,7 @@ work/ncbi202008.ncbi-url:
 	| $P/sortcsv.py --key $(USAGE_KEY) > $@.new
 	@mv -f $@.new $@
 
-# Adjoin epithetAuthorYear column.  To skip this change the rule to
+# Adjoin tipe column.  To skip this change the rule to
 # simply copy %.csv to %-gnp.csv above. 
 %-gnp.csv: %.csv $P/extract_names.py $P/use_parse.py
 	$P/extract_names.py < $< \
