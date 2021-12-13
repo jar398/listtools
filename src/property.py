@@ -1,6 +1,7 @@
 import sys
 from typing import NamedTuple, Any
 from collections import namedtuple
+from util import log
 
 # Instances, properties, and plans (field access for csv file rows
 # rows)
@@ -130,14 +131,6 @@ def construct(plan, row):
                       {})
   _global_instance_counter += 1
   return instance
-
-def generate_rows(instance_generator, props):
-  yield [prop.label for prop in props]
-  getters = map(getter, props)
-  for x in instance_generator:
-    yield [g(x, MISSING) for g in getters]
-
-
 
 # moved from property.py
 

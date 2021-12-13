@@ -101,10 +101,6 @@ accepted_prop = prop.get_property("accepted")
 get_accepted = prop.getter(accepted_prop)
 set_accepted = prop.setter(accepted_prop)
 
-unique_prop = prop.get_property("unique")
-get_unique = prop.getter(unique_prop)
-set_unique = prop.setter(unique_prop)
-
 get_parent_key = prop.getter(prop.get_property("parentNameUsageID"))
 get_accepted_key = prop.getter(prop.get_property("accedptedNameUsageID"))
 
@@ -118,20 +114,28 @@ def load_source(iterator, name):
   fixup = []
   for row in iterator:
     usage = prop.construct(plan, row)
-    source.index.by_key_dict[usage.id] = usage
     key = get_key(usage)
+    source.index.by_key_dict[key] = usage
     parent_key = get_parent_key(usage, None)
     accepted_key = get_accepted_key(usage, None)
     assert parent_key != key
     assert accepted_key != key
 
-    source.index.by_key_dict[key] = usage
+    assert usage
     fixup.append((usage, parent_key, accepted_key))
+
+  def get_usage(key, usage):
+    probe = source.index.by_key_dict.get(key, None)
+    if not probe:
+      print("-- Dangling taxonID: %s -> %s" % (get_key(usage), key),
+            file=sys.stderr)
+    return probe
 
   seniors = 0
   for (usage, parent_key, accepted_key) in fixup:
+    assert usage
     if accepted_key:
-      accepted_usage = source.index.by_key_dict.get(accepted_key)
+      accepted_usage = get_usage(accepted_key, usage)
       if accepted_usage:
         set_accepted(usage, accepted_usage)
         # Filter out senior synonyms here
@@ -143,22 +147,16 @@ def load_source(iterator, name):
             print("> accepted %s := %s" %
                   (get_blurb(usage), get_blurb(accepted_usage)),
                   file=sys.stderr)
-      else:
-        print("-- Dangling accepted: %s -> %s" % (get_key(usage), accepted_key),
-              file=sys.stderr)
     elif parent_key:
-      parent_usage = source.index.by_key_dict.get(parent_key)
+      parent_usage = get_usage(parent_key, usage)
       if parent_usage:
         set_parent(usage, parent_usage)
-        if monitor(usage) or monitor(parent_usage):
-          print("> parent %s := %s" % (get_blurb(usage), get_blurb(parent_usage)),
+        #if monitor(usage) or monitor(parent_usage):
+        print("> parent %s := %s" % (get_blurb(usage), get_blurb(parent_usage)),
                 file=sys.stderr)
-      else:
-        print("-- Dangling parent: %s -> %s" % (get_key(usage), parent_key),
-              file=sys.stderr)
 
   if seniors > 0:     # Maybe interesting
-    print("Suppressed %s senior synonyms" % seniors,
+    print("-- Suppressed %s senior synonyms" % seniors,
           file=sys.stderr)
 
   return init_roots(source)
@@ -258,34 +256,38 @@ def get_superior(x):
 
 # -----------------------------------------------------------------------------
 
-def pick_unique(x):
-  unique = get_unique(x, None)
-  if unique: return unique
-  unique = suggestion or get_canonical(x, None) or get_key(x)
-  i = 1
-  while unique in get_checklist(x).index.by_unique_dict:
-    log("# %s is in by_unique_dict !?? %s -> %s" %
-        (unique,
-         get_key(source.index.by_unique_dict.get(unique)),
-         key))
-    unique = "%s(%s)" % (canonical, i)
-    i += 1
-  set_unique(x, unique)
-  get_checklist(x).index.by_unique_dict[unique] = x
-  return x
+by_unique_dict = {}  # human readable unique name
 
-get_unique = prop.get_property("unique", filler=pick_unique)
+def pick_unique(x):
+  for name in generate_names(x):
+    if name in by_unique_dict:
+      log("# %s is in by_unique_dict !?? %s" % name)
+    else:
+      by_unique_dict[name] = name
+      return name
+
+# Generate names similar to x's but globally unique
+
+def generate_names(x):
+  stem = get_canonical(x, None) or get_key(x)
+  yield stem
+  check = get_name(get_checklist(x))
+  yield "%s sec. %s" % (stem, check)
+  while True:
+    yield "%s (%x)" % (stem, b)
+    yield "%s (%x) sec. %s" % (stem, b, check)
+
+unique_prop = prop.get_property("unique", filler=pick_unique)
+get_unique = prop.getter(prop.get_property("unique"))
 
 # -----------------------------------------------------------------------------
 # Report on differences between record matches and hierarchy matches
 # r could be either a base usage record or a union
 
 def get_blurb(r):
-  if isinstance(r, dict):
-    u = get_unique(r, None)    # string
-    if u:
-      return "%s.%s" % (get_checklist(r).name, u)
-    return "[no name %s]" % get_key(r)
+  if isinstance(r, prop.Instance):
+    u = get_unique(r)      # string
+    return u
   elif r:
     return "[not a dict]"
   else:
@@ -296,8 +298,19 @@ def monitor(x):
   return (x and len(get_canonical(x, None)) == 1) #.startswith("Metachirus"))
 
 
+def generate_rows(src, props):
+  props = list(props)
+  yield [prop.label for prop in props]
+  getters = tuple(map(prop.getter, props))
+  for usage in src.index.by_key_dict.values():
+    yield [g(usage, prop.MISSING) for g in getters]
+
+
 # -----------------------------------------------------------------------------
 
 if __name__ == '__main__':
-  load_source(csv.reader(sys.stdin), "A")
+  src = load_source(csv.reader(sys.stdin), "A")
 
+  props = (prop.get_property(label) for label in ("taxonID", "canonicalName", "parentNameUsageID"))
+  writer = csv.writer(sys.stdout)
+  for row in generate_rows(src, props): writer.writerow(row)
