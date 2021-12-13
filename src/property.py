@@ -45,9 +45,13 @@ class Property(NamedTuple):
 _global_property_counter = 0
 _label_to_property = {}
 
-def get_property(label, filler=None, getter=None, setter=None):
+def get_property(label, filler=None, getter=None, setter=None, fresh=False):
   global _global_property_counter
   prop = _label_to_property.get(label)
+  if fresh:
+    if prop:
+      log("# Creating another property with label %s" % label)
+    prop = None
   if not prop:
     prop = Property(_global_property_counter, label, filler, getter, setter)
     _global_property_counter += 1
@@ -76,8 +80,9 @@ def getter(prop):
         val = prop.filler(x)
         setit(x, val)
       else:
-        assert False, ("missing value for property %s" % prop.label, 
-                       pos)
+        assert False, \
+          ("missing value for property '%s' position %s" %
+           (prop.label, pos))
     elif stored == _SHADOW: val = MISSING
     elif stored == _CYCLING:
       assert False, "cycled while computing %s" % prop.label
@@ -136,10 +141,10 @@ def construct(plan, row):
 
 def generate_rows(instance_generator, props):
   props = list(props)
-  yield [prop.label for prop in props]
-  getters = tuple(map(prop.getter, props))
+  yield [prp.label for prp in props]
+  getters = tuple(map(getter, props))
   for inst in instance_generator:
-    yield [get(inst, prop.MISSING) for get in getters]
+    yield [get(inst, MISSING) for get in getters]
 
 
 # Maps keyed by instance

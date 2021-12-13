@@ -7,8 +7,9 @@ NEW_STYLE = True
 
 import sys, csv, argparse
 import util
-from util import windex, MISSING, log
 import match_records
+
+from util import windex, MISSING, log
 from rcc5 import *
 
 import property as prop
@@ -873,7 +874,7 @@ def assign_canonicals(sum):
 # Returns a row generator
 
 def emit_spanning_tree(sum, roots, rm_sum):
-  if new_style:
+  if NEW_STYLE:
     def generate_usages():
       yield union
     generate_rows(generate_usages(),

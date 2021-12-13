@@ -169,7 +169,6 @@ def init_roots(source):
   # We really only want one root (this is so that mrca can work)
   if True or len(roots) > 1:
     top = make_usage(TOP, source)
-    # pick_unique(top)
     set_canonical(top, TOP)
     source.index.by_key_dict[TOP] = top
     for root in roots: set_parent(root, top)
@@ -255,14 +254,14 @@ def get_superior(x):
 
 # -----------------------------------------------------------------------------
 
-by_unique_dict = {}  # human readable unique name
+global_unique_dict = {}  # human readable unique name
 
 def pick_unique(x):
   for name in generate_names(x):
-    if name in by_unique_dict:
-      log("# %s is in by_unique_dict !?? %s" % name)
+    if name in global_unique_dict:
+      log("# %s is in global_unique_dict !?? %s" % name)
     else:
-      by_unique_dict[name] = name
+      global_unique_dict[name] = name
       return name
 
 # Generate names similar to x's but globally unique
@@ -276,8 +275,7 @@ def generate_names(x):
     yield "%s (%x)" % (stem, b)
     yield "%s (%x) sec. %s" % (stem, b, check)
 
-unique_prop = prop.get_property("unique", filler=pick_unique)
-get_unique = prop.getter(prop.get_property("unique"))
+get_unique = prop.getter(prop.get_property("unique", filler=pick_unique))
 
 # -----------------------------------------------------------------------------
 # Report on differences between record matches and hierarchy matches
@@ -300,7 +298,7 @@ def monitor(x):
 
 def generate_rows(cl, props):
   instance_generator = cl.index.by_key_dict.values()
-  prop.generate_rows(instance_generator, props)
+  return prop.generate_rows(instance_generator, props)
 
 
 # -----------------------------------------------------------------------------
