@@ -22,7 +22,7 @@ def make_plan_from_header(header):
 def make_plan(props):
   if len(props) > 0:
     assert isinstance(props[0], Property), props
-  propid_to_pos = [None] * global_property_counter
+  propid_to_pos = [None] * _global_property_counter
   for (prop, pos) in zip(props, range(len(props))):
     propid_to_pos[prop.id] = pos
   return Plan(propid_to_pos, props)
@@ -56,13 +56,13 @@ def get_property(label, filler=None, getter=None, setter=None):
 def get_set(prop):
   return (getter(prop), setter(prop))
 
-defaulting = ['defaulting']
-
 def getter(prop):
   if prop.getter: return prop.getter
   setit = setter(prop)
   def getit(x, default=_NODEFAULT):
-    pos = x.plan.propid_to_pos[prop.id]
+    pos = (x.plan.propid_to_pos[prop.id]
+           if prop.id < len(x.plan.propid_to_pos)
+           else None)
     if pos != None:
       stored = x.positional[pos]
     else:
@@ -75,7 +75,8 @@ def getter(prop):
         val = prop.filler(x)
         setit(x, val)
       else:
-        assert False, "missing value for property %s" % prop.label
+        assert False, ("missing value for property %s" % prop.label, 
+                       pos)
     elif stored == _SHADOW: val = MISSING
     elif stored == _CYCLING:
       assert False, "cycled while computing %s" % prop.label
@@ -86,7 +87,9 @@ def getter(prop):
 def setter(prop):
   if prop.setter: return prop.setter
   def setit(x, val):
-    pos = x.plan.propid_to_pos[prop.id]
+    pos = (x.plan.propid_to_pos[prop.id]
+           if prop.id < len(x.plan.propid_to_pos)
+           else None)
     stored = _SHADOW if val == MISSING else val
     if pos != None:
       x.positional[pos] = stored
@@ -102,9 +105,9 @@ class Instance(NamedTuple):
   positional: Any
   lookedup: bool
 
-global_instance_counter = 0
+_global_instance_counter = 0
 
-def constructor(*props, more=[]):
+def constructor(*props, more=()):
   all = props + more
   plan = make_plan(all)
   def constructit(*values):
@@ -114,18 +117,18 @@ def constructor(*props, more=[]):
   return constructit
 
 def construct(plan, row):
-  global global_instance_counter
+  global _global_instance_counter
   if len(row) != len(plan.props):
     print("** WNA: have %s args, expect %s" %
           (len(row),
            [prop.label for prop in plan.props]),       
           file=sys.stderr)
     assert False
-  instance = Instance(global_instance_counter,
+  instance = Instance(_global_instance_counter,
                       plan,
                       row,
                       {})
-  global_instance_counter += 1
+  _global_instance_counter += 1
   return instance
 
 def generate_rows(instance_generator, props):
@@ -133,6 +136,21 @@ def generate_rows(instance_generator, props):
   getters = map(getter, props)
   for x in instance_generator:
     yield [g(x, MISSING) for g in getters]
+
+
+
+# moved from property.py
+
+_nodefault = []
+def mep(): return {}
+def mep_get(mep, x, default=_nodefault):
+  if default is _nodefault:
+    return mep[x.id]
+  else:
+    return mep.get(x.id, default)
+def mep_set(mep, x, j):
+  mep[x.id] = j
+
 
 # Test row-based instances
 

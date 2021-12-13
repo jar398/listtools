@@ -93,18 +93,3 @@ def write_generated(gen, outfile):
 
 def log(mess):
   print(mess, file=sys.stderr)
-
-
-# moved from property.py
-
-_nodefault = []
-def mep(): return {}
-def mep_get(mep, x, default=_nodefault):
-  id = x.id
-  if default is _nodefault:
-    return mep[id]
-  else:
-    return mep.get(id, default)
-def mep_set(mep, x, j):
-  mep[x.id] = j
-

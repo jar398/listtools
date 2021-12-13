@@ -4,9 +4,9 @@
 
 import sys, csv
 import property as prop
-from property import mep_get, mep_set
-from util import log
+
 from coproduct import *
+from util import log
 
 # -----------------------------------------------------------------------------
 # Sum / coproduct / merged checklist
@@ -22,8 +22,8 @@ def make_sum(A, B, rm_sum, kind):
     z = (x and A_injections.get(x)) or (y and B_injections.get(y))
     if not z:
       z = make_injected(x, y)
-      if x: mep_set(A_injections, x.id, z)
-      if y: mep_set(B_injections, y.id, z)
+      if x: prop.mep_set(A_injections, x.id, z)
+      if y: prop.mep_set(B_injections, y.id, z)
     return z
   def split(z):
     return (out_A(z, None), out_B(z, None))
@@ -33,27 +33,28 @@ def make_sum(A, B, rm_sum, kind):
   co.index = Index()
   return co.AB
 
-out_A_prop = get_property("out_A"); out_A = getter out_A_prop
-out_B_prop = get_property("out_B"); out_B = getter out_B_prop
+out_A_prop = prop.get_property("out_A"); out_A = prop.getter(out_A_prop)
+out_B_prop = prop.get_property("out_B"); out_B = prop.getter(out_B_prop)
 
 make_injected = prop.constructor(out_A_prop, out_B_prop)
 
-checklist_prop = make_property("checklist")    # which checklist does this belong to?
+checklist_prop = prop.get_property("checklist")    # which checklist does this belong to?
 get_checklist = prop.getter(checklist_prop)
 
 # Checklist here is supposed to be a Side
 # get_checklist is public and has to return Common
 
 class Index:
-  self.by_key_dict = {}     # from DwC taxonID column.  maybe others
+  def __init__(self):
+    self.by_key_dict = {}     # from DwC taxonID column.  maybe others
 
-""
+"""
   def record_match(self, x):
     # This doesn't feel right
     y = self.out_left(u)             # y in A
     r = self.out_right(self.rm_sum.in_left(y))
     return self.rm_sum.in_right(r) if r else None
-""
+"""
 
 # -----------------------------------------------------------------------------
 
@@ -67,50 +68,52 @@ class Source:
 
 # Darwin Core CSV format hierarchy file ingest
 
-key_prop = prop.Property("taxonID")
+key_prop = prop.get_property("taxonID")
 get_key = prop.getter(key_prop)
 
 make_usage = prop.constructor(key_prop, checklist_prop)
 
 # Usually table columns
 
-canonical_prop = prop.Property("canonicalName")
+canonical_prop = prop.get_property("canonicalName")
 get_canonical = prop.getter(canonical_prop)
 set_canonical = prop.setter(canonical_prop)
 
-scientific_prop = prop.Property("scientificName")
+scientific_prop = prop.get_property("scientificName")
 get_scientific = prop.getter(scientific_prop)
 set_scientific = prop.setter(scientific_prop)
 
-rank_prop = prop.Property("taxonRank")
+rank_prop = prop.get_property("taxonRank")
 get_rank = prop.getter(rank_prop)
 set_rank = prop.setter(rank_prop)
 
-year_prop = prop.Property("year")
+year_prop = prop.get_property("year")
 get_year = prop.getter(year_prop)
 set_year = prop.setter(year_prop)
 
 # Not usually table columns
 
-parent_prop = prop.Property("parent") # Next bigger
+parent_prop = prop.get_property("parent") # Next bigger
 get_parent = prop.getter(parent_prop)
 set_parent = prop.setter(parent_prop)
 
-accepted_prop = prop.Property("accepted")
+accepted_prop = prop.get_property("accepted")
 get_accepted = prop.getter(accepted_prop)
 set_accepted = prop.setter(accepted_prop)
 
-unique_prop = prop.Property("unique")
+unique_prop = prop.get_property("unique")
 get_unique = prop.getter(unique_prop)
 set_unique = prop.setter(unique_prop)
+
+get_parent_key = prop.getter(prop.get_property("parentNameUsageID"))
+get_accepted_key = prop.getter(prop.get_property("accedptedNameUsageID"))
 
 def load_source(iterator, name):
   source = Source(name)
 
   header = next(iterator)
-  plan = make_plan_from_header(header)
-  get_parent_key = getter(get_property("parentNameUsageID"))
-  get_accepted_key = getter(get_property("accedptedNameUsageID"))
+  plan = prop.make_plan_from_header(header)
+  print((plan,))
 
   fixup = []
   for row in iterator:
@@ -159,6 +162,139 @@ def load_source(iterator, name):
           file=sys.stderr)
 
   return init_roots(source)
+
+TOP = "[top]"
+
+def init_roots(source):
+  # Collect children so we can say children[x]
+  roots = collect_inferiors(source.index.by_key_dict.values())
+
+  # We really only want one root (this is so that mrca can work)
+  if True or len(roots) > 1:
+    top = make_usage(TOP, source)
+    # pick_unique(top)
+    set_canonical(top, TOP)
+    source.index.by_key_dict[TOP] = top
+    for root in roots: set_parent(root, top)
+    set_children(top, roots)
+    roots = [top]
+  else:
+    top = roots[0]
+  source.top = top
+
+  # Prepare for doing within-tree MRCA operations
+  cache_levels(roots)
+
+  source.roots = roots
+  return source
+
+# Cache every node's level (distance to root)
+#   simple recursive descent from roots
+
+# Level is contravariant with RCC5: x < y implies level(x) > level(y)
+
+level_prop = prop.get_property("level")
+get_level = prop.getter(level_prop)
+set_level = prop.setter(level_prop)
+
+def cache_levels(roots):
+  def cache(x, n):
+    set_level(x, n)
+    for c in get_inferiors(x):
+      cache(c, n+1)
+  for root in roots:
+    cache(root, 1)
+
+# -----------------------------------------------------------------------------
+# Collect parent/child and accepted/synonym relationships
+
+# E.g. Glossophaga bakeri (in 1.7) split from Glossophaga commissarisi (in 1.6)
+
+def collect_inferiors(items):
+  roots = []
+  for item in items:
+
+    # Add item to list of accepted's synonyms
+    accepted_item = get_accepted(item, None)
+    if accepted_item:
+      ch = get_synonyms(accepted_item, None)
+      if ch:
+        ch.append(item)
+      else:
+        set_synonyms(accepted_item, [item])
+
+    else:
+      # Add item to list of parent's children
+      parent_item = get_parent(item, None)
+      if parent_item:
+        ch = get_children(parent_item, None)
+        if ch:
+          ch.append(item)
+        else:
+          set_children(parent_item, [item])
+      else:
+        roots.append(item)
+
+  return roots
+
+
+(get_children, set_children) = prop.get_set(prop.get_property("children"))
+(get_synonyms, set_synonyms) = prop.get_set(prop.get_property("synonyms"))
+
+def get_inferiors(p):
+  return (get_children(p, []) +
+          get_synonyms(p, []))
+
+def get_superior(x):
+  sup = get_parent(x, None) or get_accepted(x, None)
+  if sup:
+    assert get_checklist(x) is get_checklist(sup)
+    if get_level(x, None):
+      if get_level(sup, 999) != get_level(x, 999) - 1:
+        print("# %s %s" % (get_level(sup), get_level(x)),
+              file=sys.stderr)
+        assert False
+  return sup
+
+# -----------------------------------------------------------------------------
+
+def pick_unique(x):
+  unique = get_unique(x, None)
+  if unique: return unique
+  unique = suggestion or get_canonical(x, None) or get_key(x)
+  i = 1
+  while unique in get_checklist(x).index.by_unique_dict:
+    log("# %s is in by_unique_dict !?? %s -> %s" %
+        (unique,
+         get_key(source.index.by_unique_dict.get(unique)),
+         key))
+    unique = "%s(%s)" % (canonical, i)
+    i += 1
+  set_unique(x, unique)
+  get_checklist(x).index.by_unique_dict[unique] = x
+  return x
+
+get_unique = prop.get_property("unique", filler=pick_unique)
+
+# -----------------------------------------------------------------------------
+# Report on differences between record matches and hierarchy matches
+# r could be either a base usage record or a union
+
+def get_blurb(r):
+  if isinstance(r, dict):
+    u = get_unique(r, None)    # string
+    if u:
+      return "%s.%s" % (get_checklist(r).name, u)
+    return "[no name %s]" % get_key(r)
+  elif r:
+    return "[not a dict]"
+  else:
+    return "[no match]"
+
+
+def monitor(x):
+  return (x and len(get_canonical(x, None)) == 1) #.startswith("Metachirus"))
+
 
 # -----------------------------------------------------------------------------
 

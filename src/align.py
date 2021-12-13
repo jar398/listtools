@@ -20,9 +20,6 @@ debug = False
 
 def is_top(x): return get_key(x) == TOP
 
-def monitor(x):
-  return (x and len(get_canonical(x, None)) == 1) #.startswith("Metachirus"))
-
 alt_parent_prop = prop.Property("alt_parent") # Next bigger
 get_alt_parent = prop.getter(alt_parent_prop)
 set_alt_parent = prop.setter(alt_parent_prop)
@@ -59,55 +56,11 @@ def dup_iterator(iter):
   return ((x for x in clunk), (x for x in clunk))
 
 # -----------------------------------------------------------------------------
-
-def pick_unique(x):
-  unique = get_unique(x, None)
-  if unique: return unique
-  unique = suggestion or get_canonical(x, None) or get_key(x)
-  i = 1
-  while unique in get_checklist(x).index.by_unique_dict:
-    log("# %s is in by_unique_dict !?? %s -> %s" %
-        (unique,
-         get_key(source.index.by_unique_dict.get(unique)),
-         key))
-    unique = "%s(%s)" % (canonical, i)
-    i += 1
-  set_unique(x, unique)
-  get_checklist(x).index.by_unique_dict[unique] = x
-  return x
-
-def init_roots(source):
-  # Collect children so we can say children[x]
-  roots = collect_inferiors(source.index.by_key_dict.values())
-
-  # We really only want one root (this is so that mrca can work)
-  if True or len(roots) > 1:
-    top = make_usage(TOP, source)
-    pick_unique(top)
-    set_canonical(top, TOP)
-    source.index.by_key_dict[TOP] = top
-    for root in roots: set_parent(root, top)
-    set_children(top, roots)
-    roots = [top]
-  else:
-    top = roots[0]
-  source.top = top
-
-  # Prepare for doing within-tree MRCA operations
-  cache_levels(roots)
-
-  source.roots = roots
-  return source
-
-# -----------------------------------------------------------------------------
 # Collect parent/child and accepted/synonym relationships
 
-children_prop = prop.Property("children")
-synonyms_prop = prop.Property("synonyms")
-get_children = prop.getter(children_prop)
-set_children = prop.setter(children_prop)
-get_synonyms = prop.getter(synonyms_prop)
-set_synonyms = prop.setter(synonyms_prop)
+
+(get_children, set_children) = prop.get_set(prop.Property("children"))
+(get_synonyms, set_synonyms) = prop.get_set(prop.Property("synonyms"))
 
 def get_inferiors(p):
   return (get_children(p, []) +
@@ -123,35 +76,6 @@ def get_superior(x):
               file=sys.stderr)
         assert False
   return sup
-
-# E.g. Glossophaga bakeri (in 1.7) split from Glossophaga commissarisi (in 1.6)
-
-def collect_inferiors(items):
-  roots = []
-  for item in items:
-
-    # Add item to list of accepted's synonyms
-    accepted_item = get_accepted(item, None)
-    if accepted_item:
-      ch = get_synonyms(accepted_item, None)
-      if ch:
-        ch.append(item)
-      else:
-        set_synonyms(accepted_item, [item])
-
-    else:
-      # Add item to list of parent's children
-      parent_item = get_parent(item, None)
-      if parent_item:
-        ch = get_children(parent_item, None)
-        if ch:
-          ch.append(item)
-        else:
-          set_children(parent_item, [item])
-      else:
-        roots.append(item)
-
-  return roots
 
 # Is given synonym usage a senior synonym of its accepted usage?
 # In the case of splitting, we expect the synonym to be a senior
@@ -1106,39 +1030,6 @@ def load_source(iterator, name):
 
   return init_roots(source)
 
-
-# -----------------------------------------------------------------------------
-# Report on differences between record matches and hierarchy matches
-# r could be either a base usage record or a union
-
-def get_blurb(r):
-  if isinstance(r, dict):
-    u = get_unique(r, None)    # string
-    if u:
-      return "%s.%s" % (get_checklist(r).name, u)
-
-    s = get_subblurb(r)
-    if s: return s
-    s1 = get_subblurb(out_B(r, None))
-    s2 = get_subblurb(out_A(r, None))
-    if s1 and (s1 == s2): return s1
-    if s1: return "B." + s1
-    if s2: return "A." + s2
-    return "[no name %s]" % get_key(r)
-  elif r:
-    return "[not a dict]"
-  else:
-    return "[no match]"
-
-def get_subblurb(r):
-  if r:
-    name = get_canonical(r, None) or get_scientific(r, None)
-    if name:
-      if get_accepted(r, None):
-        return name + "*"     # attend to sort order
-      else:
-        return name
-  return None
 
 # -----------------------------------------------------------------------------
 # 14. emit the new sum with additional parent column
