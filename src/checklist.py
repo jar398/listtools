@@ -13,13 +13,13 @@ from util import log
 
 # Returns B side
 
-def make_sum(A, B, rm_sum, kind):
+def make_sum(A, B, kind, rm_sum=None):
   A_injections = {}
   B_injections = {}
   def join(x, y):
     if x: assert get_checklist(x) == A
     if y: assert get_checklist(y) == B
-    z = (x and A_injections.get(x)) or (y and B_injections.get(y))
+    z = (x and A_injections.get(x, None)) or (y and B_injections.get(y, None))
     if not z:
       z = make_injected(x, y)
       if x: prop.mep_set(A_injections, x.id, z)
@@ -27,7 +27,7 @@ def make_sum(A, B, rm_sum, kind):
     return z
   def split(z):
     return (out_A(z, None), out_B(z, None))
-  co = Coproduct(in_A, in_B, out_A, out_B)
+  co = Coproduct(join, split)
   co.rm_sum = rm_sum
   co.kind = kind
   co.index = Index()
@@ -109,7 +109,6 @@ def load_source(iterator, name):
 
   header = next(iterator)
   plan = prop.make_plan_from_header(header)
-  print((plan,))
 
   fixup = []
   for row in iterator:
@@ -297,13 +296,11 @@ def get_blurb(r):
 def monitor(x):
   return (x and len(get_canonical(x, None)) == 1) #.startswith("Metachirus"))
 
+# Generate csv rows for a checklist
 
-def generate_rows(src, props):
-  props = list(props)
-  yield [prop.label for prop in props]
-  getters = tuple(map(prop.getter, props))
-  for usage in src.index.by_key_dict.values():
-    yield [g(usage, prop.MISSING) for g in getters]
+def generate_rows(cl, props):
+  instance_generator = cl.index.by_key_dict.values()
+  prop.generate_rows(instance_generator, props)
 
 
 # -----------------------------------------------------------------------------

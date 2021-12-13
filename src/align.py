@@ -8,19 +8,22 @@ NEW_STYLE = True
 import sys, csv, argparse
 import util
 from util import windex, MISSING, log
-import property as prop
-from property import mep_get, mep_set
-import dwcfile
 import match_records
 from rcc5 import *
-from checklist import Source, make_sum, get_checklist
+
+import property as prop
+from property import mep, mep_get, mep_set
+from property import get_property
+
+import checklist
+from checklist import Source, get_checklist
 
 TOP = "[top]"
 debug = False
 
 def is_top(x): return get_key(x) == TOP
 
-alt_parent_prop = prop.Property("alt_parent") # Next bigger
+alt_parent_prop = prop.get_property("alt_parent") # Next bigger
 get_alt_parent = prop.getter(alt_parent_prop)
 set_alt_parent = prop.setter(alt_parent_prop)
 
@@ -34,12 +37,12 @@ def align(a_iterator, b_iterator, rm_sum_iterator=None):
     (a_iterator, a_iterator_copy) = dup_iterator(a_iterator)
     (b_iterator, b_iterator_copy) = dup_iterator(b_iterator)
     rm_sum_iterator = match_records.match_records(a_iterator_copy, b_iterator_copy)
-  A = dwcfile.load_source(a_iterator, "A")
-  B = dwcfile.load_source(b_iterator, "B")
+  A = checklist.load_source(a_iterator, "A")
+  B = checklist.load_source(b_iterator, "B")
   # Load record matches
   rm_sum = load_sum(rm_sum_iterator, A, B)
 
-  sum = checklist.make_sum(A, B, "")
+  sum = checklist.make_sum(A, B, "", rm_sum=rm_sum)
   forge_links(sum, rm_sum)   # Find links to other checklist for all nodes (lower bounds)
 
   # Create sum and connect the two trees
@@ -55,27 +58,6 @@ def dup_iterator(iter):
   clunk = list(iter)
   return ((x for x in clunk), (x for x in clunk))
 
-# -----------------------------------------------------------------------------
-# Collect parent/child and accepted/synonym relationships
-
-
-(get_children, set_children) = prop.get_set(prop.Property("children"))
-(get_synonyms, set_synonyms) = prop.get_set(prop.Property("synonyms"))
-
-def get_inferiors(p):
-  return (get_children(p, []) +
-          get_synonyms(p, []))
-
-def get_superior(x):
-  sup = get_parent(x, None) or get_accepted(x, None)
-  if sup:
-    assert get_checklist(x) is get_checklist(sup)
-    if get_level(x, None):
-      if get_level(sup, 999) != get_level(x, 999) - 1:
-        print("# %s %s" % (get_level(sup), get_level(x)),
-              file=sys.stderr)
-        assert False
-  return sup
 
 # Is given synonym usage a senior synonym of its accepted usage?
 # In the case of splitting, we expect the synonym to be a senior
@@ -99,23 +81,6 @@ def seniority(item, accepted_item):
 
 # -----------------------------------------------------------------------------
 # MRCA within the same checklist
-
-# Cache every node's level (distance to root)
-#   simple recursive descent from roots
-
-# Level is contravariant with RCC5: x < y implies level(x) > level(y)
-
-level_prop = prop.Property("level")
-get_level = prop.getter(level_prop)
-set_level = prop.setter(level_prop)
-
-def cache_levels(roots):
-  def cache(x, n):
-    set_level(x, n)
-    for c in get_inferiors(x):
-      cache(c, n+1)
-  for root in roots:
-    cache(root, 1)
 
 # E.g. level(x) >= level(y)  should imply  x <= y  if not disjoint
 
@@ -173,7 +138,7 @@ def relation(x, y):             # Within a single tree
 
 # Record-match file ingest
 
-remarks_prop = prop.Property("remarks")
+remarks_prop = prop.get_property("remarks")
 get_remarks = prop.getter(remarks_prop)
 set_remarks = prop.setter(remarks_prop)
 
@@ -186,12 +151,12 @@ def load_sum(iterator, A, B):
   usage_b_pos = windex(header, "taxonID_B")
   remarks_pos = windex(header, "remarks")
 
-  rm_sum = make_sum(B, A, "match")
+  rm_sum = checklist.make_sum(B, A, "match")
   for row in iterator:
     x = A.index.by_key_dict.get(row[usage_a_pos])
     y = B.index.by_key_dict.get(row[usage_b_pos])
     if x or y:
-      rm_sum.connect(x, y, row[remarks_pos])
+      rm_sum.join(x, y, row[remarks_pos])
     # To do: save other fields ??
 
   return rm_sum
@@ -291,7 +256,7 @@ def add_sourced_remark(j, z):
 # inner loop of cross_not_le - you never need to descend below the
 # link, because we know it's contained entirely in both x and y.
 
-link_prop = prop.Property("link")
+link_prop = get_property("link")
 get_link = prop.getter(link_prop)
 set_link = prop.setter(link_prop)
 
@@ -378,9 +343,8 @@ def half_analyze_order(sum, rm_sum):
     return ry
 
     # Different clusters
-    else:
       # y is in a bigger cluster - do nothing, keep going rootward
-      return (BOTTOM, NOINFO)
+      # return (BOTTOM, NOINFO)
 
   def sum_superior(x):
     ry = peer_or_superior(x)    # LT, LE, or EQ
@@ -477,7 +441,7 @@ def half_analyze_order(sum, rm_sum):
       mem = traverse(c) or mem
     y = get_equivalent(x, AB)
     if y != None:
-      j = sum.connect(y, x)
+      j = sum.join(y, x)
 
       # If there was a record match, preserve reason
       r = record_match(x)
@@ -488,7 +452,7 @@ def half_analyze_order(sum, rm_sum):
         add_remark(j, "consistent membership")
       mem = True
     else:
-      sum.connect(None, x)
+      sum.join(None, x)
       if monitor(x):
         log("> %s has no equivalent in %s" %
             (get_blurb(x), sum.A.name))
@@ -502,7 +466,7 @@ def half_analyze_order(sum, rm_sum):
   for x in get_inferiors(sum.B.top): traverse(x)
 
 def analyze_order(sum, rm_sum):
-  sum.top = sum.connect(sum.A.top, sum.B.top)
+  sum.top = sum.join(sum.A.top, sum.B.top)
   half_analyze_order(sum, rm_sum)
   half_analyze_order(sum.flip(), rm_sum.flip())
 
@@ -725,7 +689,7 @@ def report_on_elisions(elisions, sum):
     for c in get_inferiors(p_elide):
       j = sum.in_left(c)
       if get_superior(j) == eliding:
-        # set_alt_parent(j, eliding)
+        set_alt_parent(j, eliding)
         change_superior(j, safe)
         if get_accepted(j, False):
           add_remark(j, "synonym of elided %s" % get_blurb(eliding))
@@ -737,7 +701,7 @@ def report_on_elisions(elisions, sum):
     add_remark(eliding, ("elided because %s %s; parent was %s" %
                          (rcc5_symbol(rel2), get_blurb(q),
                           get_blurb(get_superior(p_elide)))))
-    # set_alt_parent(eliding, get_parent(eliding))
+    set_alt_parent(eliding, get_parent(eliding))
     set_accepted(eliding, safe)
 
     if rel2 == CONFLICT:
@@ -903,134 +867,6 @@ def assign_canonicals(sum):
           (count, sci_count, losers),
           file=sys.stderr)
 
-
-# -----------------------------------------------------------------------------
-
-# Read and write Darwin Core files
-#   Stream of row <-> Source structure
-
-# Darwin Core CSV format hierarchy file ingest
-
-key_prop = prop.Property("taxonID")
-get_key = prop.getter(key_prop)
-
-make_usage = prop.constructor(key_prop, checklist_prop)
-
-# Usually table columns
-
-canonical_prop = prop.Property("canonicalName")
-get_canonical = prop.getter(canonical_prop)
-set_canonical = prop.setter(canonical_prop)
-
-scientific_prop = prop.Property("scientificName")
-get_scientific = prop.getter(scientific_prop)
-set_scientific = prop.setter(scientific_prop)
-
-rank_prop = prop.Property("taxonRank")
-get_rank = prop.getter(rank_prop)
-set_rank = prop.setter(rank_prop)
-
-year_prop = prop.Property("year")
-get_year = prop.getter(year_prop)
-set_year = prop.setter(year_prop)
-
-# Not usually table columns
-
-parent_prop = prop.Property("parent") # Next bigger
-get_parent = prop.getter(parent_prop)
-set_parent = prop.setter(parent_prop)
-
-accepted_prop = prop.Property("accepted")
-get_accepted = prop.getter(accepted_prop)
-set_accepted = prop.setter(accepted_prop)
-
-unique_prop = prop.Property("unique")
-get_unique = prop.getter(unique_prop)
-set_unique = prop.setter(unique_prop)
-
-def load_source(iterator, name):
-  source = Source(name)
-
-  header = next(iterator)
-  if NEW_STYLE:
-    plan = make_plan_from_header(header)
-    get_parent_key = getter(get_property("parentNameUsageID"))
-    get_accepted_key = getter(get_property("accedptedNameUsageID"))
-  else:
-    parent_pos = windex(header, "parentNameUsageID")
-    accepted_pos = windex(header, "acceptedNameUsageID")
-
-    key_pos = windex(header, "taxonID")
-    canonical_pos = windex(header, "canonicalName")
-    scientific_pos = windex(header, "scientificName")
-    rank_pos = windex(header, "taxonRank")
-    year_pos = windex(header, "year")
-
-  fixup = []
-  for row in iterator:
-    if NEW_STYLE:
-      usage = prop.construct(plan, row)
-      parent_key = get_parent_key(usage)
-      accepted_key = get_accepted_key(usage)
-    else:
-      key = row[key_pos]
-      usage = make_usage(key, source)
-      canonical = row[canonical_pos] if canonical_pos else MISSING
-      if canonical != MISSING: set_canonical(usage, canonical)
-      if scientific_pos != None:
-        sci = row[scientific_pos]
-        if sci != MISSING: set_scientific(usage, sci)
-      if rank_pos != None:
-        rank = row[rank_pos]
-        if rank != MISSING: set_rank(usage, rank)
-      if year_pos != None:
-        year = row[year_pos]
-        if year != MISSING: set_year(usage, year)
-      accepted_key = row[accepted_pos] if accepted_pos else MISSING
-      if accepted_key == key: accepted_key = MISSING
-      parent_key = row[parent_pos]
-      if accepted_key != MISSING: parent_key = MISSING
-      assert parent_key != key
-
-    source.index.by_key_dict[key] = usage
-    fixup.append((usage, parent_key, accepted_key))
-
-  seniors = 0
-  for (usage, parent_key, accepted_key) in fixup:
-    if accepted_key != MISSING:
-      accepted_usage = source.index.by_key_dict.get(accepted_key)
-      if accepted_usage:
-        set_accepted(usage, accepted_usage)
-        # Filter out senior synonyms here
-        if seniority(usage, accepted_usage) == "senior synonym":
-          seniors += 1
-          del source.index.by_key_dict[get_key(usage)] # ????
-        else:
-          if monitor(usage) or monitor(accepted_usage):
-            print("> accepted %s := %s" %
-                  (get_blurb(usage), get_blurb(accepted_usage)),
-                  file=sys.stderr)
-      else:
-        print("-- Dangling accepted: %s -> %s" % (get_key(usage), accepted_key),
-              file=sys.stderr)
-    elif parent_key != MISSING:
-      parent_usage = source.index.by_key_dict.get(parent_key)
-      if parent_usage:
-        set_parent(usage, parent_usage)
-        if monitor(usage) or monitor(parent_usage):
-          print("> parent %s := %s" % (get_blurb(usage), get_blurb(parent_usage)),
-                file=sys.stderr)
-      else:
-        print("-- Dangling parent: %s -> %s" % (get_key(usage), parent_key),
-              file=sys.stderr)
-
-  if seniors > 0:     # Maybe interesting
-    print("Suppressed %s senior synonyms" % seniors,
-          file=sys.stderr)
-
-  return init_roots(source)
-
-
 # -----------------------------------------------------------------------------
 # 14. emit the new sum with additional parent column
 
@@ -1042,7 +878,7 @@ def emit_spanning_tree(sum, roots, rm_sum):
       yield union
     generate_rows(generate_usages(),
                   [key_prop,
-                   ?, ?,
+                   A_key_prop, B_key_prop,
                    parent_id_prop,
                    accepted_id_prop,
                    taxonomic_status_prop,
@@ -1097,6 +933,9 @@ def emit_spanning_tree(sum, roots, rm_sum):
       for row in traverse(inf): yield row
   for root in roots:
     for row in traverse(root): yield row
+
+A_key_prop = prop.getter(prop.get_property("taxonID_A"))  # getter
+B_key_prop = prop.getter(prop.get_property("taxonID_B"))
 
 def figure_taxonomic_status(u, sum):
   u_basis = sum.out_right(u) or sum.out_left(u)

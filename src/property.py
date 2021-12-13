@@ -132,7 +132,17 @@ def construct(plan, row):
   _global_instance_counter += 1
   return instance
 
-# moved from property.py
+# Generate rows (lists of strings) for use with csv.writer
+
+def generate_rows(instance_generator, props):
+  props = list(props)
+  yield [prop.label for prop in props]
+  getters = tuple(map(prop.getter, props))
+  for inst in instance_generator:
+    yield [get(inst, prop.MISSING) for get in getters]
+
+
+# Maps keyed by instance
 
 _nodefault = []
 def mep(): return {}
