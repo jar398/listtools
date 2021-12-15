@@ -41,6 +41,9 @@ def write_subset(infile, root_id, all, topo, outfile):
 # Transitive closure of accepted records
 
 def closure(topo, root_id):
+  print("-- subset: transitive closure starting with %s" % root_id, file=sys.stderr)
+  (children, _) = topo[root_id]
+  print("-- subset: root has %s children" % len(children), file=sys.stderr)
   all = {}
   empty = []
   def descend(id):
@@ -53,7 +56,6 @@ def closure(topo, root_id):
         for syn in synonyms:
           descend(syn)
   descend(root_id)
-  assert len(all) > 1
   print("-- subset: %s items in transitive closure" % len(all), file=sys.stderr)
   return all
 

@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 import sys
 from typing import NamedTuple, Any
 from collections import namedtuple
@@ -18,7 +20,10 @@ class Plan(NamedTuple):
   props: Any
 
 def make_plan_from_header(header):
-  return make_plan([get_property(label) for label in header])
+  log("%s" % (header,))
+  props = [get_property(label) for label in header]
+  log("%s" % (tuple(((prop.id, prop.label) for prop in props)),))
+  return make_plan(props)
 
 def make_plan(props):
   if len(props) > 0:
@@ -58,16 +63,23 @@ def get_property(label, filler=None, getter=None, setter=None, fresh=False):
     _label_to_property[label] = prop
   return prop
 
-def get_set(prop):
-  return (getter(prop), setter(prop))
+def get_set(prop, context=None):
+  return (getter(prop, context=context),
+          setter(prop, context=context))
 
-def getter(prop):
-  if prop.getter: return prop.getter
+def getter(prop, context=None):
+  if context:
+    return contextual_getter(prop, context)
+  else:
+    if prop.getter: return prop.getter
+    return ambient_getter(prop)
+
+def ambient_getter(prop):
   setit = setter(prop)
   def getit(x, default=_NODEFAULT):
     pos = (x.plan.propid_to_pos[prop.id]
            if prop.id < len(x.plan.propid_to_pos)
-           else None)
+           else False)
     if pos != None:
       stored = x.positional[pos]
     else:
@@ -81,8 +93,8 @@ def getter(prop):
         setit(x, val)
       else:
         assert False, \
-          ("missing value for property '%s' position %s" %
-           (prop.label, pos))
+          ("missing value for property '%s' position %s plan %s keys %s" %
+           (prop.label, pos, x.plan, tuple(x.lookedup.keys())))
     elif stored == _SHADOW: val = MISSING
     elif stored == _CYCLING:
       assert False, "cycled while computing %s" % prop.label
@@ -90,7 +102,13 @@ def getter(prop):
     return val
   return getit
 
-def setter(prop):
+def setter(prop, context=None):
+  if context:
+    return contextual_setter(prop, context)
+  else:
+    return ambient_setter(prop)
+
+def ambient_setter(prop):
   if prop.setter: return prop.setter
   def setit(x, val):
     pos = (x.plan.propid_to_pos[prop.id]
@@ -101,6 +119,30 @@ def setter(prop):
       x.positional[pos] = stored
     else:
       x.lookedup[prop.id] = stored
+  return setit
+
+# e.g. checklist.get_parent = contextual_getter(get_property("parent"), checklist)
+
+def contextual_getter(prop, context):
+  column = context.columns.get(prop.id, None)
+  if column == None:
+    column = {}
+    context.columns[prop.id] = column
+  def getit(x, default=_NODEFAULT):
+    stored = column.get(x.id, default)
+    if stored == _NODEFAULT:
+      return getter(prop)(x)
+    else:
+      return stored
+  return getit
+
+def contextual_setter(prop, context):
+  column = context.columns.get(prop.id, None)
+  if column == None:
+    column = {}
+    context.columns[prop.id] = column
+  def setit(x, val):
+    column[x.id] = val
   return setit
 
 # Instances
@@ -136,16 +178,6 @@ def construct(plan, row):
                       {})
   _global_instance_counter += 1
   return instance
-
-# Generate rows (lists of strings) for use with csv.writer
-
-def generate_rows(instance_generator, props):
-  props = list(props)
-  yield [prp.label for prp in props]
-  getters = tuple(map(getter, props))
-  for inst in instance_generator:
-    yield [get(inst, MISSING) for get in getters]
-
 
 # Maps keyed by instance
 
@@ -191,4 +223,12 @@ if __name__ == '__main__':
   (get_n, set_n) = get_set(n)
   print(get_n(x))
   set_a(x, "changed a")
-  print(get_n(x))
+  print(get_a(x))
+
+  class Con():
+    columns = {}
+  q = Con()
+  (q.get_a, q.set_a) = get_set(a, context=q)
+  q.set_a(x, 'a in q')
+  print(q.get_a(x))
+  print(get_a(x))

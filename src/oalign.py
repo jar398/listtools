@@ -19,10 +19,7 @@ from property import get_property
 import checklist
 from checklist import Source, get_checklist
 
-TOP = "[top]"
 debug = False
-
-def is_top(x): return get_key(x) == TOP
 
 alt_parent_prop = prop.get_property("alt_parent") # Next bigger
 get_alt_parent = prop.getter(alt_parent_prop)
@@ -59,80 +56,6 @@ def dup_iterator(iter):
   clunk = list(iter)
   return ((x for x in clunk), (x for x in clunk))
 
-
-# Is given synonym usage a senior synonym of its accepted usage?
-# In the case of splitting, we expect the synonym to be a senior
-# synonym of the item.
-
-# We could also look to see if taxonomicStatus is 'senior synonym'.
-
-# Hmm, if there's exactly one senior synonym, we should remember it as
-# being the 'split from' taxon.
-
-def seniority(item, accepted_item):
-  year1 = get_year(item, None)  # the synonym
-  year2 = get_year(accepted_item, None)
-  if year1 and year2:
-    if year1 <= year2:
-      return "senior synonym"
-    else:
-      return "junior synonym"
-  else:
-    return "synonym"
-
-# -----------------------------------------------------------------------------
-# MRCA within the same checklist
-
-# E.g. level(x) >= level(y)  should imply  x <= y  if not disjoint
-
-def le(x, y):
-  y1 = x     # proceeds down to y
-  # if {level(x) >= level(y1) >= level(y)}, then x <= y1 <= y or disjoint
-  stop = get_level(y)
-  while get_level(y1) > stop:
-    y1 = get_superior(y1)    # y1 > previously, level(y1) < previously
-  # level(y) = level(y1) <= level(x)
-  return y1 == y    # Not > and not disjoint
-
-def lt(x, y): return le(x, y) and x != y
-
-def find_peers(x, y):
-  while get_level(x) < get_level(y):
-    y = get_superior(y)
-  while get_level(x) > get_level(y):
-    x = get_superior(x)
-  return (x, y)
-
-def mrca(x, y):
-  if x == BOTTOM: return y
-  if y == BOTTOM: return x
-  (x, y) = find_peers(x, y)
-  while not (x is y):
-    x = get_superior(x)
-    y = get_superior(y)
-  return x
-
-def relation(x, y):             # Within a single tree
-  (x1, y1) = find_peers(x, y)    # Decrease levels as needed
-  assert not x1.checklist is y1.checklist
-  if x1 == y1:
-    if x == y:
-      return EQ
-    elif x1 == x:
-      return LT     # y > y1 = x
-    elif y1 == y:
-      return GT     # x > x1 = y
-    else:
-      assert False
-  else:
-    x2 = get_accepted(x1, x1)
-    y2 = get_accepted(y1, x1)
-    if x2 == y2:                                  # Same accepted
-      if x1 != x2 and y1 != y2: return NOINFO    # synonym ? synonym
-      if x1 != x2: return LE                      # synonym <= accepted
-      else:        return GE                      # accepted >= synonym
-    else:
-      return DISJOINT
 
 # -----------------------------------------------------------------------------
 # Sum file ingest

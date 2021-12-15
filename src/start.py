@@ -9,14 +9,19 @@ from util import csv_parameters, windex, stable_hash
 
 MISSING = ''
 
-def start_csv(inport, params, outport, pk_col, cleanp):
+def start_csv(inport, params, outport, args):
+  pk_col = args.pk
+  cleanp = args.clean
+
   (d, q, g) = params
   reader = csv.reader(inport, delimiter=d, quotechar=q, quoting=g)
   in_header = next(reader)
+  # Use built-in python csv sniffer ??
   if len(in_header) == 1:
     if "," in in_header[0] or "\t" in in_header[0]:
       print("** start: Suspicious in_header", file=sys.stderr)
       print("** start: in_header is %s" % (in_header,), file=sys.stderr)
+
   pk_pos_in = windex(in_header, pk_col)
 
   can_pos = windex(in_header, "canonicalName")
@@ -28,14 +33,25 @@ def start_csv(inport, params, outport, pk_col, cleanp):
   accepted_pos = windex(in_header, "acceptedNameUsageID")
   tax_status_pos = windex(in_header, "taxonomicStatus")
 
+  # --managed taxonID --prefix GBIF:   must always be used together
+  managed_pos = windex(in_header, args.managed)
+  if windex(in_header, "record_id"):
+    assert not managed_pos
+  assert (not args.prefix) == (managed_pos == None), (args.prefix, managed_pos)
+
   must_affix_pk = (pk_col and pk_pos_in == None)
   if must_affix_pk:
     print("Prepending a %s column" % pk_col, file=sys.stderr)
     out_header = [pk_col] + in_header
   else:
     out_header = in_header
-  pk_pos_out = windex(out_header, pk_col)
+
+  if managed_pos != None:
+    out_header = in_header + ["record_id"]
   # print("# Output header: %s" % (out_header,), file=sys.stderr)
+
+  # Do these after header modifications
+  pk_pos_out = windex(out_header, pk_col)
 
   writer = csv.writer(outport) # CSV not TSV
   writer.writerow(out_header)
@@ -46,6 +62,7 @@ def start_csv(inport, params, outport, pk_col, cleanp):
   minted = 0
   seen_pks = {}
   previous_pk = 0
+  conflicts = 0
   for row in reader:
 
     # Deal with raggedness if any
@@ -73,10 +90,11 @@ def start_csv(inport, params, outport, pk_col, cleanp):
     indication_1 = (au == MISSING or au == usage_id)
     stat = row[tax_status_pos] if tax_status_pos != None else "accepted"
     indication_2 = (stat == "accepted" or stat == "valid")
-    if indication_1 != indication_2:
-      print("-- Conflicting evidence concerning acceptedness: %s usage %s status %s" %
+    if indication_1 != indication_2 and conflicts < 10:
+      print("-- %s has accepted %s but taxstatus %s" %
              (usage_id, au, stat),
             file=sys.stderr)
+    conflicts += 1
 
     # landmark_status is specific to EOL
     if landmark_pos != None: 
@@ -111,11 +129,20 @@ def start_csv(inport, params, outport, pk_col, cleanp):
       minted += 1
       out_row[pk_pos_out] = pk
     assert pk != MISSING
-    
     seen_pks[pk] = True
+
+    # Add record_id if necessary
+    if managed_pos != None:
+      assert row[managed_pos]
+      id = row[managed_pos]
+      record_id = args.prefix + id if id else MISSING
+      out_row = out_row + [record_id]
 
     writer.writerow(out_row)
     count += 1
+    if count % 250000 == 0:
+      print("row %s id %s" % (count, row[taxon_id_pos]),
+            file=sys.stderr)
   print("-- start: %s rows, %s columns, %s ids minted, %s names cleaned, %s accepteds normalized" %
         (count, len(in_header), minted, names_cleaned, accepteds_normalized),
         file=sys.stderr)
@@ -199,17 +226,21 @@ if __name__ == '__main__':
   parser.add_argument('--clean', dest='clean', action='store_true',
                       help='clean up scientificName and canonicalName a little bit')
   parser.add_argument('--no-clean', dest='clean', action='store_false')
+  parser.add_argument('--managed',
+                      help='column from which to obtain managed record ids, e.g. EOLid')
+  parser.add_argument('--prefix',
+                      help='record_id is this prefix combined with the value in managed column e.g. EOL:')
   parser.set_defaults(clean=True)
 
   args=parser.parse_args()
   inpath = args.input
   if inpath == None:
     params = csv_parameters("foo.csv")
-    start_csv(sys.stdin, params, sys.stdout, args.pk, args.clean)
+    start_csv(sys.stdin, params, sys.stdout, args)
   else:
     params = csv_parameters(args.input)
     with open(args.input, "r") as inport:
-      start_csv(inport, params, sys.stdout, args.pk, args.clean)
+      start_csv(inport, params, sys.stdout, args)
 
 """
       # Assign ids (primary keys) to any nodes that don't have them

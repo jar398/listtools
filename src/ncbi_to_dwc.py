@@ -38,15 +38,17 @@ def write_row(writer,
 def emit_dwc(accepteds, synonyms, scinames, authorities, merged, outfile):
   writer = csv.writer(outfile)
   write_row(writer,
-            "taxonID", "NCBI Taxonomy ID", "parentNameUsageID", "taxonRank",
+            "taxonID", "record_id", "parentNameUsageID", "taxonRank",
             "acceptedNameUsageID", "scientificName", "canonicalName",
             "taxonomicStatus", "nomenclaturalStatus")
+  # Accepted names
   for (id, parent_id, rank) in accepteds:
     sci = scinames.get(id, None)
     write_row(writer,
-              id, id, parent_id, rank,
+              id, record_id(id), parent_id, rank,
               None, authorities.get(id, None), sci,
               "accepted", None)
+  # Synonyms
   for (id, text, kind, spin) in synonyms:
     # synonym is a taxonomic status, not a nomenclatural status
     if kind == "synonym": kind = None
@@ -62,11 +64,14 @@ def emit_dwc(accepteds, synonyms, scinames, authorities, merged, outfile):
                 id, None, text,   # canonicalName
                 "synonym", kind)
   for (old_id, new_id) in merged:
-    canonical = "%s merged into %s" % (old_id, new_id)
+    canonical = "deprecated taxon that had taxid %s" % old_id
     write_row(writer,
-              old_id, old_id, None, None,
+              old_id, record_id(old_id), None, None,
               new_id, None, canonical,
               "synonym", "merged id")
+
+def record_id(id):
+  return "NCBI:%s" % id
 
 # Input: list of (id, text, kind, spin) from names.txt file
 # Output: list of (id, text, kind, spin); 
@@ -85,7 +90,7 @@ def collate_names(names, accepteds):
   # Remove the canonical names, keep the rest
   names2 = keep
   keep = None #GC
-  print ("# %s canonicalNames (NCBI so-called scientific names)" %
+  print ("# %s canonicalNames (NCBI calls them 'scientific names')" %
          len(scinames),
          file=sys.stderr)
   synonyms = []
@@ -101,7 +106,7 @@ def collate_names(names, accepteds):
     else:
       synonyms.append(row)
   # Remove authorities (= scientific names), keep the rest
-  print ("# %s scientificNames (NCBI so-called authorities)" %
+  print ("# %s scientificNames (NCBI calls them 'authorities')" %
          len(authorities),
          file=sys.stderr)
   return (synonyms, scinames, authorities)

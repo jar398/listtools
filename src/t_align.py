@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
-from align import *
 import sys, argparse
+import align
 import newick, match_records
 
 def test(n1, n2):
@@ -12,7 +12,7 @@ def test(n1, n2):
 
   a_iterator = newick.parse_newick(n1)
   b_iterator = newick.parse_newick(n2)
-  rows = align(a_iterator, b_iterator, rm_sum_iterator)
+  rows = align.align(a_iterator, b_iterator, rm_sum_iterator)
   #rows = [row for row in sum_iterator]
   #util.write_generated((row for row in rows), sys.stdout)
   return newick.generate_newick((row for row in rows))

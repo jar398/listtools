@@ -8,18 +8,100 @@ import property as prop
 from coproduct import *
 from util import log
 
+checklist_prop = prop.get_property("checklist")    # which checklist does this belong to?
+(get_source_checklist, set_source_checklist) = prop.get_set(checklist_prop)
+
+# ---- Common code for both kinds of checklist
+
+# This approach makes checklists rather heavyweight... that's OK for now
+
+primary_key_prop = prop.get_property("taxonID")
+canonical_prop = prop.get_property("canonicalName")
+scientific_prop = prop.get_property("scientificName")
+rank_prop = prop.get_property("taxonRank")
+year_prop = prop.get_property("year")  # http://rs.tdwg.org/dwc/terms/year
+parent_key_prop = prop.get_property("parentNameUsageID")
+accepted_key_prop = prop.get_property("acceptedNameUsageID")
+  
+(get_source_checklist, set_source_checklist) = prop.get_set(checklist_prop)
+(get_parent_key, set_parent_key) = prop.get_set(parent_key_prop)
+(get_accepted_key, set_accepted_key) = prop.get_set(accepted_key_prop)
+(get_year, set_year) = prop.get_set(year_prop)
+
+(get_canonical, set_canonical) = prop.get_set(canonical_prop)
+
+def init_checklist(C):
+  C.columns = {}                # Needed by property.py
+  C.index = Index()
+
+  # Properties that are usually CSV columns.  Ambient but can be
+  # overridden contextually.
+  (C.get_primary_key, C.set_primary_key) = \
+    prop.get_set(primary_key_prop, context=C)
+  (C.get_canonical, C.set_canonical) = \
+    prop.get_set(canonical_prop, context=C)
+  (C.get_scientific, C.set_scientific) = \
+    prop.get_set(scientific_prop, context=C)
+  (C.get_rank, C.set_rank) = \
+    prop.get_set(rank_prop, context=C)
+  # Not CSV columns.  - tbd, use this ambiently as well?
+  (C.get_checklist, C.set_checklist) = \
+    prop.get_set(checklist_prop, context=C)       # ?????
+  (C.get_peer, C.set_peer) = \
+    prop.get_set(prop.get_property("peer"), context=C)
+  (C.get_parent, C.set_parent) = \
+    prop.get_set(prop.get_property("parent"), context=C)
+  (C.get_accepted, C.set_accepted) = \
+    prop.get_set(prop.get_property("accepted"), context=C)
+  (C.get_children, C.set_children) = \
+    prop.get_set(prop.get_property("children"), context=C)
+  (C.get_synonyms, C.set_synonyms) = \
+    prop.get_set(prop.get_property("synonyms"), context=C)
+
+  # Convenience methods
+  def get_superior(x):
+    return C.get_parent(x, None) or C.get_accepted(x, None)
+  def get_inferiors(p):
+    return C.get_children(p, []) + C.get_synonyms(p, [])
+  C.get_superior = get_superior
+  C.get_inferiors = get_inferiors
+
+class Index:
+  def __init__(self):
+    self.by_primary_key_dict = {}     # from DwC taxonID column.  maybe others
+
 # -----------------------------------------------------------------------------
 # Sum / coproduct / merged checklist
+
+def contains(C, x):
+  return C.contains(x)
 
 # Returns B side
 
 def make_sum(A, B, kind, rm_sum=None):
+  def join(x, y):
+    if x and y:
+      co.set_peer(x, y)         # x is junior synonym of y
+      co.set_peer(y, x)         # y is senior synonym of x
+    return x or y
+  def split(z):
+    w = co.get_peer(z, None)
+    if A.contains(z):
+      return (z, w)       # z is junior synonym if w isn't None
+    else:
+      assert B.contains(z)
+      return (w, z)       # z is senior synonym if w isn't None
+  def contains(x):
+    return A.contains(x) or B.contains(x)
+
+  """
+  # Another way to do it, avoiding contextual properties
   A_injections = {}
   B_injections = {}
   def join(x, y):
-    if x: assert get_checklist(x) == A
-    if y: assert get_checklist(y) == B
-    z = (x and A_injections.get(x, None)) or (y and B_injections.get(y, None))
+    if x: assert A.contains(x)
+    if y: assert in_checklist(y, B)
+    z = (y and B_injections.get(y, None)) or (x and A_injections.get(x, None))
     if not z:
       z = make_injected(x, y)
       if x: prop.mep_set(A_injections, x.id, z)
@@ -27,26 +109,14 @@ def make_sum(A, B, kind, rm_sum=None):
     return z
   def split(z):
     return (out_A(z, None), out_B(z, None))
+  """
   co = Coproduct(join, split)
+  init_checklist(co)
+  co.contains = contains
   co.rm_sum = rm_sum
   co.kind = kind
-  co.index = Index()
+
   return co.AB
-
-out_A_prop = prop.get_property("out_A"); out_A = prop.getter(out_A_prop)
-out_B_prop = prop.get_property("out_B"); out_B = prop.getter(out_B_prop)
-
-make_injected = prop.constructor(out_A_prop, out_B_prop)
-
-checklist_prop = prop.get_property("checklist")    # which checklist does this belong to?
-get_checklist = prop.getter(checklist_prop)
-
-# Checklist here is supposed to be a Side
-# get_checklist is public and has to return Common
-
-class Index:
-  def __init__(self):
-    self.by_key_dict = {}     # from DwC taxonID column.  maybe others
 
 """
   def record_match(self, x):
@@ -57,200 +127,148 @@ class Index:
 """
 
 # -----------------------------------------------------------------------------
+# Source checklists
 
 class Source:
   def __init__(self, name):
+    init_checklist(self)
     self.name = name
-    self.index = Index()
+  def contains(self, x):
+    return get_source_checklist(x) == self
 
 # Read and write Darwin Core files
 #   Stream of row <-> Source structure
 
 # Darwin Core CSV format hierarchy file ingest
 
-key_prop = prop.get_property("taxonID")
-get_key = prop.getter(key_prop)
-
-make_usage = prop.constructor(key_prop, checklist_prop)
-
-# Usually table columns
-
-canonical_prop = prop.get_property("canonicalName")
-get_canonical = prop.getter(canonical_prop)
-set_canonical = prop.setter(canonical_prop)
-
-scientific_prop = prop.get_property("scientificName")
-get_scientific = prop.getter(scientific_prop)
-set_scientific = prop.setter(scientific_prop)
-
-rank_prop = prop.get_property("taxonRank")
-get_rank = prop.getter(rank_prop)
-set_rank = prop.setter(rank_prop)
-
-year_prop = prop.get_property("year")
-get_year = prop.getter(year_prop)
-set_year = prop.setter(year_prop)
-
-# Not usually table columns
-
-parent_prop = prop.get_property("parent") # Next bigger
-get_parent = prop.getter(parent_prop)
-set_parent = prop.setter(parent_prop)
-
-accepted_prop = prop.get_property("accepted")
-get_accepted = prop.getter(accepted_prop)
-set_accepted = prop.setter(accepted_prop)
-
-get_parent_key = prop.getter(prop.get_property("parentNameUsageID"))
-get_accepted_key = prop.getter(prop.get_property("accedptedNameUsageID"))
-
 def load_source(iterator, name):
-  source = Source(name)
+  S = Source(name)
+  for usage in load_usages(S, iterator):
+    pass
+  link_records(S)   # sets parents, accepteds, and S.roots
+  return S
 
+# Two ways to make these things.  One is using plans (with `construct`).
+# The other is by using the custom constructor (`make_usage`, two arguments).
+
+make_usage = prop.constructor(primary_key_prop, checklist_prop)
+
+def load_usages(S, iterator):
   header = next(iterator)
   plan = prop.make_plan_from_header(header)
-
   fixup = []
   for row in iterator:
     usage = prop.construct(plan, row)
-    key = get_key(usage)
-    source.index.by_key_dict[key] = usage
+    set_source_checklist(usage, S)
+    assert get_source_checklist(usage)
+    assert S.get_checklist(usage)
+    # S.set_checklist(usage, S)
+    key = S.get_primary_key(usage)
+    S.index.by_primary_key_dict[key] = usage
+    yield usage
+
+def lookup_usage(S, key, src):
+  probe = S.index.by_primary_key_dict.get(key, None)
+  if not probe:
+    print("-- Dangling taxonID reference: %s (from %s)" %
+          (get_primary_key(key, '?'), src),
+          file=sys.stderr)
+  return probe
+
+def link_records(S):
+  seniors = 0
+  for usage in S.index.by_primary_key_dict.values():
     parent_key = get_parent_key(usage, None)
     accepted_key = get_accepted_key(usage, None)
-    assert parent_key != key
-    assert accepted_key != key
-
-    assert usage
-    fixup.append((usage, parent_key, accepted_key))
-
-  def get_usage(key, usage):
-    probe = source.index.by_key_dict.get(key, None)
-    if not probe:
-      print("-- Dangling taxonID: %s -> %s" % (get_key(usage), key),
-            file=sys.stderr)
-    return probe
-
-  seniors = 0
-  for (usage, parent_key, accepted_key) in fixup:
-    assert usage
     if accepted_key:
-      accepted_usage = get_usage(accepted_key, usage)
+      accepted_usage = lookup_usage(S, accepted_key, usage)
       if accepted_usage:
-        set_accepted(usage, accepted_usage)
+        S.set_accepted(usage, accepted_usage)
         # Filter out senior synonyms here
-        if seniority(usage, accepted_usage) == "senior synonym":
+        if seniority(C, usage, accepted_usage) == "senior synonym":
           seniors += 1
-          del source.index.by_key_dict[get_key(usage)] # ????
+          del S.index.by_primary_key_dict[S.get_primary_key(usage)] # ????
         else:
           if monitor(usage) or monitor(accepted_usage):
             print("> accepted %s := %s" %
                   (get_blurb(usage), get_blurb(accepted_usage)),
                   file=sys.stderr)
     elif parent_key:
-      parent_usage = get_usage(parent_key, usage)
+      parent_usage = lookup_usage(S, parent_key, usage)
       if parent_usage:
-        set_parent(usage, parent_usage)
+        S.set_parent(usage, parent_usage)
         #if monitor(usage) or monitor(parent_usage):
         print("> parent %s := %s" % (get_blurb(usage), get_blurb(parent_usage)),
                 file=sys.stderr)
-
   if seniors > 0:     # Maybe interesting
     print("-- Suppressed %s senior synonyms" % seniors,
           file=sys.stderr)
 
-  return init_roots(source)
+# Is given synonym usage a senior synonym of its accepted usage?
+# In the case of splitting, we expect the synonym to be a senior
+# synonym of the item.
 
-TOP = "[top]"
+# We could also look to see if taxonomicStatus is 'senior synonym'.
 
-def init_roots(source):
-  # Collect children so we can say children[x]
-  roots = collect_inferiors(source.index.by_key_dict.values())
+# Hmm, if there's exactly one senior synonym, we should remember it as
+# being the 'split from' taxon.
 
-  # We really only want one root (this is so that mrca can work)
-  if True or len(roots) > 1:
-    top = make_usage(TOP, source)
-    set_canonical(top, TOP)
-    source.index.by_key_dict[TOP] = top
-    for root in roots: set_parent(root, top)
-    set_children(top, roots)
-    roots = [top]
+def seniority(C, item, accepted_item):
+  year1 = S.get_year(item, None)  # the synonym
+  year2 = S.get_year(accepted_item, None)
+  if year1 and year2:
+    if year1 <= year2:
+      return "senior synonym"
+    else:
+      return "junior synonym"
   else:
-    top = roots[0]
-  source.top = top
-
-  # Prepare for doing within-tree MRCA operations
-  cache_levels(roots)
-
-  source.roots = roots
-  return source
-
-# Cache every node's level (distance to root)
-#   simple recursive descent from roots
-
-# Level is contravariant with RCC5: x < y implies level(x) > level(y)
-
-level_prop = prop.get_property("level")
-get_level = prop.getter(level_prop)
-set_level = prop.setter(level_prop)
-
-def cache_levels(roots):
-  def cache(x, n):
-    set_level(x, n)
-    for c in get_inferiors(x):
-      cache(c, n+1)
-  for root in roots:
-    cache(root, 1)
+    return "synonym"
 
 # -----------------------------------------------------------------------------
 # Collect parent/child and accepted/synonym relationships
+# Set children and synonyms properties
 
 # E.g. Glossophaga bakeri (in 1.7) split from Glossophaga commissarisi (in 1.6)
 
-def collect_inferiors(items):
+def collect_inferiors(C):
+  items = C.index.by_primary_key_dict.values()
   roots = []
   for item in items:
 
     # Add item to list of accepted's synonyms
-    accepted_item = get_accepted(item, None)
+    accepted_item = C.get_accepted(item, None)
     if accepted_item:
-      ch = get_synonyms(accepted_item, None)
+      ch = C.get_synonyms(accepted_item, None)
       if ch:
         ch.append(item)
       else:
-        set_synonyms(accepted_item, [item])
+        C.set_synonyms(accepted_item, [item])
 
     else:
       # Add item to list of parent's children
-      parent_item = get_parent(item, None)
+      parent_item = C.get_parent(item, None)
       if parent_item:
-        ch = get_children(parent_item, None)
+        ch = C.get_children(parent_item, None)
         if ch:
           ch.append(item)
         else:
-          set_children(parent_item, [item])
+          C.set_children(parent_item, [item])
       else:
         roots.append(item)
 
-  return roots
-
-
-(get_children, set_children) = prop.get_set(prop.get_property("children"))
-(get_synonyms, set_synonyms) = prop.get_set(prop.get_property("synonyms"))
-
-def get_inferiors(p):
-  return (get_children(p, []) +
-          get_synonyms(p, []))
-
-def get_superior(x):
-  sup = get_parent(x, None) or get_accepted(x, None)
-  if sup:
-    assert get_checklist(x) is get_checklist(sup)
-    if get_level(x, None):
-      if get_level(sup, 999) != get_level(x, 999) - 1:
-        print("# %s %s" % (get_level(sup), get_level(x)),
-              file=sys.stderr)
-        assert False
-  return sup
+  # We really only want one root (this is so that mrca can work)
+  if True or len(roots) > 1:
+    top = make_usage(TOP, C)
+    C.set_canonical(top, TOP)
+    C.index.by_primary_key_dict[TOP] = top
+    for root in roots: C.set_parent(root, top)
+    C.set_children(top, roots)
+    roots = [top]
+  else:
+    top = roots[0]
+  C.top = top
+  C.roots = roots
+  return C
 
 # -----------------------------------------------------------------------------
 
@@ -267,9 +285,9 @@ def pick_unique(x):
 # Generate names similar to x's but globally unique
 
 def generate_names(x):
-  stem = get_canonical(x, None) or get_key(x)
+  stem = get_canonical(x, None) or get_primary_key(x)
   yield stem
-  check = get_name(get_checklist(x))
+  check = get_name(get_source_checklist(x))
   yield "%s sec. %s" % (stem, check)
   while True:
     yield "%s (%x)" % (stem, b)
@@ -296,16 +314,28 @@ def monitor(x):
 
 # Generate csv rows for a checklist
 
-def generate_rows(cl, props):
-  instance_generator = cl.index.by_key_dict.values()
-  return prop.generate_rows(instance_generator, props)
+def emit_rows(C, props):
+  props = list(props)
+  yield [prp.label for prp in props]
+  getters = tuple(map(prop.getter, props))
+  for usage in C.index.by_primary_key_dict.values():
+    if not is_top(usage):
+      yield [get(usage, prop.MISSING) for get in getters]
+
+TOP = "[top]"
+
+def is_top(x): return get_source_checklist(x).get_primary_key(x) == TOP
 
 
 # -----------------------------------------------------------------------------
 
+# Test with, say, src/newick.py --newick "(a,b)c" | src/checklist.py 
+
 if __name__ == '__main__':
   src = load_source(csv.reader(sys.stdin), "A")
 
-  props = (prop.get_property(label) for label in ("taxonID", "canonicalName", "parentNameUsageID"))
+  props = (prop.get_property(label)
+           for label in ("taxonID", "canonicalName", "parentNameUsageID"))
   writer = csv.writer(sys.stdout)
-  for row in generate_rows(src, props): writer.writerow(row)
+  for row in emit_rows(src, props): writer.writerow(row)
+
