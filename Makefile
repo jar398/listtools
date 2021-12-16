@@ -258,35 +258,44 @@ work/ncbi202008.ncbi-url:
 # MDD
 
 work/mdd1.7.csv: $(HOME)/Downloads/MDD_DwC_versions/MDD_v1.7_6567species_inDwC.csv
+	mkdir -p `dirname $@`
 	cp -p $< $@
 work/mdd1.7-gnp.csv: work/mdd1.7.csv
 work/mdd1.6.csv: $(HOME)/Downloads/MDD_DwC_versions/MDD_v1.6_6557species_inDwC.csv
+	mkdir -p `dirname $@`
 	cp -p $< $@
 work/mdd1.6-gnp.csv: work/mdd1.6.csv
 work/mdd1.5.csv: $(HOME)/Downloads/MDD_DwC_versions/MDD_v1.5_6554species_inDwC.csv \
 		 $P/start.py
+	mkdir -p `dirname $@`
 	$P/start.py < $< --pk taxonID > $@.new
 	@mv -f $@.new $@
 work/mdd1.5-gnp.csv: work/mdd1.5.csv
 work/mdd1.4.csv: $(HOME)/Downloads/MDD_DwC_versions/MDD_v1.4_6533species_inDwC.csv \
 		 $P/start.py
+	mkdir -p `dirname $@`
 	$P/start.py < $< --pk taxonID > $@.new
 	@mv -f $@.new $@
 work/mdd1.4-gnp.csv: work/mdd1.4.csv
 work/mdd1.3.csv: $(HOME)/Downloads/MDD_DwC_versions/MDD_v1.3_6513species_inDwC.csv
+	mkdir -p `dirname $@`
 	cp -p $< $@
 work/mdd1.3-gnp.csv: work/mdd1.3.csv
 work/mdd1.31.csv: $(HOME)/Downloads/MDD_DwC_versions/MDD_v1.31_6513species_inDwC.csv
+	mkdir -p `dirname $@`
 	cp -p $< $@
 work/mdd1.31-gnp.csv: work/mdd1.3.csv
 work/mdd1.2.csv: $(HOME)/Downloads/MDD_DwC_versions/MDD_v1.2_6485species_inDwC.csv
+	mkdir -p `dirname $@`
 	cp -p $< $@
 work/mdd1.2-gnp.csv: work/mdd1.2.csv
 work/mdd1.1.csv: $(HOME)/Downloads/MDD_DwC_versions/MDD_v1.1_6526species_inDwC.csv
+	mkdir -p `dirname $@`
 	cp -p $< $@
 work/mdd1.1-gnp.csv: work/mdd1.1.csv
 work/mdd1.0.csv: $(HOME)/Downloads/MDD_DwC_versions/MDD_v1_6495species_JMamm_inDwC.csv \
 		 $P/start.py
+	mkdir -p `dirname $@`
 	$P/start.py < $< --pk taxonID > $@.new
 	@mv -f $@.new $@
 work/mdd1.0-gnp.csv: work/mdd1.0.csv

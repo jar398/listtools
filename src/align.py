@@ -481,6 +481,8 @@ def set_xmrcas(a_roots, b_roots, rm_sum):
     def traverse(x, y_upper):
       d = get_center(x, None)
       assert y_upper
+      if d:
+        assert not get_only(x, None) == (get_center(d, None) == x)
       if is_top(x) or not d or is_top(d):
         y = top
       elif get_only(x, None):
@@ -795,7 +797,7 @@ def half_set_superiors(a_roots, in_a, in_b, priority):
         answer = mep_get(in_a, p)    # peripheral
       else:
         rel = related_how(x, q)[0]
-        assert rel != GT
+        #assert rel != GT
         if rel == EQ:    # GT case should never happen
           q = get_superior(q)
         answer = choose_nearest(p, q, priority)
