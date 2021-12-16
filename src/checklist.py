@@ -47,8 +47,8 @@ def init_checklist(C):
   # Not CSV columns.  - tbd, use this ambiently as well?
   (C.get_checklist, C.set_checklist) = \
     prop.get_set(checklist_prop, context=C)       # ?????
-  (C.get_peer, C.set_peer) = \
-    prop.get_set(prop.get_property("peer"), context=C)
+  (C.get_same, C.set_same) = \
+    prop.get_set(prop.get_property("same"), context=C)
   (C.get_parent, C.set_parent) = \
     prop.get_set(prop.get_property("parent"), context=C)
   (C.get_accepted, C.set_accepted) = \
@@ -69,36 +69,38 @@ def init_checklist(C):
 class Index:
   def __init__(self):
     self.by_primary_key_dict = {}     # from DwC taxonID column.  maybe others
+    self.by_canonical_dict = {}     # from DwC taxonID column.  maybe others
 
 # -----------------------------------------------------------------------------
 # Sum / coproduct / merged checklist
 
-def contains(C, x):
-  return C.contains(x)
+def contains(AB, x):
+  return AB.coproduct.contains(x)
 
 # Returns B side
 
 def make_sum(A, B, kind, rm_sum=None):
-  def join(x, y):
+  def _join(x, y):
     if x and y:
-      co.set_peer(x, y)         # x is junior synonym of y
-      co.set_peer(y, x)         # y is senior synonym of x
-    return x or y
-  def split(z):
-    w = co.get_peer(z, None)
-    if A.contains(z):
-      return (z, w)       # z is junior synonym if w isn't None
-    else:
-      assert B.contains(z)
+      co.set_same(x, y)         # x is junior synonym of y
+      co.set_same(y, x)         # y is senior synonym of x
+    return y or x               # prefer B to A
+  def _split(z):
+    w = co.get_same(z, None)
+    if B.contains(z):
       return (w, z)       # z is senior synonym if w isn't None
-  def contains(x):
+    else:
+      assert A.contains(z)
+      return (z, w)       # z is junior synonym if w isn't None
+
+  def _contains(x):
     return A.contains(x) or B.contains(x)
 
   """
   # Another way to do it, avoiding contextual properties
   A_injections = {}
   B_injections = {}
-  def join(x, y):
+  def _join(x, y):
     if x: assert A.contains(x)
     if y: assert in_checklist(y, B)
     z = (y and B_injections.get(y, None)) or (x and A_injections.get(x, None))
@@ -107,14 +109,19 @@ def make_sum(A, B, kind, rm_sum=None):
       if x: prop.mep_set(A_injections, x.id, z)
       if y: prop.mep_set(B_injections, y.id, z)
     return z
-  def split(z):
+  def _split(z):
     return (out_A(z, None), out_B(z, None))
   """
-  co = Coproduct(join, split)
-  init_checklist(co)
-  co.contains = contains
+  co = Coproduct(_join, _split)
+  co.A = A
+  co.B = B
+  co.contains = _contains    # accessed via Side
   co.rm_sum = rm_sum
   co.kind = kind
+  init_checklist(co)
+
+  (co.AB.A, co.AB.B) = (A, B)
+  (co.BA.A, co.BA.B) = (B, A)
 
   return co.AB
 
@@ -145,7 +152,8 @@ def load_source(iterator, name):
   S = Source(name)
   for usage in load_usages(S, iterator):
     pass
-  link_records(S)   # sets parents, accepteds, and S.roots
+  link_to_superiors(S)   # sets parents, accepteds, and S.roots
+  collect_inferiors(S)
   return S
 
 # Two ways to make these things.  One is using plans (with `construct`).
@@ -164,18 +172,18 @@ def load_usages(S, iterator):
     assert S.get_checklist(usage)
     # S.set_checklist(usage, S)
     key = S.get_primary_key(usage)
-    S.index.by_primary_key_dict[key] = usage
+    S.index.by_primary_key_dict[key] = usage # Register
     yield usage
 
-def lookup_usage(S, key, src):
+def lookup_usage(S, key, comes_from):
   probe = S.index.by_primary_key_dict.get(key, None)
   if not probe:
     print("-- Dangling taxonID reference: %s (from %s)" %
-          (get_primary_key(key, '?'), src),
+          (get_primary_key(key, '?'), comes_from),
           file=sys.stderr)
   return probe
 
-def link_records(S):
+def link_to_superiors(S):
   seniors = 0
   for usage in S.index.by_primary_key_dict.values():
     parent_key = get_parent_key(usage, None)
@@ -197,8 +205,8 @@ def link_records(S):
       parent_usage = lookup_usage(S, parent_key, usage)
       if parent_usage:
         S.set_parent(usage, parent_usage)
-        #if monitor(usage) or monitor(parent_usage):
-        print("> parent %s := %s" % (get_blurb(usage), get_blurb(parent_usage)),
+        if monitor(usage) or monitor(parent_usage):
+          print("> parent %s := %s" % (get_blurb(usage), get_blurb(parent_usage)),
                 file=sys.stderr)
   if seniors > 0:     # Maybe interesting
     print("-- Suppressed %s senior synonyms" % seniors,
@@ -271,6 +279,17 @@ def collect_inferiors(C):
   return C
 
 # -----------------------------------------------------------------------------
+# Report on differences between record matches and hierarchy matches
+# r could be either a base usage record or a union
+
+def get_blurb(r):
+  if isinstance(r, prop.Instance):
+    u = get_unique(r)      # string
+    return u
+  elif r:
+    return "[not a dict]"
+  else:
+    return "[no match]"
 
 global_unique_dict = {}  # human readable unique name
 
@@ -295,23 +314,11 @@ def generate_names(x):
 
 get_unique = prop.getter(prop.get_property("unique", filler=pick_unique))
 
-# -----------------------------------------------------------------------------
-# Report on differences between record matches and hierarchy matches
-# r could be either a base usage record or a union
-
-def get_blurb(r):
-  if isinstance(r, prop.Instance):
-    u = get_unique(r)      # string
-    return u
-  elif r:
-    return "[not a dict]"
-  else:
-    return "[no match]"
-
 
 def monitor(x):
   return (x and len(get_canonical(x, None)) == 1) #.startswith("Metachirus"))
 
+# -----------------------------------------------------------------------------
 # Generate csv rows for a checklist
 
 def emit_rows(C, props):
@@ -324,8 +331,10 @@ def emit_rows(C, props):
 
 TOP = "[top]"
 
-def is_top(x): return get_source_checklist(x).get_primary_key(x) == TOP
+def is_top(x):
+  return get_primary_key(x) == TOP
 
+get_primary_key = prop.getter(primary_key_prop)
 
 # -----------------------------------------------------------------------------
 

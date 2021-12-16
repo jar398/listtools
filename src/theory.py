@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
+# ≳ ≲ ≥ ≤ → ≂
 
-# Prepare for doing within-tree MRCA operations
-#  cache_levels(C, roots)
+# C is for checklist, either sum or source but usually sum
+# S is for source, used in that role but conceivably a sum
+
 
 import sys, csv, argparse
 import functools
@@ -33,13 +35,16 @@ def load_theory(a_iterator, b_iterator,
   rm_sum = load_sum(rm_sum_iterator, A, B)
   # Create 'theory object'
   AB = checklist.make_sum(A, B, "", rm_sum=rm_sum)
-  init_source(A)
-  init_source(B)
+  init_summand(A)
+  init_summand(B)
 
 
-def init_source(A):
-  (A.get_level, A.set_level) = \
+# S is usually a source checklist, but could be a sum
+
+def init_summand(S):
+  (S.get_level, S.set_level) = \
     prop.get_set(prop.get_property("level"), context=A)
+  cache_levels(S, S.roots)
 
 
 def dup_iterator(iter):
@@ -52,7 +57,7 @@ def dup_iterator(iter):
 # Finally need to sort this out...
 
 """
-a way to identify a record in either source;
+a way to identify a record in either summand;
 hmmmm...
 
 need a nice way to get unique names for records.
@@ -112,17 +117,23 @@ with reasons:
 # This seems wrong somehow
 # Things would be simpler if only source nodes had levels
 
-def in_same_tree(C, x, y):
-  return source_checklist(x) == source_checklist(y)
+def common_summand(C, x, y):    # C is AB or BA
+  (x1, y1) = C.split(x)
+  (x2, y2) = C.split(y)
+  if y1 and y2: return C.B
+  if x1 and x2: return C.A
+  return None
 
 def le(C, x, y):
-  return tree_le(C, x, y) if in_same_tree(C, x, y) else cross_le(C, x, y)
+  return tree_le(C, x, y) if common_summand(C, x, y) else cross_le(C, x, y)
 
 def lt(C, x, y):
-  return lt(C, x, y) and not eq(C, x, y)
+  return lt(C, x, y) and not eq(C, x, y) # ?
 
 def eq(C, x, y):
-  return tree_eq(C, x, y) if in_same_tree(C, x, y) else cross_le(C, x, y)
+  return tree_eq(C, x, y) if common_summand(C, x, y) else cross_le(C, x, y)
+
+# relation(C, x, y) and so on
 
 # -----------------------------------------------------------------------------
 # Decide about a single source tree
@@ -212,6 +223,11 @@ def outlier(AB, x, y):
   return out
 
 # Cache this.
+# Satisfies: if y = shadow(x) then x ~<= y, and if x' = shadow(y),
+# then if x' <= x then x ~= y, or if x' > x then x > y.
+#
+# i.e.   x ≲ y ≲ x' ≤ x   →   x ≂ y   (same 'cluster')
+# i.e.   x ≲ y ≲ x' > x   →   x < y
 
 def get_shadow(AB, x, other):
   m = functools.reduce(mrca,

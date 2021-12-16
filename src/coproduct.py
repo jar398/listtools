@@ -3,7 +3,7 @@
 # val) where tag tells you which side it came from
 
 class Coproduct:
-  def __init__(self, join_fun, split_fun):
+  def __init__(self, A, B, join_fun, split_fun):
     self.AB = Side(self, join_fun, split_fun)
     def split_BA(z):
       (x, y) = split_fun(z)
