@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# ≥ ≤ ≳ ≲ ≂
 
 # Actually this is RCC29...
 
@@ -24,21 +25,27 @@ GT = def_rcc5_symbol(1 << 2, '>')
 DISJOINT = def_rcc5_symbol(1 << 3, '!')
 CONFLICT = def_rcc5_symbol(1 << 4, '><')
 
-LE = def_rcc5_symbol(LT|EQ, '<=')
-GE = def_rcc5_symbol(GT|EQ, '>=')
+LE = def_rcc5_symbol(LT|EQ, '≤')
+GE = def_rcc5_symbol(GT|EQ, '≥')
 OVERLAP = def_rcc5_symbol(LE|GE|CONFLICT, '∩')
 NOINFO = def_rcc5_symbol(OVERLAP|DISJOINT, '?')   # sibling synonyms
 
+#     ≴ ≵  ≶  ≱  ≰  ≱  ℮
+#  ≲ = Less-Than or Equivalent To
+#  ⪞ = Similar or Greater Than
+#  ≵ = Neither Greater-Than nor Equivalent To
 
-TIPES_EQ = def_rcc5_symbol(1 << (5+0), '~=')
-TIPES_LT = def_rcc5_symbol(1 << (5+1), '~<')
-TIPES_GT = def_rcc5_symbol(1 << (5+2), '~>')
-TIPES_DISJOINT = def_rcc5_symbol(1 << (5+3), '~!')
-TIPES_CONFLICT = def_rcc5_symbol(1 << (5+4), '~><')
+ESTIMATES_EQ = def_rcc5_symbol(1 << (5+0), '℮=')       # = or similar i.e. =
+ESTIMATES_LT = def_rcc5_symbol(1 << (5+1), '℮<')       # < or similar
+ESTIMATES_GT = def_rcc5_symbol(1 << (5+2), '℮>')       # > or similar
+ESTIMATES_DISJOINT = def_rcc5_symbol(1 << (5+3), '℮!')    # same as !
+ESTIMATES_CONFLICT = def_rcc5_symbol(1 << (5+4), '℮><')   # same as ≂ in practice
 
-TIPES_LE = def_rcc5_symbol(TIPES_LT|TIPES_EQ, '~<=')   # mrca
-TIPES_GE = def_rcc5_symbol(TIPES_GT|TIPES_EQ, '~>=')   # mrca
+ESTIMATES_LE = def_rcc5_symbol(ESTIMATES_LT|ESTIMATES_EQ, '℮≲')   # via mrca
+ESTIMATES_GE = def_rcc5_symbol(ESTIMATES_GT|ESTIMATES_EQ, '℮≥')   # via mrca
 
+ESTIMATES_NLE = def_rcc5_symbol(ESTIMATES_GT|ESTIMATES_DISJOINT|ESTIMATES_CONFLICT, '℮≰')   # via mrca
+ESTIMATES_NGE = def_rcc5_symbol(ESTIMATES_LT|ESTIMATES_DISJOINT|ESTIMATES_CONFLICT, '℮≱')   # via mrca
 
 
 
