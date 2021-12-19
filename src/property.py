@@ -63,6 +63,8 @@ def get_property(label, filler=None, getter=None, setter=None, fresh=False):
     _label_to_property[label] = prop
   return prop
 
+# You can explicitly pass context=None to get ambient context.
+
 def get_set(prop, context=None):
   return (getter(prop, context=context),
           setter(prop, context=context))
@@ -70,8 +72,9 @@ def get_set(prop, context=None):
 def getter(prop, context=None):
   if context:
     return contextual_getter(prop, context)
+  elif prop.getter:
+    return prop.getter
   else:
-    if prop.getter: return prop.getter
     return ambient_getter(prop)
 
 def ambient_getter(prop):
@@ -124,26 +127,71 @@ def ambient_setter(prop):
 # e.g. checklist.get_parent = contextual_getter(get_property("parent"), checklist)
 
 def contextual_getter(prop, context):
-  column = context.columns.get(prop.id, None)
-  if column == None:
-    column = {}
-    context.columns[prop.id] = column
-  def getit(x, default=_NODEFAULT):
-    stored = column.get(x.id, default)
-    if stored == _NODEFAULT:
-      return getter(prop)(x)
+  column_mep = _get_column_mep(prop, context)
+  def getit(inst, default=_NODEFAULT):
+    stored = mep_get(column_mep, inst, MISSING)
+    if stored == MISSING:
+      if default != _NODEFAULT:
+        val = default
+      elif prop.filler:
+        assert not "TBD"
+      else:
+        val = getter(prop)(inst)      # Inherit from ambient
     else:
-      return stored
+      # what if there's a filler?  should use it?  how does it know
+      # the context?
+      val = stored
+    return val
   return getit
 
 def contextual_setter(prop, context):
-  column = context.columns.get(prop.id, None)
-  if column == None:
-    column = {}
-    context.columns[prop.id] = column
-  def setit(x, val):
-    column[x.id] = val
+  column_mep = _get_column_mep(prop, context)
+  def setit(inst, val):
+    column_mep[inst.id] = val
   return setit
+
+# get_column_mep maps from property to column_mep (column_mep is a 'mep')
+#   within a given context (something with a .columns property)
+
+def _get_column_mep(prop, context):
+  return get_column(prop, context).instance_to_value
+
+# There is one Column per property per context...
+
+def get_column(prop, context):
+  column = mep_get(context.columns, prop, None)
+  if column == None:
+    column = Column(mep(), {})
+    mep_set(context.columns, prop, column)
+  return column
+
+class Column(NamedTuple):
+  instance_to_value : Any
+  value_to_instance : Any
+  # maybe more later
+
+# ----- Completely generic csv loader for any kind of table.
+
+def get_instances(prop, context):
+  return get_column(prop, context).value_to_instance.values()
+
+def look_up_instance(prop, context, value, default=None):
+  return get_column(prop, context).value_to_instance[value]
+
+def load_table(row_iterator, primary_key_prop):
+  get_pk = getter(primary_key_prop) # ambient
+  Q = Context(mep())
+  inverse_pk_dict = get_column(primary_key_prop, Q).value_to_instance
+  header = next(iterator)
+  plan = prop.make_plan_from_header(header)
+  for row in row_iterator:
+    inst = prop.construct(plan, row)
+    inverse_pk_dict[key] = get_pk(inst)  # ambient -> contextual
+  return Q
+
+class Context(NamedTuple):
+  columns : Any  # mep()    # property -> (usage to value, value to usage)
+
 
 # Instances
 
@@ -183,13 +231,13 @@ def construct(plan, row):
 
 _nodefault = []
 def mep(): return {}
-def mep_get(mep, x, default=_nodefault):
+def mep_get(mep, inst, default=_nodefault):
   if default is _nodefault:
-    return mep[x.id]
+    return mep[inst.id]
   else:
-    return mep.get(x.id, default)
-def mep_set(mep, x, j):
-  mep[x.id] = j
+    return mep.get(inst.id, default)
+def mep_set(mep, inst, j):
+  mep[inst.id] = j
 
 
 # Test row-based instances
