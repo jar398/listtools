@@ -5,14 +5,25 @@
 import sys, csv
 import property as prop
 
-from coproduct import *
 from util import log
 
 primary_key_prop = prop.get_property("taxonID")
 get_primary_key = prop.getter(primary_key_prop)
 
 source_prop = prop.get_property("source")    # which checklist does this belong to?
+canonical_prop = prop.get_property("canonicalName")
+scientific_prop = prop.get_property("scientificName")
+parent_key_prop = prop.get_property("parentNameUsageID")
+accepted_key_prop = prop.get_property("acceptedNameUsageID")
+parent_prop = prop.get_property("parent")
+accepted_prop = prop.get_property("accepted")
+year_prop = prop.get_property("year")  # http://rs.tdwg.org/dwc/terms/year
+
 (get_source, set_source) = prop.get_set(source_prop)
+(get_canonical, set_canonical) = prop.get_set(canonical_prop)
+(get_parent_key, set_parent_key) = prop.get_set(parent_key_prop)
+(get_accepted_key, set_accepted_key) = prop.get_set(accepted_key_prop)
+(get_year, set_year) = prop.get_set(year_prop)
 
 # -----------------------------------------------------------------------------
 # Common code... for both alignments and checklists...
@@ -46,108 +57,8 @@ class Source:
     g = prop.getter(primary_key_prop, context=self.context)
     return g(pk, None)
 
-# -----------------------------------------------------------------------------
-# Sum / coproduct / merged checklist
-# Could be either just the matches (not a checklist), or the matches
-# plus overrides (synthetic checklist)
-
-# Returns B side
-
-def make_sum(A, B, kind, rm_sum=None):
-  def _in_left(x):
-    assert A.contains(x)
-    return x
-  def _in_right(y):
-    assert B.contains(y)
-    return y
-  def _case(z, when_left, when_right):
-    if A.contains(z):
-      return when_left(z)
-    else:
-      assert B.contains(z)
-      return when_right(z)
-  AB = Coproduct(_in_left, _in_right, _case)
-  def contains(x):
-    return A.contains(x) or B.contains(x)
-  AB.contains = contains
-
-  AB.kind = kind     # record match vs. extension match
-  AB.A = A           # need ??
-  AB.B = B
-
-  # Usage coproducts are about matching
-
-  AB.rm_sum = rm_sum
-  if rm_sum:
-    def record_match(x):
-      assert False # TBD
-      return rm_sum.get_match(x, None)
-    AB.record_match = record_match
-
-  Q = prop.make_context()       # allows overriding A and/or B
-  init_checklist(AB, Q)    # we do this for any kind of checklist
-
-  return AB
-
-# Does this checklist contain this particular instance?
-
-def contains(C, x):
-  return AB.contains(x)
-
-def record_match(AB, x):
-  return AB.record_match(x)
-
-"""
-  def record_match(self, x):
-    # This doesn't feel right
-    y = self.out_left(u)             # y in A
-    r = self.out_right(self.rm_sum.in_left(y))
-    return self.rm_sum.in_right(r) if r else None
-"""
-
-# -----------------------------------------------------------------------------
-# Common code for both kinds of checklist
-
-# This approach makes checklists rather heavyweight... that's OK for now
-
-canonical_prop = prop.get_property("canonicalName")
-scientific_prop = prop.get_property("scientificName")
-rank_prop = prop.get_property("taxonRank")
-year_prop = prop.get_property("year")  # http://rs.tdwg.org/dwc/terms/year
-parent_key_prop = prop.get_property("parentNameUsageID")
-accepted_key_prop = prop.get_property("acceptedNameUsageID")
-parent_prop = prop.get_property("parent")
-accepted_prop = prop.get_property("accepted")
-equivalent_prop = prop.get_property("match")
-  
-# Ambient
-(get_source, set_source) = prop.get_set(source_prop)
-(get_parent_key, set_parent_key) = prop.get_set(parent_key_prop)
-(get_accepted_key, set_accepted_key) = prop.get_set(accepted_key_prop)
-(get_year, set_year) = prop.get_set(year_prop)
-(get_canonical, set_canonical) = prop.get_set(canonical_prop)
-
 def init_checklist(C, Q):
   C.context = Q
-
-  (C.get_match, C.set_match) = prop.get_set(equivalent_prop, Q)    # ???
-
-  # Properties that are usually CSV context.  Ambient but can be
-  # overridden contextually.
-  (C.get_primary_key, C.set_primary_key) = \
-    prop.get_set(primary_key_prop, context=Q)
-
-  (C.get_canonical, C.set_canonical) = \
-    prop.get_set(canonical_prop, context=Q)
-  (C.get_scientific, C.set_scientific) = \
-    prop.get_set(scientific_prop, context=Q)
-  (C.get_rank, C.set_rank) = \
-    prop.get_set(rank_prop, context=Q)
-  # Not CSV context.  - tbd, use this ambiently as well?
-  (C.get_source, C.set_checklist) = \
-    prop.get_set(source_prop, context=Q)       # ?????
-  (C.get_same, C.set_same) = \
-    prop.get_set(prop.get_property("same"), context=Q)
   (C.get_parent, C.set_parent) = \
     prop.get_set(parent_prop, context=Q)
   (C.get_accepted, C.set_accepted) = \
@@ -156,14 +67,6 @@ def init_checklist(C, Q):
     prop.get_set(prop.get_property("children"), context=Q)
   (C.get_synonyms, C.set_synonyms) = \
     prop.get_set(prop.get_property("synonyms"), context=Q)
-
-  # Convenience methods
-  def get_superior(x):
-    return C.get_parent(x, None) or C.get_accepted(x, None)
-  def get_inferiors(p):
-    return C.get_children(p, []) + C.get_synonyms(p, [])
-  C.get_superior = get_superior
-  C.get_inferiors = get_inferiors
 
 # -----------------------------------------------------------------------------
 # Read and write Darwin Core files
@@ -328,7 +231,7 @@ def collect_inferiors(C):
   # We really only want one root (this is so that mrca can work)
   if True or len(roots) > 1:
     top = make_usage(TOP, C)
-    C.set_canonical(top, TOP)
+    set_canonical(top, TOP)
     for root in roots: C.set_parent(root, top)
     C.set_children(top, roots)
     roots = [top]
@@ -419,10 +322,15 @@ def is_top(x):
 
 if __name__ == '__main__':
   import newick
-  src = rows_to_checklist(newick.parse_newick("a"),
-                          {"name": "A"})  # meta
-  writer = csv.writer(sys.stdout)
-  rows = list(checklist_to_rows(src))
-  for row in rows:
-    writer.writerow(row)
-  print(newick.compose_newick(rows))
+
+  def testit(n):
+    src = rows_to_checklist(newick.parse_newick(n),
+                            {"name": "A"})  # meta
+    writer = csv.writer(sys.stdout)
+    rows = list(checklist_to_rows(src))
+    for row in rows:
+      writer.writerow(row)
+    print(newick.compose_newick(rows))
+
+  testit("a")
+  testit("(a,b)c")
