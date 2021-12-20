@@ -38,40 +38,40 @@ def write_row(writer,
 def emit_dwc(accepteds, synonyms, scinames, authorities, merged, outfile):
   writer = csv.writer(outfile)
   write_row(writer,
-            "taxonID", "record_id", "parentNameUsageID", "taxonRank",
+            "taxonID", "managed_id", "parentNameUsageID", "taxonRank",
             "acceptedNameUsageID", "scientificName", "canonicalName",
             "taxonomicStatus", "nomenclaturalStatus")
   # Accepted names
-  for (id, parent_id, rank) in accepteds:
-    sci = scinames.get(id, None)
+  for (taxid, parent_id, rank) in accepteds:
+    sci = scinames.get(taxid, None)
     write_row(writer,
-              id, record_id(id), parent_id, rank,
-              None, authorities.get(id, None), sci,
+              taxid, managed_id(taxid), parent_id, rank,
+              None, authorities.get(taxid, None), sci,
               "accepted", None)
   # Synonyms
-  for (id, text, kind, spin) in synonyms:
+  for (taxid, text, kind, spin) in synonyms:
     # synonym is a taxonomic status, not a nomenclatural status
     if kind == "synonym": kind = None
-    taxon_id = id + "." + spin
+    taxonID = taxid + "." + spin      # primary key in this file
     if kind == "authority":    # shouldn't happen, but does
       write_row(writer,
-                taxon_id, None, None, None,
-                id, text, None,    # scientificName
+                taxonID, None, None, None,
+                taxid, text, None,    # scientificName
                 "synonym", kind)
     else:
       write_row(writer,
-                taxon_id, None, None, None,
-                id, None, text,   # canonicalName
+                taxonID, None, None, None,
+                taxid, None, text,   # canonicalName
                 "synonym", kind)
   for (old_id, new_id) in merged:
     canonical = "deprecated taxon that had taxid %s" % old_id
     write_row(writer,
-              old_id, record_id(old_id), None, None,
+              old_id, managed_id(old_id), None, None,
               new_id, None, canonical,
               "synonym", "merged id")
 
-def record_id(id):
-  return "NCBI:%s" % id
+def managed_id(taxid):
+  return "NCBI:%s" % taxid
 
 # Input: list of (id, text, kind, spin) from names.txt file
 # Output: list of (id, text, kind, spin); 

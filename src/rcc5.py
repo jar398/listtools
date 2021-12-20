@@ -13,7 +13,11 @@
 #   A ≲ B  is what the mrca-homomorphism trick gets you.
 
 rcc5_symbols = 32 * ['?']
-def def_rcc5_symbol(n, name): rcc5_symbols[n] = name; return n
+rcc5_relations = {}
+def def_rcc5_symbol(n, name):
+  rcc5_symbols[n] = name
+  rcc5_relations[name] = n
+  return n
 
 # want rel and ~ / rel but-not ~ , eg. ≳ ≲ ≳≲ 
 # Maybe I just need a completely separate set of operators for
@@ -25,7 +29,7 @@ GT = def_rcc5_symbol(1 << 2, '>')
 DISJOINT = def_rcc5_symbol(1 << 3, '!')
 CONFLICT = def_rcc5_symbol(1 << 4, '><')
 
-LE = def_rcc5_symbol(LT|EQ, '≤')
+LE = def_rcc5_symbol(LT|EQ, '≤')       # synonym
 GE = def_rcc5_symbol(GT|EQ, '≥')
 OVERLAP = def_rcc5_symbol(LE|GE|CONFLICT, '∩')
 NOINFO = def_rcc5_symbol(OVERLAP|DISJOINT, '?')   # sibling synonyms
@@ -57,6 +61,9 @@ UNRESOLVED = def_rcc5_symbol(LT|GT|CONFLICT, '~')
 def rcc5_symbol(x):
   if x: return rcc5_symbols[x]
   else: return '??'
+
+def rcc5_relation(x):
+  return rcc5_relations[x]
 
 def reverse_relation(rel):
   l = (rel & LT)

@@ -33,7 +33,7 @@ unweights = None
 default_index_by = ["scientificName", "epithetAuthorYear",
                     "canonicalName", "canonicalStem"]
 
-# Row generators -> row generator
+# Row iterables -> row iterable
 
 def match_records(a_reader, b_reader, pk_col="taxonID", index_by=default_index_by):
   a_table = ingest_csv(a_reader, pk_col)
@@ -41,12 +41,13 @@ def match_records(a_reader, b_reader, pk_col="taxonID", index_by=default_index_b
   cop = compute_sum(a_table, b_table, pk_col, index_by)
   return generate_sum(cop, pk_col)
 
-# Sum -> row generator.
+# Sum -> row iterable.
+# B is priority, so treat A equivalences as annotations on it
 
 def generate_sum(coproduct, pk_col):
-  yield [pk_col + "_A", pk_col + "_B", "remarks"]
-  for (key1, key2, remarks) in coproduct:
-    yield [key1, key2, remarks]
+  yield ["equivalentID", pk_col, "equivalence_note"]
+  for (key1, key2, remark) in coproduct:
+    yield [key1, key2, remark]
 
 # table * table -> sum (cf. delta.py)
 
@@ -360,7 +361,7 @@ if __name__ == '__main__':
                       default="taxonID",
                       help='name of column containing primary key')
   # Order is important
-  indexed="taxonID,scientificName,canonicalName"
+  indexed="scientificName,type,canonicalName,canonicalStem,managed_id"
   parser.add_argument('--index',
                       default=indexed,
                       help='names of columns to match on')

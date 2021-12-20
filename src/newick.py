@@ -5,7 +5,7 @@ from util import MISSING, windex
 
 tokenize = re.compile("[^,()]+")
 
-# Returns a generator yielding rows
+# Given a Newick string, returns an iterable of rows.
 
 def parse_newick(newick):
   rows = []
@@ -51,9 +51,12 @@ def parse_newick(newick):
   if n < len(newick):
     print("! extra stuff after end of newick: %s" % newick[n:],
           file=sys.stderr)
-  return (row for row in rows)
+  return rows
 
-def generate_newick(rows):
+# Consumes an iterable of rows, and returns a Newick string.
+
+def compose_newick(rows):
+  rows = iter(rows)
   header = next(rows)
   key_pos = windex(header, "taxonID")
   parent_pos = windex(header, "parentNameUsageID")
@@ -100,4 +103,4 @@ if __name__ == '__main__':
     writer = csv.writer(sys.stdout)
     for row in gen: writer.writerow(row)
   else:
-    print(generate_newick(csv.reader(sys.stdin)))
+    print(compose_newick(csv.reader(sys.stdin)))

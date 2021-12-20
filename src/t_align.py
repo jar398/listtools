@@ -13,14 +13,12 @@ def test(n1, n2):
   a_iterator = newick.parse_newick(n1)
   b_iterator = newick.parse_newick(n2)
   rows = align.align(a_iterator, b_iterator, rm_sum_iterator)
-  #rows = [row for row in sum_iterator]
-  #util.write_generated((row for row in rows), sys.stdout)
-  return newick.generate_newick((row for row in rows))
+  return newick.compose_newick(rows)
 
 def run_test(A, B, expect, noisy):
   print("\nsrc/t_align.py '%s' '%s'" % (A, B))
-  print("  or %s + %s" % (newick.generate_newick(newick.parse_newick(A)),
-                          newick.generate_newick(newick.parse_newick(B))))
+  print("  or %s + %s" % (newick.compose_newick(newick.parse_newick(A)),
+                          newick.compose_newick(newick.parse_newick(B))))
   n3 = test(A, B)
   if expect and n3 != expect:
     print("*** TEST FAILED *** A+B = %s != %s\n" % (n3, expect))

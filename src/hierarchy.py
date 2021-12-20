@@ -6,7 +6,9 @@
 # Input: a usages table, with taxonID as primary key
 #   also acceptedNameUsageId, taxonomicStatus, etc.
 
-# Output: a hierarchical items table, with one row per item
+# Output: a hierarchical items [concepts/extensions/pages?] table,
+# with one row per item
+
 
 import sys, csv, argparse
 from util import apply_correspondence, correspondence, windex, MISSING

@@ -172,26 +172,33 @@ class Column(NamedTuple):
 
 # ----- Completely generic csv loader for any kind of table.
 
-def get_instances(prop, context):
-  return get_column(prop, context).value_to_instance.values()
+def get_instances(column):
+  assert isinstance(column, Column)
+  return column.value_to_instance.values()
 
-def look_up_instance(prop, context, value, default=None):
-  return get_column(prop, context).value_to_instance[value]
+def get_instance(column, value, default=None):
+  return column.value_to_instance[value]
 
-def load_table(row_iterator, primary_key_prop):
+def table_to_context(row_iterable, primary_key_prop):
   get_pk = getter(primary_key_prop) # ambient
-  Q = Context(mep())
-  inverse_pk_dict = get_column(primary_key_prop, Q).value_to_instance
-  header = next(iterator)
-  plan = prop.make_plan_from_header(header)
+  Q = make_context()
+  pk_col = get_column(primary_key_prop, Q)
+  assert isinstance(pk_col, Column)
+  inverse_pk_dict = pk_col.value_to_instance
+  row_iterator = iter(row_iterable)
+  header = next(row_iterator)
+  plan = make_plan_from_header(header)
   for row in row_iterator:
-    inst = prop.construct(plan, row)
-    inverse_pk_dict[key] = get_pk(inst)  # ambient -> contextual
+    inst = construct(plan, row)
+    key = get_pk(inst)
+    inverse_pk_dict[key] = inst  # ambient -> contextual
   return Q
 
 class Context(NamedTuple):
   columns : Any  # mep()    # property -> (usage to value, value to usage)
 
+def make_context():
+  return Context(mep())
 
 # Instances
 

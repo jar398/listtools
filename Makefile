@@ -1,8 +1,7 @@
-# This is an example of the use of the list tools.
+# $< = first prerequisite, $@ = target
 
-# Run with: 
-#   make -f doc/diffpatch.makefile A=oldtable B=newtable
-# The tables here would be oldtable.csv and newtable.csv
+# This has examples of the use of the list tools.
+# Very much in flux!
 
 all:
 	@echo "Please specify a target:"
@@ -23,7 +22,7 @@ B?=work/ncbi202008-mammals
 # time make A=work/ncbi201505 B=work/ncbi202008 demo
 #  etc. etc.
 
-# N.b. record_id has a specific meaning in this system.  The id in
+# N.b. managed_id has a specific meaning in this system; it's an id in
 #  some managed namespace, prefixed by something to identify the namespace.
 # Example syntax:
 #   NCBI:123, EOL:4567 (for page id), GBIF:8910, WORMS:2345   etc.
@@ -51,7 +50,7 @@ B?=work/ncbi202008-mammals
 # time make A=work/dh09 B=work/dh11 round
 # time make A=work/dh11 B=work/dh12 round
 
-# Hierarchies
+# Hierarchies - columns are those that neo4j needs to know
 # DELTA_KEY=EOLid MANAGE=EOLid,parentEOLid,taxonID,landmark_status \
 #   time make A=work/dh09-hier B=work/dh11-hier report
 
@@ -60,21 +59,22 @@ B?=work/ncbi202008-mammals
 
 # ----- Parameters
 
-# $< = first prerequisite, $@ = target
+MAMMALIA_NCBI=40674
+MAMMALIA_GBIF=359
+MAMMALIA_DH11=EOL-000000627548
+MAMMALIA_DH09=-168130
 
 SHELL?=/usr/bin/bash
 RAKE?=cd ../plotter && rake
 P?=src
 
-INDEX?="scientificName,tipe,record_id,EOLid,canonicalName,canonicalStem"
+INDEX?="scientificName,type,canonicalName,canonicalStem,managed_id"
 
 # Primary key column
 PRIMARY_KEY?=taxonID
 
 # overridden to EOLid for EOL
 DELTA_KEY?=$(PRIMARY_KEY)
-
-# What is MANAGE_KEY for? I forget
 
 # ----- General rules
 
@@ -94,6 +94,7 @@ $(RM): $A-gnp.csv $B-gnp.csv $P/match_records.py
 # Formerly: $P/project.py --keep $(MANAGE) <$< | ...
 # and	    $P/sortcsv.py --key $(PRIMARY_KEY) <$< >$@.new
 
+# Columns that use to decide whether a 'record has changed'
 MANAGE?=taxonID,scientificName,canonicalName,taxonRank,taxonomicStatus,nomenclaturalStatus,datasetID,source
 
 $(DELTA): $A.csv $B.csv $P/delta.py $P/match_records.py $P/property.py
@@ -133,8 +134,6 @@ $(ROUND): $(DELTA) $A-narrow.csv $B-narrow.csv $P/apply.py
 %-mammals-gnp.csv: %-mammals.csv
 
 # ----- NCBI-specific rules
-
-MAMMALIA_NCBI=40674
 
 ncbi%-mammals.csv: ncbi%.csv $P/subset.py
 	$P/subset.py --hierarchy $< --root $(MAMMALIA_NCBI) < $< > $@.new
@@ -181,8 +180,6 @@ work/ncbi202008.ncbi-url:
 
 # ----- GBIF-specific rules
 
-MAMMALIA_GBIF=359
-
 work/gbif20190916.gbif-url:
 	echo https://rs.gbif.org/datasets/backbone/2019-09-06/backbone.zip >$@
 
@@ -196,10 +193,10 @@ work/gbif20210303.gbif-url:
 	touch `dirname $@`/*
 .PRECIOUS: %/dump/meta.xml
 
-# Ingest GBIF dump, convert TSV to CSV
+# Ingest GBIF dump, convert TSV to CSV, add managed_id column
 %.csv: %/dump/meta.xml $P/start.py
 	$P/start.py --pk $(PRIMARY_KEY) --input `dirname $<`/Taxon.tsv \
-	  --managed taxonID --prefix GBIF: >$@.new
+	  --managed GBIF:taxonID >$@.new
 	@mv -f $@.new $@
 .PRECIOUS: %.csv
 
@@ -246,9 +243,6 @@ work/mdd1.0-gnp.csv: work/mdd1.0.csv
 
 # ----- Record match rules, mainly for EOL purposes
 
-MAMMALIA_DH11=EOL-000000627548
-MAMMALIA_DH09=-168130
-
 RM=work/rm-$(shell basename $A)-$(shell basename $B).csv
 ALIGNMENT=work/alignment-$(shell basename $A)-$(shell basename $B).csv
 REPORT=work/report-$(shell basename $A)-$(shell basename $B).csv
@@ -277,7 +271,8 @@ $(REPORT): $(ALIGNMENT) $(RM) $P/report.py $P/property.py
 # ----------------------------------------------------------------------
 # EOL examples
 
-# EOL mammals root = page id 1642
+# EOL mammals root = page id 1642 (but we use the record key
+# MAMMALIA_DH01/DH11, not the page id)
 
 HIER_KEY=EOLid
 
@@ -292,25 +287,37 @@ work/dh11.eol-resource-id:
 	@mkdir -p work
 	echo 724 > $@
 
-# about half a minute for DH 1.1
-
-work/%.csv: work/%.eol-resource-id $P/start.py
-	@mkdir -p work
-	ID=$$(cat $<); \
-	$P/start.py --input `$(RAKE) resource:taxa_path \
-	       	          CONF=$(ASSEMBLY) \
-		          ID=$$ID` \
-		    --pk $(PRIMARY_KEY) \
-	| $P/sortcsv.py --key $(PRIMARY_KEY) > $@.new
-	@mv -f $@.new $@
-
+# DH 1.2 hasn't yet been 'harvested' or 'published' in EOL, so we have to
+# get it straight from opendata
 DH12_LP="https://opendata.eol.org/dataset/tram-807-808-809-810-dh-v1-1/resource/02037fde-cc69-4f03-94b5-65591c6e7b3b"
 
-work/dh12.csv: $P/start.py
+work/dh12.taxafile:
 	@mkdir -p work
-	$P/start.py --input `$(RAKE) dwca:taxa_path OPENDATA=$(DH12_LP)` \
+	echo `$(RAKE) dwca:taxafile OPENDATA=$(DH12_LP)` >$@
+
+work/%.taxafile: work/%.eol-resource-id
+	@mkdir -p work
+	ID=$$(cat $<); \
+	echo `$(RAKE) resource:taxafile \ CONF=$(ASSEMBLY) ID=$$ID` >$@
+
+# about half a minute for DH 1.1
+
+work/dh09.csv: work/%.taxafile $P/start.py
+	@mkdir -p work
+	$P/start.py --input `cat $<` \
+                    --managed EOL:EOLid \
 		    --pk taxonID \
 	       > $@.new
+	@mv -f $@.new $@
+
+# taxonID is managed in 1.1 and following, but not in 0.9
+
+work/%.csv: work/%.taxafile $P/start.py
+	@mkdir -p work
+	$P/start.py --input `cat $<` \
+                    --managed EOLNODE:taxonID \
+		    --pk taxonID \
+	| $P/sortcsv.py --key taxonID > $@.new
 	@mv -f $@.new $@
 
 # in1=./deprecated/work/1-mam.csv

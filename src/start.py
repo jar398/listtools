@@ -12,6 +12,7 @@ MISSING = ''
 def start_csv(inport, params, outport, args):
   pk_col = args.pk
   cleanp = args.clean
+  (prefix, managed) = args.managed.split(':')     # GBIF:taxonID
 
   (d, q, g) = params
   reader = csv.reader(inport, delimiter=d, quotechar=q, quoting=g)
@@ -34,10 +35,10 @@ def start_csv(inport, params, outport, args):
   tax_status_pos = windex(in_header, "taxonomicStatus")
 
   # --managed taxonID --prefix GBIF:   must always be used together
-  managed_pos = windex(in_header, args.managed)
-  if windex(in_header, "record_id"):
+  managed_pos = windex(in_header, managed)
+  if windex(in_header, "managed_id"):
     assert not managed_pos
-  assert (not args.prefix) == (managed_pos == None), (args.prefix, managed_pos)
+  assert (not prefix) == (managed_pos == None), (prefix, managed_pos)
 
   must_affix_pk = (pk_col and pk_pos_in == None)
   if must_affix_pk:
@@ -47,7 +48,7 @@ def start_csv(inport, params, outport, args):
     out_header = in_header
 
   if managed_pos != None:
-    out_header = in_header + ["record_id"]
+    out_header = in_header + ["managed_id"]
   # print("# Output header: %s" % (out_header,), file=sys.stderr)
 
   # Do these after header modifications
@@ -131,12 +132,12 @@ def start_csv(inport, params, outport, args):
     assert pk != MISSING
     seen_pks[pk] = True
 
-    # Add record_id if necessary
+    # Add managed_id if necessary
     if managed_pos != None:
       assert row[managed_pos]
       id = row[managed_pos]
-      record_id = args.prefix + id if id else MISSING
-      out_row = out_row + [record_id]
+      managed_id = prefix + id if id else MISSING
+      out_row = out_row + [managed_id]
 
     writer.writerow(out_row)
     count += 1
@@ -227,9 +228,7 @@ if __name__ == '__main__':
                       help='clean up scientificName and canonicalName a little bit')
   parser.add_argument('--no-clean', dest='clean', action='store_false')
   parser.add_argument('--managed',
-                      help='column from which to obtain managed record ids, e.g. EOLid')
-  parser.add_argument('--prefix',
-                      help='record_id is this prefix combined with the value in managed column e.g. EOL:')
+                      help='prefix and source column for managed record ids, e.g. EOL:EOLid')
   parser.set_defaults(clean=True)
 
   args=parser.parse_args()
