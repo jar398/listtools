@@ -21,7 +21,8 @@ With some indexing, we can do it in approximately linear time.
 import sys, io, argparse, csv
 from functools import reduce
 from util import ingest_csv, windex, MISSING, \
-                 correspondence, precolumn, stable_hash
+                 correspondence, precolumn, stable_hash, log
+from rcc5 import *
 
 # 20 : 8 : 20 : 8
 
@@ -44,11 +45,13 @@ def match_records(a_reader, b_reader, pk_col="taxonID", index_by=default_index_b
 
 # Sum -> row iterable.
 # B is priority, so treat A equivalences as annotations on it
+# Part of this module's API.
 
 def generate_sum(coproduct, pk_col):
-  yield ["equivalentID", pk_col, "equivalence_note"]
-  for (key1, key2, remark) in coproduct:
-    yield [key1, key2, remark]
+  yield ["equivalentID", "relation", pk_col, "equivalence_note"]
+  for (key1, rel, key2, remark) in coproduct:
+    rel_sym = rcc5_symbol(rel) if rel != None else MISSING
+    yield [key1, rel_sym, key2, remark]
 
 # table * table -> sum (cf. delta.py)
 
@@ -74,7 +77,7 @@ def compute_sum(a_table, b_table, pk_col_arg, index_by):
   #       (len(best_rows_in_file2), len(best_rows_in_file1)),
   #       file=sys.stderr)
 
-  def connect(key1, key2, remark):
+  def connect(key1, rel, key2, remark):
     assert isinstance(remark, str)
     # Choose an id in the sum
     if key2 != None:
@@ -82,31 +85,19 @@ def compute_sum(a_table, b_table, pk_col_arg, index_by):
     elif key1 in all_rows2:     # id collision
       row1 = all_rows1[key1]
       key3 = "%s$%s" % (key1, stable_hash(row1))
-      if False:
-        row2 = all_rows2[key1]
-        print(("-- match_records: id %s is used differently in the two inputs.\n" + \
-               "--   %s vs. %s\n" + \
-               "--   %s\n" + \
-               "--   %s will replace it for the A input") %
-              (key1,
-               row1[windex(header1, "canonicalName")],
-               row2[windex(header2, "canonicalName")],
-               remark, key3),
-              file=sys.stderr)
     else:
       key3 = key1
     # Establish correspondences
-    coproduct.append((key1, key2, remark))
+    coproduct.append((key1, rel, key2, remark))
     return key3
 
   def find_match(key1, best_rows_in_file2, best_rows_in_file1,
-                 pk_pos1, pk_pos2):
-    key2 = None
-    (row2, remark2) = check_match(key1, best_rows_in_file2, pk_pos2)
+                 pk_pos1, pk_pos2, key1_in_A):
+    (row2, remark2) = check_match(key1, best_rows_in_file2, pk_pos2, key1_in_A)
     # remark = MISSING means no matches
     if row2 != None:
       candidate = row2[pk_pos2]
-      (back1, remark1) = check_match(candidate, best_rows_in_file1, pk_pos1)
+      (back1, remark1) = check_match(candidate, best_rows_in_file1, pk_pos1, not key1_in_A)
       assert remark1
       if back1 != None:
         if back1[pk_pos1] == key1:
@@ -116,47 +107,61 @@ def compute_sum(a_table, b_table, pk_col_arg, index_by):
           if remark2 == remark1:
             remark = remark2
           else:
-            remark = "%s; %s" % (remark2, remark1)
+            # Shouldn't happen I think ??
+            remark = (key2, "%s|%s" % (remark2, remark1))
+          answer = (EQ, key2, remark)
         else:
           b1 = back1[pk_pos1]
           # wish there was a name here so we can see what's going on
-          remark = ("round trip failed: A %s -> B %s -> A %s" %
-                    (key1, row2[pk_pos2], b1))
+          # should be sensitive to key1_in_A
+          if key1_in_A:
+            answer = (LE, row2[pk_pos2],
+                      ("match not mutual: %s -> %s" %
+                       (row2[pk_pos2], b1)))
+          else:
+            answer = (LE, row2[pk_pos2],
+                      ("match not mutual: %s <- %s" %
+                       (b1, row2[pk_pos2])))
       else:
         # Probably an ambiguity {row1, row1'} <-> row2
-        remark = remark1
+        answer = (NOINFO, TOP, remark1)
     else:
       # No match in B, or an ambiguity row1 <-> {row2, row2'}
-      remark = remark2
-    return (key2, remark)
+      answer = (NOINFO, TOP, remark2)
+    return answer
+
+  TOP = MISSING
 
   # -----
 
   seen2 = {}                    # injection B -> A+B
 
   for (key1, row1) in all_rows1.items():
-    (key2, remark) = find_match(key1, best_rows_in_file2,
-                                best_rows_in_file1, pk_pos1, pk_pos2)
+    (rel2, key2, remark) = find_match(key1, best_rows_in_file2,
+                                      best_rows_in_file1, pk_pos1, pk_pos2,
+                                      True)
     # Store the correspondence.  key2 may be None.
-    connect(key1, key2, remark)
+    connect(key1, rel2, key2, remark)
     if key2 != None:
       seen2[key2] = True
 
   for (key2, row2) in all_rows2.items():
     if not key2 in seen2:
-      (key1, remark) = find_match(key2, best_rows_in_file1,
-                                  best_rows_in_file2, pk_pos2, pk_pos1)
+      (rel1, key1, remark) = find_match(key2, best_rows_in_file1,
+                                        best_rows_in_file2, pk_pos2, pk_pos1,
+                                        False)
       if key1 != None:
         # shouldn't happen
         remark = "! surprising match: %s <-> %s" % (key2, key1)
       # Addition - why did it fail?
       # Unique match means outcompeted, probably?
-      connect(None, key2, remark)
+      rel2 = reverse_relation(rel1) # <= to >=
+      connect(key1, rel2, key2, remark)
 
   # Print stats on outcome
   aonly = bonly = matched = 0
-  for (key1, key2, remark) in coproduct:
-    if key1 != None and key2 != None:
+  for (key1, rel, key2, remark) in coproduct:
+    if rel == EQ:
       matched += 1
     elif key1 == None:
       bonly += 1
@@ -170,7 +175,9 @@ def compute_sum(a_table, b_table, pk_col_arg, index_by):
 
 WAD_SIZE = 4
 
-def check_match(key1, best_rows_in_file2, pk_pos2):
+# Makes sure the match is mutual and unique
+
+def check_match(key1, best_rows_in_file2, pk_pos2, key1_in_A):
   assert len(unweights) > 0
   best2 = best_rows_in_file2.get(key1)
   if best2:
@@ -182,8 +189,12 @@ def check_match(key1, best_rows_in_file2, pk_pos2):
         return (rows2[0], reason)
       elif len(rows2) < WAD_SIZE:
         keys2 = [row2[pk_pos2] for row2 in rows2]
-        return (None, ("ambiguous: %s -> %s (%s)" %
-                       (key1, keys2, reason)))
+        if key1_in_A:
+          return (None, ("ambiguous (%s): -> %s" %
+                         (reason, keys2)))
+        else:
+          return (None, ("coambiguous (%s): <- %s" %
+                         (reason, keys2)))
       else:
         return (None, "too many matches (%s)" % reason)
     else:
@@ -313,8 +324,8 @@ def index_rows_by_property(all_rows, header):
       if rows != None:
         if len(rows) <= LIMIT:
           if len(rows) == LIMIT:
-            print("# %s+ rows with property %s" % (LIMIT, property,),
-                  file=sys.stderr)
+            log("# %s+ rows with property %s" % (LIMIT, property,))
+            log("#   e.g. %s" % (rows[0],))
           rows.append(row)
           entry_count += 1
       else:

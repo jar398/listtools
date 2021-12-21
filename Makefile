@@ -99,16 +99,18 @@ RAKE?=cd ../plotter && rake
 
 REPORT=work/report-$(shell basename $A)-$(shell basename $B).csv
 MERGED=work/merged-$(shell basename $A)-$(shell basename $B).csv
-RM=work/rm-$(shell basename $A)-$(shell basename $B).csv
+MATCHES=work/rm-$(shell basename $A)-$(shell basename $B).csv
+DELTA=work/delta-$(shell basename $A)-$(shell basename $B).csv
+ROUND=work/round-$(shell basename $A)-$(shell basename $B).csv
 
 report: $(REPORT)
 REPORT_OPTIONS?=
 
-$(REPORT): $(MERGED) $(RM) $P/report.py $P/property.py
+$(REPORT): $(MERGED) $(MATCHES) $P/report.py $P/property.py
 	@echo
 	@echo "--- PREPARING REPORT ---"
 	$P/report.py --source $A.csv --alignment $(MERGED) \
-		     --matches $(RM) \
+		     --matches $(MATCHES) \
 		     $(REPORT_OPTIONS) \
 		     < $B.csv > $@.new
 	@mv -f $@.new $@
@@ -117,20 +119,18 @@ $(REPORT): $(MERGED) $(RM) $P/report.py $P/property.py
 
 merged: $(MERGED)
 
-$(MERGED): $(RM) $P/theory.py $P/property.py
+$(MERGED): $(MATCHES) $P/theory.py $P/property.py
 	@echo
 	@echo "--- MERGING ---"
-	$P/theory.py --target $B.csv --matches $(RM) \
+	$P/theory.py --target $B.csv --matches $(MATCHES) \
 		    < $A.csv > $@.new
 	@mv -f $@.new $@
 
 # Record matches, required for merging:
 
+matches: $(MATCHES)
 
-DELTA=work/delta-$(shell basename $A)-$(shell basename $B).csv
-ROUND=work/round-$(shell basename $A)-$(shell basename $B).csv
-
-$(RM): $A.csv $B.csv $P/match_records.py
+$(MATCHES): $A.csv $B.csv $P/match_records.py
 	@echo
 	@echo "--- COMPUTING RECORD MATCHES ---"
 	$P/match_records.py --target $B.csv --pk $(DELTA_KEY) --index $(INDEX) \
@@ -169,6 +169,7 @@ delta: $(DELTA)
 
 # Formerly: $P/project.py --keep $(KEEP) <$< | ...
 # and	    $P/sortcsv.py --key $(PRIMARY_KEY) <$< >$@.new
+# Files need to be sorted for delta
 
 # Columns that use to decide whether a 'record has changed'
 MANAGE?=taxonID,scientificName,canonicalName,taxonRank,taxonomicStatus,nomenclaturalStatus,datasetID,source

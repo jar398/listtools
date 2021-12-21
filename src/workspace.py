@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 
 import sys, csv
+from typing import NamedTuple, Any
+
 import property as prop
 import checklist
 
 from util import log
-
 from checklist import *
-
 from coproduct import *
 
 # -----------------------------------------------------------------------------
@@ -27,7 +27,8 @@ def make_workspace(A, B):
       z = prop.clone(x)
       set_inject(x, z)          # contextual
       set_outject(z, x)
-      # set_parent(z, None) ?
+      # Every node starts out being a child of ⊤
+      set_superior(z, AB.topship)
       checklist.set_source(z, AB)
     return z
 
@@ -46,6 +47,8 @@ def make_workspace(A, B):
       return when_right(w)
   AB = Coproduct(_in_left, _in_right, _case)
   AB.context = Q
+  AB.top = make_top(AB)
+  AB.topship = Related(LT, AB.top, "uninitialized")
 
   AB.A = A           # need ??
   AB.B = B
@@ -114,12 +117,12 @@ def assign_primary_keys(AB):
   def process(x, z):
     if is_top(z):
       pass
-    elif get_accepted(z, None) and is_senior(z, get_accepted(z)):
+    elif get_superior(z, None).relation == LE and is_senior(z, get_accepted(z)):
       pass
     else:
       key = str(counter[0])
       set_primary_key(z, key)
-      register(z, AB.context)
+      register(z)
       counter[0] += 1
 
   for x in all_records(AB.A):
@@ -162,6 +165,7 @@ def is_senior(synonym_item, accepted_item):
   else:
     return False
 
+
 # -----------------------------------------------------------------------------
 
 if __name__ == '__main__':
@@ -174,6 +178,7 @@ if __name__ == '__main__':
                           {"name": "B"})  # meta
     AB = make_workspace(A, B)
     assign_primary_keys(AB)
+    collect_inferiors(AB)
     writer = csv.writer(sys.stdout)
     rows = list(checklist_to_rows(AB))
     for row in rows:

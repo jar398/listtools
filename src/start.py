@@ -12,7 +12,6 @@ MISSING = ''
 def start_csv(inport, params, outport, args):
   pk_col = args.pk
   cleanp = args.clean
-  (prefix, managed) = args.managed.split(':')     # GBIF:taxonID
 
   (d, q, g) = params
   reader = csv.reader(inport, delimiter=d, quotechar=q, quoting=g)
@@ -34,12 +33,6 @@ def start_csv(inport, params, outport, args):
   accepted_pos = windex(in_header, "acceptedNameUsageID")
   tax_status_pos = windex(in_header, "taxonomicStatus")
 
-  # --managed taxonID --prefix GBIF:   must always be used together
-  managed_pos = windex(in_header, managed)
-  if windex(in_header, "managed_id"):
-    assert not managed_pos
-  assert (not prefix) == (managed_pos == None), (prefix, managed_pos)
-
   must_affix_pk = (pk_col and pk_pos_in == None)
   if must_affix_pk:
     print("Prepending a %s column" % pk_col, file=sys.stderr)
@@ -47,8 +40,17 @@ def start_csv(inport, params, outport, args):
   else:
     out_header = in_header
 
-  if managed_pos != None:
+  # --managed taxonID --prefix GBIF:   must always be used together
+  if args.managed:
+    (prefix, managed_col) = args.managed.split(':')     # GBIF:taxonID
+
+    # Position of source id to be copied to managed_id column
+    managed_col_pos = windex(in_header, managed_col)
+    assert managed_col_pos != None
+    assert windex(in_header, "managed_id") == None
+
     out_header = in_header + ["managed_id"]
+
   # print("# Output header: %s" % (out_header,), file=sys.stderr)
 
   # Do these after header modifications
@@ -133,9 +135,8 @@ def start_csv(inport, params, outport, args):
     seen_pks[pk] = True
 
     # Add managed_id if necessary
-    if managed_pos != None:
-      assert row[managed_pos]
-      id = row[managed_pos]
+    if args.managed:
+      id = row[managed_col_pos]
       managed_id = prefix + id if id else MISSING
       out_row = out_row + [managed_id]
 
@@ -228,7 +229,7 @@ if __name__ == '__main__':
                       help='clean up scientificName and canonicalName a little bit')
   parser.add_argument('--no-clean', dest='clean', action='store_false')
   parser.add_argument('--managed',
-                      help='prefix and source column for managed record ids, e.g. EOL:EOLid')
+                      help='prefix and source column for managed record ids, e.g. eol:EOLid')
   parser.set_defaults(clean=True)
 
   args=parser.parse_args()

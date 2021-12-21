@@ -12,7 +12,7 @@
 #   A ~ B means they contain the same 'tipes'.
 #   A ≲ B  is what the mrca-homomorphism trick gets you.
 
-rcc5_symbols = 32 * ['?']
+rcc5_symbols = {}
 rcc5_relations = {}
 def def_rcc5_symbol(n, name):
   rcc5_symbols[n] = name
@@ -29,11 +29,15 @@ GT = def_rcc5_symbol(1 << 2, '>')
 DISJOINT = def_rcc5_symbol(1 << 3, '!')
 CONFLICT = def_rcc5_symbol(1 << 4, '><')
 
-LE = def_rcc5_symbol(LT|EQ, '≤')       # synonym
-GE = def_rcc5_symbol(GT|EQ, '≥')
-OVERLAP = def_rcc5_symbol(LE|GE|CONFLICT, '∩')
+LE = def_rcc5_symbol(LT|EQ, '<=')       # ≤, synonym
+GE = def_rcc5_symbol(GT|EQ, '>=')       # ≥, accepted
+OVERLAP = def_rcc5_symbol(LE|GE|CONFLICT, '∩')  # Not !
 NOINFO = def_rcc5_symbol(OVERLAP|DISJOINT, '?')   # sibling synonyms
 
+# Relationship not determined by 'quick' methods
+UNRESOLVED = def_rcc5_symbol(LT|GT|CONFLICT, '~')
+
+"""
 #     ≴ ≵  ≶  ≱  ≰  ≱  ℮
 #  ≲ = Less-Than or Equivalent To
 #  ⪞ = Similar or Greater Than
@@ -50,17 +54,14 @@ ESTIMATES_GE = def_rcc5_symbol(ESTIMATES_GT|ESTIMATES_EQ, '℮≥')   # via mrca
 
 ESTIMATES_NLE = def_rcc5_symbol(ESTIMATES_GT|ESTIMATES_DISJOINT|ESTIMATES_CONFLICT, '℮≰')   # via mrca
 ESTIMATES_NGE = def_rcc5_symbol(ESTIMATES_LT|ESTIMATES_DISJOINT|ESTIMATES_CONFLICT, '℮≱')   # via mrca
+"""
 
 
 
-
-# Not determined by 'quick' methods
-UNRESOLVED = def_rcc5_symbol(LT|GT|CONFLICT, '~')
-
+# If we come across an int relation coding, there had better be such a relation
 
 def rcc5_symbol(x):
-  if x: return rcc5_symbols[x]
-  else: return '??'
+  return rcc5_symbols[x]
 
 def rcc5_relation(x):
   return rcc5_relations[x]
