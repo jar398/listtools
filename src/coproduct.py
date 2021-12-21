@@ -17,7 +17,6 @@ class Coproduct:
         return case_fun(z, when_right, when_left)
       swapped = Coproduct(in_right_fun, in_left_fun,
                           swapped_case_fun,
-                          rev_case,
                           swapped=self)
     self.swapped = swapped
   def in_left(self, z): return (self.in_left_fun)(z)

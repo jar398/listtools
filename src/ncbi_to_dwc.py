@@ -71,7 +71,7 @@ def emit_dwc(accepteds, synonyms, scinames, authorities, merged, outfile):
               "synonym", "merged id")
 
 def managed_id(taxid):
-  return "NCBI:%s" % taxid
+  return "ncbi:%s" % taxid
 
 # Input: list of (id, text, kind, spin) from names.txt file
 # Output: list of (id, text, kind, spin); 

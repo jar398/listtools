@@ -25,30 +25,43 @@ B?=work/ncbi202008-mammals
 # N.b. managed_id has a specific meaning in this system; it's an id in
 #  some managed namespace, prefixed by something to identify the namespace.
 # Example syntax:
-#   NCBI:123, EOL:4567 (for page id), GBIF:8910, WORMS:2345   etc.
+#   ncbi:123, eol:4567 (for page id), gbif:8910, worms:2345   etc.
 
-# ----- NCBI and GBIF examples:
+# ----- 1. NCBI example:
 
-# make A=work/ncbi201505-mammals B=work/ncbi202008-mammals report
-# make A=work/ncbi201505 B=work/ncbi202008 report  # will take forever
+ncbi-report:
+	$(MAKE) A=work/ncbi201505-mammals B=work/ncbi202008-mammals report
 
-# make A=work/gbif20190916-mammals B=work/gbif20210303-mammals report
+# make A=work/ncbi201505 B=work/ncbi202008 report  # big, will take forever
+
+# ----- 2. GBIF examples:
+
+gbif-report:
+	$(MAKE) A=work/gbif20190916-mammals B=work/gbif20210303-mammals report
+
 # make A=work/ncbi202008-mammals B=work/gbif20210303-mammals report
 # and so on.
 
-# ----- BioKIC/ATCR examples:
+# ----- 3. BioKIC/ATCR examples:
+
+mdd-report:
+	$(MAKE) A=work/mdd1.6 B=work/mdd1.7 report
 
 # make A=work/mdd1.2-mammals B=work/mdd1.3 report
 # make A=work/mdd1.2 B=work/mdd1.3 report
-# make A=work/mdd1.6 B=work/mdd1.7 report
 # make A=work/gbif20210303-mammals B=work/mdd1.0-mammals report
 
-# ----- EOL examples:
+# ----- 4. EOL examples:
+
+# Requires clone of 'plotter' repo:
+
+eol-report:
+	$(MAKE) A=work/dh11-mammals B=work/dh12-mammals report
 
 # time make A=work/dh11-mammals B=work/dh12-mammals round
 # time make A=work/dh09-mammals B=work/dh11-mammals round
-# time make A=work/dh09 B=work/dh11 round
 # time make A=work/dh11 B=work/dh12 round
+# time make A=work/dh09 B=work/dh11 round
 
 # Hierarchies - columns are those that neo4j needs to know
 # DELTA_KEY=EOLid MANAGE=EOLid,parentEOLid,taxonID,landmark_status \
@@ -57,15 +70,9 @@ B?=work/ncbi202008-mammals
 # DELTA_KEY=EOLid MANAGE=EOLid,parentEOLid,taxonID,landmark_status \
 #   time make A=work/dh11-hier B=work/dh12-hier report
 
-# ----- Parameters
-
-MAMMALIA_NCBI=40674
-MAMMALIA_GBIF=359
-MAMMALIA_DH11=EOL-000000627548
-MAMMALIA_DH09=-168130
+# ----- General parameters
 
 SHELL?=/usr/bin/bash
-RAKE?=cd ../plotter && rake
 P?=src
 
 INDEX?="scientificName,type,canonicalName,canonicalStem,managed_id"
@@ -76,41 +83,64 @@ PRIMARY_KEY?=taxonID
 # overridden to EOLid for EOL
 DELTA_KEY?=$(PRIMARY_KEY)
 
-# ----- General rules
+# projection, to make the files smaller
+KEEP?="taxonID,canonicalName,scientificName,type,canonicalStem,managed_id,parentNameUsageID,acceptedNameUsageID"
+
+# not sure exactly what this means.  Add EOLid for EOL
+MANAGED?=$(KEEP)
+
+# This is for EOL.  Requires clone of 'plotter' repo
+RAKE?=cd ../plotter && rake
+
+
+# ----- General rules, top down
+
+# MDD-style comparison report:
+
+REPORT=work/report-$(shell basename $A)-$(shell basename $B).csv
+MERGED=work/merged-$(shell basename $A)-$(shell basename $B).csv
+RM=work/rm-$(shell basename $A)-$(shell basename $B).csv
+
+report: $(REPORT)
+REPORT_OPTIONS?=
+
+$(REPORT): $(MERGED) $(RM) $P/report.py $P/property.py
+	@echo
+	@echo "--- PREPARING REPORT ---"
+	$P/report.py --source $A.csv --alignment $(MERGED) \
+		     --matches $(RM) \
+		     $(REPORT_OPTIONS) \
+		     < $B.csv > $@.new
+	@mv -f $@.new $@
+
+# Merged checklist on which the report is based:
+
+merged: $(MERGED)
+
+$(MERGED): $(RM) $P/theory.py $P/property.py
+	@echo
+	@echo "--- MERGING ---"
+	$P/theory.py --target $B.csv --matches $(RM) \
+		    < $A.csv > $@.new
+	@mv -f $@.new $@
+
+# Record matches, required for merging:
+
 
 DELTA=work/delta-$(shell basename $A)-$(shell basename $B).csv
 ROUND=work/round-$(shell basename $A)-$(shell basename $B).csv
 
-round: $(ROUND)
-delta: $(DELTA)
-
-$(RM): $A-gnp.csv $B-gnp.csv $P/match_records.py
+$(RM): $A.csv $B.csv $P/match_records.py
 	@echo
 	@echo "--- COMPUTING RECORD MATCHES ---"
-	$P/match_records.py --target $B-gnp.csv --pk $(DELTA_KEY) --index $(INDEX) \
-		    < $A-gnp.csv > $@.new
+	$P/match_records.py --target $B.csv --pk $(DELTA_KEY) --index $(INDEX) \
+		    < $A.csv > $@.new
 	@mv -f $@.new $@
 
-# Formerly: $P/project.py --keep $(MANAGE) <$< | ...
-# and	    $P/sortcsv.py --key $(PRIMARY_KEY) <$< >$@.new
+# Round trip, for test of record based diff/patch: (EOL demo. no
+# hierarchy sensitivity)
 
-# Columns that use to decide whether a 'record has changed'
-MANAGE?=taxonID,scientificName,canonicalName,taxonRank,taxonomicStatus,nomenclaturalStatus,datasetID,source
-
-$(DELTA): $A.csv $B.csv $P/delta.py $P/match_records.py $P/property.py
-	@echo
-	@echo "--- COMPUTING DELTA ---"
-	set -o pipefail; \
-	$P/delta.py --target $B.csv --pk $(DELTA_KEY) \
-		    --index $(INDEX) --manage $(MANAGE) \
-		    < $A.csv \
-	| $P/sortcsv.py --key $(DELTA_KEY) \
-	> $@.new
-	@mv -f $@.new $@
-	wc $@
-
-# something:
-# 	$P/scatter.py --dest $(basename $(DELTA)) < $(DELTA)
+round: $(ROUND)
 
 $(ROUND): $(DELTA) $A-narrow.csv $B-narrow.csv $P/apply.py
 	@echo
@@ -127,25 +157,66 @@ $(ROUND): $(DELTA) $A-narrow.csv $B-narrow.csv $P/apply.py
 # Make the file smaller by eliminating unneeded columns
 
 %-narrow.csv: %.csv $P/project.py
-	$P/project.py --keep $(MANAGE) <$< | \
+	$P/project.py --keep $(KEEP) <$< | \
 	$P/sortcsv.py --key $(PRIMARY_KEY) >$@.new
 	@mv -f $@.new $@
 
-%-mammals-gnp.csv: %-mammals.csv
 
-# ----- NCBI-specific rules
+# Delta, describing how to change current database state into new
+# state:
 
-ncbi%-mammals.csv: ncbi%.csv $P/subset.py
+delta: $(DELTA)
+
+# Formerly: $P/project.py --keep $(KEEP) <$< | ...
+# and	    $P/sortcsv.py --key $(PRIMARY_KEY) <$< >$@.new
+
+# Columns that use to decide whether a 'record has changed'
+MANAGE?=taxonID,scientificName,canonicalName,taxonRank,taxonomicStatus,nomenclaturalStatus,datasetID,source
+
+$(DELTA): $A.csv $B.csv $P/delta.py $P/match_records.py $P/property.py
+	@echo
+	@echo "--- COMPUTING DELTA ---"
+	set -o pipefail; \
+	$P/delta.py --target $B.csv --pk $(DELTA_KEY) \
+		    --index $(INDEX) --manage $(KEEP) \
+		    < $A.csv \
+	| $P/sortcsv.py --key $(DELTA_KEY) \
+	> $@.new
+	@mv -f $@.new $@
+	wc $@
+
+# something:
+# 	$P/scatter.py --dest $(basename $(DELTA)) < $(DELTA)
+
+# ----- Mammals rules
+
+MAMMALIA_NCBI=40674
+MAMMALIA_GBIF=359
+MAMMALIA_DH1=EOL-000000627548
+MAMMALIA_DH09=-168130
+
+ncbi%-mammals-raw.csv: ncbi%-raw.csv $P/subset.py
 	$P/subset.py --hierarchy $< --root $(MAMMALIA_NCBI) < $< > $@.new
 	@mv -f $@.new $@
+.PRECIOUS: ncbi%-mammals-raw.csv
 
-gbif%-mammals.csv: gbif%.csv $P/subset.py
+gbif%-mammals-raw.csv: gbif%-raw.csv $P/subset.py
 	$P/subset.py --hierarchy $< --root $(MAMMALIA_GBIF) < $< > $@.new
 	@mv -f $@.new $@
+.PRECIOUS: gbif%-mammals-raw.csv
 
-dh1%-mammals.csv: dh1%.csv $P/subset.py
-	$P/subset.py --hierarchy $< --root $(MAMMALIA_DH11) < $< > $@.new
+dh1%-mammals-raw.csv: dh1%-raw.csv $P/subset.py
+	$P/subset.py --hierarchy $< --root $(MAMMALIA_DH1) < $< > $@.new
 	@mv -f $@.new $@
+.PRECIOUS: dh1%-mammals-raw.csv
+
+dh0%-mammals-raw.csv: dh1%-raw.csv $P/subset.py
+	$P/subset.py --hierarchy $< --root $(MAMMALIA_DH09) < $< > $@.new
+	@mv -f $@.new $@
+.PRECIOUS: dh0%-mammals-raw.csv
+
+
+# ----- 1. NCBI-specific rules
 
 foo: work/ncbi201505.csv
 
@@ -164,21 +235,22 @@ work/ncbi202008.ncbi-url:
 .PRECIOUS: %/dump/names.dmp
 
 # Convert NCBI taxdump to DwC form
-%.csv: %/dump/names.dmp src/ncbi_to_dwc.py $P/start.py
+work/ncbi%-raw.csv: work/ncbi%/dump/names.dmp src/ncbi_to_dwc.py $P/start.py
 	$P/ncbi_to_dwc.py `dirname $<` \
 	| $P/start.py --pk $(PRIMARY_KEY) \
 	| $P/sortcsv.py --key $(PRIMARY_KEY) > $@.new
 	@mv -f $@.new $@
+.PRECIOUS: work/ncbi%-raw.csv
 
-# Adjoin tipe column.  To skip this change the rule to
-# simply copy %.csv to %-gnp.csv above. 
-%-gnp.csv: %.csv $P/extract_names.py $P/use_parse.py
+# Adjoin 'type' and 'year' columns.  To skip this change the rule to
+# simply copy %-raw.csv to %.csv above. 
+%.csv: %-raw.csv $P/extract_names.py $P/use_parse.py
 	$P/extract_names.py < $< \
 	| gnparser -s \
 	| $P/use_parse.py --source $< > $@.new
 	@mv -f $@.new $@
 
-# ----- GBIF-specific rules
+# ----- 2. GBIF-specific rules
 
 work/gbif20190916.gbif-url:
 	echo https://rs.gbif.org/datasets/backbone/2019-09-06/backbone.zip >$@
@@ -194,82 +266,52 @@ work/gbif20210303.gbif-url:
 .PRECIOUS: %/dump/meta.xml
 
 # Ingest GBIF dump, convert TSV to CSV, add managed_id column
-%.csv: %/dump/meta.xml $P/start.py
+gbif%-raw.csv: gbif%/dump/meta.xml $P/start.py
 	$P/start.py --pk $(PRIMARY_KEY) --input `dirname $<`/Taxon.tsv \
-	  --managed GBIF:taxonID >$@.new
+	  --managed gbif:taxonID >$@.new
 	@mv -f $@.new $@
-.PRECIOUS: %.csv
+.PRECIOUS: gbif%-raw.csv
 
-work/gbif20210303-mammals-gnp.csv: work/gbif20210303-mammals.csv
 
-# ----------------------------------------------------------------------
-# ASU/BioKIC example
+# ----- 3. ASU/BioKIC example
 
 # MDD
 
-work/mdd1.7.csv: $(HOME)/Downloads/MDD_DwC_versions/MDD_v1.7_6567species_inDwC.csv
+work/mdd1.7-raw.csv: $(HOME)/Downloads/MDD_DwC_versions/MDD_v1.7_6567species_inDwC.csv
 	cp -p $< $@
-work/mdd1.7-gnp.csv: work/mdd1.7.csv
-work/mdd1.6.csv: $(HOME)/Downloads/MDD_DwC_versions/MDD_v1.6_6557species_inDwC.csv
+work/mdd1.7.csv: work/mdd1.7-raw.csv
+work/mdd1.6-raw.csv: $(HOME)/Downloads/MDD_DwC_versions/MDD_v1.6_6557species_inDwC.csv
 	cp -p $< $@
-work/mdd1.6-gnp.csv: work/mdd1.6.csv
-work/mdd1.5.csv: $(HOME)/Downloads/MDD_DwC_versions/MDD_v1.5_6554species_inDwC.csv \
+work/mdd1.6.csv: work/mdd1.6-raw.csv
+work/mdd1.5-raw.csv: $(HOME)/Downloads/MDD_DwC_versions/MDD_v1.5_6554species_inDwC.csv \
 		 $P/start.py
 	$P/start.py < $< --pk taxonID > $@.new
 	@mv -f $@.new $@
-work/mdd1.5-gnp.csv: work/mdd1.5.csv
-work/mdd1.4.csv: $(HOME)/Downloads/MDD_DwC_versions/MDD_v1.4_6533species_inDwC.csv \
+work/mdd1.5.csv: work/mdd1.5-raw.csv
+work/mdd1.4-raw.csv: $(HOME)/Downloads/MDD_DwC_versions/MDD_v1.4_6533species_inDwC.csv \
 		 $P/start.py
 	$P/start.py < $< --pk taxonID > $@.new
 	@mv -f $@.new $@
-work/mdd1.4-gnp.csv: work/mdd1.4.csv
-work/mdd1.3.csv: $(HOME)/Downloads/MDD_DwC_versions/MDD_v1.3_6513species_inDwC.csv
+work/mdd1.4.csv: work/mdd1.4-raw.csv
+work/mdd1.3-raw.csv: $(HOME)/Downloads/MDD_DwC_versions/MDD_v1.3_6513species_inDwC.csv
 	cp -p $< $@
-work/mdd1.3-gnp.csv: work/mdd1.3.csv
-work/mdd1.31.csv: $(HOME)/Downloads/MDD_DwC_versions/MDD_v1.31_6513species_inDwC.csv
+work/mdd1.3.csv: work/mdd1.3-raw.csv
+work/mdd1.31-raw.csv: $(HOME)/Downloads/MDD_DwC_versions/MDD_v1.31_6513species_inDwC.csv
 	cp -p $< $@
-work/mdd1.31-gnp.csv: work/mdd1.3.csv
-work/mdd1.2.csv: $(HOME)/Downloads/MDD_DwC_versions/MDD_v1.2_6485species_inDwC.csv
+work/mdd1.31.csv: work/mdd1.3-raw.csv
+work/mdd1.2-raw.csv: $(HOME)/Downloads/MDD_DwC_versions/MDD_v1.2_6485species_inDwC.csv
 	cp -p $< $@
-work/mdd1.2-gnp.csv: work/mdd1.2.csv
-work/mdd1.1.csv: $(HOME)/Downloads/MDD_DwC_versions/MDD_v1.1_6526species_inDwC.csv
+work/mdd1.2.csv: work/mdd1.2-raw.csv
+work/mdd1.1-raw.csv: $(HOME)/Downloads/MDD_DwC_versions/MDD_v1.1_6526species_inDwC.csv
 	cp -p $< $@
-work/mdd1.1-gnp.csv: work/mdd1.1.csv
-work/mdd1.0.csv: $(HOME)/Downloads/MDD_DwC_versions/MDD_v1_6495species_JMamm_inDwC.csv \
+work/mdd1.1.csv: work/mdd1.1-raw.csv
+work/mdd1.0-raw.csv: $(HOME)/Downloads/MDD_DwC_versions/MDD_v1_6495species_JMamm_inDwC.csv \
 		 $P/start.py
 	$P/start.py < $< --pk taxonID > $@.new
 	@mv -f $@.new $@
-work/mdd1.0-gnp.csv: work/mdd1.0.csv
+work/mdd1.0.csv: work/mdd1.0-raw.csv
 
-# ----- Record match rules, mainly for EOL purposes
-
-RM=work/rm-$(shell basename $A)-$(shell basename $B).csv
-ALIGNMENT=work/alignment-$(shell basename $A)-$(shell basename $B).csv
-REPORT=work/report-$(shell basename $A)-$(shell basename $B).csv
-
-report: $(REPORT)
-alignment: $(ALIGNMENT)
-
-$(ALIGNMENT): $(RM) $P/align.py $P/property.py
-	@echo
-	@echo "--- COMPUTING ALIGNMENT ---"
-	$P/align.py --target $B-gnp.csv --matches $(RM) \
-		    < $A-gnp.csv > $@.new
-	@mv -f $@.new $@
-
-REPORT_OPTION ?=
-
-$(REPORT): $(ALIGNMENT) $(RM) $P/report.py $P/property.py
-	@echo
-	@echo "--- PREPARING REPORT ---"
-	$P/report.py --source $A-gnp.csv --alignment $(ALIGNMENT) \
-		     --matches $(RM) \
-		     $(REPORT_OPTIONS) \
-		     < $B-gnp.csv > $@.new
-	@mv -f $@.new $@
-
-# ----------------------------------------------------------------------
-# EOL examples
+# ----- 4. EOL examples
 
 # EOL mammals root = page id 1642 (but we use the record key
 # MAMMALIA_DH01/DH11, not the page id)
@@ -291,31 +333,33 @@ work/dh11.eol-resource-id:
 # get it straight from opendata
 DH12_LP="https://opendata.eol.org/dataset/tram-807-808-809-810-dh-v1-1/resource/02037fde-cc69-4f03-94b5-65591c6e7b3b"
 
-work/dh12.taxafile:
+work/dh12.taxafilename:
 	@mkdir -p work
-	echo `$(RAKE) dwca:taxafile OPENDATA=$(DH12_LP)` >$@
+	echo `$(RAKE) dwca:taxafilename OPENDATA=$(DH12_LP)` >$@
 
-work/%.taxafile: work/%.eol-resource-id
+work/%.taxafilename: work/%.eol-resource-id
 	@mkdir -p work
 	ID=$$(cat $<); \
-	echo `$(RAKE) resource:taxafile \ CONF=$(ASSEMBLY) ID=$$ID` >$@
+	echo `$(RAKE) resource:taxafilename \ CONF=$(ASSEMBLY) ID=$$ID` >$@
 
 # about half a minute for DH 1.1
+# the managed_id can only be set if DH 0.9 has its records mapped to
+# pages (see -mapped)
 
-work/dh09.csv: work/%.taxafile $P/start.py
+work/dh09-raw.csv: work/%.taxafilename $P/start.py
 	@mkdir -p work
 	$P/start.py --input `cat $<` \
-                    --managed EOL:EOLid \
+                    --managed eol:EOLid \
 		    --pk taxonID \
 	       > $@.new
 	@mv -f $@.new $@
 
 # taxonID is managed in 1.1 and following, but not in 0.9
 
-work/%.csv: work/%.taxafile $P/start.py
+work/dh1%-raw.csv: work/dh1%.taxafilename $P/start.py
 	@mkdir -p work
 	$P/start.py --input `cat $<` \
-                    --managed EOLNODE:taxonID \
+                    --managed eolnode:taxonID \
 		    --pk taxonID \
 	| $P/sortcsv.py --key taxonID > $@.new
 	@mv -f $@.new $@
@@ -323,12 +367,7 @@ work/%.csv: work/%.taxafile $P/start.py
 # in1=./deprecated/work/1-mam.csv
 # in2=./deprecated/work/724-mam.csv
 
-# Mammals root has a different taxonID in DH 0.9
-work/dh09-mammals.csv: work/dh09.csv $P/subset.py
-	$P/subset.py --hierarchy $< --root $(MAMMALIA_DH09) < $< > $@.new
-	@mv -f $@.new $@
-
-work/dh11-mammals-hier.csv: work/dh11-mammals.csv work/dh11-map.csv $P/hierarchy.py
+work/dh11-mammals-hier.csv: work/dh11-mammals.csv work/dh11-map-raw.csv $P/hierarchy.py
 	$P/hierarchy.py --mapping work/dh11-map.csv \
 		  < $< \
 		  > $@.new
@@ -336,7 +375,7 @@ work/dh11-mammals-hier.csv: work/dh11-mammals.csv work/dh11-map.csv $P/hierarchy
 
 # EOL dynamic hierarchy - usages mapped to pages
 
-work/%-hier.csv: work/%.csv work/%-map.csv $P/hierarchy.py
+work/%-hier.csv: work/%-raw.csv work/%-map.csv $P/hierarchy.py
 	set -o pipefail; \
 	$P/hierarchy.py --mapping $(basename $<)-map.csv) \
 			--keep landmark_status \
@@ -349,12 +388,12 @@ work/%-map.csv: work/%.eol-resource-id
 	cp `$(RAKE) resource:map CONF=$(ASSEMBLY) ID=$$ID` $@.new
 	@mv -f $@.new $@
 
-work/dh12-map.csv: work/dh11-map.csv
+work/dh12-map.csv: work/dh11-map-raw.csv
 	cp $< $@
 
 # Deprecated ... ?
 
-work/%-mapped.csv: work/%.csv work/%-map.csv $P/idmap.py
+work/%-mapped.csv: work/%-raw.csv work/%-map.csv $P/idmap.py
 	$P/idmap.py --mapping $(basename $<)-map.csv) \
 		  < $< > $@.new
 	@mv -f $@.new $@

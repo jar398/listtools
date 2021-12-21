@@ -5,7 +5,7 @@ from typing import NamedTuple, Any
 from collections import namedtuple
 from util import log
 
-# Instances, properties, and plans (field access for csv file rows
+# Records, properties, and plans (field access for csv file rows
 # rows)
 
 MISSING = ''   # What is stored for missing values
@@ -20,9 +20,9 @@ class Plan(NamedTuple):
   props: Any
 
 def make_plan_from_header(header):
-  log("%s" % (header,))
+  #log("%s" % (header,))
   props = [get_property(label) for label in header]
-  log("%s" % (tuple(((prop.id, prop.label) for prop in props)),))
+  #log("%s" % (tuple(((prop.id, prop.label) for prop in props)),))
   return make_plan(props)
 
 def make_plan(props):
@@ -80,9 +80,11 @@ def getter(prop, context=None):
 def ambient_getter(prop):
   setit = setter(prop)
   def getit(x, default=_NODEFAULT):
-    pos = (x.plan.propid_to_pos[prop.id]
-           if prop.id < len(x.plan.propid_to_pos)
-           else False)
+    if (not x.cloned_from and
+        prop.id < len(x.plan.propid_to_pos)):
+      pos = x.plan.propid_to_pos[prop.id]
+    else:
+      pos = None
     if pos != None:
       stored = x.positional[pos]
     else:
@@ -94,6 +96,8 @@ def ambient_getter(prop):
         setit(x, _CYCLING)
         val = prop.filler(x)
         setit(x, val)
+      elif x.cloned_from:
+        return getit(x.cloned_from)
       else:
         assert False, \
           ("missing value for property '%s' position %s plan %s keys %s" %
@@ -114,10 +118,12 @@ def setter(prop, context=None):
 def ambient_setter(prop):
   if prop.setter: return prop.setter
   def setit(x, val):
-    pos = (x.plan.propid_to_pos[prop.id]
-           if prop.id < len(x.plan.propid_to_pos)
-           else None)
     stored = _SHADOW if val == MISSING else val
+    if (not x.cloned_from and
+        prop.id < len(x.plan.propid_to_pos)):
+      pos = x.plan.propid_to_pos[prop.id]
+    else:
+      pos = None
     if pos != None:
       x.positional[pos] = stored
     else:
@@ -154,11 +160,12 @@ def contextual_setter(prop, context):
 #   within a given context (something with a .columns property)
 
 def _get_column_mep(prop, context):
-  return get_column(prop, context).instance_to_value
+  return get_column(prop, context).record_to_value
 
 # There is one Column per property per context...
 
 def get_column(prop, context):
+  assert isinstance(context, Context), context
   column = mep_get(context.columns, prop, None)
   if column == None:
     column = Column(mep(), {})
@@ -166,33 +173,40 @@ def get_column(prop, context):
   return column
 
 class Column(NamedTuple):
-  instance_to_value : Any
-  value_to_instance : Any
+  record_to_value : Any
+  value_to_record : Any
   # maybe more later
 
 # ----- Completely generic csv loader for any kind of table.
 
-def get_instances(column):
+def get_records(column):
   assert isinstance(column, Column)
-  return column.value_to_instance.values()
+  return column.value_to_record.values()
 
-def get_instance(column, value, default=None):
-  return column.value_to_instance[value]
+def get_record(column, value, default=None):
+  return column.value_to_record[value]
 
 def table_to_context(row_iterable, primary_key_prop):
   get_pk = getter(primary_key_prop) # ambient
   Q = make_context()
   pk_col = get_column(primary_key_prop, Q)
   assert isinstance(pk_col, Column)
-  inverse_pk_dict = pk_col.value_to_instance
+  inverse_pk_dict = pk_col.value_to_record
   row_iterator = iter(row_iterable)
   header = next(row_iterator)
   plan = make_plan_from_header(header)
   for row in row_iterator:
     inst = construct(plan, row)
-    key = get_pk(inst)
-    inverse_pk_dict[key] = inst  # ambient -> contextual
+    inverse_pk_dict[get_pk(inst)] = inst  # ambient -> contextual
   return Q
+
+def get_registrar(pk_prop, Q):
+  get_pk = getter(pk_prop)      # ambient
+  pk_col = get_column(pk_prop, Q)
+  inverse_pk_dict = pk_col.value_to_record
+  def register(inst):
+    inverse_pk_dict[get_pk(inst)] = inst  # ambient -> contextual
+  return register
 
 class Context(NamedTuple):
   columns : Any  # mep()    # property -> (usage to value, value to usage)
@@ -200,15 +214,14 @@ class Context(NamedTuple):
 def make_context():
   return Context(mep())
 
-# Instances
+# Records
 
-class Instance(NamedTuple):
+class Record(NamedTuple):
   id: int
   plan: Any
   positional: Any
   lookedup: bool
-
-_global_instance_counter = 0
+  cloned_from: Any
 
 def constructor(*props, more=()):
   all = props + more
@@ -220,21 +233,34 @@ def constructor(*props, more=()):
   return constructit
 
 def construct(plan, row):
-  global _global_instance_counter
+  global _global_record_counter
   if len(row) != len(plan.props):
     print("** WNA: have %s args, expect %s" %
           (len(row),
            [prop.label for prop in plan.props]),       
           file=sys.stderr)
     assert False
-  instance = Instance(_global_instance_counter,
+  record = Record(_global_record_counter,
                       plan,
                       row,
-                      {})
-  _global_instance_counter += 1
-  return instance
+                      {},
+                      None)
+  _global_record_counter += 1
+  return record
 
-# Maps keyed by instance
+def clone(inst):
+  global _global_record_counter
+  cloned = Record(_global_record_counter,
+                    empty_plan, [], {}, inst)
+  _global_record_counter += 1
+  return cloned
+  
+empty_plan = make_plan(())
+
+_global_record_counter = 0
+
+
+# Maps keyed by record
 
 _nodefault = []
 def mep(): return {}
@@ -247,7 +273,7 @@ def mep_set(mep, inst, j):
   mep[inst.id] = j
 
 
-# Test row-based instances
+# Test records
 
 if __name__ == '__main__':
   a = get_property('a')
@@ -280,10 +306,8 @@ if __name__ == '__main__':
   set_a(x, "changed a")
   print(get_a(x))
 
-  class Con():
-    columns = {}
-  q = Con()
-  (q.get_a, q.set_a) = get_set(a, context=q)
-  q.set_a(x, 'a in q')
-  print(q.get_a(x))
+  q = make_context()
+  (q_get_a, q_set_a) = get_set(a, context=q)
+  q_set_a(x, 'a in q')
+  print(q_get_a(x))
   print(get_a(x))

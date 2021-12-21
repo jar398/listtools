@@ -30,8 +30,9 @@ silly = 8
 
 unweights = None
 
-default_index_by = ["scientificName", "epithetAuthorYear",
-                    "canonicalName", "canonicalStem"]
+default_index_by = ["scientificName", "type",
+                    "canonicalName", "canonicalStem",
+                    "managed_id"]
 
 # Row iterables -> row iterable
 
