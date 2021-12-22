@@ -6,7 +6,7 @@ import sys, csv
 from typing import NamedTuple, Any
 
 import property as prop
-from util import log
+from util import log, MISSING
 from rcc5 import *
 
 primary_key_prop = prop.get_property("taxonID")
@@ -34,6 +34,7 @@ match_prop = prop.get_property("match")
 (get_accepted_key, set_accepted_key) = prop.get_set(accepted_key_prop)
 (get_source, set_source) = prop.get_set(source_prop)
 (get_canonical, set_canonical) = prop.get_set(canonical_prop)
+(get_scientific, set_scientific) = prop.get_set(scientific_prop)
 (get_year, set_year) = prop.get_set(year_prop)
 (get_managed_id, set_managed_id) = prop.get_set(managed_id_prop)
 
@@ -73,8 +74,9 @@ class Source:
   def __init__(self, meta):
     self.context = prop.make_context()  # for lookup by primary key
     self.meta = meta
+    self.indexed = False    # get_children, get_synonyms set?
 
-def all_records(C):
+def all_records(C):             # not including top
   col = prop.get_column(primary_key_prop, C.context)
   return prop.get_records(col)
 
@@ -90,14 +92,23 @@ def all_records(C):
 def rows_to_checklist(iterabl, meta):
   S = Source(meta)
   # Three passes: read, link, reverse link
-  Q = prop.table_to_context(iterabl, primary_key_prop)
+  Q = rows_to_context(iterabl, primary_key_prop)
   S.context = Q
   column = prop.get_column(primary_key_prop, Q)
   for record in prop.get_records(column):
     set_source(record, S)       # not same as EOL "source" column
   S.top = make_top(S)             # Superior of last resort
-  collect_inferiors(S)
+  resolve_superior_links(S)
   return S
+
+def rows_to_context(row_iterable, primary_key_prop):
+  Q = prop.make_context()
+  register = prop.get_registrar(primary_key_prop, Q)
+  row_iterator = iter(row_iterable)
+  plan = prop.make_plan_from_header(next(row_iterator))
+  for row in row_iterator:
+    register(prop.construct(plan, row))
+  return Q
 
 # Two ways to make these things.  One is using plans (with `construct`).
 # The other is by using the custom constructor (`make_record`, two arguments).
@@ -108,7 +119,7 @@ make_record = prop.constructor(primary_key_prop, source_prop)
 # ids
 
 def resolve_superior_links(S):
-  for record in all_records(S):
+  for record in all_records(S): # not including top
     resolve_superior_link(record)
 
 def resolve_superior_link(record):
@@ -134,11 +145,19 @@ def resolve_superior_link(record):
       sup = Related(LT, top, "dangling reference")
   else:
     sup = Related(LT, S.top, "root")
-  set_superior(record, sup)
+  set_superior_carefully(record, sup)
   if monitor(record) or monitor(sup.other):
     print("> %s %s := %s" % (sup.status, blurb(record), blurb(sup.other)),
           file=sys.stderr)
   return sup
+
+def set_superior_carefully(x, ship):
+  assert_local(x, ship.other)
+  set_superior(x, ship)
+
+def assert_local(x, y):
+  assert get_source(x) == get_source(y), \
+    (blurb(x), get_source_name(x), blurb(y), get_source_name(y))
 
 # -----------------------------------------------------------------------------
 # Collect parent/child and accepted/synonym relationships;
@@ -147,17 +166,36 @@ def resolve_superior_link(record):
 
 # E.g. Glossophaga bakeri (in 1.7) split from Glossophaga commissarisi (in 1.6)
 
-def collect_inferiors(C):
+def ensure_inferiors_indexed(C):
+  if C.indexed: return
+
+  log("# indexing inferiors")
+
   for record in all_records(C):
-    
-    ship = resolve_superior_link(record) # sets superior relateds
+    assert get_source(record) == C
+    if record == C.top: continue
+
+    ship = get_superior(record)
     if not ship:
-      pass
+      # Default relation, if none given, is child of top ('orphan')
+      log("# %s is child of top" % blurb(record))
+      ship = Related(LT, C.top, "orphan")
+      set_superior_carefully(record, ship)
 
-    elif not ship.other:
-      pass
+    assert_local(record, ship.other)
 
-    elif ship.relation == LE:     # synonym
+    if ship.relation == LT:   # accepted
+      #log("# accepted %s -> %s" % (blurb(record), blurb(ship.other)))
+      parent = ship.other
+      # Add record to list of parent's children
+      ch = get_children(parent, None)
+      if ch != None:
+        ch.append(record)
+      else:
+        set_children(parent, [record])
+
+    else:         # synonym (LE)
+      assert ship.relation == LE, rcc5_symbol(ship.relation)
       accepted = ship.other
       # Add record to list of accepted record's synonyms
       ch = get_synonyms(accepted, None)
@@ -166,31 +204,22 @@ def collect_inferiors(C):
       else:
         set_synonyms(accepted, [record])
 
-    elif ship.relation == LT:   # accepted
-      parent = ship.other
-      assert parent, blurb(record)
-      # Add record to list of parent's children
-      ch = get_children(parent, None)
-      if ch != None:
-        ch.append(record)
-      else:
-        set_children(parent, [record])
+  C.indexed = True
+  log("# Top has %s child(ren)" % len(get_children(C.top)))
 
-    else:
-      assert "surprising superior relationship", rcc5_symbol(ship.relation)
-
-  return C
+def get_source_name(x):
+  return get_source(x).meta['name']
 
 def make_top(C):
-  top = make_record(TOP, C)
+  top = make_record(TOP, C)     # key is TOP, source is C
+  # registrar(primary_key_prop)(top)  # Hmmph
   set_canonical(top, TOP)
   return top
 
 TOP = "⊤"
 
 def is_top(x):
-  # return x == get_checklist(x).top
-  return get_canonical(x, None) == TOP
+  return x == get_source(x).top
 
 def add_child(c, x, status="accepted"):
   ch = get_children(x, None)
@@ -198,7 +227,7 @@ def add_child(c, x, status="accepted"):
     ch.append(c)
   else:
     ch = [c]
-  set_superior(c, Related(LT, x, status))
+  set_superior_carefully(c, Related(LT, x, status))
 
 # -----------------------------------------------------------------------------
 # For debugging
@@ -231,26 +260,26 @@ def checklist_to_rows(C, props=None):
     if not is_top(record):
       yield [get(record, prop.MISSING) for get in getters]
 
-def _get_parent_key(x):
-  sup = get_superior(x)
-  if sup.relation == LT:
+def _get_parent_key(x, default=MISSING):
+  sup = get_superior(x, None)
+  if sup and sup.relation == LT:
     return get_primary_key(sup.other)
-  else: return MISSING
-def _get_accepted_key(x):
-  sup = get_superior(x)
-  if sup.relation == LE:
+  else: return default
+def _get_accepted_key(x, default=MISSING):
+  sup = get_superior(x, None)
+  if sup and sup.relation != LT:
     return get_primary_key(sup.other)
-  else: return MISSING
-def _get_status(x):
-  sup = get_superior(x)
-  if sup.status:
+  else: return default
+def _get_status(x, default=MISSING):
+  sup = get_superior(x, default=MISSING)
+  if not sup:
+    return default
+  elif sup.status:
     return sup.status
-  elif sup.relation == LE:
+  elif sup.relation != LT:
     return "synonym"
-  elif sup.relation == LT:
-    return "accepted"
   else:
-    assert False
+    return "accepted"
 
 usual_props = \
             (primary_key_prop,
@@ -266,15 +295,17 @@ usual_props = \
              rank_prop)
 
 def preorder(C, props=None):
+  ensure_inferiors_indexed(C)
   if props == None: props = usual_props
   yield [prp.label for prp in props]
   getters = tuple(map(prop.getter, props))
   def traverse(x):
+    #log("# Preorder visit %s" % blurb(x))
     if not is_top(x):
       yield [get(x, prop.MISSING) for get in getters]
-    for c in get_children(x): traverse(c)
-    for c in get_synonyms(x): traverse(c)
-  traverse(C.top)
+    for c in get_children(x, None) or (): yield from traverse(c)
+    for c in get_synonyms(x, None) or (): yield from traverse(c)
+  yield from traverse(C.top)
 
 # -----------------------------------------------------------------------------
 
@@ -285,10 +316,13 @@ if __name__ == '__main__':
     src = rows_to_checklist(newick.parse_newick(n),
                             {"name": "A"})  # meta
     writer = csv.writer(sys.stdout)
-    rows = list(checklist_to_rows(src))
+    if False:  # Test this if second fails
+      rows = list(checklist_to_rows(src))
+    else:
+      rows = list(preorder(src))
     for row in rows:
       writer.writerow(row)
-    print(newick.compose_newick(rows))
+    print(' = ' + newick.compose_newick(rows))
 
   #testit("a")
   testit("(a,b)c")

@@ -48,20 +48,18 @@ class Property(NamedTuple):
   setter: Any
 
 _global_property_counter = 0
-_label_to_property = {}
+_label_to_propid = {}
 
 def get_property(label, filler=None, getter=None, setter=None, fresh=False):
   global _global_property_counter
-  prop = _label_to_property.get(label)
-  if fresh:
-    if prop:
-      log("# Creating another property with label %s" % label)
-    prop = None
-  if not prop:
-    prop = Property(_global_property_counter, label, filler, getter, setter)
+  id = _label_to_propid.get(label)
+  if id == None:
+    id = _global_property_counter
     _global_property_counter += 1
-    _label_to_property[label] = prop
-  return prop
+    _label_to_propid[label] = id
+  else:
+    log("# Creating another instantiation of property '%s'" % label)
+  return Property(id, label, filler, getter, setter)
 
 # You can explicitly pass context=None to get ambient context.
 
@@ -80,8 +78,7 @@ def getter(prop, context=None):
 def ambient_getter(prop):
   setit = setter(prop)
   def getit(x, default=_NODEFAULT):
-    if (not x.cloned_from and
-        prop.id < len(x.plan.propid_to_pos)):
+    if (prop.id < len(x.plan.propid_to_pos)):
       pos = x.plan.propid_to_pos[prop.id]
     else:
       pos = None
@@ -90,18 +87,19 @@ def ambient_getter(prop):
     else:
       stored = x.lookedup.get(prop.id, MISSING)
     if stored == MISSING:
-      if default != _NODEFAULT:
-        val = default
-      elif prop.filler:
+      if prop.filler:
         setit(x, _CYCLING)
         val = prop.filler(x)
         setit(x, val)
+        return val
       elif x.cloned_from:
-        return getit(x.cloned_from)
-      else:
+        return getit(x.cloned_from, default)
+      elif default == _NODEFAULT:
         assert False, \
-          ("missing value for property '%s' position %s plan %s keys %s" %
+          ("missing value for property '%s' position %s\nplan %s keys %s" %
            (prop.label, pos, x.plan, tuple(x.lookedup.keys())))
+      else:
+        val = default
     elif stored == _SHADOW: val = MISSING
     elif stored == _CYCLING:
       assert False, "cycled while computing %s" % prop.label
@@ -119,8 +117,7 @@ def ambient_setter(prop):
   if prop.setter: return prop.setter
   def setit(x, val):
     stored = _SHADOW if val == MISSING else val
-    if (not x.cloned_from and
-        prop.id < len(x.plan.propid_to_pos)):
+    if (prop.id < len(x.plan.propid_to_pos)):
       pos = x.plan.propid_to_pos[prop.id]
     else:
       pos = None
@@ -186,23 +183,11 @@ def get_records(column):
 def get_record(column, value, default=None):
   return column.value_to_record[value]
 
-def table_to_context(row_iterable, primary_key_prop):
-  get_pk = getter(primary_key_prop) # ambient
-  Q = make_context()
-  pk_col = get_column(primary_key_prop, Q)
-  assert isinstance(pk_col, Column)
-  inverse_pk_dict = pk_col.value_to_record
-  row_iterator = iter(row_iterable)
-  header = next(row_iterator)
-  plan = make_plan_from_header(header)
-  for row in row_iterator:
-    inst = construct(plan, row)
-    inverse_pk_dict[get_pk(inst)] = inst  # ambient -> contextual
-  return Q
-
 def get_registrar(pk_prop, Q):
-  get_pk = getter(pk_prop)      # ambient
+  get_pk = getter(pk_prop)
+  set_pk = setter(pk_prop)
   pk_col = get_column(pk_prop, Q)
+  assert isinstance(pk_col, Column)
   inverse_pk_dict = pk_col.value_to_record
   def register(inst):
     inverse_pk_dict[get_pk(inst)] = inst  # ambient -> contextual
@@ -276,38 +261,56 @@ def mep_set(mep, inst, j):
 # Test records
 
 if __name__ == '__main__':
+  failed = 0
+  def expect(n, x, y='tellme'):
+    if x != y:
+      log("** Test %s failed bc %s != %s" % (n, x, y))
+      failed += 1
   a = get_property('a')
   b = get_property('b')
   c = get_property('c')
-  m = get_property('m')
-  n = get_property('n', filler=lambda x:("filled", get_a(x)))
   plan = make_plan_from_header(['a', 'b', 'c'])
-  x = construct(plan, ['a value', 'b value', 'c value'])
+  x = construct(plan, ['x.a', 'x.b', 'x.c'])
   (get_a, set_a) = get_set(a)
   get_b = getter(b)
-  print(get_a(x))
-  print(get_b(x))
-  (get_c, set_c) = get_set(c)
-  print(get_c(x, 'no c'))
-  set_a(x, 'new a value')
-  print(get_a(x))
-  set_c(x, 'c value')
-  print(get_c(x))
-  q = constructor(a, b, more=(m,))
-  y = q('a it', 'b it')
-  print(get_b(x, 'b is'))
-  print(get_c(x, 'no c'))
-  (get_m, set_m) = get_set(m)
-  print(get_m(x, 'no m'))
-  set_m(x, 'm value')
-  print(get_m(x))
-  (get_n, set_n) = get_set(n)
-  print(get_n(x))
-  set_a(x, "changed a")
-  print(get_a(x))
+  get_c = getter(c)
+  expect('get', get_b(x), 'x.b')
+  expect('getter', get_a(x), 'x.a')
+  set_a(x, 'x.a 1')
+  expect('set', get_a(x), 'x.a 1')
+  expect('unused default', get_b(x, 'lose'), 'x.b')
 
-  q = make_context()
-  (q_get_a, q_set_a) = get_set(a, context=q)
-  q_set_a(x, 'a in q')
-  print(q_get_a(x))
-  print(get_a(x))
+  m = get_property('m')
+  j = constructor(a, b, more=(m,))
+  y = j('y.a', 'y.b')
+  expect('get y.a via constructor', get_a(y), 'y.a')
+  expect('y.b with unused default', get_b(y, 'lose'), 'y.b')
+  expect('y.c with used default', get_c(y, 'y.c default'), 'y.c default')
+
+  (get_m, set_m) = get_set(m)
+  expect('x.m used default', get_m(x, 'no m'), 'no m')
+  set_m(x, 'x.m')
+  expect('unused default', get_m(x, 'no m'), 'x.m')
+
+  n = get_property('n', filler=lambda x:'filled')
+  (get_n, set_n) = get_set(n)
+  expect('fill x.n', get_n(x), 'filled')
+  set_n(x, 'x.n')
+  expect('override x.n', get_n(x), 'x.n')
+
+  k = make_context()
+  (k_get_b, k_set_b) = get_set(b, context=k)
+  expect('x.b ambient', k_get_b(x), 'x.b')
+  k_set_b(x, 'x.b in k')
+  expect('x.b in k', k_get_b(x), 'x.b in k')
+
+  q = clone(x)
+  expect('clone q.b', get_b(q), 'x.b')
+  expect('control', get_b(x), 'x.b')
+  set_a(x, 'q.a')
+  expect('set q.a', get_a(q), 'q.a')
+
+  set_a(x, None)
+  expect('set q.a None', get_a(q), None)
+
+  print("Failed %s tests" % failed)

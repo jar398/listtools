@@ -24,9 +24,14 @@ from util import ingest_csv, windex, MISSING, \
                  correspondence, precolumn, stable_hash, log
 from rcc5 import *
 
+default_index_by = "scientificName,type,canonicalName,canonicalStem,managed_id"
+
+MUTUAL = EQ       # relation to use for mutual match
+LOSER = NOINFO    # relation to use for runners-up
+
 # 20 : 8 : 20 : 8
 
-index_by_limit = 20
+index_by_limit = 20    # max number of reverse entries to keep
 silly = 8
 
 unweights = None
@@ -48,9 +53,9 @@ def match_records(a_reader, b_reader, pk_col="taxonID", index_by=default_index_b
 # Part of this module's API.
 
 def generate_sum(coproduct, pk_col):
-  yield ["matchID", "relation", pk_col, "match_note"]
+  yield ["matched_id", "relation", pk_col, "match_note"]
   for (key1, rel, key2, remark) in coproduct:
-    rel_sym = rcc5_symbol(rel) if rel != None else MISSING
+    rel_sym = rcc5_symbol(rel) if rel != NOINFO else MISSING
     yield [key1, rel_sym, key2, remark]
 
 # table * table -> sum (cf. delta.py)
@@ -109,17 +114,17 @@ def compute_sum(a_table, b_table, pk_col_arg, index_by):
           else:
             # Shouldn't happen I think ??
             remark = (key2, "%s|%s" % (remark2, remark1))
-          answer = (EQ, key2, remark)
+          answer = (MUTUAL, key2, remark)
         else:
           b1 = back1[pk_pos1]
           # wish there was a name here so we can see what's going on
           # should be sensitive to key1_in_A
           if key1_in_A:
-            answer = (LE, row2[pk_pos2],
+            answer = (LOSER, row2[pk_pos2],
                       ("match not mutual: %s -> %s" %
                        (row2[pk_pos2], b1)))
           else:
-            answer = (LE, row2[pk_pos2],
+            answer = (LOSER, row2[pk_pos2],
                       ("match not mutual: %s <- %s" %
                        (b1, row2[pk_pos2])))
       else:
@@ -161,7 +166,7 @@ def compute_sum(a_table, b_table, pk_col_arg, index_by):
   # Print stats on outcome
   aonly = bonly = matched = 0
   for (key1, rel, key2, remark) in coproduct:
-    if rel == EQ:
+    if rel == MUTUAL:
       matched += 1
     elif key1 == None:
       bonly += 1
@@ -189,12 +194,13 @@ def check_match(key1, best_rows_in_file2, pk_pos2, key1_in_A):
         return (rows2[0], reason)
       elif len(rows2) < WAD_SIZE:
         keys2 = [row2[pk_pos2] for row2 in rows2]
+        alts = ';'.join(keys2)
         if key1_in_A:
           return (None, ("ambiguous (%s): -> %s" %
-                         (reason, keys2)))
+                         (reason, alts)))
         else:
           return (None, ("coambiguous (%s): <- %s" %
-                         (reason, keys2)))
+                         (reason, alts)))
       else:
         return (None, "too many matches (%s)" % reason)
     else:
@@ -380,7 +386,7 @@ if __name__ == '__main__':
   args=parser.parse_args()
   inport1 = sys.stdin
   index = args.index
-  assert index
+  if not index: index = default_index_by
   with open(args.target, "r") as inport2:
     main(inport1, inport2, args.pk,
          index.split(","), sys.stdout)

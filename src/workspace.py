@@ -17,9 +17,15 @@ from coproduct import *
 
 # Returns B side
 
-def make_workspace(A, B):
+REUSE_KEYS = True
+
+def make_workspace(A, B, meta=None):
   Q = prop.make_context()       # allows overriding A and/or B
   (get_inject, set_inject) = prop.get_set(inject_prop, context=Q)
+
+  register = prop.get_registrar(primary_key_prop, Q)
+  pk_counter = [0]
+  missing = False
 
   def ensure_injected(x):
     z = get_inject(x, None)
@@ -28,17 +34,23 @@ def make_workspace(A, B):
       set_inject(x, z)          # contextual
       set_outject(z, x)
       # Every node starts out being a child of ⊤
-      set_superior(z, AB.topship)
-      if get_children(z, None) != None:
-        set_children(z, None)   # Force local
-      if get_synonyms(z, None) != None:
-        set_synonyms(z, None)   # Force local
+      set_superior(z, None)
+      set_children(z, None)   # Force local
+      set_synonyms(z, None)   # Force local
       set_source(z, AB)
+      have_key = get_primary_key(z)
+      if not have_key or not REUSE_KEYS:
+        pk_counter[0] += 1
+        set_primary_key(z, str(pk_counter[0]))
+      elif not ('!' in have_key):
+        key = "%s!%s" % (get_source_name(x), have_key)
+        set_primary_key(z, key)
+      register(z)
     return z
 
   def _in_left(x):
-    assert x
     assert get_source(x) == A
+    assert not is_top(x)
     return ensure_injected(x)
   def _in_right(y):
     assert get_source(y) == B
@@ -52,15 +64,18 @@ def make_workspace(A, B):
       return when_right(w)
   AB = Coproduct(_in_left, _in_right, _case)
   AB.context = Q
-  AB.top = make_top(AB)
+  AB.top = AB.in_right(B.top)
   AB.topship = Related(LT, AB.top, "uninitialized")
+  AB.indexed = False
+  AB.meta = meta
 
   AB.A = A           # need ??
   AB.B = B
 
   # Force local copies of all source records
-  for x in all_records(A): AB.in_left(x)
-  for y in all_records(B): AB.in_right(y)
+  for y in all_records(B): AB.in_right(y) # not including top
+  for x in all_records(A): AB.in_left(x)  # not including top
+  log("# taxonID counter: %s" % pk_counter[0])
 
   return AB
 
@@ -68,43 +83,45 @@ def make_workspace(A, B):
 # Load/dump a set of provisional matches (could be either record match
 # or taxonomic matches... but basically, record matches)
 
-# Fields of match records <A (matchID), B (taxonID), remark>
-match_key_prop = prop.get_property("matchID")
-match_note_prop = prop.get_property("match_note")
-get_match_key = prop.getter(match_key_prop)
-
-# Property of workspace records
-match_note_prop = prop.get_property("match_note")
-(get_match_note, set_match_note) = \
-    prop.get_set(match_note_prop)
+# Fields of match records <A (matched), relation, B (taxon), remark>
+get_match_relation = prop.getter(prop.get_property("match_relation"))
+get_matched_key = prop.getter(prop.get_property("matched_id"))
+get_match_note = prop.getter(prop.get_property("match_note"))
 
 def load_equivalences(row_iterator, AB):
 
   header = next(iterator)
   plan = prop.make_plan_from_header(header)
+  match_count = 0
+  miss_count = 0
   for row in row_iterator:
-    # [matchID taxonID remark]
+    # [matchID rel taxonID remark]
     match = prop.construct(plan, row)
 
-    # The three columns of the csv file
-    xkey = get_match_key(match, None)
-    ykey = get_primary_key(match, None)
-    remark = get_equivalence_note(match)
+    # The columns of the csv file
+    xkey = get_matched_key(match, None)
+    relation = get_match_relation(match)
+    ykey = get_primary_key(match)
+    remark = get_match_note(match)
 
     x = y = None
     if xkey:
       x_in_A = look_up_record(AB.A, xkey)
       if x_in_A:
         x = AB.in_left(x_in_A)
-        AB.set_equivalence_note(x, remark)
+        AB.set_match_note(x, remark)
     if ykey:
       y_in_B = look_up_record(AB.B, ykey)
       if y_in_B:
         y = AB.in_right(y_in_B) 
-        AB.set_equivalence_note(y, remark)
-    if x and y:
+        AB.set_match_note(y, remark)
+    if x and y and relation == '=':
       set_match(x, y)
       set_match(y, x)
+      match_count += 1
+    elif x or y:
+      unmatch += 1
+  log("# %s matches, %s misses" % (match_count, miss_count))
 
 """
 TBD: filter out seniors
@@ -118,33 +135,6 @@ TBD: filter out seniors
           file=sys.stderr)
 
 """
-
-def assign_primary_keys(AB):
-  counter = [1]
-  set_primary_key = prop.setter(primary_key_prop, context=AB.context)
-  register = prop.get_registrar(primary_key_prop, AB.context)
-
-  def process(x, z):
-    if is_top(z):
-      pass
-    elif get_superior(z, None).relation == LE and is_senior(z, get_accepted(z)):
-      pass
-    else:
-      key = str(counter[0])
-      set_primary_key(z, key)
-      register(z)
-      counter[0] += 1
-
-  for x in all_records(AB.A):
-    if get_match(x, None):
-      # (should add a synonym record if canonical differs ...)
-      pass
-    else:
-      process(x, AB.in_left(x))
-  for y in all_records(AB.B):
-    process(y, AB.in_right(y))
-
-  log("> %s taxonIDs assigned" % counter[0])
 
 # Is given synonym usage a senior synonym of its accepted usage?
 # In the case of splitting, we expect the synonym to be a senior
@@ -175,26 +165,24 @@ def is_senior(synonym_item, accepted_item):
   else:
     return False
 
-
 # -----------------------------------------------------------------------------
 
 if __name__ == '__main__':
   import newick
 
   def testit(m, n):
-    A = rows_to_checklist(newick.parse_newick(m),
-                          {"name": "A"})  # meta
+    # Always load B first
     B = rows_to_checklist(newick.parse_newick(n),
                           {"name": "B"})  # meta
-    AB = make_workspace(A, B)
-    add_child(AB.in_left(A.top), AB.top, "artifact")
-    add_child(AB.in_right(B.top), AB.top, "artifact")
-    assign_primary_keys(AB)
-    collect_inferiors(AB)
+    A = rows_to_checklist(newick.parse_newick(m),
+                          {"name": "A"})  # meta
+    AB = make_workspace(A, B, {"name": "AB"})
+    assert A.top
+    ensure_inferiors_indexed(AB)
     writer = csv.writer(sys.stdout)
     rows = list(preorder(AB))
     for row in rows:
       writer.writerow(row)
-    print(newick.compose_newick(rows))
+    print(' = ' + newick.compose_newick(rows))
 
   testit("(c,d)a", "(c,e)b")

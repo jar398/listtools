@@ -99,9 +99,9 @@ RAKE?=cd ../plotter && rake
 
 REPORT=work/report-$(shell basename $A)-$(shell basename $B).csv
 MERGED=work/merged-$(shell basename $A)-$(shell basename $B).csv
-MATCHES=work/rm-$(shell basename $A)-$(shell basename $B).csv
-DELTA=work/delta-$(shell basename $A)-$(shell basename $B).csv
+MATCHES=work/matches-$(shell basename $A)-$(shell basename $B).csv
 ROUND=work/round-$(shell basename $A)-$(shell basename $B).csv
+DELTA=work/delta-$(shell basename $A)-$(shell basename $B).csv
 
 report: $(REPORT)
 REPORT_OPTIONS?=
@@ -398,4 +398,9 @@ work/%-mapped.csv: work/%-raw.csv work/%-map.csv $P/idmap.py
 	$P/idmap.py --mapping $(basename $<)-map.csv) \
 		  < $< > $@.new
 	@mv -f $@.new $@
+
+test:
+	src/property.py
+	src/checklist.py
+	src/workspace.py
 

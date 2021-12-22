@@ -10,7 +10,7 @@ tokenize = re.compile("[^,()]+")
 def parse_newick(newick):
   rows = []
 
-  rows.append(("taxonID", "canonicalName", "parentNameUsageID",))
+  rows.append(("taxonID", "canonicalName", "parentNameUsageID", "acceptedNameUsageID"))
   counter = [0]
 
   def gen():
@@ -44,7 +44,7 @@ def parse_newick(newick):
     if m:
       name = m[0]
       n += len(name)
-    rows.append((str(id), name.strip(), str(parent),))
+    rows.append((str(id), name.strip(), str(parent), MISSING,))
 
     return n
   n = parse(0, MISSING)
@@ -60,6 +60,7 @@ def compose_newick(rows):
   header = next(rows)
   key_pos = windex(header, "taxonID")
   parent_pos = windex(header, "parentNameUsageID")
+  accepted_pos = windex(header, "acceptedNameUsageID")
   name_pos = windex(header, "canonicalName")
   assert key_pos != None
   assert parent_pos != None
@@ -68,21 +69,26 @@ def compose_newick(rows):
   roots = []
   # print("newick: %s rows" % len(rows_dict), file=sys.stderr)
   for (key, row) in rows_dict.items():
+    accepted_key = row[accepted_pos] if accepted_pos != None else MISSING
     parent_key = row[parent_pos]
-    if parent_key != MISSING:
-      if parent_key in children:
-        children[parent_key].append(key)
+    sup_key = accepted_key or parent_key    # '' is falsish
+    rel = (not accepted_key, key)
+    if sup_key:
+      if sup_key in children:
+        children[sup_key].append(rel)
       else:
-        children[parent_key] = [key]
+        children[sup_key] = [rel]
     else:
-      roots.append(key)
+      roots.append(rel)
   # print("newick: %s roots, %s superiors" % (len(roots), len(children)),
   #      file=sys.stderr)
-  def traverse(key):
+  def traverse(ak):
+    (accepted, key) = ak
     row = rows_dict[key]
     name = row[name_pos]
+    if not accepted: name = name + "*"
     if key in children:
-      newicks = (traverse(child_key) for child_key in children[key])
+      newicks = (traverse(child_ak) for child_ak in children[key])
       childs = ",".join(sorted(newicks))
       return "(%s)%s" % (childs, name)
     else:

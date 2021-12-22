@@ -31,13 +31,11 @@ CONFLICT = def_rcc5_symbol(1 << 4, '><')
 
 LE = def_rcc5_symbol(LT|EQ, '<=')       # ≤, synonym
 GE = def_rcc5_symbol(GT|EQ, '>=')       # ≥, accepted
-OVERLAP = def_rcc5_symbol(LE|GE|CONFLICT, '∩')  # Not !
-NOINFO = def_rcc5_symbol(OVERLAP|DISJOINT, '?')   # sibling synonyms
-
-# Relationship not determined by 'quick' methods
-UNRESOLVED = def_rcc5_symbol(LT|GT|CONFLICT, '~')
+NOINFO = def_rcc5_symbol(LT|GT|EQ|CONFLICT|DISJOINT, '?')
 
 """
+OVERLAP = def_rcc5_symbol(EQ|LT|GT|CONFLICT, '~')  # equivalent, similar
+
 #     ≴ ≵  ≶  ≱  ≰  ≱  ℮
 #  ≲ = Less-Than or Equivalent To
 #  ⪞ = Similar or Greater Than
