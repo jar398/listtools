@@ -29,21 +29,26 @@ def make_workspace(A, B):
       set_outject(z, x)
       # Every node starts out being a child of ⊤
       set_superior(z, AB.topship)
-      checklist.set_source(z, AB)
+      if get_children(z, None) != None:
+        set_children(z, None)   # Force local
+      if get_synonyms(z, None) != None:
+        set_synonyms(z, None)   # Force local
+      set_source(z, AB)
     return z
 
   def _in_left(x):
-    assert checklist.get_source(x) == A
+    assert x
+    assert get_source(x) == A
     return ensure_injected(x)
   def _in_right(y):
-    assert checklist.get_source(y) == B
+    assert get_source(y) == B
     return ensure_injected(y)
   def _case(z, when_left, when_right):
     w = get_outject(z)
-    if checklist.get_source(w) == A:
+    if get_source(w) == A:
       return when_left(w)
     else:
-      assert checklist.get_source(w) == B
+      assert get_source(w) == B
       return when_right(w)
   AB = Coproduct(_in_left, _in_right, _case)
   AB.context = Q
@@ -53,31 +58,36 @@ def make_workspace(A, B):
   AB.A = A           # need ??
   AB.B = B
 
+  # Force local copies of all source records
+  for x in all_records(A): AB.in_left(x)
+  for y in all_records(B): AB.in_right(y)
+
   return AB
 
 # -----------------------------------------------------------------------------
-# Load/dump a set of equivalences (could be either record match or taxonomic match)
+# Load/dump a set of provisional matches (could be either record match
+# or taxonomic matches... but basically, record matches)
 
-# Fields of match records <A (equivalentID), B (taxonID), remark>
-equivalent_key_prop = prop.get_property("equivalentID")
-equivalence_note_prop = prop.get_property("equivalence_note")
-get_equivalent_key = prop.getter(equivalent_key_prop)
+# Fields of match records <A (matchID), B (taxonID), remark>
+match_key_prop = prop.get_property("matchID")
+match_note_prop = prop.get_property("match_note")
+get_match_key = prop.getter(match_key_prop)
 
 # Property of workspace records
-equivalent_prop = prop.get_property("equivalent")
-(get_equivalence_note, set_equivalence_note) = \
-    prop.get_set(equivalence_note_prop)
+match_note_prop = prop.get_property("match_note")
+(get_match_note, set_match_note) = \
+    prop.get_set(match_note_prop)
 
 def load_equivalences(row_iterator, AB):
 
   header = next(iterator)
   plan = prop.make_plan_from_header(header)
   for row in row_iterator:
-    # [equivalent taxonID remark]
+    # [matchID taxonID remark]
     match = prop.construct(plan, row)
 
     # The three columns of the csv file
-    xkey = get_equivalent_key(match, None)
+    xkey = get_match_key(match, None)
     ykey = get_primary_key(match, None)
     remark = get_equivalence_note(match)
 
@@ -93,8 +103,8 @@ def load_equivalences(row_iterator, AB):
         y = AB.in_right(y_in_B) 
         AB.set_equivalence_note(y, remark)
     if x and y:
-      set_equivalent(x, y)
-      set_equivalent(y, x)
+      set_match(x, y)
+      set_match(y, x)
 
 """
 TBD: filter out seniors
@@ -126,7 +136,7 @@ def assign_primary_keys(AB):
       counter[0] += 1
 
   for x in all_records(AB.A):
-    if get_equivalent(x, None):
+    if get_match(x, None):
       # (should add a synonym record if canonical differs ...)
       pass
     else:
@@ -177,12 +187,14 @@ if __name__ == '__main__':
     B = rows_to_checklist(newick.parse_newick(n),
                           {"name": "B"})  # meta
     AB = make_workspace(A, B)
+    add_child(AB.in_left(A.top), AB.top, "artifact")
+    add_child(AB.in_right(B.top), AB.top, "artifact")
     assign_primary_keys(AB)
     collect_inferiors(AB)
     writer = csv.writer(sys.stdout)
-    rows = list(checklist_to_rows(AB))
+    rows = list(preorder(AB))
     for row in rows:
       writer.writerow(row)
     print(newick.compose_newick(rows))
 
-  testit("a", "b")
+  testit("(c,d)a", "(c,e)b")

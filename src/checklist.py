@@ -27,7 +27,7 @@ accepted_prop = prop.get_property("accepted")
 # For workspaces
 inject_prop = prop.get_property("inject") # Contextual only!
 outject_prop = prop.get_property("outject")
-equivalent_prop = prop.get_property("equivalent")
+match_prop = prop.get_property("match")
 
 (get_primary_key, set_primary_key) = prop.get_set(primary_key_prop)
 (get_parent_key, set_parent_key) = prop.get_set(parent_key_prop)
@@ -44,7 +44,7 @@ equivalent_prop = prop.get_property("equivalent")
   prop.get_set(prop.get_property("taxonomicStatus"))
 
 (get_outject, set_outject) = prop.get_set(outject_prop)
-(get_equivalent, set_equivalent) = prop.get_set(equivalent_prop)
+(get_match, set_match) = prop.get_set(match_prop)
 
 class Related(NamedTuple):
   relation : Any    # < (LT), <= (LE), =, NOINFO, maybe others
@@ -96,7 +96,6 @@ def rows_to_checklist(iterabl, meta):
   for record in prop.get_records(column):
     set_source(record, S)       # not same as EOL "source" column
   S.top = make_top(S)             # Superior of last resort
-  resolve_superior_links(S)   # sets superior relateds
   collect_inferiors(S)
   return S
 
@@ -105,38 +104,41 @@ def rows_to_checklist(iterabl, meta):
 
 make_record = prop.constructor(primary_key_prop, source_prop)
 
-# Convert references to records rather than ids
+# Create direct references to records, rather than leaving links as
+# ids
 
 def resolve_superior_links(S):
-  topship = Related(LT, S.top, "root")
-
   for record in all_records(S):
-    parent_key = get_parent_key(record, None)
-    accepted_key = get_accepted_key(record, None)
-    if accepted_key:
-      accepted_record = look_up_record(S, accepted_key, record)
-      if accepted_record:
-        status = get_taxonomic_status(record, "synonym")
-        set_superior(record, Related(LE, accepted_record, status))
-        if monitor(record) or monitor(accepted_record):
-          print("> accepted %s := %s" %
-                (blurb(record), blurb(accepted_record)),
-                file=sys.stderr)
-      else:
-        set_superior(record, Related(LE, top, "dangling reference"))
-    elif parent_key:
-      parent_record = look_up_record(S, parent_key, record)
-      if parent_record:
-        status = get_taxonomic_status(record, "accepted")
-        # If it's not accepted or valid or something darn close, we're confused
-        set_superior(record, Related(LT, parent_record, status))
-        if monitor(record) or monitor(parent_record):
-          print("> parent %s := %s" % (blurb(record), blurb(parent_record)),
-                file=sys.stderr)
-      else:
-        set_superior(record, Related(LT, top, "dangling reference"))
+    resolve_superior_link(record)
+
+def resolve_superior_link(record):
+  sup = get_superior(record, None)
+  if sup != None: return sup
+  parent_key = get_parent_key(record, None)
+  accepted_key = get_accepted_key(record, None)
+  S = get_source(record)
+  if accepted_key:
+    accepted_record = look_up_record(S, accepted_key, record)
+    if accepted_record:
+      status = get_taxonomic_status(record, "synonym")
+      sup = Related(LE, accepted_record, status)
     else:
-      set_superior(record, topship)
+      sup = Related(LE, top, "dangling reference")
+  elif parent_key:
+    parent_record = look_up_record(S, parent_key, record)
+    if parent_record:
+      status = get_taxonomic_status(record, "accepted")
+      # If it's not accepted or valid or something darn close, we're confused
+      sup = Related(LT, parent_record, status)
+    else:
+      sup = Related(LT, top, "dangling reference")
+  else:
+    sup = Related(LT, S.top, "root")
+  set_superior(record, sup)
+  if monitor(record) or monitor(sup.other):
+    print("> %s %s := %s" % (sup.status, blurb(record), blurb(sup.other)),
+          file=sys.stderr)
+  return sup
 
 # -----------------------------------------------------------------------------
 # Collect parent/child and accepted/synonym relationships;
@@ -147,22 +149,29 @@ def resolve_superior_links(S):
 
 def collect_inferiors(C):
   for record in all_records(C):
-    ship = get_superior(record)
+    
+    ship = resolve_superior_link(record) # sets superior relateds
+    if not ship:
+      pass
 
-    if ship.relation == LE:     # synonym
+    elif not ship.other:
+      pass
+
+    elif ship.relation == LE:     # synonym
       accepted = ship.other
       # Add record to list of accepted record's synonyms
       ch = get_synonyms(accepted, None)
-      if ch:
+      if ch != None:
         ch.append(record)
       else:
         set_synonyms(accepted, [record])
 
-    elif ship.relation == EQ:   # accepted
+    elif ship.relation == LT:   # accepted
       parent = ship.other
+      assert parent, blurb(record)
       # Add record to list of parent's children
       ch = get_children(parent, None)
-      if ch:
+      if ch != None:
         ch.append(record)
       else:
         set_children(parent, [record])
@@ -175,11 +184,21 @@ def collect_inferiors(C):
 def make_top(C):
   top = make_record(TOP, C)
   set_canonical(top, TOP)
+  return top
 
 TOP = "⊤"
 
 def is_top(x):
-  return get_primary_key(x) == TOP
+  # return x == get_checklist(x).top
+  return get_canonical(x, None) == TOP
+
+def add_child(c, x, status="accepted"):
+  ch = get_children(x, None)
+  if ch != None:
+    ch.append(c)
+  else:
+    ch = [c]
+  set_superior(c, Related(LT, x, status))
 
 # -----------------------------------------------------------------------------
 # For debugging
@@ -247,12 +266,14 @@ usual_props = \
              rank_prop)
 
 def preorder(C, props=None):
+  if props == None: props = usual_props
   yield [prp.label for prp in props]
+  getters = tuple(map(prop.getter, props))
   def traverse(x):
-    for c in get_children(x): traverse(c)
-    for c in get_synonyms(x): traverse(c)
     if not is_top(x):
       yield [get(x, prop.MISSING) for get in getters]
+    for c in get_children(x): traverse(c)
+    for c in get_synonyms(x): traverse(c)
   traverse(C.top)
 
 # -----------------------------------------------------------------------------
@@ -269,5 +290,5 @@ if __name__ == '__main__':
       writer.writerow(row)
     print(newick.compose_newick(rows))
 
-  testit("a")
+  #testit("a")
   testit("(a,b)c")

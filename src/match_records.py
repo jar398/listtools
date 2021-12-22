@@ -44,11 +44,11 @@ def match_records(a_reader, b_reader, pk_col="taxonID", index_by=default_index_b
   return generate_sum(cop, pk_col)
 
 # Sum -> row iterable.
-# B is priority, so treat A equivalences as annotations on it
+# B is priority, so treat A matches as annotations on it
 # Part of this module's API.
 
 def generate_sum(coproduct, pk_col):
-  yield ["equivalentID", "relation", pk_col, "equivalence_note"]
+  yield ["matchID", "relation", pk_col, "match_note"]
   for (key1, rel, key2, remark) in coproduct:
     rel_sym = rcc5_symbol(rel) if rel != None else MISSING
     yield [key1, rel_sym, key2, remark]
