@@ -55,7 +55,8 @@ def match_records(a_reader, b_reader, pk_col="taxonID", index_by=default_index_b
 def generate_sum(coproduct, pk_col):
   yield ["matched_id", "relation", pk_col, "match_note"]
   for (key1, rel, key2, remark) in coproduct:
-    rel_sym = rcc5_symbol(rel) if rel != NOINFO else MISSING
+    # if rel == NOINFO: rel_sym = ''  ... ...
+    rel_sym = rcc5_symbol(rel)
     yield [key1, rel_sym, key2, remark]
 
 # table * table -> sum (cf. delta.py)
@@ -73,6 +74,8 @@ def compute_sum(a_table, b_table, pk_col_arg, index_by):
   pk_pos2 = windex(header2, pk_col)
   assert pk_pos1 != None 
   assert pk_pos2 != None
+  stat_pos1 = windex(header1, "taxonomicStatus")
+  stat_pos2 = windex(header2, "taxonomicStatus")
 
   coproduct = []
 
@@ -142,6 +145,9 @@ def compute_sum(a_table, b_table, pk_col_arg, index_by):
   seen2 = {}                    # injection B -> A+B
 
   for (key1, row1) in all_rows1.items():
+    if stat_pos1 != None and row1[stat_pos1] == "senior synonym":
+      print("# 1 Punting %s" % (row1,), file=sys.stderr)
+      continue
     (rel2, key2, remark) = find_match(key1, best_rows_in_file2,
                                       best_rows_in_file1, pk_pos1, pk_pos2,
                                       True)
@@ -151,6 +157,9 @@ def compute_sum(a_table, b_table, pk_col_arg, index_by):
       seen2[key2] = True
 
   for (key2, row2) in all_rows2.items():
+    if stat_pos1 != None and row1[stat_pos2] == "senior synonym":
+      print("# 2 Punting %s" % (row2,), file=sys.stderr)
+      continue
     if not key2 in seen2:
       (rel1, key1, remark) = find_match(key2, best_rows_in_file1,
                                         best_rows_in_file2, pk_pos2, pk_pos1,

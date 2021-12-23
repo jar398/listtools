@@ -12,6 +12,7 @@ MISSING = ''   # What is stored for missing values
 _SHADOW = ["<SHADOW>"]   # What is stored when value should be MISSING
 _NODEFAULT = ["<NODEFAULT>"]   # Used to detect that default is unsupplied
 _CYCLING = ["<CYCLING>"]
+AMBIENT=None
 
 # ----- Plans
 
@@ -46,28 +47,30 @@ class Property(NamedTuple):
   filler: Any                   # cached
   getter: Any
   setter: Any
+  inherit: bool
 
 _global_property_counter = 0
 _label_to_propid = {}
 
-def get_property(label, filler=None, getter=None, setter=None, fresh=False):
+def get_property(label, filler=None, getter=None, setter=None,
+                 fresh=False, inherit=True):
   global _global_property_counter
   id = _label_to_propid.get(label)
   if id == None:
     id = _global_property_counter
     _global_property_counter += 1
     _label_to_propid[label] = id
-  else:
+  elif False:
     log("# Creating another instantiation of property '%s'" % label)
-  return Property(id, label, filler, getter, setter)
+  return Property(id, label, filler, getter, setter, inherit)
 
-# You can explicitly pass context=None to get ambient context.
+# You can explicitly pass context=AMBIENT to get ambient context.
 
-def get_set(prop, context=None):
+def get_set(prop, context=AMBIENT):
   return (getter(prop, context=context),
           setter(prop, context=context))
 
-def getter(prop, context=None):
+def getter(prop, context=AMBIENT):
   if context:
     return contextual_getter(prop, context)
   elif prop.getter:
@@ -86,13 +89,13 @@ def ambient_getter(prop):
       stored = x.positional[pos]
     else:
       stored = x.lookedup.get(prop.id, MISSING)
+    val = stored    # overridden...
     if stored == MISSING:
       if prop.filler:
         setit(x, _CYCLING)
         val = prop.filler(x)
         setit(x, val)
-        return val
-      elif x.cloned_from:
+      elif x.cloned_from and prop.inherit:
         return getit(x.cloned_from, default)
       elif default == _NODEFAULT:
         assert False, \
@@ -103,11 +106,10 @@ def ambient_getter(prop):
     elif stored == _SHADOW: val = MISSING
     elif stored == _CYCLING:
       assert False, "cycled while computing %s" % prop.label
-    else: val = stored
     return val
   return getit
 
-def setter(prop, context=None):
+def setter(prop, context=AMBIENT):
   if context:
     return contextual_setter(prop, context)
   else:
@@ -115,8 +117,11 @@ def setter(prop, context=None):
 
 def ambient_setter(prop):
   if prop.setter: return prop.setter
-  def setit(x, val):
-    stored = _SHADOW if val == MISSING else val
+  def setit(x, val, clear=False):
+    if clear:
+      stored = MISSING
+    else:
+      stored = _SHADOW if val == MISSING else val
     if (prop.id < len(x.plan.propid_to_pos)):
       pos = x.plan.propid_to_pos[prop.id]
     else:
@@ -139,10 +144,8 @@ def contextual_getter(prop, context):
       elif prop.filler:
         assert not "TBD"
       else:
-        val = getter(prop)(inst)      # Inherit from ambient
+        val = getter(prop)(inst)      # Inherit from outer context
     else:
-      # what if there's a filler?  should use it?  how does it know
-      # the context?
       val = stored
     return val
   return getit
@@ -263,8 +266,9 @@ def mep_set(mep, inst, j):
 if __name__ == '__main__':
   failed = 0
   def expect(n, x, y='tellme'):
+    global failed
     if x != y:
-      log("** Test %s failed bc %s != %s" % (n, x, y))
+      log("** Test %s failed because %s != %s" % (n, x, y))
       failed += 1
   a = get_property('a')
   b = get_property('b')
@@ -285,7 +289,8 @@ if __name__ == '__main__':
   y = j('y.a', 'y.b')
   expect('get y.a via constructor', get_a(y), 'y.a')
   expect('y.b with unused default', get_b(y, 'lose'), 'y.b')
-  expect('y.c with used default', get_c(y, 'y.c default'), 'y.c default')
+  expect('y.c with used default',
+         get_c(y, 'y.c default'), 'y.c default')
 
   (get_m, set_m) = get_set(m)
   expect('x.m used default', get_m(x, 'no m'), 'no m')
@@ -305,10 +310,14 @@ if __name__ == '__main__':
   expect('x.b in k', k_get_b(x), 'x.b in k')
 
   q = clone(x)
-  expect('clone q.b', get_b(q), 'x.b')
   expect('control', get_b(x), 'x.b')
   set_a(x, 'q.a')
   expect('set q.a', get_a(q), 'q.a')
+
+  bb = get_property('b', inherit=False)
+  get_bb = getter(bb)
+  # error: expect('no inherit', get_bb(q), 'default')
+  expect('no inherit', get_bb(q, 'default'), 'default')
 
   set_a(x, None)
   expect('set q.a None', get_a(q), None)

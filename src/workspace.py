@@ -6,7 +6,7 @@ from typing import NamedTuple, Any
 import property as prop
 import checklist
 
-from util import log
+from util import log, MISSING
 from checklist import *
 from coproduct import *
 
@@ -34,9 +34,7 @@ def make_workspace(A, B, meta=None):
       set_inject(x, z)          # contextual
       set_outject(z, x)
       # Every node starts out being a child of ⊤
-      set_superior(z, None)
-      set_children(z, None)   # Force local
-      set_synonyms(z, None)   # Force local
+      # What about ... match? equivalent?
       set_source(z, AB)
       have_key = get_primary_key(z)
       if not have_key or not REUSE_KEYS:
@@ -79,63 +77,6 @@ def make_workspace(A, B, meta=None):
 
   return AB
 
-# -----------------------------------------------------------------------------
-# Load/dump a set of provisional matches (could be either record match
-# or taxonomic matches... but basically, record matches)
-
-# Fields of match records <A (matched), relation, B (taxon), remark>
-get_match_relation = prop.getter(prop.get_property("match_relation"))
-get_matched_key = prop.getter(prop.get_property("matched_id"))
-get_match_note = prop.getter(prop.get_property("match_note"))
-
-def load_equivalences(row_iterator, AB):
-
-  header = next(iterator)
-  plan = prop.make_plan_from_header(header)
-  match_count = 0
-  miss_count = 0
-  for row in row_iterator:
-    # [matchID rel taxonID remark]
-    match = prop.construct(plan, row)
-
-    # The columns of the csv file
-    xkey = get_matched_key(match, None)
-    relation = get_match_relation(match)
-    ykey = get_primary_key(match)
-    remark = get_match_note(match)
-
-    x = y = None
-    if xkey:
-      x_in_A = look_up_record(AB.A, xkey)
-      if x_in_A:
-        x = AB.in_left(x_in_A)
-        AB.set_match_note(x, remark)
-    if ykey:
-      y_in_B = look_up_record(AB.B, ykey)
-      if y_in_B:
-        y = AB.in_right(y_in_B) 
-        AB.set_match_note(y, remark)
-    if x and y and relation == '=':
-      set_match(x, y)
-      set_match(y, x)
-      match_count += 1
-    elif x or y:
-      unmatch += 1
-  log("# %s matches, %s misses" % (match_count, miss_count))
-
-"""
-TBD: filter out seniors
-  seniors = 0
-      # Filter out senior synonyms here
-      if is_senior(item, accepted_item):
-        seniors += 1
-      else:
-  if seniors > 0:     # Maybe interesting
-    print("-- Suppressed %s senior synonyms" % seniors,
-          file=sys.stderr)
-
-"""
-
 # Is given synonym usage a senior synonym of its accepted usage?
 # In the case of splitting, we expect the synonym to be a senior
 # synonym of the item.
@@ -167,22 +108,24 @@ def is_senior(synonym_item, accepted_item):
 
 # -----------------------------------------------------------------------------
 
+import newick
+
+def workspace_from_newicks(m, n):
+  B = rows_to_checklist(newick.parse_newick(n),
+                        {"name": "B"})  # meta
+  A = rows_to_checklist(newick.parse_newick(m),
+                        {"name": "A"})  # meta
+  return make_workspace(A, B, {"name": "AB"})
+
+def show_workspace(AB):
+  writer = csv.writer(sys.stdout)
+  rows = list(preorder(AB))
+  for row in rows:
+    writer.writerow(row)
+  print(' = ' + newick.compose_newick(rows))
+
 if __name__ == '__main__':
-  import newick
-
   def testit(m, n):
-    # Always load B first
-    B = rows_to_checklist(newick.parse_newick(n),
-                          {"name": "B"})  # meta
-    A = rows_to_checklist(newick.parse_newick(m),
-                          {"name": "A"})  # meta
-    AB = make_workspace(A, B, {"name": "AB"})
-    assert A.top
-    ensure_inferiors_indexed(AB)
-    writer = csv.writer(sys.stdout)
-    rows = list(preorder(AB))
-    for row in rows:
-      writer.writerow(row)
-    print(' = ' + newick.compose_newick(rows))
-
+    AB = workspace_from_newicks(m, n)
+    show_workspace(AB)
   testit("(c,d)a", "(c,e)b")

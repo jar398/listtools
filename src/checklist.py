@@ -9,20 +9,20 @@ import property as prop
 from util import log, MISSING
 from rcc5 import *
 
+# Strings (field values)
 primary_key_prop = prop.get_property("taxonID")
-
 canonical_prop = prop.get_property("canonicalName")
 scientific_prop = prop.get_property("scientificName")
 year_prop = prop.get_property("year")  # http://rs.tdwg.org/dwc/terms/year
 rank_prop = prop.get_property("taxonRank")
 managed_id_prop = prop.get_property("managed_id")
 type_prop = prop.get_property("type")
-
-source_prop = prop.get_property("source")    # which checklist does this belong to?
 parent_key_prop = prop.get_property("parentNameUsageID")
 accepted_key_prop = prop.get_property("acceptedNameUsageID")
-parent_prop = prop.get_property("parent")
-accepted_prop = prop.get_property("accepted")
+
+# Other checklist properties
+source_prop = prop.get_property("source", inherit=False)    # which checklist does this belong to?
+superior_prop = prop.get_property("superior", inherit=False)    # value is a Related
 
 # For workspaces
 inject_prop = prop.get_property("inject") # Contextual only!
@@ -38,9 +38,9 @@ match_prop = prop.get_property("match")
 (get_year, set_year) = prop.get_set(year_prop)
 (get_managed_id, set_managed_id) = prop.get_set(managed_id_prop)
 
-(get_superior, set_superior) = prop.get_set(parent_prop)
-(get_children, set_children) = prop.get_set(prop.get_property("children"))
-(get_synonyms, set_synonyms) = prop.get_set(prop.get_property("synonyms"))
+(get_superior, set_superior) = prop.get_set(superior_prop)
+(get_children, set_children) = prop.get_set(prop.get_property("children", inherit=False))
+(get_synonyms, set_synonyms) = prop.get_set(prop.get_property("synonyms", inherit=False))
 (get_taxonomic_status, set_taxonomic_status) = \
   prop.get_set(prop.get_property("taxonomicStatus"))
 
@@ -51,6 +51,7 @@ class Related(NamedTuple):
   relation : Any    # < (LT), <= (LE), =, NOINFO, maybe others
   other : Any       # the record that we're relating this one to
   status : str      # status (taxonomicStatus) relative to other ('synonym' etc)
+  note : str = ''   # further comments justifying this relationship
 
 # -----------------------------------------------------------------------------
 # Common code... for both alignments and checklists...
@@ -62,9 +63,8 @@ def look_up_record(C, key, comes_from=None):
   col = prop.get_column(primary_key_prop, C.context) # we could cache this
   probe = prop.get_record(col, key, default=None)
   if not probe:
-    print("-- Dangling taxonID reference: %s (from %s)" %
-          (key, comes_from),
-          file=sys.stderr)
+    log("-- Dangling taxonID reference: %s (from %s)" %
+        (key, comes_from))
   return probe
 
 # -----------------------------------------------------------------------------
@@ -146,9 +146,8 @@ def resolve_superior_link(record):
   else:
     sup = Related(LT, S.top, "root")
   set_superior_carefully(record, sup)
-  if monitor(record) or monitor(sup.other):
-    print("> %s %s := %s" % (sup.status, blurb(record), blurb(sup.other)),
-          file=sys.stderr)
+  if False and (monitor(record) or monitor(sup.other)):
+    log("> %s %s := %s" % (sup.status, blurb(record), blurb(sup.other)))
   return sup
 
 def set_superior_carefully(x, ship):
@@ -175,10 +174,10 @@ def ensure_inferiors_indexed(C):
     assert get_source(record) == C
     if record == C.top: continue
 
-    ship = get_superior(record)
+    ship = get_superior(record, None)
     if not ship:
       # Default relation, if none given, is child of top ('orphan')
-      log("# %s is child of top" % blurb(record))
+      # log("# %s is child of top" % blurb(record))
       ship = Related(LT, C.top, "orphan")
       set_superior_carefully(record, ship)
 
@@ -188,7 +187,7 @@ def ensure_inferiors_indexed(C):
       #log("# accepted %s -> %s" % (blurb(record), blurb(ship.other)))
       parent = ship.other
       # Add record to list of parent's children
-      ch = get_children(parent, None)
+      ch = get_children(parent, None) # list of records
       if ch != None:
         ch.append(record)
       else:
@@ -262,16 +261,16 @@ def checklist_to_rows(C, props=None):
 
 def _get_parent_key(x, default=MISSING):
   sup = get_superior(x, None)
-  if sup and sup.relation == LT:
+  if sup and not is_top(sup.other) and sup.relation == LT:
     return get_primary_key(sup.other)
   else: return default
 def _get_accepted_key(x, default=MISSING):
   sup = get_superior(x, None)
-  if sup and sup.relation != LT:
+  if sup and not is_top(sup.other) and sup.relation != LT:
     return get_primary_key(sup.other)
   else: return default
 def _get_status(x, default=MISSING):
-  sup = get_superior(x, default=MISSING)
+  sup = get_superior(x, default)
   if not sup:
     return default
   elif sup.status:
@@ -322,7 +321,7 @@ if __name__ == '__main__':
       rows = list(preorder(src))
     for row in rows:
       writer.writerow(row)
-    print(' = ' + newick.compose_newick(rows))
+    log(' = ' + newick.compose_newick(rows))
 
   #testit("a")
   testit("(a,b)c")

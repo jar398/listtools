@@ -23,7 +23,7 @@ def parse_newick(newick):
     if n >= len(newick):
       return n
 
-    children = []
+    inferiors = []
 
     if newick[n] == '(':
       n += 1
@@ -65,30 +65,30 @@ def compose_newick(rows):
   assert key_pos != None
   assert parent_pos != None
   rows_dict = {row[key_pos] : row for row in rows}
-  children = {}
+  inferiors = {}
   roots = []
   # print("newick: %s rows" % len(rows_dict), file=sys.stderr)
   for (key, row) in rows_dict.items():
     accepted_key = row[accepted_pos] if accepted_pos != None else MISSING
     parent_key = row[parent_pos]
+    ship = (not accepted_key, key)    # True for children, False for synonyms
     sup_key = accepted_key or parent_key    # '' is falsish
-    rel = (not accepted_key, key)
     if sup_key:
-      if sup_key in children:
-        children[sup_key].append(rel)
+      if sup_key in inferiors:
+        inferiors[sup_key].append(ship)
       else:
-        children[sup_key] = [rel]
+        inferiors[sup_key] = [ship]
     else:
-      roots.append(rel)
-  # print("newick: %s roots, %s superiors" % (len(roots), len(children)),
-  #      file=sys.stderr)
-  def traverse(ak):
-    (accepted, key) = ak
+      roots.append(ship)
+  print("newick: %s roots, %s superiors" % (len(roots), len(inferiors)),
+        file=sys.stderr)
+  def traverse(ship):
+    (accepted, key) = ship
     row = rows_dict[key]
     name = row[name_pos]
     if not accepted: name = name + "*"
-    if key in children:
-      newicks = (traverse(child_ak) for child_ak in children[key])
+    if key in inferiors:
+      newicks = (traverse(child_ship) for child_ship in inferiors[key])
       childs = ",".join(sorted(newicks))
       return "(%s)%s" % (childs, name)
     else:
