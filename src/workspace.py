@@ -33,8 +33,6 @@ def make_workspace(A, B, meta=None):
       z = prop.clone(x)
       set_inject(x, z)          # contextual
       set_outject(z, x)
-      # Every node starts out being a child of ⊤
-      # What about ... match? equivalent?
       set_source(z, AB)
       have_key = get_primary_key(z)
       if not have_key or not REUSE_KEYS:
@@ -48,13 +46,12 @@ def make_workspace(A, B, meta=None):
 
   def _in_left(x):
     assert get_source(x) == A
-    assert not is_top(x)
     return ensure_injected(x)
   def _in_right(y):
     assert get_source(y) == B
     return ensure_injected(y)
   def _case(z, when_left, when_right):
-    w = get_outject(z)
+    w = get_outject(z, None)
     if get_source(w) == A:
       return when_left(w)
     else:
@@ -63,7 +60,7 @@ def make_workspace(A, B, meta=None):
   AB = Coproduct(_in_left, _in_right, _case)
   AB.context = Q
   AB.top = AB.in_right(B.top)
-  AB.topship = Related(LT, AB.top, "uninitialized")
+  AB.topship = Related(ACCEPTED, AB.top, "uninitialized")
   AB.indexed = False
   AB.meta = meta
 

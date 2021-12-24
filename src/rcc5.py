@@ -32,9 +32,13 @@ CONFLICT = def_rcc5_symbol(1 << 4, '><')
 LE = def_rcc5_symbol(LT|EQ, '<=')       # ≤, synonym
 GE = def_rcc5_symbol(GT|EQ, '>=')       # ≥, accepted
 NOINFO = def_rcc5_symbol(LT|GT|EQ|CONFLICT|DISJOINT, '?')
+COMPARABLE = def_rcc5_symbol(LT|GT|EQ, '<=>')
+OVERLAP = def_rcc5_symbol(LT|GT|EQ|CONFLICT, '~')  # equivalent, similar
+
+ACCEPTED = LT
+SYNONYM = LE
 
 """
-OVERLAP = def_rcc5_symbol(EQ|LT|GT|CONFLICT, '~')  # equivalent, similar
 
 #     ≴ ≵  ≶  ≱  ≰  ≱  ℮
 #  ≲ = Less-Than or Equivalent To

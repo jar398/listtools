@@ -23,6 +23,7 @@ accepted_key_prop = prop.get_property("acceptedNameUsageID")
 # Other checklist properties
 source_prop = prop.get_property("source", inherit=False)    # which checklist does this belong to?
 superior_prop = prop.get_property("superior", inherit=False)    # value is a Related
+equated_prop = prop.get_property("equated", inherit=False)    # value is a Related
 
 # For workspaces
 inject_prop = prop.get_property("inject") # Contextual only!
@@ -43,12 +44,13 @@ match_prop = prop.get_property("match")
 (get_synonyms, set_synonyms) = prop.get_set(prop.get_property("synonyms", inherit=False))
 (get_taxonomic_status, set_taxonomic_status) = \
   prop.get_set(prop.get_property("taxonomicStatus"))
+(get_equated, set_equated) = prop.get_set(equated_prop)
 
 (get_outject, set_outject) = prop.get_set(outject_prop)
 (get_match, set_match) = prop.get_set(match_prop)
 
 class Related(NamedTuple):
-  relation : Any    # < (LT), <= (LE), =, NOINFO, maybe others
+  relation : Any    # < (LT, ACCEPTED), <= (LE, SYNONYM), =, NOINFO, maybe others
   other : Any       # the record that we're relating this one to
   status : str      # status (taxonomicStatus) relative to other ('synonym' etc)
   note : str = ''   # further comments justifying this relationship
@@ -132,19 +134,19 @@ def resolve_superior_link(record):
     accepted_record = look_up_record(S, accepted_key, record)
     if accepted_record:
       status = get_taxonomic_status(record, "synonym")
-      sup = Related(LE, accepted_record, status)
+      sup = Related(SYNONYM, accepted_record, status)
     else:
-      sup = Related(LE, top, "dangling reference")
+      sup = Related(SYNONYM, top, "dangling reference")
   elif parent_key:
     parent_record = look_up_record(S, parent_key, record)
     if parent_record:
       status = get_taxonomic_status(record, "accepted")
       # If it's not accepted or valid or something darn close, we're confused
-      sup = Related(LT, parent_record, status)
+      sup = Related(ACCEPTED, parent_record, status)
     else:
-      sup = Related(LT, top, "dangling reference")
+      sup = Related(ACCEPTED, top, "dangling reference")
   else:
-    sup = Related(LT, S.top, "root")
+    sup = Related(ACCEPTED, S.top, "root")
   set_superior_carefully(record, sup)
   if False and (monitor(record) or monitor(sup.other)):
     log("> %s %s := %s" % (sup.status, blurb(record), blurb(sup.other)))
@@ -167,8 +169,7 @@ def assert_local(x, y):
 
 def ensure_inferiors_indexed(C):
   if C.indexed: return
-
-  log("# indexing inferiors")
+  #log("# indexing inferiors")
 
   for record in all_records(C):
     assert get_source(record) == C
@@ -178,12 +179,12 @@ def ensure_inferiors_indexed(C):
     if not ship:
       # Default relation, if none given, is child of top ('orphan')
       # log("# %s is child of top" % blurb(record))
-      ship = Related(LT, C.top, "orphan")
+      ship = Related(ACCEPTED, C.top, "orphan")
       set_superior_carefully(record, ship)
 
     assert_local(record, ship.other)
 
-    if ship.relation == LT:   # accepted
+    if ship.relation == ACCEPTED:   # accepted
       #log("# accepted %s -> %s" % (blurb(record), blurb(ship.other)))
       parent = ship.other
       # Add record to list of parent's children
@@ -194,7 +195,7 @@ def ensure_inferiors_indexed(C):
         set_children(parent, [record])
 
     else:         # synonym (LE)
-      assert ship.relation == LE, rcc5_symbol(ship.relation)
+      assert ship.relation == SYNONYM, rcc5_symbol(ship.relation)
       accepted = ship.other
       # Add record to list of accepted record's synonyms
       ch = get_synonyms(accepted, None)
@@ -204,7 +205,7 @@ def ensure_inferiors_indexed(C):
         set_synonyms(accepted, [record])
 
   C.indexed = True
-  log("# Top has %s child(ren)" % len(get_children(C.top)))
+  #log("# Top has %s child(ren)" % len(get_children(C.top)))
 
 def get_source_name(x):
   return get_source(x).meta['name']
@@ -220,13 +221,20 @@ TOP = "⊤"
 def is_top(x):
   return x == get_source(x).top
 
+def is_toplike(x):
+  return get_canonical(x) == TOP
+
 def add_child(c, x, status="accepted"):
   ch = get_children(x, None)
   if ch != None:
     ch.append(c)
   else:
     ch = [c]
-  set_superior_carefully(c, Related(LT, x, status))
+  set_superior_carefully(c, Related(ACCEPTED, x, status))
+
+def get_inferiors(x):
+  yield from get_children(x, ())
+  yield from get_synonyms(x, ())
 
 # -----------------------------------------------------------------------------
 # For debugging
@@ -238,6 +246,8 @@ def blurb(r):
             get_managed_id(r, None) or
             get_primary_key(r, None) or
             "[no identifier]")
+  elif isinstance(r, Related):
+    return "[%s %s]" % (rcc5_symbol(r.relation), blurb(r.other))
   elif r:
     return "[not a record]"
   else:
@@ -261,12 +271,12 @@ def checklist_to_rows(C, props=None):
 
 def _get_parent_key(x, default=MISSING):
   sup = get_superior(x, None)
-  if sup and not is_top(sup.other) and sup.relation == LT:
+  if sup and not is_top(sup.other) and sup.relation == ACCEPTED:
     return get_primary_key(sup.other)
   else: return default
 def _get_accepted_key(x, default=MISSING):
   sup = get_superior(x, None)
-  if sup and not is_top(sup.other) and sup.relation != LT:
+  if sup and not is_top(sup.other) and sup.relation != ACCEPTED:
     return get_primary_key(sup.other)
   else: return default
 def _get_status(x, default=MISSING):
@@ -275,10 +285,10 @@ def _get_status(x, default=MISSING):
     return default
   elif sup.status:
     return sup.status
-  elif sup.relation != LT:
-    return "synonym"
-  else:
+  elif sup.relation == ACCEPTED:
     return "accepted"
+  else:
+    return "synonym"
 
 usual_props = \
             (primary_key_prop,

@@ -403,4 +403,4 @@ test:
 	src/property.py
 	src/checklist.py
 	src/workspace.py
-
+	src/theory.py
