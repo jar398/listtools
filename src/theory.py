@@ -37,26 +37,23 @@ def spanning_tree(AB):
     for c in get_inferiors(v):
       traverse(c, in_leftright)
     assert isinstance(z, prop.Record)
-    process_lineage(z,
-                    get_left_superior(AB, z),
-                    get_right_superior(AB, z),
-                    AB) # Goes all the way up to the root
+    process_lineage(AB, z) # Goes all the way up to the root
   traverse(AB.B.top, AB.in_right)
   traverse(AB.A.top, AB.in_left)
 
 # x in A, y in B
 
-def process_lineage(z, rx, ry, AB):
-  assert isinstance(z, prop.Record)
+def process_lineage(AB, z):
+  rx = get_left_superior(AB, z)
+  ry = get_right_superior(AB, z)
   if not (rx or ry): return
-
   state = [z, rx, ry]
 
   # Links should only go from most dominant to most dominant
   # b->b, a->b (a not = anything), b->a (similarly), a->a (similarly)
 
-  def propose_superior(z, rs, status, note, rx, ry):
-    foo_propose_superior(AB, z, rs, status, note)
+  def propose_sup(z, rs, status, note, rx, ry):
+    propose_superior(AB, z, rs, status, note)
     # TBD: if there's an equation, and z is in A, make z a synonym
     if rx: assert isinstance(rx, Related)
     if ry: assert isinstance(ry, Related)
@@ -64,13 +61,16 @@ def process_lineage(z, rx, ry, AB):
     state[1] = rx
     state[2] = ry
 
-  def propose_equation(rx, ry, note):
-    return foo_propose_equation(AB, rx, ry, note)
+  def propose_eq(rx, ry, note):
+    return propose_equation(AB, rx, ry, note)
 
   def propose_deprecation(x):
     clog("# Need to deprecated", x)
 
   while (rx or ry) and get_superior(z, None) == None:
+
+    clog("# Candidates for %s are %s, %s" %
+         (blurb(z), blurb(rx), blurb(ry)))
 
     # These two loops are active in conflict situations
     while rx and not mtrmset_lt(AB, z, rx.record):
@@ -92,52 +92,51 @@ def process_lineage(z, rx, ry, AB):
     rq = get_right_superior(AB, ry.record) if ry else None
 
     if not ry:
-      assert rx
-      propose_superior(z, rx, rx.status, None, rp, None)
+      propose_sup(z, rx, rx.status, None, rp, None)
     elif not rx:
-      propose_superior(z, ry, ry.status, None, rq, None)
+      propose_sup(z, ry, ry.status, None, rq, None)
     else:
       x = rx.record if rx else None
       y = ry.record if ry else None
       relation = mtrmset_relation(AB, x, y)
       assert relation != DISJOINT
       if relation == LT:            # different mtrmsets
-        propose_superior(z, rx, "MTRMs(x) ⊂ MTRMs(y)", None, rp, ry) # No choice
+        propose_sup(z, rx, "MTRMs(x) ⊂ MTRMs(y)", None, rp, ry) # No choice
       elif relation == GT:          # different mtrmsets
-        propose_superior(z, ry, "MTRMs(y) ⊂ MTRMs(x)", None, rx, rq)
+        propose_sup(z, ry, "MTRMs(y) ⊂ MTRMs(x)", None, rx, rq)
       elif relation == CONFLICT:
         # x conflicts with y.  Delete x, take min(p, q) as parent
         # Parent of z is y, not x; skip x and go right to p
         propose_deprecation(x)
-        propose_superior(z, ry, "conflict", None, rp, rq)    # skip bads in x-chain
+        propose_sup(z, ry, "conflict", None, rp, rq)    # skip bads in x-chain
       # relation is COMPARABLE at this point
       elif (not rp) or mtrmset_lt(AB, x, rp.record):
         if (not rq) or mtrmset_lt(AB, y, rq.record):
-          rw = propose_equation(rx, ry, "MTRMs(x) = MTRMs(y) uniquely")
-          propose_superior(z, rw, None, "parents extension=", rp, rq)
+          rw = propose_eq(rx, ry, "MTRMs(x) = MTRMs(y) uniquely")
+          propose_sup(z, rw, None, "parents extension=", rp, rq)
         else:
-          propose_superior(z, ry, None, "triangle heuristic A", rx, rq)
+          propose_sup(z, ry, None, "triangle heuristic A", rx, rq)
       elif (not rq) or mtrmset_lt(AB, y, rq.record):
-        propose_superior(z, x, None, "triangle heuristic B", rp, ry)
+        propose_sup(z, x, None, "triangle heuristic B", rp, ry)
       else:
         n = get_match(y)
         if n and n.relation == EQ:
           if n.record == x:
-            rw = propose_equation(rx, ry, "match + similar")
-            propose_superior(z, rw, None, "parents name=", rp, rq)
+            rw = propose_eq(rx, ry, "match + similar")
+            propose_sup(z, rw, None, "parents name=", rp, rq)
           else:
-            propose_superior(z, y,
+            propose_sup(z, y,
                              None, "priority B because hoping for match",
                              rx, rq)
         else:
           m = get_match(x)
           if m and m.relation == EQ:
-            propose_superior(z, x,
+            propose_sup(z, x,
                              None, "priority A because hoping for match", 
                              rp, ry)
           else:
             # Unmatched against unmatched = toss-up
-            propose_superior(z, x,
+            propose_sup(z, x,
                              None, "priority A because toss-up", 
                              rp, ry)
 
@@ -148,53 +147,68 @@ def process_lineage(z, rx, ry, AB):
 # note explains ... why y should be equivalent to x (match info?)
 # note in ry explains why y should be superior of z
 
-def foo_propose_equation(AB, rx, ry, note):
+def propose_equation(AB, rx0, ry0, note):
   # Polarize
-  (rx, ry) = AB.case(rx.record, lambda x: (rx, ry), lambda x: (ry, rx))
+  e = isinB(AB, rx0.record)
+  f = isinB(AB, ry0.record)
+  assert e != f
+  (rx, ry) = AB.case(rx0.record,
+                     lambda x: (rx0, ry0),
+                     lambda x: (ry0, rx0))
 
   # Record reason for the equation
-  set_equated(rx.record, Related(EQ, rx.record, "equivalent", note))
-  set_equated(ry.record, Related(EQ, ry.record, "equivalent", note))
+  set_equated(rx.record, Related(EQ, ry.record, "equivalent", note))
+  set_equated(ry.record, Related(EQ, rx.record, "equivalent", note))
 
   # Deprecate the non-priority record of the two
-  # (but only if... we're not getting a good synonym out of it?)
-  foo_propose_superior(AB, rx.record, ry, "imported", rx.note)
+  propose_superior(AB, rx.record, ry, "imported", rx.note)
   return ry
+
+def isinB(AB, z):
+  return AB.case(z, lambda x: False, lambda x: True)
 
 # Propose that rs.record should be the parent (superior) of z
 
-def foo_propose_superior(AB, z, rs, status, note):
+def propose_superior(AB, z, rs, status, note):
   assert rs
   assert isinstance(z, prop.Record), blurb(z)
   assert isinstance(rs, Related)
   s = rs.record
-  s_A_side = AB.case(rs.record, lambda x: True, lambda x: False)
-  if s_A_side:
-    # we want to keep everything else, change only the 'record'
+
+  # Children of an A record should be moved to the equated B record so
+  # that synonyms continue to be childless... how does that happen?
+
+  if not isinB(AB, rs.record):
     re = get_equated(rs.record, None)
-    if re: s = re.record
-  assert isinstance(s, prop.Record), blurb(s)
+    if re:
+      # Put z under re, not under rs
+      rs = re
   set_superior(z, Related(rs.relation,
-                          s,
+                          rs.record,
                           status or rs.status,    # accepted, etc
                           note))  # details
+
+# Always returns a record in the A checklist
 
 def get_left_persona(AB, z):
   x = AB.case(z,
               lambda x:z,       # A case
               lambda y:None)
-  if not x:
-    ship = get_equated(z, None) # B case
+  if isinB(AB, z):
+    # z is in B so we want an x in A
+    ship = get_equated(z, None) # ship in A
     if ship: x = ship.record
+  if x: assert not isinB(AB, x), (blurb(z), blurb(x))
   return x
 
 def get_right_persona(AB, z):
   y = AB.case(z,
               lambda x:None,
               lambda y:z)       # B case
-  if not y:
+  if not isinB(AB, y):
     ship = get_equated(z, None) # A case
     if ship: y = ship.record
+  if y: assert isinB(AB, y)
   return y
 
 def get_left_superior(AB, z):
@@ -289,8 +303,8 @@ def find_MTRMs(AB):
     z2 = m.record
     m2 = get_trm(z2, None)      # tipward match to/in A
     if m2 and m2.relation == EQ and m2.record == z:
-      if monitor(z): log("# MTRM: %s :=: %s" % (blurb(z), blurb(z2)))
-      foo_propose_equation(AB, m2, m,
+      #if monitor(z): log("# MTRM: %s :=: %s" % (blurb(z), blurb(z2)))
+      propose_equation(AB, m2, m,
                            "MTRM;%s;%s" % (m2.note, m.note))
   find_TRMs(AB.B, AB.in_right, set_if_mutual)    # of AB.flip()
 

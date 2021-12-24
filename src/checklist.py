@@ -233,22 +233,19 @@ def add_child(c, x, status="accepted"):
 
 def get_inferiors(x):
   yield from get_children(x, ())
-  for r in get_synonyms(x, ()):
-    log(". checking %s" % blurb(r))
-    assert isinstance(r, prop.Record)
-    y = get_equated(r, None)
+  for syn in get_synonyms(x, ()):
+    y = get_equated(syn, None)
+    def passing(m): clog(m, x, syn, y)
     # TBD: Also keep it if canonicalName differs
     if not y:
-      log(".   keep because not equated: %s" % blurb(r))
-    elif y.record != r:
-      log(".   keep because %s equated to non-x record %s: %s" %
-          (blurb(y.record), blurb(r)))
-    elif True and get_canonical(y.record) != get_canonical(r):
-      log(".   keep because different name" % blurb(r))
+      pass #ing("keep because not equated to anything")
+    elif y.record != x:
+      passing("keep because equated but to wrong record")
+    elif get_canonical(y.record) != get_canonical(syn):
+      passing("keep because provides a different name")
     else:
-      log(".   suppress: %s" % blurb(r))
       continue
-    yield r
+    yield syn
 
 # -----------------------------------------------------------------------------
 # For debugging
@@ -337,7 +334,7 @@ def preorder(C, props=None):
   yield from traverse(C.top)
 
 def clog(x, *records):
-  log("%s %s" % (x, " ".join(map(blurb, records))))
+  log(x + " " + " ".join(map(blurb, records)))
 
 # -----------------------------------------------------------------------------
 
