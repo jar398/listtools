@@ -237,7 +237,9 @@ def get_inferiors(x):
     log(". checking %s" % blurb(r))
     assert isinstance(r, prop.Record)
     y = get_equated(r, None)
-    if not (y and y.record == x):
+    # TBD: Also keep it if canonicalName differs
+    if ((not (y and y.record == x)) or
+        get_canonical(y.record) != get_canonical(r):
       log(".   not equated: %s" % blurb(r))
       yield r
 
