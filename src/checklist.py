@@ -238,6 +238,7 @@ def get_inferiors(x):
     assert isinstance(r, prop.Record)
     y = get_equated(r, None)
     if not y: #(y and y.other == x):
+      log(".   not equated: %s" % blurb(r))
       yield r
 
 # -----------------------------------------------------------------------------
