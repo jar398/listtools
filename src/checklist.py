@@ -266,17 +266,17 @@ def checklist_to_rows(C, props=None):
   yield [prp.label for prp in props]
   getters = tuple(map(prop.getter, props))
   for record in all_records(C):
-    if not is_top(record):
+    if not is_toplike(record):
       yield [get(record, prop.MISSING) for get in getters]
 
 def _get_parent_key(x, default=MISSING):
   sup = get_superior(x, None)
-  if sup and not is_top(sup.other) and sup.relation == ACCEPTED:
+  if sup and not is_toplike(sup.other) and sup.relation == ACCEPTED:
     return get_primary_key(sup.other)
   else: return default
 def _get_accepted_key(x, default=MISSING):
   sup = get_superior(x, None)
-  if sup and not is_top(sup.other) and sup.relation != ACCEPTED:
+  if sup and not is_toplike(sup.other) and sup.relation != ACCEPTED:
     return get_primary_key(sup.other)
   else: return default
 def _get_status(x, default=MISSING):
@@ -310,7 +310,7 @@ def preorder(C, props=None):
   getters = tuple(map(prop.getter, props))
   def traverse(x):
     #log("# Preorder visit %s" % blurb(x))
-    if not is_top(x):
+    if not is_toplike(x):
       yield [get(x, prop.MISSING) for get in getters]
     for c in get_children(x, None) or (): yield from traverse(c)
     for c in get_synonyms(x, None) or (): yield from traverse(c)

@@ -59,7 +59,14 @@ def make_workspace(A, B, meta=None):
       return when_right(w)
   AB = Coproduct(_in_left, _in_right, _case)
   AB.context = Q
-  AB.top = AB.in_right(B.top)
+
+  atop = AB.in_left(A.top)
+  btop = AB.in_right(B.top)
+
+  set_equated(atop, Related(EQ, btop, "top"))
+  set_equated(btop, Related(EQ, atop, "top"))
+  AB.top = btop
+
   AB.topship = Related(ACCEPTED, AB.top, "uninitialized")
   AB.indexed = False
   AB.meta = meta

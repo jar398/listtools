@@ -36,6 +36,7 @@ def spanning_tree(AB):
     if get_superior(z, None): return
     for c in get_inferiors(v):
       traverse(c, in_leftright)
+    assert isinstance(z, prop.Record)
     process_lineage(z,
                     get_left_superior(AB, z),
                     get_right_superior(AB, z),
@@ -46,22 +47,28 @@ def spanning_tree(AB):
 # x in A, y in B
 
 def process_lineage(z, rx, ry, AB):
+  assert isinstance(z, prop.Record)
+  if not (rx or ry): return
 
   state = [z, rx, ry]
 
-  def propose_superior(z, rs, note, rx, ry):
+  def propose_superior(z, rs, status, note, rx, ry):
     assert rs
     assert isinstance(rs, Related)
     if rx: assert isinstance(rx, Related)
     if ry: assert isinstance(ry, Related)
-    set_superior(z, Related(rs.relation, rs.other, rs.status, note))
+    # carry synonym/accepted status over from rs
+    set_superior(z, Related(rs.relation,
+                            rs.other,
+                            status or rs.status,    # accepted, etc
+                            note))  # details
     state[0] = rs.other         # new z
     state[1] = rx
     state[2] = ry
 
   def propose_equation(x, y, note):
-    set_equated(x, Related(EQ, y, "equated A", note))
-    set_equated(y, Related(EQ, x, "equated B", note))    # or accepted
+    set_equated(x, Related(EQ, y, "equivalent", note))
+    set_equated(y, Related(EQ, x, "equivalent", note))    # or accepted
 
   while (rx or ry) and get_superior(z, None) == None:
 
@@ -82,49 +89,52 @@ def process_lineage(z, rx, ry, AB):
 
     if not ry:
       assert rx
-      propose_superior(z, rx, "inherited A", rp, None)
+      propose_superior(z, rx, rx.status, None, rp, None)
     elif not rx:
-      propose_superior(z, ry, "inherited B", rq, None)
+      propose_superior(z, ry, ry.status, None, rq, None)
     else:
       x = rx.other if rx else None
       y = ry.other if ry else None
       relation = block_relation(AB, x, y)
-      p = rp.other if rp else None
-      q = rq.other if rq else None
+      assert relation != DISJOINT
       if relation == LT:            # different blocks
-        propose_superior(z, rx, "because MTRM sets A", rp, ry) # No choice
+        propose_superior(z, rx, "MTRMs(x) ⊂ MTRMs(y)", None, rp, ry) # No choice
       elif relation == GT:          # different blocks
-        propose_superior(z, ry, "because MTRM sets B", rx, rq)
+        propose_superior(z, ry, "MTRMs(x) ⊃ MTRMs(y)", None, rx, rq)
       elif relation == CONFLICT:
         # x conflicts with y.  Delete x, take min(p, q) as parent
         # Parent of z is y, not x; skip x and go right to p
         propose_deprecation(x)
-        propose_superior(z, ry, "conflict", rp, rq)    # skip bads in x-chain
-      elif block_lt(AB, x, p):                             # COMPARABLE
-        if block_lt(AB, y, q):
-          propose_equation(x, y, "no reason not to")
-          propose_superior(z, ry, "follows", rp, rq)
+        propose_superior(z, ry, "conflict", None, rp, rq)    # skip bads in x-chain
+      # relation is COMPARABLE at this point
+      elif (not rp) or block_lt(AB, x, rp.other):
+        if (not rq) or block_lt(AB, y, rq.other):
+          propose_equation(x, y, "MTRMs(x) = MTRMs(y) uniquely")
+          propose_superior(z, ry, None, "parents extension=", rp, rq)
         else:
-          propose_superior(z, ry, "triangle heuristic A", rx, rq)
-      elif block_lt(AB, y, q):
-        propose_superior(z, x, "triangle heuristic B", rp, ry)
+          propose_superior(z, ry, None, "triangle heuristic A", rx, rq)
+      elif (not rq) or block_lt(AB, y, rq.other):
+        propose_superior(z, x, None, "triangle heuristic B", rp, ry)
       else:
         n = get_match(y)
         if n and n.relation == EQ:
           if n.other == x:
             propose_equation(x, y, "match + similar")
-            propose_superior(z, ry, "follows", rp, rq)
+            propose_superior(z, ry, None, "parents name=", rp, rq)
           else:
-            propose_superior(z, y, "priority B because hoping for match",
+            propose_superior(z, y,
+                             None, "priority B because hoping for match",
                              rx, rq)
         else:
           m = get_match(x)
           if m and m.relation == EQ:
-            propose_superior(z, x, "priority A because hoping for match",
+            propose_superior(z, x,
+                             None, "priority A because hoping for match", 
                              rp, ry)
           else:
             # Unmatched against unmatched = toss-up
-            propose_superior(z, x, "priority A because toss-up",
+            propose_superior(z, x,
+                             None, "priority A because toss-up", 
                              rp, ry)
 
     (z, rx, ry) = state
@@ -174,26 +184,26 @@ def equated(x, y):
   return z and z.other == y
 
 def block_lt(AB, x, y):
-  return block_relation(AB, x, y) == LT    # or LE for synonyms ...?
+  rel = block_relation(AB, x, y)
+  return rel == LT    # or LE for synonyms ...?
 
 # -----------------------------------------------------------------------------
 # Find estimates.  Assumes mtrm has run.
 
 def block_relation(AB, x, y):
-  assert x
-  assert y
+  assert isinstance(x, prop.Record)
+  assert isinstance(y, prop.Record)
   if in_same_tree(AB, x, y):
-    return simple_lt(AB.case(x, lambda x:x, lambda y:y),
-                     AB.case(x, lambda x:x, lambda y:y))
+    rel = simple_relation(AB.case(x, lambda x:x, lambda y:y),
+                          AB.case(y, lambda x:x, lambda y:y))
+    return rel
   else:
     if is_toplike(x):
       if is_toplike(y): return EQ
       else: return GT
     elif is_toplike(y): return LT
     log("# Compare %s to %s, neither is top" % (blurb(x), blurb(y)))
-    return estimate_relation(get_estimate(x), get_estimate(y))
-
-(get_estimate, set_estimate) = prop.get_set(prop.get_property("estimate"))
+    return relate_estimates(get_estimate(x), get_estimate(y))
 
 def compute_estimates(AB):
   def traverse(x, in_left):
@@ -208,7 +218,7 @@ def compute_estimates(AB):
         set_estimate(x, e)
     else:
       set_estimate(x, e)
-    log("# Estimate(%s) = %s" % (blurb(x), e))
+    #log("# Estimate(%s) = %s" % (blurb(x), e))
     return e
   traverse(AB.B.top, AB.in_right)
   traverse(AB.A.top, AB.in_left)
@@ -220,13 +230,14 @@ def join_estimates(e1, e2): return e1 | e2
 def eta(x, y): return {min(x.id, y.id)}
 def is_empty(e): return len(e) == 0
 
-def estimate_relation(e1, e2):  # ASSUMES OVERLAP
-  if e1.issubset(e2):
-    if e1 == e2: return COMPARABLE
-    else: return LT
+def relate_estimates(e1, e2):  # ASSUMES OVERLAP
+  if e1 == e2: return COMPARABLE
+  elif e1.issubset(e2): return LT
   elif e2.issubset(e1): return GT
-  # elif e1.isdisjont(e2): return DISJOINT
+  elif e1.isdisjont(e2): return DISJOINT
   else: return CONFLICT
+
+(get_estimate, set_estimate) = prop.get_set(prop.get_property("estimate"))
 
 # -----------------------------------------------------------------------------
 # Find mutual tipward matches
@@ -335,18 +346,48 @@ TBD: filter out seniors
 # -----------------------------------------------------------------------------
 # Same-tree relations
 
-(get_level, set_level) = prop.get_set(prop.get_property("level"))
+#    x1 ? y1
+#   /       \
+#  x         y
+
+def simple_relation(x, y):             # Within a single tree
+  (x1, y1) = find_peers(x, y)    # Decrease levels as needed
+  if x1 == y1:     # x <= x1 = y1 >= y
+    if x == y:
+      return EQ
+    elif x1 == x:     # x = x1 = y1 > y, x > y
+      return GT
+    elif y1 == y:
+      return LT
+    else:
+      assert False
+  else:
+    # !!! FIX FOR SYNONYMS
+    return DISJOINT
+
+def find_peers(x, y):
+  i = get_level(x)
+  while i < get_level(y):
+    y = get_superior(y).other
+  j = get_level(y)
+  while get_level(x) > j:
+    x = get_superior(x).other
+  return (x, y)
+
+(get_level, set_level) = prop.get_set(prop.get_property("level", inherit=False))
 
 def simple_le(x, y):
-  y1 = x     # proceeds down to y
-  # if {level(x) >= level(y1) >= level(y)}, then x <= y1 <= y or disjoint
+  # Is x <= y?  Scan from x upwards, see if we find y
+  x1 = x
   stop = get_level(y)
-  while get_level(y1) > stop:
-    y1 = get_superior(y1)    # y1 > previously, level(y1) < previously
-  # level(y) = level(y1) <= level(x)
-  return y1 == y    # Not > and not disjoint
 
-def simple_lt(x, y): return simple_le(x, y) and x != y
+  while get_level(x1) > stop:
+    x1 = get_superior(x1).other    # y1 > previously, level(y1) < previously
+
+  return x1 == y
+
+def simple_lt(x, y):
+  return simple_le(x, y) and x != y
 
 def in_same_tree(AB, x, y):
   return (AB.case(x, lambda x:1, lambda x:2) ==
@@ -357,7 +398,7 @@ def ensure_levels(S):
     set_level(x, n)
     for c in get_inferiors(x):
       cache(c, n+1)
-  cache(S.top, 0)
+  cache(S.top, 1)
 
 # -----------------------------------------------------------------------------
 
