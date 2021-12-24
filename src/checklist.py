@@ -238,10 +238,17 @@ def get_inferiors(x):
     assert isinstance(r, prop.Record)
     y = get_equated(r, None)
     # TBD: Also keep it if canonicalName differs
-    if ((not (y and y.record == x)) or
-        get_canonical(y.record) != get_canonical(r):
-      log(".   not equated: %s" % blurb(r))
-      yield r
+    if not y:
+      log(".   keep because not equated: %s" % blurb(r))
+    elif y.record != r:
+      log(".   keep because %s equated to non-x record %s: %s" %
+          (blurb(y.record), blurb(r)))
+    elif get_canonical(y.record) != get_canonical(r):
+      log(".   keep because different name" % blurb(r))
+    else:
+      log(".   suppress: %s" % blurb(r))
+      continue
+    yield r
 
 # -----------------------------------------------------------------------------
 # For debugging
