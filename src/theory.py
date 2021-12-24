@@ -157,6 +157,7 @@ def foo_propose_equation(AB, rx, ry, note):
   set_equated(ry.record, Related(EQ, ry.record, "equivalent", note))
 
   # Deprecate the non-priority record of the two
+  # (but only if... we're not getting a good synonym out of it?)
   foo_propose_superior(AB, rx.record, ry, "imported", rx.note)
   return ry
 
