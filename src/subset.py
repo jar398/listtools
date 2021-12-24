@@ -17,10 +17,10 @@ import sys, os, csv, argparse
 
 from util import MISSING, csv_parameters
 
-def main(infile, hier_path, root_id, outfile):
-  topo = read_topology(hier_path)
-  all = closure(topo, root_id)
-  write_subset(infile, root_id, all, topo, outfile)
+def extract_subset(infile, hier_path, root_id, outfile):
+  (topo, root_tid) = read_topology(hier_path, root_id)
+  all = closure(topo, root_tid)
+  write_subset(infile, root_tid, all, topo, outfile)
 
 def write_subset(infile, root_id, all, topo, outfile):
   reader = csv.reader(infile)
@@ -59,11 +59,12 @@ def closure(topo, root_id):
   print("-- subset: %s items in transitive closure" % len(all), file=sys.stderr)
   return all
 
-def read_topology(hier_path):
+def read_topology(hier_path, root_id):
   # Keyed by taxon id
   topo = {}
   (delimiter, quotechar, mode) = csv_parameters(hier_path)
   counter = 0
+  root_tip = None
   with open(hier_path, "r") as infile:
     print("# subset: scanning %s to obtain hierarchy" % hier_path,
           flush=True,
@@ -75,6 +76,7 @@ def read_topology(hier_path):
     pid_column = head.index("parentNameUsageID")
     aid_column = head.index("acceptedNameUsageID")
     sid_column = head.index("taxonomicStatus")
+    name_column = head.index("canonicalName")
 
     if tid_column == None:      # usually 0
       print("** No taxonID column found", file=sys.stderr)
@@ -100,10 +102,16 @@ def read_topology(hier_path):
       if parent_id != MISSING and parent_id != tid:
         (children, _) = get_topo_record(parent_id, topo)
         children.append(tid)
+      if (tid == root_id or
+          name_column != None and row[name_column] == root_id):
+        root_tid = tid
+        
     print("-- subset: %s hierarchy items of which %s have children and/or synonyms" %
           (counter, len(topo)), file=sys.stderr)
 
-  return topo
+  if root_tid == None:
+    print("*** Did not find root taxonID or canonicalName %s" % root_id)
+  return (topo, root_tid or root_id)
 
 def get_topo_record(tid, topo):
   record = topo.get(tid)
@@ -112,13 +120,13 @@ def get_topo_record(tid, topo):
     topo[tid] = record
   return record
 
-# main(checklist, taxonomy, root_id, outfile)
+# extract_subset(checklist, taxonomy, root_id, outfile)
 
 if __name__ == '__main__':
   parser = argparse.ArgumentParser()
   parser.add_argument('--hierarchy',
                       help="file from which to extract complete hierarchy")
   parser.add_argument('--root',
-                      help="taxonID of root of subtree to be extracted")
+                      help="taxonID or name of root of subtree to be extracted")
   args = parser.parse_args()
-  main(sys.stdin, args.hierarchy, args.root, sys.stdout)
+  extract_subset(sys.stdin, args.hierarchy, args.root, sys.stdout)

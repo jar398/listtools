@@ -28,9 +28,13 @@ def use_parse(gn_iter, check_iter):
   year_pos = windex(header1, "Year")
   quality_pos = windex(header1, "Quality")
 
+  header2 = next(check_iter)
   # May need to consult the source record too
-  header2 = next(check_iter) + ["canonicalStem", "year", "type"]
+  add_canon = not "canonicalName" in header2
+  if add_canon:
+    header2 = header2 + ["canonicalName"]
   canonical_pos = windex(header2, "canonicalName")
+  header2 = header2 + ["canonicalStem", "year", "type"]
 
   row_count = 0
   trim_count = 0
@@ -84,7 +88,8 @@ def use_parse(gn_iter, check_iter):
 
       # Extra benefit: fill in canonical if it's missing from source (checklist_row)
       full = gn_row[canonical_full_pos]
-      if full and canonical_pos:
+      if add_canon: full = full + [MISSING]
+      if full:
         have = checklist_row[canonical_pos]
         if have == MISSING:
           quality = int(gn_row[quality_pos])

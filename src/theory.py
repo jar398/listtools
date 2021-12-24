@@ -22,7 +22,7 @@ def analyze(AB):
   m = match_records(checklist_to_rows(AB.A), checklist_to_rows(AB.B))
   load_matches(m, AB)
   find_MTRMs(AB)
-  compute_estimates(AB)
+  compute_mtrmsets(AB)
   spanning_tree(AB)
 
 # -----------------------------------------------------------------------------
@@ -52,36 +52,48 @@ def process_lineage(z, rx, ry, AB):
 
   state = [z, rx, ry]
 
+  # Links should only go from most dominant to most dominant
+  # b->b, a->b (a not = anything), b->a (similarly), a->a (similarly)
+
   def propose_superior(z, rs, status, note, rx, ry):
-    assert rs
-    assert isinstance(rs, Related)
+    foo_propose_superior(AB, z, rs, status, note)
+    # TBD: if there's an equation, and z is in A, make z a synonym
     if rx: assert isinstance(rx, Related)
     if ry: assert isinstance(ry, Related)
-    # carry synonym/accepted status over from rs
-    set_superior(z, Related(rs.relation,
-                            rs.other,
-                            status or rs.status,    # accepted, etc
-                            note))  # details
     state[0] = rs.other         # new z
     state[1] = rx
     state[2] = ry
 
-  def propose_equation(x, y, note):
-    set_equated(x, Related(EQ, y, "equivalent", note))
-    set_equated(y, Related(EQ, x, "equivalent", note))    # or accepted
+  def propose_equation(x, ry, note):
+    y = ry.other
+    yr = Related(EQ, y, "equivalent", note)
+    xr = Related(EQ, x, "equivalent", note)
+    set_equated(x, yr)
+    set_equated(y, xr)    # or accepted
+    if AB.case(x, lambda x: True, lambda x: False):    # drop if in A
+      foo_propose_superior(AB, x, yr, yr.status, yr.note)
+    else:
+      foo_propose_superior(AB, y, xr, xr.status, xr.note)
+
+  def propose_deprecation(x):
+    clog("# Need to deprecated", x)
 
   while (rx or ry) and get_superior(z, None) == None:
 
-    while rx and not block_lt(AB, z, rx.other):
+    # These two loops are active in conflict situations
+    while rx and not mtrmset_lt(AB, z, rx.other):
       log("# %s not< x=%s, bump x to %s" % (blurb(z),
                                             blurb(rx),
                                             blurb(get_left_superior(AB, rx.other))))
       rx = get_left_superior(AB, rx.other)
-    while ry and not block_lt(AB, z, ry.other):
-      log("# %s not< x=%s, bump x to %s" % (blurb(z),
-                                            blurb(ry),
-                                            blurb(get_right_superior(AB, ry.other))))
+
+    while ry and not mtrmset_lt(AB, z, ry.other):
+      log("# %s not< x=%s, bump x to %s" %
+          (blurb(z), blurb(ry), blurb(get_right_superior(AB, ry.other))))
       ry = get_right_superior(AB, ry.other)
+
+    #assert (not rx) or mtrmset_lt(AB, z, rx.other)
+    #assert (not ry) or mtrmset_lt(AB, z, ry.other)
     assert rx or ry
 
     rp = get_left_superior(AB, rx.other) if rx else None
@@ -95,31 +107,31 @@ def process_lineage(z, rx, ry, AB):
     else:
       x = rx.other if rx else None
       y = ry.other if ry else None
-      relation = block_relation(AB, x, y)
+      relation = mtrmset_relation(AB, x, y)
       assert relation != DISJOINT
-      if relation == LT:            # different blocks
+      if relation == LT:            # different mtrmsets
         propose_superior(z, rx, "MTRMs(x) ⊂ MTRMs(y)", None, rp, ry) # No choice
-      elif relation == GT:          # different blocks
-        propose_superior(z, ry, "MTRMs(x) ⊃ MTRMs(y)", None, rx, rq)
+      elif relation == GT:          # different mtrmsets
+        propose_superior(z, ry, "MTRMs(y) ⊂ MTRMs(x)", None, rx, rq)
       elif relation == CONFLICT:
         # x conflicts with y.  Delete x, take min(p, q) as parent
         # Parent of z is y, not x; skip x and go right to p
         propose_deprecation(x)
         propose_superior(z, ry, "conflict", None, rp, rq)    # skip bads in x-chain
       # relation is COMPARABLE at this point
-      elif (not rp) or block_lt(AB, x, rp.other):
-        if (not rq) or block_lt(AB, y, rq.other):
-          propose_equation(x, y, "MTRMs(x) = MTRMs(y) uniquely")
+      elif (not rp) or mtrmset_lt(AB, x, rp.other):
+        if (not rq) or mtrmset_lt(AB, y, rq.other):
+          propose_equation(x, ry, "MTRMs(x) = MTRMs(y) uniquely")
           propose_superior(z, ry, None, "parents extension=", rp, rq)
         else:
           propose_superior(z, ry, None, "triangle heuristic A", rx, rq)
-      elif (not rq) or block_lt(AB, y, rq.other):
+      elif (not rq) or mtrmset_lt(AB, y, rq.other):
         propose_superior(z, x, None, "triangle heuristic B", rp, ry)
       else:
         n = get_match(y)
         if n and n.relation == EQ:
           if n.other == x:
-            propose_equation(x, y, "match + similar")
+            propose_equation(x, ry, "match + similar")
             propose_superior(z, ry, None, "parents name=", rp, rq)
           else:
             propose_superior(z, y,
@@ -140,21 +152,37 @@ def process_lineage(z, rx, ry, AB):
     (z, rx, ry) = state
     # end while loop
 
+def foo_propose_superior(AB, z, rs, status, note):
+  assert rs
+  assert isinstance(rs, Related)
+  s = rs.other
+  s_A_side = AB.case(rs.other, lambda x: True, lambda x: False)
+  if s_A_side:
+    # we want to keep everything else, change only the 'other'
+    assert isinstance(rs.other, prop.Record)
+    re = get_equated(rs.other, None)
+    if re: s = re.other
+  assert isinstance(s, prop.Record), blurb(s)
+  set_superior(z, Related(rs.relation,
+                          s,
+                          status or rs.status,    # accepted, etc
+                          note))  # details
+
 def get_left_persona(AB, z):
   x = AB.case(z,
-              lambda x:z,
+              lambda x:z,       # A case
               lambda y:None)
   if not x:
-    ship = get_equated(z, None)
+    ship = get_equated(z, None) # B case
     if ship: x = ship.other
   return x
 
 def get_right_persona(AB, z):
   y = AB.case(z,
               lambda x:None,
-              lambda y:z)
+              lambda y:z)       # B case
   if not y:
-    ship = get_equated(z, None)
+    ship = get_equated(z, None) # A case
     if ship: y = ship.other
   return y
 
@@ -178,19 +206,19 @@ def get_right_superior(AB, z):
   if not ship: return None
   return Related(ship.relation, AB.in_right(ship.other), ship.status, ship.note)
 
-def equated(x, y):
+def equated(x, y):              # Are x and y equated?
   if x == y: return True
   z = get_equated(x, None)
   return z and z.other == y
 
-def block_lt(AB, x, y):
-  rel = block_relation(AB, x, y)
+def mtrmset_lt(AB, x, y):
+  rel = mtrmset_relation(AB, x, y)
   return rel == LT    # or LE for synonyms ...?
 
 # -----------------------------------------------------------------------------
-# Find estimates.  Assumes mtrm has run.
+# Precompute MTRM sets.  Assumes compute_mtrmsets has already run.
 
-def block_relation(AB, x, y):
+def mtrmset_relation(AB, x, y):
   assert isinstance(x, prop.Record)
   assert isinstance(y, prop.Record)
   if in_same_tree(AB, x, y):
@@ -202,42 +230,42 @@ def block_relation(AB, x, y):
       if is_toplike(y): return EQ
       else: return GT
     elif is_toplike(y): return LT
-    log("# Compare %s to %s, neither is top" % (blurb(x), blurb(y)))
-    return relate_estimates(get_estimate(x), get_estimate(y))
+    #log("# Compare %s to %s, neither is top" % (blurb(x), blurb(y)))
+    return relate_mtrmsets(get_mtrmset(x), get_mtrmset(y))
 
-def compute_estimates(AB):
+def compute_mtrmsets(AB):
   def traverse(x, in_left):
-    e = null_estimate
+    e = null_mtrmset
     for c in get_inferiors(x):
-      e = join_estimates(e, traverse(c, in_left))
+      e = join_mtrmsets(e, traverse(c, in_left))
     if is_empty(e):
       z = in_left(x)
-      w = get_equated(z, None)
+      w = get_equated(z, None)  # Does z represent an MTRM ?
       if w:
         e = eta(z, w.other)
-        set_estimate(x, e)
+        set_mtrmset(x, e)
     else:
-      set_estimate(x, e)
-    #log("# Estimate(%s) = %s" % (blurb(x), e))
+      set_mtrmset(x, e)
+    #log("# mtrmset(%s) = %s" % (blurb(x), e))
     return e
   traverse(AB.B.top, AB.in_right)
   traverse(AB.A.top, AB.in_left)
 
-# Estimates are sets in this instance, and aren't estimates
+# Mtrmsets are sets in this instance, and aren't mtrmsets
 
-null_estimate = set()
-def join_estimates(e1, e2): return e1 | e2
+null_mtrmset = set()
+def join_mtrmsets(e1, e2): return e1 | e2
 def eta(x, y): return {min(x.id, y.id)}
 def is_empty(e): return len(e) == 0
 
-def relate_estimates(e1, e2):  # ASSUMES OVERLAP
+def relate_mtrmsets(e1, e2):  # ASSUMES OVERLAP
   if e1 == e2: return COMPARABLE
   elif e1.issubset(e2): return LT
   elif e2.issubset(e1): return GT
-  elif e1.isdisjont(e2): return DISJOINT
+  elif e1.isdisjoint(e2): return DISJOINT
   else: return CONFLICT
 
-(get_estimate, set_estimate) = prop.get_set(prop.get_property("estimate"))
+(get_mtrmset, set_mtrmset) = prop.get_set(prop.get_property("mtrmset"))
 
 # -----------------------------------------------------------------------------
 # Find mutual tipward matches
@@ -251,8 +279,9 @@ def find_MTRMs(AB):
     m2 = get_trm(z2, None)      # tipward match to/in A
     if m2 and m2.relation == EQ and m2.other == z:
       if monitor(z): log("# MTRM: %s :=: %s" % (blurb(z), blurb(z2)))
-      set_equated(z, m)
-      set_equated(z2, m2)
+      foo_propose_superior(AB, z, m, "equivalent",
+                           "MTRM;%s;%s" % (m.note, m2.note))
+      # set_equated(z, m) set_equated(z2, m2)
   find_TRMs(AB.B, AB.in_right, set_if_mutual)    # of AB.flip()
 
 (get_trm, set_trm) = prop.get_set(prop.get_property("TRM"))
@@ -346,9 +375,9 @@ TBD: filter out seniors
 # -----------------------------------------------------------------------------
 # Same-tree relations
 
-#    x1 ? y1
+#    x1 ? y1     'larger'
 #   /       \
-#  x         y
+#  x         y   'smaller'
 
 def simple_relation(x, y):             # Within a single tree
   (x1, y1) = find_peers(x, y)    # Decrease levels as needed
@@ -404,8 +433,10 @@ def ensure_levels(S):
 
 if __name__ == '__main__':
   def testit(m, n):
+    log("\n-- Test: %s + %s --" % (m, n))
     AB = workspace.workspace_from_newicks(m, n)
     analyze(AB)
     workspace.show_workspace(AB)
   testit("a", "a")
   testit("(c,d)a", "(c,e)b")
+  testit("((a,b)e,c)d1", "(a,(b,c)f)d2")

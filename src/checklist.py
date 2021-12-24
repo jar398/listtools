@@ -179,7 +179,7 @@ def ensure_inferiors_indexed(C):
     if not ship:
       # Default relation, if none given, is child of top ('orphan')
       # log("# %s is child of top" % blurb(record))
-      ship = Related(ACCEPTED, C.top, "orphan")
+      ship = Related(ACCEPTED, C.top, "root")
       set_superior_carefully(record, ship)
 
     assert_local(record, ship.other)
@@ -194,8 +194,7 @@ def ensure_inferiors_indexed(C):
       else:
         set_children(parent, [record])
 
-    else:         # synonym (LE)
-      assert ship.relation == SYNONYM, rcc5_symbol(ship.relation)
+    else:         # synonym (LE) or equated (EQ)
       accepted = ship.other
       # Add record to list of accepted record's synonyms
       ch = get_synonyms(accepted, None)
@@ -234,20 +233,32 @@ def add_child(c, x, status="accepted"):
 
 def get_inferiors(x):
   yield from get_children(x, ())
-  yield from get_synonyms(x, ())
+  for r in get_synonyms(x, ()):
+    log(". checking %s" % blurb(r))
+    assert isinstance(r, prop.Record)
+    y = get_equated(r, None)
+    if not y: #(y and y.other == x):
+      yield r
 
 # -----------------------------------------------------------------------------
 # For debugging
 
 def blurb(r):
   if isinstance(r, prop.Record):
-    return (get_canonical(r, None) or     # string
+    name = (get_canonical(r, None) or     # string
             get_scientific(r, None) or
             get_managed_id(r, None) or
             get_primary_key(r, None) or
             "[no identifier]")
+    sup = get_superior(r, None)
+    if sup and sup.status == ACCEPTED:
+      return name
+    else:
+      return name + "*"
   elif isinstance(r, Related):
     return "[%s %s]" % (rcc5_symbol(r.relation), blurb(r.other))
+  elif isinstance(r, str):
+    return "'%s'" % r           # kludge
   elif r:
     return "[not a record]"
   else:
@@ -304,17 +315,19 @@ usual_props = \
              rank_prop)
 
 def preorder(C, props=None):
-  ensure_inferiors_indexed(C)
   if props == None: props = usual_props
+  ensure_inferiors_indexed(C)
   yield [prp.label for prp in props]
   getters = tuple(map(prop.getter, props))
   def traverse(x):
     #log("# Preorder visit %s" % blurb(x))
     if not is_toplike(x):
       yield [get(x, prop.MISSING) for get in getters]
-    for c in get_children(x, None) or (): yield from traverse(c)
-    for c in get_synonyms(x, None) or (): yield from traverse(c)
+    for c in get_inferiors(x): yield from traverse(c)
   yield from traverse(C.top)
+
+def clog(x, *records):
+  log("%s %s" % (x, " ".join(map(blurb, records))))
 
 # -----------------------------------------------------------------------------
 

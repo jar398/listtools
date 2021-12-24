@@ -191,30 +191,34 @@ $(DELTA): $A.csv $B.csv $P/delta.py $P/match_records.py $P/property.py
 
 # ----- Mammals rules
 
-MAMMALIA_NCBI=40674
-MAMMALIA_GBIF=359
-MAMMALIA_DH1=EOL-000000627548
-MAMMALIA_DH09=-168130
+# ncbi 40674, gbif 359, dh1 EOL-000000627548, dh0.9 -168130, page 1642
 
-ncbi%-mammals-raw.csv: ncbi%-raw.csv $P/subset.py
-	$P/subset.py --hierarchy $< --root $(MAMMALIA_NCBI) < $< > $@.new
-	@mv -f $@.new $@
-.PRECIOUS: ncbi%-mammals-raw.csv
+TAXON=Mammalia
+taxon=mammalia
+TAXON_NCBI=$(TAXON)
+TAXON_GBIF=$(TAXON)
+TAXON_DH1=$(TAXON)
+TAXON_DH09=$(TAXON)
 
-gbif%-mammals-raw.csv: gbif%-raw.csv $P/subset.py
-	$P/subset.py --hierarchy $< --root $(MAMMALIA_GBIF) < $< > $@.new
+ncbi%-$(taxon)-raw.csv: ncbi%-raw.csv $P/subset.py
+	$P/subset.py --hierarchy $< --root $(TAXON_NCBI) < $< > $@.new
 	@mv -f $@.new $@
-.PRECIOUS: gbif%-mammals-raw.csv
+.PRECIOUS: ncbi%-$(taxon)-raw.csv
 
-dh1%-mammals-raw.csv: dh1%-raw.csv $P/subset.py
-	$P/subset.py --hierarchy $< --root $(MAMMALIA_DH1) < $< > $@.new
+gbif%-$(taxon)-raw.csv: gbif%-raw.csv $P/subset.py
+	$P/subset.py --hierarchy $< --root $(TAXON_GBIF) < $< > $@.new
 	@mv -f $@.new $@
-.PRECIOUS: dh1%-mammals-raw.csv
+.PRECIOUS: gbif%-$(taxon)-raw.csv
 
-dh0%-mammals-raw.csv: dh1%-raw.csv $P/subset.py
-	$P/subset.py --hierarchy $< --root $(MAMMALIA_DH09) < $< > $@.new
+dh1%-$(taxon)-raw.csv: dh1%-raw.csv $P/subset.py
+	$P/subset.py --hierarchy $< --root $(TAXON_DH1) < $< > $@.new
 	@mv -f $@.new $@
-.PRECIOUS: dh0%-mammals-raw.csv
+.PRECIOUS: dh1%-$(taxon)-raw.csv
+
+dh0%-$(taxon)-raw.csv: dh1%-raw.csv $P/subset.py
+	$P/subset.py --hierarchy $< --root $(TAXON_DH09) < $< > $@.new
+	@mv -f $@.new $@
+.PRECIOUS: dh0%-$(taxon)-raw.csv
 
 
 # ----- 1. NCBI-specific rules
@@ -314,9 +318,6 @@ work/mdd1.0.csv: work/mdd1.0-raw.csv
 
 # ----- 4. EOL examples
 
-# EOL mammals root = page id 1642 (but we use the record key
-# MAMMALIA_DH01/DH11, not the page id)
-
 HIER_KEY=EOLid
 
 inputs: dh work/dh09.csv work/dh11.csv
@@ -368,7 +369,7 @@ work/dh1%-raw.csv: work/dh1%.taxafilename $P/start.py
 # in1=./deprecated/work/1-mam.csv
 # in2=./deprecated/work/724-mam.csv
 
-work/dh11-mammals-hier.csv: work/dh11-mammals.csv work/dh11-map-raw.csv $P/hierarchy.py
+work/dh11-$(taxon)-hier.csv: work/dh11-$(taxon).csv work/dh11-map-raw.csv $P/hierarchy.py
 	$P/hierarchy.py --mapping work/dh11-map.csv \
 		  < $< \
 		  > $@.new
@@ -398,6 +399,8 @@ work/%-mapped.csv: work/%-raw.csv work/%-map.csv $P/idmap.py
 	$P/idmap.py --mapping $(basename $<)-map.csv) \
 		  < $< > $@.new
 	@mv -f $@.new $@
+
+# -----
 
 test:
 	src/property.py
