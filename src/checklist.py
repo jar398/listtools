@@ -243,7 +243,7 @@ def get_inferiors(x):
     elif y.record != r:
       log(".   keep because %s equated to non-x record %s: %s" %
           (blurb(y.record), blurb(r)))
-    elif get_canonical(y.record) != get_canonical(r):
+    elif True and get_canonical(y.record) != get_canonical(r):
       log(".   keep because different name" % blurb(r))
     else:
       log(".   suppress: %s" % blurb(r))
