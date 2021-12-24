@@ -51,7 +51,7 @@ match_prop = prop.get_property("match")
 
 class Related(NamedTuple):
   relation : Any    # < (LT, ACCEPTED), <= (LE, SYNONYM), =, NOINFO, maybe others
-  other : Any       # the record that we're relating this one to
+  record : Any       # the record that we're relating this one to
   status : str      # status (taxonomicStatus) relative to other ('synonym' etc)
   note : str = ''   # further comments justifying this relationship
 
@@ -148,12 +148,12 @@ def resolve_superior_link(record):
   else:
     sup = Related(ACCEPTED, S.top, "root")
   set_superior_carefully(record, sup)
-  if False and (monitor(record) or monitor(sup.other)):
-    log("> %s %s := %s" % (sup.status, blurb(record), blurb(sup.other)))
+  if False and (monitor(record) or monitor(sup.record)):
+    log("> %s %s := %s" % (sup.status, blurb(record), blurb(sup.record)))
   return sup
 
 def set_superior_carefully(x, ship):
-  assert_local(x, ship.other)
+  assert_local(x, ship.record)
   set_superior(x, ship)
 
 def assert_local(x, y):
@@ -182,11 +182,11 @@ def ensure_inferiors_indexed(C):
       ship = Related(ACCEPTED, C.top, "root")
       set_superior_carefully(record, ship)
 
-    assert_local(record, ship.other)
+    assert_local(record, ship.record)
 
     if ship.relation == ACCEPTED:   # accepted
-      #log("# accepted %s -> %s" % (blurb(record), blurb(ship.other)))
-      parent = ship.other
+      #log("# accepted %s -> %s" % (blurb(record), blurb(ship.record)))
+      parent = ship.record
       # Add record to list of parent's children
       ch = get_children(parent, None) # list of records
       if ch != None:
@@ -195,7 +195,7 @@ def ensure_inferiors_indexed(C):
         set_children(parent, [record])
 
     else:         # synonym (LE) or equated (EQ)
-      accepted = ship.other
+      accepted = ship.record
       # Add record to list of accepted record's synonyms
       ch = get_synonyms(accepted, None)
       if ch != None:
@@ -237,7 +237,7 @@ def get_inferiors(x):
     log(". checking %s" % blurb(r))
     assert isinstance(r, prop.Record)
     y = get_equated(r, None)
-    if not y: #(y and y.other == x):
+    if not y: #(y and y.record == x):
       log(".   not equated: %s" % blurb(r))
       yield r
 
@@ -257,7 +257,7 @@ def blurb(r):
     else:
       return name + "*"
   elif isinstance(r, Related):
-    return "[%s %s]" % (rcc5_symbol(r.relation), blurb(r.other))
+    return "[%s %s]" % (rcc5_symbol(r.relation), blurb(r.record))
   elif isinstance(r, str):
     return "'%s'" % r           # kludge
   elif r:
@@ -283,13 +283,13 @@ def checklist_to_rows(C, props=None):
 
 def _get_parent_key(x, default=MISSING):
   sup = get_superior(x, None)
-  if sup and not is_toplike(sup.other) and sup.relation == ACCEPTED:
-    return get_primary_key(sup.other)
+  if sup and not is_toplike(sup.record) and sup.relation == ACCEPTED:
+    return get_primary_key(sup.record)
   else: return default
 def _get_accepted_key(x, default=MISSING):
   sup = get_superior(x, None)
-  if sup and not is_toplike(sup.other) and sup.relation != ACCEPTED:
-    return get_primary_key(sup.other)
+  if sup and not is_toplike(sup.record) and sup.relation != ACCEPTED:
+    return get_primary_key(sup.record)
   else: return default
 def _get_status(x, default=MISSING):
   sup = get_superior(x, default)

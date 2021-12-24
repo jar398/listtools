@@ -60,20 +60,12 @@ def process_lineage(z, rx, ry, AB):
     # TBD: if there's an equation, and z is in A, make z a synonym
     if rx: assert isinstance(rx, Related)
     if ry: assert isinstance(ry, Related)
-    state[0] = rs.other         # new z
+    state[0] = rs.record         # new z
     state[1] = rx
     state[2] = ry
 
-  def propose_equation(x, ry, note):
-    y = ry.other
-    yr = Related(EQ, y, "equivalent", note)
-    xr = Related(EQ, x, "equivalent", note)
-    set_equated(x, yr)
-    set_equated(y, xr)    # or accepted
-    if AB.case(x, lambda x: True, lambda x: False):    # drop if in A
-      foo_propose_superior(AB, x, yr, yr.status, yr.note)
-    else:
-      foo_propose_superior(AB, y, xr, xr.status, xr.note)
+  def propose_equation(rx, ry, note):
+    return foo_propose_equation(AB, rx, ry, note)
 
   def propose_deprecation(x):
     clog("# Need to deprecated", x)
@@ -81,23 +73,23 @@ def process_lineage(z, rx, ry, AB):
   while (rx or ry) and get_superior(z, None) == None:
 
     # These two loops are active in conflict situations
-    while rx and not mtrmset_lt(AB, z, rx.other):
+    while rx and not mtrmset_lt(AB, z, rx.record):
       log("# %s not< x=%s, bump x to %s" % (blurb(z),
                                             blurb(rx),
-                                            blurb(get_left_superior(AB, rx.other))))
-      rx = get_left_superior(AB, rx.other)
+                                            blurb(get_left_superior(AB, rx.record))))
+      rx = get_left_superior(AB, rx.record)
 
-    while ry and not mtrmset_lt(AB, z, ry.other):
+    while ry and not mtrmset_lt(AB, z, ry.record):
       log("# %s not< x=%s, bump x to %s" %
-          (blurb(z), blurb(ry), blurb(get_right_superior(AB, ry.other))))
-      ry = get_right_superior(AB, ry.other)
+          (blurb(z), blurb(ry), blurb(get_right_superior(AB, ry.record))))
+      ry = get_right_superior(AB, ry.record)
 
-    #assert (not rx) or mtrmset_lt(AB, z, rx.other)
-    #assert (not ry) or mtrmset_lt(AB, z, ry.other)
+    #assert (not rx) or mtrmset_lt(AB, z, rx.record)
+    #assert (not ry) or mtrmset_lt(AB, z, ry.record)
     assert rx or ry
 
-    rp = get_left_superior(AB, rx.other) if rx else None
-    rq = get_right_superior(AB, ry.other) if ry else None
+    rp = get_left_superior(AB, rx.record) if rx else None
+    rq = get_right_superior(AB, ry.record) if ry else None
 
     if not ry:
       assert rx
@@ -105,8 +97,8 @@ def process_lineage(z, rx, ry, AB):
     elif not rx:
       propose_superior(z, ry, ry.status, None, rq, None)
     else:
-      x = rx.other if rx else None
-      y = ry.other if ry else None
+      x = rx.record if rx else None
+      y = ry.record if ry else None
       relation = mtrmset_relation(AB, x, y)
       assert relation != DISJOINT
       if relation == LT:            # different mtrmsets
@@ -119,20 +111,20 @@ def process_lineage(z, rx, ry, AB):
         propose_deprecation(x)
         propose_superior(z, ry, "conflict", None, rp, rq)    # skip bads in x-chain
       # relation is COMPARABLE at this point
-      elif (not rp) or mtrmset_lt(AB, x, rp.other):
-        if (not rq) or mtrmset_lt(AB, y, rq.other):
-          propose_equation(x, ry, "MTRMs(x) = MTRMs(y) uniquely")
-          propose_superior(z, ry, None, "parents extension=", rp, rq)
+      elif (not rp) or mtrmset_lt(AB, x, rp.record):
+        if (not rq) or mtrmset_lt(AB, y, rq.record):
+          rw = propose_equation(rx, ry, "MTRMs(x) = MTRMs(y) uniquely")
+          propose_superior(z, rw, None, "parents extension=", rp, rq)
         else:
           propose_superior(z, ry, None, "triangle heuristic A", rx, rq)
-      elif (not rq) or mtrmset_lt(AB, y, rq.other):
+      elif (not rq) or mtrmset_lt(AB, y, rq.record):
         propose_superior(z, x, None, "triangle heuristic B", rp, ry)
       else:
         n = get_match(y)
         if n and n.relation == EQ:
-          if n.other == x:
-            propose_equation(x, ry, "match + similar")
-            propose_superior(z, ry, None, "parents name=", rp, rq)
+          if n.record == x:
+            rw = propose_equation(rx, ry, "match + similar")
+            propose_superior(z, rw, None, "parents name=", rp, rq)
           else:
             propose_superior(z, y,
                              None, "priority B because hoping for match",
@@ -152,16 +144,34 @@ def process_lineage(z, rx, ry, AB):
     (z, rx, ry) = state
     # end while loop
 
+# Propose that x = y (= ry.record)
+# note explains ... why y should be equivalent to x (match info?)
+# note in ry explains why y should be superior of z
+
+def foo_propose_equation(AB, rx, ry, note):
+  # Polarize
+  (rx, ry) = AB.case(rx.record, lambda x: (rx, ry), lambda x: (ry, rx))
+
+  # Record reason for the equation
+  set_equated(rx.record, Related(EQ, rx.record, "equivalent", note))
+  set_equated(ry.record, Related(EQ, ry.record, "equivalent", note))
+
+  # Deprecate the non-priority record of the two
+  foo_propose_superior(AB, rx.record, ry, "imported", rx.note)
+  return ry
+
+# Propose that rs.record should be the parent (superior) of z
+
 def foo_propose_superior(AB, z, rs, status, note):
   assert rs
+  assert isinstance(z, prop.Record), blurb(z)
   assert isinstance(rs, Related)
-  s = rs.other
-  s_A_side = AB.case(rs.other, lambda x: True, lambda x: False)
+  s = rs.record
+  s_A_side = AB.case(rs.record, lambda x: True, lambda x: False)
   if s_A_side:
-    # we want to keep everything else, change only the 'other'
-    assert isinstance(rs.other, prop.Record)
-    re = get_equated(rs.other, None)
-    if re: s = re.other
+    # we want to keep everything else, change only the 'record'
+    re = get_equated(rs.record, None)
+    if re: s = re.record
   assert isinstance(s, prop.Record), blurb(s)
   set_superior(z, Related(rs.relation,
                           s,
@@ -174,7 +184,7 @@ def get_left_persona(AB, z):
               lambda y:None)
   if not x:
     ship = get_equated(z, None) # B case
-    if ship: x = ship.other
+    if ship: x = ship.record
   return x
 
 def get_right_persona(AB, z):
@@ -183,7 +193,7 @@ def get_right_persona(AB, z):
               lambda y:z)       # B case
   if not y:
     ship = get_equated(z, None) # A case
-    if ship: y = ship.other
+    if ship: y = ship.record
   return y
 
 def get_left_superior(AB, z):
@@ -194,7 +204,7 @@ def get_left_superior(AB, z):
                  lambda x:get_superior(x, None),
                  lambda y:None)
   if not ship: return None
-  return Related(ship.relation, AB.in_left(ship.other), ship.status, ship.note)
+  return Related(ship.relation, AB.in_left(ship.record), ship.status, ship.note)
 
 def get_right_superior(AB, z):
   if not z: return None
@@ -204,12 +214,12 @@ def get_right_superior(AB, z):
                  lambda x:None,
                  lambda y:get_superior(y, None))
   if not ship: return None
-  return Related(ship.relation, AB.in_right(ship.other), ship.status, ship.note)
+  return Related(ship.relation, AB.in_right(ship.record), ship.status, ship.note)
 
 def equated(x, y):              # Are x and y equated?
   if x == y: return True
   z = get_equated(x, None)
-  return z and z.other == y
+  return z and z.record == y
 
 def mtrmset_lt(AB, x, y):
   rel = mtrmset_relation(AB, x, y)
@@ -242,7 +252,7 @@ def compute_mtrmsets(AB):
       z = in_left(x)
       w = get_equated(z, None)  # Does z represent an MTRM ?
       if w:
-        e = eta(z, w.other)
+        e = eta(z, w.record)
         set_mtrmset(x, e)
     else:
       set_mtrmset(x, e)
@@ -275,13 +285,12 @@ def find_MTRMs(AB):
   counter = [1]
   def set_if_mutual(z, m):
     set_trm(z, m)           # Nonmutual, might be of interest
-    z2 = m.other
+    z2 = m.record
     m2 = get_trm(z2, None)      # tipward match to/in A
-    if m2 and m2.relation == EQ and m2.other == z:
+    if m2 and m2.relation == EQ and m2.record == z:
       if monitor(z): log("# MTRM: %s :=: %s" % (blurb(z), blurb(z2)))
-      foo_propose_superior(AB, z, m, "equivalent",
-                           "MTRM;%s;%s" % (m.note, m2.note))
-      # set_equated(z, m) set_equated(z2, m2)
+      foo_propose_equation(AB, m2, m,
+                           "MTRM;%s;%s" % (m2.note, m.note))
   find_TRMs(AB.B, AB.in_right, set_if_mutual)    # of AB.flip()
 
 (get_trm, set_trm) = prop.get_set(prop.get_property("TRM"))
@@ -296,7 +305,7 @@ def find_TRMs(A, in_left, set_trm):
       z = in_left(x)
       m = get_match(z)
       if m and m.relation == EQ:
-        #if monitor(z): log("# TRM: %s = %s" % (blurb(z), blurb(m.other)))
+        #if monitor(z): log("# TRM: %s = %s" % (blurb(z), blurb(m.record)))
         set_trm(z, m)
         seen = z
     return seen
@@ -356,7 +365,7 @@ def reverse_note(note):
 
 def record_match(x):
   ship = get_match(x)
-  if ship.relation == EQ: return ship.other
+  if ship.relation == EQ: return ship.record
   return None
 
 """
@@ -397,10 +406,10 @@ def simple_relation(x, y):             # Within a single tree
 def find_peers(x, y):
   i = get_level(x)
   while i < get_level(y):
-    y = get_superior(y).other
+    y = get_superior(y).record
   j = get_level(y)
   while get_level(x) > j:
-    x = get_superior(x).other
+    x = get_superior(x).record
   return (x, y)
 
 (get_level, set_level) = prop.get_set(prop.get_property("level", inherit=False))
@@ -411,7 +420,7 @@ def simple_le(x, y):
   stop = get_level(y)
 
   while get_level(x1) > stop:
-    x1 = get_superior(x1).other    # y1 > previously, level(y1) < previously
+    x1 = get_superior(x1).record    # y1 > previously, level(y1) < previously
 
   return x1 == y
 
