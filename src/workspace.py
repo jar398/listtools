@@ -127,16 +127,21 @@ def workspace_to_rows(AB, props=usual_props):
     y = right_persona(AB, z)
     return get_primary_key(y) if y else default
 
-  def get_match_note(z, default=None):
-    m = get_match(z, None)
-    return m.note if m else default
-
   workspace_props = props + \
       (prop.get_property("taxonID_A", getter=get_id_a),
        prop.get_property("taxonID_B", getter=get_id_b),
-       prop.get_property("match_note", getter=get_match_note))
+       prop.get_property("match_key", getter=recover_match_key),
+       prop.get_property("match_note", getter=recover_match_note))
 
   return checklist_to_rows(AB, props)
+
+def recover_match_key(z, default=None):
+  m = get_match(z, None)
+  return get_primary_key(m.record) if m else default
+
+def recover_match_note(z, default=None):
+  m = get_match(z, None)
+  return m.note if m else default
 
 # -----------------------------------------------------------------------------
 

@@ -151,11 +151,6 @@ def process_lineage(AB, z):
 # Load/dump a set of provisional matches (could be either record match
 # or taxonomic matches... but basically, record matches)
 
-# Fields of match records <A (matched), relation, B (taxon), remark>
-get_match_relation = prop.getter(prop.get_property("relation"))
-get_matched_key = prop.getter(prop.get_property("matched_id"))
-get_match_note = prop.getter(prop.get_property("match_note"))
-
 def load_matches(row_iterator, AB):
 
   header = next(row_iterator)
@@ -166,7 +161,7 @@ def load_matches(row_iterator, AB):
     # row = [matchID, rel, taxonID, remark]
     match = prop.construct(plan, row)
     x = y = None
-    xkey = get_matched_key(match, None)
+    xkey = get_match_key(match, None)
     if xkey:
       x_in_A = look_up_record(AB.A, xkey)
       if x_in_A:

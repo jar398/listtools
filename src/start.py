@@ -66,6 +66,7 @@ def start_csv(inport, params, outport, args):
   seen_pks = {}
   previous_pk = 0
   conflicts = 0
+  senior = 0
   for row in reader:
 
     # Deal with raggedness if any
@@ -78,6 +79,11 @@ def start_csv(inport, params, outport, args):
             file=sys.stderr)
       print(("** start: Row is %s" % (row,)), file=sys.stderr)
       assert False
+
+    # Filter out senior synonyms
+    if tax_status_pos != None and row1[tax_status_pos] == "senior synonym":
+      senior += 1
+      continue
 
     # Clean up if wrong values in canonical and/or scientific name columns
     if cleanp:
@@ -148,10 +154,12 @@ def start_csv(inport, params, outport, args):
   print("-- start: %s rows, %s columns, %s ids minted, %s names cleaned, %s accepteds normalized" %
         (count, len(in_header), minted, names_cleaned, accepteds_normalized),
         file=sys.stderr)
+  if senior > 0:
+    print("-- start: filterd out %s senior synonyms" % senior)
   if trimmed > 0:
     # Ignoring extra values is appropriate behavior for DH 0.9.  But
     # elsewhere we might want ragged input to be treated as an error.
-    print("start: trimmed extra values from %s rows" % (trimmed,),
+    print("-- start: trimmed extra values from %s rows" % (trimmed,),
           file=sys.stderr)
     
 def fresh_pk(row):

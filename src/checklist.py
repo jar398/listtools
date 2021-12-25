@@ -28,7 +28,12 @@ equated_prop = prop.get_property("equated", inherit=False)    # value is a Relat
 # For workspaces
 inject_prop = prop.get_property("inject") # Contextual only!
 outject_prop = prop.get_property("outject")
-match_prop = prop.get_property("match")
+
+# For making use of name matching output
+match_prop = prop.get_property("match", inherit=False)
+match_key_prop = prop.get_property("match_id")
+match_relation_prop = prop.get_property("relation")
+match_note_prop = prop.get_property("match_note")
 
 (get_primary_key, set_primary_key) = prop.get_set(primary_key_prop)
 (get_parent_key, set_parent_key) = prop.get_set(parent_key_prop)
@@ -48,7 +53,11 @@ match_prop = prop.get_property("match")
 (get_equated, set_equated) = prop.get_set(equated_prop)
 
 (get_outject, set_outject) = prop.get_set(outject_prop)
+
 (get_match, set_match) = prop.get_set(match_prop)
+get_match_key = prop.getter(match_key_prop)
+get_match_relation = prop.getter(match_relation_prop)
+get_match_note = prop.getter(match_note_prop)
 
 class Related(NamedTuple):
   relation : Any    # < (LT, ACCEPTED), <= (LE, SYNONYM), =, NOINFO, maybe others
@@ -205,7 +214,7 @@ def ensure_inferiors_indexed(C):
       else:
         set_synonyms(accepted, [record])
       if get_taxonomic_status(record, None) == "equivalent":
-        # also note that superior is equivalent to record
+        # let's also note that superior is equivalent to record
         set_equated(accepted, Related(EQ, record,   "equivalent"))
         set_equated(record,   Related(EQ, accepted, "equivalent"))
 
@@ -255,8 +264,79 @@ def get_inferiors(x):
       continue
     yield syn
 
+# ----- Functions for filling columns in output table
+
+def recover_parent_key(x, default=MISSING):
+  sup = get_superior(x, None)
+  if sup and not is_toplike(sup.record) and sup.relation == ACCEPTED:
+    return get_primary_key(sup.record)
+  else: return default
+
+def recover_accepted_key(x, default=MISSING):
+  sup = get_superior(x, None)
+  if sup and not is_toplike(sup.record) and sup.relation != ACCEPTED:
+    return get_primary_key(sup.record)
+  else: return default
+
+def recover_status(x, default=MISSING):
+  sup = get_superior(x, default)
+  if not sup:
+    return default
+  elif sup.status:
+    return sup.status
+  elif sup.relation == ACCEPTED:
+    return "accepted"
+  else:
+    assert sup.relation == SYNONYM
+    return "synonym"
+
+# -----------------------------------------------------------------------------
+# Convert a checklist to csv rows (as an iterable); inverse of rows_to_checklist, above
+
+usual_props = \
+    (primary_key_prop,
+     prop.get_property("parentNameUsageID",
+                       getter=recover_parent_key),
+     prop.get_property("acceptedNameUsageID",
+                       getter=recover_accepted_key),
+     prop.get_property("taxonomicStatus",
+                       getter=recover_status),
+     canonical_prop,
+     scientific_prop,
+     rank_prop)
+
+# Alternative ways to order the rows
+
+def checklist_to_rows(C, props=None):
+  (header, record_to_row) = begin_table(C, props)
+  yield header
+  for x in all_records(C):
+    if not is_toplike(x):
+      yield record_to_row(x)
+
+def preorder(C, props=None):
+  (header, record_to_row) = begin_table(C, props)
+  yield header
+  ensure_inferiors_indexed(C)
+  def traverse(x):
+    if not is_toplike(x):
+      yield record_to_row(x)
+    for c in get_inferiors(x):
+      yield from traverse(c)
+  yield from traverse(C.top)
+
+def begin_table(C, props):
+  if props == None: props = usual_props
+  getters = tuple(map(prop.getter, props))
+  def record_to_row(x):
+    return [get(x, prop.MISSING) for get in getters]
+  return ([prp.label for prp in props], record_to_row)
+
 # -----------------------------------------------------------------------------
 # For debugging
+
+def clog(x, *records):
+  log(x + " " + " ".join(map(blurb, records)))
 
 def blurb(r):
   if isinstance(r, prop.Record):
@@ -281,67 +361,6 @@ def blurb(r):
 
 def monitor(x):
   return (x and len(get_canonical(x, None)) == 1) #.startswith("Metachirus"))
-
-# -----------------------------------------------------------------------------
-# Convert a checklist to csv rows (as an iterable); inverse of rows_to_checklist, above
-
-# Version 1
-
-def checklist_to_rows(C, props=None):
-  if props == None: props = usual_props
-  yield [prp.label for prp in props]
-  getters = tuple(map(prop.getter, props))
-  for record in all_records(C):
-    if not is_toplike(record):
-      yield [get(record, prop.MISSING) for get in getters]
-
-# Functions for filling fields in output table
-
-def _get_parent_key(x, default=MISSING):
-  sup = get_superior(x, None)
-  if sup and not is_toplike(sup.record) and sup.relation == ACCEPTED:
-    return get_primary_key(sup.record)
-  else: return default
-def _get_accepted_key(x, default=MISSING):
-  sup = get_superior(x, None)
-  if sup and not is_toplike(sup.record) and sup.relation != ACCEPTED:
-    return get_primary_key(sup.record)
-  else: return default
-def _get_status(x, default=MISSING):
-  sup = get_superior(x, default)
-  if not sup:
-    return default
-  elif sup.status:
-    return sup.status
-  elif sup.relation == ACCEPTED:
-    return "accepted"
-  else:
-    assert sup.relation == SYNONYM
-    return "synonym"
-
-usual_props = \
-    (primary_key_prop,
-     prop.get_property("parentNameUsageID", getter=_get_parent_key),
-     prop.get_property("acceptedNameUsageID", getter=_get_accepted_key),
-     prop.get_property("taxonomicStatus", getter=_get_status),
-     canonical_prop,
-     scientific_prop,
-     rank_prop)
-
-def preorder(C, props=None):
-  if props == None: props = usual_props
-  ensure_inferiors_indexed(C)
-  yield [prp.label for prp in props]
-  getters = tuple(map(prop.getter, props))
-  def traverse(x):
-    #log("# Preorder visit %s" % blurb(x))
-    if not is_toplike(x):
-      yield [get(x, prop.MISSING) for get in getters]
-    for c in get_inferiors(x): yield from traverse(c)
-  yield from traverse(C.top)
-
-def clog(x, *records):
-  log(x + " " + " ".join(map(blurb, records)))
 
 # -----------------------------------------------------------------------------
 

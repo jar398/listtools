@@ -53,7 +53,7 @@ def match_records(a_reader, b_reader, pk_col="taxonID", index_by=default_index_b
 # Part of this module's API.
 
 def generate_sum(coproduct, pk_col):
-  yield ["matched_id", "relation", pk_col, "match_note"]
+  yield ["match_id", "relation", pk_col, "match_note"]
   for (key1, rel, key2, remark) in coproduct:
     # if rel == NOINFO: rel_sym = ''  ... ...
     rel_sym = rcc5_symbol(rel)
