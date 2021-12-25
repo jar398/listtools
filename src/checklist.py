@@ -36,6 +36,7 @@ match_prop = prop.get_property("match")
 (get_source, set_source) = prop.get_set(source_prop)
 (get_canonical, set_canonical) = prop.get_set(canonical_prop)
 (get_scientific, set_scientific) = prop.get_set(scientific_prop)
+(get_rank, set_rank) = prop.get_set(rank_prop)
 (get_year, set_year) = prop.get_set(year_prop)
 (get_managed_id, set_managed_id) = prop.get_set(managed_id_prop)
 
@@ -52,7 +53,7 @@ match_prop = prop.get_property("match")
 class Related(NamedTuple):
   relation : Any    # < (LT, ACCEPTED), <= (LE, SYNONYM), =, NOINFO, maybe others
   record : Any       # the record that we're relating this one to
-  status : str      # status (taxonomicStatus) relative to other ('synonym' etc)
+  status : str      # status (taxonomicStatus) relative to record ('synonym' etc)
   note : str = ''   # further comments justifying this relationship
 
 # -----------------------------------------------------------------------------
@@ -194,7 +195,8 @@ def ensure_inferiors_indexed(C):
       else:
         set_children(parent, [record])
 
-    else:         # synonym (LE) or equated (EQ)
+    else:         # synonym (LE)
+      assert ship.relation == SYNONYM, rcc5_symbol(ship.relation)
       accepted = ship.record
       # Add record to list of accepted record's synonyms
       ch = get_synonyms(accepted, None)
@@ -202,6 +204,10 @@ def ensure_inferiors_indexed(C):
         ch.append(record)
       else:
         set_synonyms(accepted, [record])
+      if get_taxonomic_status(record, None) == "equivalent":
+        # also note that superior is equivalent to record
+        set_equated(accepted, Related(EQ, record,   "equivalent"))
+        set_equated(record,   Related(EQ, accepted, "equivalent"))
 
   C.indexed = True
   #log("# Top has %s child(ren)" % len(get_children(C.top)))
@@ -232,6 +238,8 @@ def add_child(c, x, status="accepted"):
   set_superior_carefully(c, Related(ACCEPTED, x, status))
 
 def get_inferiors(x):
+  e = get_equated(x, None)
+  if e and e.relation == SYNONYM: yield e
   yield from get_children(x, ())
   for syn in get_synonyms(x, ()):
     y = get_equated(syn, None)
@@ -258,10 +266,10 @@ def blurb(r):
             get_primary_key(r, None) or
             "[no identifier]")
     sup = get_superior(r, None)
-    if sup and sup.status == ACCEPTED:
-      return name
-    else:
+    if sup and sup.status == SYNONYM:
       return name + "*"
+    else:
+      return name
   elif isinstance(r, Related):
     return "[%s %s]" % (rcc5_symbol(r.relation), blurb(r.record))
   elif isinstance(r, str):
@@ -287,6 +295,8 @@ def checklist_to_rows(C, props=None):
     if not is_toplike(record):
       yield [get(record, prop.MISSING) for get in getters]
 
+# Functions for filling fields in output table
+
 def _get_parent_key(x, default=MISSING):
   sup = get_superior(x, None)
   if sup and not is_toplike(sup.record) and sup.relation == ACCEPTED:
@@ -309,17 +319,13 @@ def _get_status(x, default=MISSING):
     return "synonym"
 
 usual_props = \
-            (primary_key_prop,
-             prop.get_property("parentNameUsageID",
-                               getter=_get_parent_key),
-             prop.get_property("acceptedNameUsageID",
-                               getter=_get_accepted_key),
-             prop.get_property("taxonomicStatus",
-                               getter=_get_status),
-             canonical_prop,
-             scientific_prop,
-             # year?  type?  ...x
-             rank_prop)
+    (primary_key_prop,
+     prop.get_property("parentNameUsageID", getter=_get_parent_key),
+     prop.get_property("acceptedNameUsageID", getter=_get_accepted_key),
+     prop.get_property("taxonomicStatus", getter=_get_status),
+     canonical_prop,
+     scientific_prop,
+     rank_prop)
 
 def preorder(C, props=None):
   if props == None: props = usual_props

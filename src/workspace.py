@@ -52,6 +52,7 @@ def make_workspace(A, B, meta=None):
     return ensure_injected(y)
   def _case(z, when_left, when_right):
     w = get_outject(z, None)
+    assert w
     if get_source(w) == A:
       return when_left(w)
     else:
@@ -109,6 +110,31 @@ def is_senior(synonym_item, accepted_item):
       return False
   else:
     return False
+
+# -----------------------------------------------------------------------------
+
+# Output with additional columns needed by report.py
+
+def workspace_to_rows(AB):
+
+  def get_id_a(z, default=None):
+    x = left_persona(AB, z)
+    return get_primary_key(x) if x else default
+
+  def get_id_b(z, default=None):
+    y = right_persona(AB, z)
+    return get_primary_key(y) if y else default
+
+  def get_match_note(z, default=None):
+    m = get_match(z, None)
+    return m.note if m else default
+
+  props = usual_props + \
+    (prop.get_property("taxonID_A", getter=get_id_a),
+     prop.get_property("taxonID_B", getter=get_id_b),
+     prop.get_property("match_note", getter=get_match_note))
+
+  return checklist_to_rows(AB, props)
 
 # -----------------------------------------------------------------------------
 

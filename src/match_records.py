@@ -143,10 +143,11 @@ def compute_sum(a_table, b_table, pk_col_arg, index_by):
   # -----
 
   seen2 = {}                    # injection B -> A+B
+  punt = 0
 
   for (key1, row1) in all_rows1.items():
     if stat_pos1 != None and row1[stat_pos1] == "senior synonym":
-      print("# 1 Punting %s" % (row1,), file=sys.stderr)
+      punt += 1
       continue
     (rel2, key2, remark) = find_match(key1, best_rows_in_file2,
                                       best_rows_in_file1, pk_pos1, pk_pos2,
@@ -156,9 +157,11 @@ def compute_sum(a_table, b_table, pk_col_arg, index_by):
     if key2 != None:
       seen2[key2] = True
 
+  copunt = 0
+
   for (key2, row2) in all_rows2.items():
     if stat_pos1 != None and row1[stat_pos2] == "senior synonym":
-      print("# 2 Punting %s" % (row2,), file=sys.stderr)
+      copunt += 1
       continue
     if not key2 in seen2:
       (rel1, key1, remark) = find_match(key2, best_rows_in_file1,
@@ -171,6 +174,10 @@ def compute_sum(a_table, b_table, pk_col_arg, index_by):
       # Unique match means outcompeted, probably?
       rel2 = reverse_relation(rel1) # <= to >=
       connect(key1, rel2, key2, remark)
+
+  if punt + copunt > 0:
+    print("-- Senior synonyms: %s in A, %s in B" % (punt, copunt),
+          file=sys.stderr)
 
   # Print stats on outcome
   aonly = bonly = matched = 0

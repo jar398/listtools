@@ -5,9 +5,10 @@
 
 all:
 	@echo "Please specify a target:"
-	@echo "  diff      show new/removed/changed records"
-	@echo "  round     demo diff/patch round trip"
-	@echo "  report    report on taxon concept differences"
+	@echo "  diff       show new/removed/changed records"
+	@echo "  round      demo diff/patch round trip"
+	@echo "  report     report on NCBI extensions differences 2015-2020"
+	@echo "  mdd-report report on MDD extensions differences 1.6-1.7"
 	@echo "Use make parameter syntax to specify the two checklists, e.g."
 	@echo "  make A=work/ncbi201505-mammals B=work/ncbi202008-mammals report"
 	@echo "(when the .csv file for work/foo is in work/foo.csv etc)"
@@ -97,20 +98,19 @@ RAKE?=cd ../plotter && rake
 
 # MDD-style comparison report:
 
-REPORT=work/report-$(shell basename $A)-$(shell basename $B).csv
-MERGED=work/merged-$(shell basename $A)-$(shell basename $B).csv
-MATCHES=work/matches-$(shell basename $A)-$(shell basename $B).csv
-ROUND=work/round-$(shell basename $A)-$(shell basename $B).csv
-DELTA=work/delta-$(shell basename $A)-$(shell basename $B).csv
+REPORT=work/$(shell basename $A)-$(shell basename $B)-report.csv
+MERGED=work/$(shell basename $A)-$(shell basename $B)-merged.csv
+MATCHES=work/$(shell basename $A)-$(shell basename $B)-matches.csv
+ROUND=work/$(shell basename $A)-$(shell basename $B)-round.csv
+DELTA=work/$(shell basename $A)-$(shell basename $B)-delta.csv
 
 report: $(REPORT)
 REPORT_OPTIONS?=
 
-$(REPORT): $(MERGED) $(MATCHES) $P/report.py $P/property.py
+$(REPORT): $(MERGED) $P/report.py $P/property.py
 	@echo
 	@echo "--- PREPARING REPORT ---"
-	$P/report.py --source $A.csv --alignment $(MERGED) \
-		     --matches $(MATCHES) \
+	$P/report.py --source $A.csv --merged $(MERGED) \
 		     $(REPORT_OPTIONS) \
 		     < $B.csv > $@.new
 	@mv -f $@.new $@
@@ -119,10 +119,10 @@ $(REPORT): $(MERGED) $(MATCHES) $P/report.py $P/property.py
 
 merged: $(MERGED)
 
-$(MERGED): $(MATCHES) $P/theory.py $P/property.py
+$(MERGED): $(MATCHES) $P/merge.py $P/theory.py $P/workspace.py $P/checklist.py $P/property.py
 	@echo
 	@echo "--- MERGING ---"
-	$P/theory.py --target $B.csv --matches $(MATCHES) \
+	$P/merge.py --target $B.csv --matches $(MATCHES) \
 		    < $A.csv > $@.new
 	@mv -f $@.new $@
 
@@ -407,3 +407,14 @@ test:
 	src/checklist.py
 	src/workspace.py
 	src/theory.py
+	src/merge.py --test
+	test-report
+
+test-report:
+	$(MAKE) A=work/test1 B=work/test2 report
+
+work/test1-raw.csv:
+	src/newick.py --newick "((a,b)d,c)f1"  >$@
+
+work/test2-raw.csv:
+	src/newick.py --newick "(a,(b,c)e)f2" >$@
