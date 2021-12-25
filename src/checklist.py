@@ -316,6 +316,7 @@ def _get_status(x, default=MISSING):
   elif sup.relation == ACCEPTED:
     return "accepted"
   else:
+    assert sup.relation == SYNONYM
     return "synonym"
 
 usual_props = \

@@ -115,7 +115,9 @@ def is_senior(synonym_item, accepted_item):
 
 # Output with additional columns needed by report.py
 
-def workspace_to_rows(AB):
+def workspace_to_rows(AB, props=usual_props):
+
+  # Do we need these at all?
 
   def get_id_a(z, default=None):
     x = left_persona(AB, z)
@@ -129,10 +131,10 @@ def workspace_to_rows(AB):
     m = get_match(z, None)
     return m.note if m else default
 
-  props = usual_props + \
-    (prop.get_property("taxonID_A", getter=get_id_a),
-     prop.get_property("taxonID_B", getter=get_id_b),
-     prop.get_property("match_note", getter=get_match_note))
+  workspace_props = props + \
+      (prop.get_property("taxonID_A", getter=get_id_a),
+       prop.get_property("taxonID_B", getter=get_id_b),
+       prop.get_property("match_note", getter=get_match_note))
 
   return checklist_to_rows(AB, props)
 

@@ -24,7 +24,6 @@ set_record_match = prop.setter(previous_prop)
 
 change_prop = prop.get_property("change")
 get_change = prop.getter(change_prop)
-set_change = prop.setter(change_prop)
 
 def report(a_iter, b_iter, merged_iter, diff_mode):
   #B = workspace.rows_to_checklist(b_iter, {'name': 'B'})
