@@ -19,44 +19,50 @@ from match_records import match_records
 #   - A set of dropped nodes (conflicting or garbage)
 # umm, that's pretty much it??
 
-def merge(a_iter, b_iter, m=None):
+def merge(a_iter, b_iter, matches=None):
   A = rows_to_checklist(a_iter, {"name": "A"})  # meta
   B = rows_to_checklist(b_iter, {"name": "B"})  # meta
-  AB = analyze(A, B, m)
-  log("here")
+  log("# here 1")
+  AB = analyze(A, B, matches)
+  log("# here 2")
   return merge_preorder_rows(AB)
 
-def analyze(A, B, m=None):
+def analyze(A, B, m_iter=None):
   AB = make_workspace(A, B, {"name": "AB"})
-  if not m:
-    m = match_records(checklist_to_rows(AB.A), checklist_to_rows(AB.B))
-  load_matches(m, AB)
+  if not m_iter:
+    m_iter = match_records(checklist_to_rows(AB.A), checklist_to_rows(AB.B))
+  load_matches(m_iter, AB)
   spanning_tree(AB)
   return AB
 
 def merge_preorder_rows(AB, props=None):
-  return workspace.preorder_rows(AB, props or usual_merge_props(AB))
+  return checklist.preorder_rows(AB, props or usual_merge_props(AB))
 
 def usual_merge_props(AB):
 
-  def recover_id_a(z, default=None):
+  def recover_left_id(z, default=None):
     x = get_left_persona(AB, z)
     return get_primary_key(get_outject(x)) if x else default
 
-  def recover_id_b(z, default=None):
+  def recover_right_id(z, default=None):
     y = get_right_persona(AB, z)
     return get_primary_key(get_outject(y)) if y else default
 
   return usual_workspace_props + \
-     (prop.get_property("taxonID_A", getter=recover_id_a),
-      prop.get_property("taxonID_B", getter=recover_id_b))
+     (prop.get_property("taxonID_A", getter=recover_left_id),
+      prop.get_property("taxonID_B", getter=recover_right_id))
+
+left_id_prop = prop.get_property("taxonID_A")
+right_id_prop = prop.get_property("taxonID_B")
+get_left_id = prop.getter(left_id_prop)
+get_right_id = prop.getter(right_id_prop)
 
 # -----------------------------------------------------------------------------
 # Spanning tree computation.
 
 def spanning_tree(AB):
   find_MTRMs(AB)
-  compute_mtrmsets(AB)
+  compute_blocks(AB)
   ensure_levels(AB.A)
   ensure_levels(AB.B)
   def traverse(v, in_leftright):
@@ -75,42 +81,28 @@ def process_lineage(AB, z):
   rx = get_left_superior(AB, z)
   ry = get_right_superior(AB, z)
   if not (rx or ry): return
-  state = [z, rx, ry]
 
   # Links should only go from most dominant to most dominant
   # b->b, a->b (a not = anything), b->a (similarly), a->a (similarly)
 
   def propose_sup(z, rs, note, rx, ry):
-    propose_superior(AB, z, rs, None, note)
-    # TBD: if there's an equation, and z is in A, make z a synonym
-    if rx: assert isinstance(rx, Relative)
-    if ry: assert isinstance(ry, Relative)
-    state[0:3] = (rs.record, rx, ry)
+    propose_superior(AB, z, rs, None, note)  # status, note
+    assert rs != ry and rs != rx
+    return (rs.record, rx, ry)
 
   def propose_deprecation(x, z, rp, ry):
     clog("# Need to deprecate", x)
-    state[0:3] = (z, rp, ry)
 
   def propose_eq(rx, ry, note):
     propose_equation(AB, rx.record, ry.record, note)
-    return ry
 
-  def consider(z, rx, ry):
-    clog("# Candidates for superior %s are %s, %s" %
+  # Consider rx and ry as possible parent relationships for z
+
+  # State variables: z, rw, ry
+
+  while rx or ry:
+    clog("# Candidates for superior of %s are %s, %s" %
          (blurb(z), blurb(rx), blurb(ry)))
-
-    if False:
-      while rx and not mtrmset_lt(AB, z, rx.record):
-        log("# %s not< x=%s, bump x to %s" %
-            (blurb(z), blurb(rx), blurb(get_left_superior(AB, rx.record))))
-        rx = get_left_superior(AB, rx.record)
-      while ry and not mtrmset_lt(AB, z, ry.record):
-        log("# %s not< x=%s, bump x to %s" %
-            (blurb(z), blurb(ry), blurb(get_right_superior(AB, ry.record))))
-        ry = get_right_superior(AB, ry.record)
-    elif False:
-      assert (not rx) or mtrmset_lt(AB, z, rx.record)
-      assert (not ry) or mtrmset_lt(AB, z, ry.record)
 
     assert rx or ry
 
@@ -118,56 +110,67 @@ def process_lineage(AB, z):
     rq = get_right_superior(AB, ry.record) if ry else None
 
     if not ry:
-      propose_sup(z, rx, None, rp, None)
+      t = propose_sup(z, rx, None, rp, None)
     elif not rx:
-      propose_sup(z, ry, None, rq, None)
+      t = propose_sup(z, ry, None, rq, None)
     else:
       x = rx.record if rx else None
       y = ry.record if ry else None
-      ship = mtrmset_relationship(AB, x, y)
+      ship = estimate_relationship(AB, x, y) # compare blocks
       assert ship != DISJOINT
-      if ship == LT:            # different mtrmsets
-        propose_sup(z, rx, "MTRMs(x) ⊂ MTRMs(y)", rp, ry) # No choice
-      elif ship == GT:          # different mtrmsets
-        propose_sup(z, ry, "MTRMs(y) ⊂ MTRMs(x)", rx, rq)
+      if ship == LT:            # different MTRM sets
+        t = propose_sup(z, rx, "MTRMs(x) ⊂ MTRMs(y)", rp, ry) # No choice
+      elif ship == GT:          # different MTRM sets
+        t = propose_sup(z, ry, "MTRMs(y) ⊂ MTRMs(x)", rx, rq)
       elif ship == CONFLICT:
         # x conflicts with y.  Delete x, take min(p, q) as parent
         # Parent of z is y, not x; skip x and go right to p
         propose_deprecation(x, z, rp, ry)
+        t = (z, rp, ry)
       elif not rp:
         if rq:
-          propose_sup(z, ry, None, rx, rq)
+          t = propose_sup(z, ry, None, rx, rq)
         else:
-          rw = propose_eq(rx, ry, "top")
-          propose_sup(z, rw, None, rp, rq)
+          propose_eq(rx, ry, "top")
+          t = propose_sup(z, ry, None, rp, rq)
       elif not rq:
-        propose_sup(z, x, None, rp, ry)
+        t = propose_sup(z, x, None, rp, ry)
+      # "Triangle rule" forces us to gobble up remaining on
+      # unsqueezed side of squeeze, since otherwise some nodes
+      # will fail to get superiors
+      elif blocks_lt(AB, rx.record, rp.record):
+        # Parent is y, on B side, where there's still choice
+        if blocks_lt(AB, ry.record, rq.record):
+          propose_eq(rx, ry, "squeeze") # z parent is x≡y
+          t = propose_sup(z, ry, "compatible", rp, rq)
+        t = propose_sup(z, ry, "A squeeze", rx, rq)
+      elif blocks_lt(AB, ry.record, rq.record):
+        # Parent is x, on A side, where there's still choice
+        t = propose_sup(z, rx, "B squeeze", rp, ry)
       else:
-        assert ship == COMPARABLE
         n = get_match(y)
         if n and n.relationship == EQ:
-          if n.record == x:
-            rw = propose_eq(rx, ry, "similar|%s" % (n.note or 'match'))
-            propose_sup(z, rw, "parents match", rp, rq)
+          if n.record == rx.record:
+            propose_eq(rx, ry, "similar|%s" % (n.note or 'match'))
+            t = propose_sup(z, ry, "name match and compatible", rp, rq)
           else:
-            propose_sup(z, y, "priority B because hoping for match",
-                        rx, rq)
+            t = propose_sup(z, ry, "priority B because hoping for name match",
+                            rx, rq)
         else:
           m = get_match(x)
           if m and m.relationship == EQ:
-            propose_sup(z, rx, "priority A because hoping for match", 
-                        rp, ry)
+            t = propose_sup(z, rx, "priority A because hoping for name match", 
+                            rp, ry)
           elif True:
-            # Unmatched against unmatched = toss-up
-            propose_sup(z, rx, "tossup A", rp, ry)
+            # Unmatched against unmatched = toss-up.
+            t = propose_sup(z, rx, "tossup", rp, ry)
           else:
             # Doesn't seem to work so well
-            rw = propose_eq(rx, ry, "shot in the dark")
-            propose_sup(z, rw, "shot in the dark", rp, rq)
-    return state
-
-  while (rx or ry) and get_superior(z, None) == None:
-    (z, rx, ry) = consider(z, rx, ry)
+            propose_eq(rx, ry, "shot in the dark")
+            t = propose_sup(z, ry, "shot in the dark", rp, rq)
+    assert z != (z, rx, ry)
+    (z, rx, ry) = t
+    # end while
 
 # -----------------------------------------------------------------------------
 # Find mutual tipward matches
@@ -207,6 +210,7 @@ def find_TRMs(A, in_left, set_trm):
 # or taxonomic matches... but basically, record matches)
 
 def load_matches(row_iterator, AB):
+  log("# Loading matches")
 
   header = next(row_iterator)
   plan = prop.make_plan_from_header(header)
@@ -259,6 +263,69 @@ def record_match(x):
 
 # -----------------------------------------------------------------------------
 
+# Load a merged checklist, recovering equated, match, and
+# maybe... left/right id links? ... ...
+# N.b. this will be a mere checklist, not a workspace.
+
+def rows_to_merged(rows, meta):
+  M = checklist.rows_to_checklist(rows, meta)
+  resolve_merge_links(M)
+  return M
+
+# This is used for reporting (not for merging)
+
+def resolve_merge_links(M):
+  for record in all_records(M):
+
+    key = get_match_key(record, None)
+    note = get_match_note(record, None)
+    if key != None:
+      z = look_up_record(C, key, record)
+      if not z:
+        # record is in B, match is in A
+        z = ensure_record(C, key, record)
+        if not get_canonical(z, get_canonical(record), None):
+          set_canonical(z, get_canonical(record))    # for reporting
+        set_match(z, relation(EQ, record, "record match",
+                              reverse_note(note)))
+      # z is record's record match regardless
+      set_match(record, relation(EQ, z, "record match", note))
+    elif note:
+      set_match(record, relation(NOINFO, None, None, note))
+
+    key = get_equated_key(record, None)
+    note = get_equated_note(record, None)
+    if key != None:
+      # record is in B
+      z = look_up_record(M, key, record)
+      if z:
+        assert get_superior(z).relationship == EQ
+      else:
+        z = ensure_record(M, key, record)   # in A
+        set_superior(z, relation(EQ, record, "equivalent", note))
+      set_equated(record, relation(EQ, z, "equivalent", note))  # B->A
+
+# Create new dummy records if needed so that we can link to them
+
+def ensure_record(C, key, record):
+  rec = look_up_record(C, key, record)
+  if rec: return rec 
+  assert isinB(record)  # if record is in B, we can refer to ghost in A
+  rec = checklist.make_record(key, C)
+  log("# Creating record %s on demand" % key)
+  # that's all there is to it?
+  return rec
+
+#      x0 ---
+#             \   match
+#              \
+#       x  <->  y    SYNONYM / EQ
+#        \
+#  match  \
+#           --- y0
+
+# -----------------------------------------------------------------------------
+
 def test():
   def testit(m, n):
     log("\n-- Test: %s + %s --" % (m, n))
@@ -278,7 +345,8 @@ if __name__ == '__main__':
   parser = argparse.ArgumentParser(description="""
     TBD.  stdin = the A checklist
     """)
-  parser.add_argument('--target', help="the B checklist")
+  parser.add_argument('--A', help="the A checklist (defaults to stdin)")
+  parser.add_argument('--B', help="the B checklist")
   parser.add_argument('--matches', help="record matches")
   parser.add_argument('--test', action='store_true', help="run tests")
   args=parser.parse_args()
@@ -286,21 +354,32 @@ if __name__ == '__main__':
   if args.test:
     test()
   else:
-    a_file = sys.stdin
-    b_path = args.target
-    rm_sum_path = args.matches
+    a_path = args.A
+    b_path = args.B
+    matches_path = args.matches
 
-    a_iter = csv.reader(a_file)
     with open(b_path) as b_file:
-      b_iter = csv.reader(b_file)
-      # TBD: Compute sum if not provided ?
-      if rm_sum_path:
-        with open(rm_sum_path) as rm_sum_file:
-          rm_sum_iter = csv.reader(rm_sum_file)
-          rows = merge(a_iter, b_iter, rm_sum_iter)
-      else:
-        rows = merge(a_iter, b_iter)
+      def x(a_file):
+        # 3.
+        def y(matches_iter):
+          rows = merge(csv.reader(a_file),
+                       csv.reader(b_file),
+                       matches=matches_iter)
+          writer = csv.writer(sys.stdout)
+          for row in rows:
+            writer.writerow(row)
 
-    writer = csv.writer(sys.stdout)
-    for row in rows:
-      writer.writerow(row)
+        # 2.
+        if matches_path:
+          with open(matches_path) as matches_file:
+            y(csv.reader(matches_file))
+        else:
+          y(None)
+
+      # 1.
+      if a_path:
+        with open(a_path) as a_file:
+          x(a_file)
+      else:
+        x(sys.stdin)
+

@@ -135,6 +135,7 @@ def rows_to_context(row_iterable, primary_key_prop):
   row_iterator = iter(row_iterable)
   plan = prop.make_plan_from_header(next(row_iterator))
   for row in row_iterator:
+    assert (isinstance(row, tuple) or isinstance(row, list)), row
     register(prop.construct(plan, row))
   return Q
 
@@ -160,7 +161,10 @@ def resolve_superior_link(record):
     accepted_record = look_up_record(S, accepted_key, record)
     if accepted_record:
       status = get_taxonomic_status(record, "synonym")
-      sup = relation(SYNONYM, accepted_record, status)
+      if status == "equivalent":
+        sup = relation(EQ, accepted_record, status)
+      else:
+        sup = relation(SYNONYM, accepted_record, status)
     else:
       sup = relation(SYNONYM, top, "dangling reference")
   elif parent_key:
@@ -175,8 +179,7 @@ def resolve_superior_link(record):
     sup = relation(ACCEPTED, S.top, "root")
   set_superior_carefully(record, sup)
   if False and (monitor(record) or monitor(sup.record)):
-    log("> %s %s := %s" % (sup.status, blurb(record), blurb(sup.record)))
-  return sup
+    log("> Relate %s %s" % (blurb(record), blurb(sup)))
 
 def set_superior_carefully(x, rel):
   assert_local(x, rel.record)
@@ -190,6 +193,7 @@ def assert_local(x, y):
 # Collect parent/child and accepted/synonym relationships;
 # set children and synonyms properties.
 # **** Checklist could be either source or coproduct. ****
+# Run this after all rows have been indexed by their primary keys.
 
 # E.g. Glossophaga bakeri (in 1.7) split from Glossophaga commissarisi (in 1.6)
 
@@ -201,24 +205,26 @@ def ensure_inferiors_indexed(C):
     assert get_source(record) == C
     if record == C.top: continue
 
-    rel = get_superior(record, None)
-    if not rel:
-      # Default relation, if none given, is child of top ('orphan')
+    sup = get_superior(record, None)
+    if not sup:
       log("# %s has no superior" % blurb(record))
-      erel = get_equated(record, None)
-      if erel and erel.relationship == SYNONYM:
+      # Suppress uninteresting EQ partners
+      erel = get_equated(record, None)    # in A
+      if erel:
         log("# %s is matched to priority" % blurb(record))
-        rel = erel              # from A to B
+        continue
+      # TBD: what to do about CONFLICT records
       else:
-        rel = relation(ACCEPTED, C.top, "root")
-      set_superior_carefully(record, rel)
+        # Default relation, if none given, is child of top ('orphan')
+        sup = relation(ACCEPTED, C.top, "root")
+      set_superior_carefully(record, sup)
       # continue
 
-    assert_local(record, rel.record)
+    assert_local(record, sup.record)
 
-    if rel.relationship == ACCEPTED:   # accepted
-      #log("# accepted %s -> %s" % (blurb(record), blurb(rel.record)))
-      parent = rel.record
+    if sup.relationship == ACCEPTED:   # accepted
+      #log("# accepted %s -> %s" % (blurb(record), blurb(sup.record)))
+      parent = sup.record
       # Add record to list of parent's children
       ch = get_children(parent, None) # list of records
       if ch != None:
@@ -226,35 +232,15 @@ def ensure_inferiors_indexed(C):
       else:
         set_children(parent, [record])
 
-    elif rel.relationship == SYNONYM:         # synonym (LE)
-      accepted = rel.record
+    else:
+      # SYNONYM or EQ
+      accepted = sup.record
       # Add record to list of accepted record's synonyms
       ch = get_synonyms(accepted, None)
       if ch != None:
         ch.append(record)
       else:
         set_synonyms(accepted, [record])
-
-    elif rel.relationship == EQ:
-      # Shouldn't happen
-      assert False
-
-  # TBD: Also create equated and match links (with notes)
-  key = get_equated_key(record, None)
-  if key != None:
-    z = look_up_record(C, key, record)
-    note = get_equated_note(record, None)
-    if z or note:
-      rel = EQ if z else NOINFO
-      set_equated(record, relation(rel, z, note))
-
-  key = get_match_key(record, None)
-  if key != None:
-    z = look_up_record(C, key, record)
-    note = get_match_note(record, None)
-    if z or note:
-      rel = EQ if z else NOINFO
-      set_match(record, relation(rel, z, note))
 
   C.indexed = True
   #log("# Top has %s child(ren)" % len(get_children(C.top)))
@@ -285,16 +271,9 @@ def add_child(c, x, status="accepted"):
   set_superior_carefully(c, relation(ACCEPTED, x, status))
 
 def get_inferiors(x):
-  # If x is in B, and x = y, then we might offer y (in A) as a synonym of x
-  e = get_equated(x, None)    # y is e.record
-  if False and e and e.relationship == EQ:
-    if (not get_canonical(e.record) != get_canonical(x)):
-      pass
-    else:
-      # TBD: Filter out trivial copies
-      yield get_equated(e.record)
   yield from get_children(x, ())
   yield from get_synonyms(x, ())
+
 
 """
     y = get_equated(syn, None)
@@ -382,8 +361,30 @@ def checklist_to_rows(C, props=None):
   (header, record_to_row) = begin_table(C, props)
   yield header
   for x in all_records(C):
-    if not is_toplike(x):
+    if keep_record(x):
       yield record_to_row(x)
+
+# Filter out unnecessary equivalent A records!
+
+def keep_record(x):
+  if is_toplike(x):
+    return False
+  sup = get_superior(x, None)
+  if not sup:
+    assert False
+  if sup.relationship != EQ:
+    return True
+  m = get_match(x, None)
+  if not m or m.record != sup.record:
+    # If record is unmatched, or matches something not equivalent,
+    # then keep it
+    return True
+  can = get_canonical(x)
+  if can and can != get_canonical(m.record):
+    # Similarly, keep if canonical differs
+    return True
+  # Can't figure out a way for them to be different.  Flush it.
+  return False
 
 def preorder_rows(C, props=None):
   (header, record_to_row) = begin_table(C, props)
@@ -391,7 +392,8 @@ def preorder_rows(C, props=None):
   ensure_inferiors_indexed(C)
   def traverse(x):
     if not is_toplike(x):
-      yield record_to_row(x)
+      if keep_record(x):
+        yield record_to_row(x)
     for c in get_inferiors(x):
       yield from traverse(c)
   yield from traverse(C.top)

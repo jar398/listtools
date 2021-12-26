@@ -2,11 +2,13 @@
 
 import sys, csv, argparse
 import util, property as prop
-import workspace, merge
+import checklist, workspace, merge
 
 from util import windex, MISSING
 from property import mep_get, mep_set
 from rcc5 import *
+from checklist import *
+from workspace import *
 
 from checklist import primary_key_prop, get_primary_key, \
   canonical_prop, get_canonical, \
@@ -15,40 +17,42 @@ from checklist import primary_key_prop, get_primary_key, \
   get_children, \
   get_canonical, get_rank
 
-id_a_prop = prop.getter(prop.get_property("taxonID_A"))
-id_b_prop = prop.getter(prop.get_property("taxonID_B"))
-
-previous_prop = prop.get_property("previous")
-get_record_match = prop.getter(previous_prop)
-set_record_match = prop.setter(previous_prop)
-
 change_prop = prop.get_property("change")
 get_change = prop.getter(change_prop)
 
-def report(a_iter, b_iter, merged_iter, diff_mode):
-  #B = workspace.rows_to_checklist(b_iter, {'name': 'B'})
-  #A = workspace.rows_to_checklist(a_iter, {'name': 'A'})
-  AB = workspace.rows_to_checklist(merged_iter, {'name': 'AB'})
-  return generate_report(AB, diff_mode)
+#
+
+def report(merged_iter, full_report):
+  AB = merge.rows_to_merged(merged_iter, {'name': 'AB'})
+  return generate_report(AB, full_report)
 
 # Full mode shows every concept in the sum.
 # Diff mode only shows changed/new/removed concepts.
 
-def generate_report(AB, diff_mode):
+def generate_report(AB, full_report):
   yield ("A name", "B name", "rank", "comment", "remarks")
   stats = {}
-  species_stats = {}
+
+  def tick(stat):
+    if stat in stats:
+      s = stats[stat]
+    else:
+      s = [0, 0]      # [all, species only]
+      stats[stat] = s
+    s[0] += 1
+    rank = ((y and get_rank(y, None)) or (x and get_rank(x, None)))
+    if rank == "species":
+      s[1] += 1
+
+  for z in all_records(AB):
+    def foo():
+      m = get_match(z)
+      pass
+    e = get_equivalent(z)    # z is a B node; get the A node
+    foo(z)
+    foo(e)
+
   def traverse(u):
-    def tick(stat):
-      if stat in stats:
-        s = stats[stat]
-      else:
-        s = [0, 0]
-        stats[stat] = s
-      s[0] += 1
-      rank = ((y and get_rank(y, None)) or (x and get_rank(x, None)))
-      if rank == "species":
-        s[1] += 1
     x = out_a(u, None)
     y = out_b(u, None)
     m = get_record_match(u, None)
@@ -72,7 +76,7 @@ def generate_report(AB, diff_mode):
           else:
             comment = "kept synonym"
             tick(comment)
-          if diff_mode: comment = None
+          if full_report: comment = None
         else:
           # synonym -> accepted
           comment = "promoted to accepted"
@@ -87,7 +91,7 @@ def generate_report(AB, diff_mode):
           comment = "renamed accepted"
           tick(comment)
         else:
-          comment = None if diff_mode else "kept"
+          comment = None if full_report else "kept"
           tick("kept accepted")
     else:
       if x and get_accepted(x, None):
@@ -121,14 +125,14 @@ def generate_report(AB, diff_mode):
         if x: comment = "(%s)" % comment
         tick(comment)
 
-    if comment or not diff_mode:
+    if comment or not full_report:
       rank = get_rank(y or x, MISSING)
       noise = noises.get(rank, ". . . . .")
       bx = get_blurb(x)
       if x and get_accepted(x, None): bx = bx + "*"
       by = get_blurb(y)
       if y and get_accepted(y, None): by = by + "*"
-      if not diff_mode:
+      if not full_report:
         bx = bx + " " + noise
         by = noise + " " + by
       add_remark(u, comment)
@@ -160,27 +164,17 @@ def get_blurb(z):
   else:
     return MISSING
 
+# -----------------------------------------------------------------------------
+
 if __name__ == '__main__':
   parser = argparse.ArgumentParser(description="""
-    B hierarchy is read from stdin
+    standard input = the merged checklist we're reporting on
     """)
-  parser.add_argument('--source', help="A hierarchy")
-  parser.add_argument('--merged', help="merged checklist")
-  parser.add_argument('--diff', action='store_true',
-                      help="difference mode")
-  parser.add_argument('--full', action='store_true',
-                      help="full report")
+  parser.add_argument('--mode',
+                      help="diff: difference mode, full: full report")
   args=parser.parse_args()
 
-  b_file = sys.stdin
-  a_path = args.source
-  merged_path = args.merged
-  diff_mode = not args.full
+  full_report = (args.mode != 'full')
 
-  with open(a_path) as a_file:
-    with open(merged_path) as merged_file:
-      rep = report(csv.reader(a_file),
-                   csv.reader(b_file),
-                   csv.reader(merged_file),
-                   diff_mode)
-      util.write_generated(rep, sys.stdout)
+  rep = report(csv.reader(sys.stdin), full_report)
+  util.write_rows(rep, sys.stdout)

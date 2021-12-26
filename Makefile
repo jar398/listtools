@@ -110,9 +110,7 @@ REPORT_OPTIONS?=
 $(REPORT): $(MERGED) $P/report.py $P/property.py
 	@echo
 	@echo "--- PREPARING REPORT ---"
-	$P/report.py --source $A.csv --merged $(MERGED) \
-		     $(REPORT_OPTIONS) \
-		     < $B.csv > $@.new
+	$P/report.py $(REPORT_OPTIONS) < $(MERGED) > $@.new
 	@mv -f $@.new $@
 
 # Merged checklist on which the report is based:
@@ -122,8 +120,8 @@ merged: $(MERGED)
 $(MERGED): $(MATCHES) $P/merge.py $P/theory.py $P/workspace.py $P/checklist.py $P/property.py
 	@echo
 	@echo "--- MERGING ---"
-	$P/merge.py --target $B.csv --matches $(MATCHES) \
-		    < $A.csv > $@.new
+	$P/merge.py --A $A.csv --B $B.csv --matches $(MATCHES) \
+		    > $@.new
 	@mv -f $@.new $@
 
 # Record matches, required for merging:
@@ -133,8 +131,8 @@ matches: $(MATCHES)
 $(MATCHES): $A.csv $B.csv $P/match_records.py
 	@echo
 	@echo "--- COMPUTING RECORD MATCHES ---"
-	$P/match_records.py --target $B.csv --pk $(DELTA_KEY) --index $(INDEX) \
-		    < $A.csv > $@.new
+	$P/match_records.py --A $A.csv --B $B.csv --pk $(DELTA_KEY) --index $(INDEX) \
+		    	    > $@.new
 	@mv -f $@.new $@
 
 # Round trip, for test of record based diff/patch: (EOL demo. no
@@ -178,9 +176,8 @@ $(DELTA): $A.csv $B.csv $P/delta.py $P/match_records.py $P/property.py
 	@echo
 	@echo "--- COMPUTING DELTA ---"
 	set -o pipefail; \
-	$P/delta.py --target $B.csv --pk $(DELTA_KEY) \
-		    --index $(INDEX) --manage $(KEEP) \
-		    < $A.csv \
+	$P/delta.py --A $A.csv --B $B.csv --pk $(DELTA_KEY) \
+		    --index $(INDEX) --manage $(KEEP)
 	| $P/sortcsv.py --key $(DELTA_KEY) \
 	> $@.new
 	@mv -f $@.new $@
@@ -399,9 +396,8 @@ test:
 	src/property.py
 	src/checklist.py
 	src/workspace.py
-	src/theory.py
 	src/merge.py --test
-	test-report
+	$(MAKE) A=work/test1 B=work/test2 report
 
 test-report:
 	$(MAKE) A=work/test1 B=work/test2 report

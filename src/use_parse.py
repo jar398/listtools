@@ -122,4 +122,4 @@ if __name__ == '__main__':
   with open(args.source, "r") as source_file:
     better = use_parse(csv.reader(gn_file),
                        csv.reader(source_file))
-    util.write_generated(better, sys.stdout)
+    util.write_rows(better, sys.stdout)

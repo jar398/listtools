@@ -99,8 +99,8 @@ def ambient_getter(prop):
         return getit(x.cloned_from, default)
       elif default == _NODEFAULT:
         assert False, \
-          ("missing value for property '%s' position %s\nplan %s keys %s" %
-           (prop.label, pos, x.plan, tuple(x.lookedup.keys())))
+          ("missing value for property '%s', column %s" %
+           (prop.label, pos))
       else:
         val = default
     elif stored == _SHADOW: val = MISSING

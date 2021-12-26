@@ -384,7 +384,9 @@ if __name__ == '__main__':
     Standard output is the record-level sum A+B of the two inputs,
     with rows of the form [id-in-A+B, id-in-A, id-in-B, remark].
     """)
-  parser.add_argument('--target',
+  parser.add_argument('--A',
+                      help="name of file containing 'left' or 'A' usages")
+  parser.add_argument('--B',
                       help="name of file containing 'right' or 'B' usages")
   parser.add_argument('--pk',
                       default="taxonID",
@@ -395,10 +397,10 @@ if __name__ == '__main__':
                       default=indexed,
                       help='names of columns to match on')
   args=parser.parse_args()
-  inport1 = sys.stdin
   index = args.index
   if not index: index = default_index_by
-  with open(args.target, "r") as inport2:
-    main(inport1, inport2, args.pk,
-         index.split(","), sys.stdout)
+  with open(args.A, "r") as inport1:
+    with open(args.B, "r") as inport2:
+      main(inport1, inport2, args.pk,
+           index.split(","), sys.stdout)
 
