@@ -288,8 +288,11 @@ def get_inferiors(x):
   # If x is in B, and x = y, then we might offer y (in A) as a synonym of x
   e = get_equated(x, None)    # y is e.record
   if False and e and e.relationship == EQ:
-    # TBD: Filter out trivial copies
-    yield get_equated(e.record)
+    if (not get_canonical(e.record) != get_canonical(x)):
+      pass
+    else:
+      # TBD: Filter out trivial copies
+      yield get_equated(e.record)
   yield from get_children(x, ())
   yield from get_synonyms(x, ())
 
