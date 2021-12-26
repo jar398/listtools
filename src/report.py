@@ -3,9 +3,9 @@
 import sys, csv, argparse
 import util, property as prop
 import workspace, merge
+
 from util import windex, MISSING
 from property import mep_get, mep_set
-
 from rcc5 import *
 
 from checklist import primary_key_prop, get_primary_key, \
@@ -140,7 +140,7 @@ def generate_report(AB, diff_mode):
   for row in traverse(AB.top): yield row
   for key in sorted(list(stats.keys())):
     s = stats[key]
-    print("%7d %7s %s" % (s[0], s[1], key), file=sys.stderr)
+    log("%7d %7s %s" % (s[0], s[1], key))
 
 
 noises = {"subspecies": "",

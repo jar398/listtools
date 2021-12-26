@@ -1,22 +1,18 @@
 #!/usr/bin/env python3
 # ≥ ≤ ≳ ≲ ≂
 
-# Actually this is RCC29...
+# Actually this is RCC-29...
 
 # intended for use with: from rcc5 import *
 
-# RCC5 relationship WITHIN hierarchy
+# RCC-5 relationship WITHIN hierarchy
 # Use logical | for disjunction, & for conjunction
 
-# Then there is approximation, or similarity.
-#   A ~ B means they contain the same 'tipes'.
-#   A ≲ B  is what the mrca-homomorphism trick gets you.
-
 rcc5_symbols = {}
-rcc5_relations = {}
+rcc5_relationships = {}
 def def_rcc5_symbol(n, name):
   rcc5_symbols[n] = name
-  rcc5_relations[name] = n
+  rcc5_relationships[name] = n
   return n
 
 # want rel and ~ / rel but-not ~ , eg. ≳ ≲ ≳≲ 
@@ -65,10 +61,10 @@ ESTIMATES_NGE = def_rcc5_symbol(ESTIMATES_LT|ESTIMATES_DISJOINT|ESTIMATES_CONFLI
 def rcc5_symbol(x):
   return rcc5_symbols[x]
 
-def rcc5_relation(x):
-  return rcc5_relations[x]
+def rcc5_relationship(x):
+  return rcc5_relationships[x]
 
-def reverse_relation(rel):
+def reverse_relationship(rel):
   l = (rel & LT)
   g = (rel & GT)
   strip = (rel - (l|g))

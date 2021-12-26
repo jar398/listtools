@@ -22,7 +22,9 @@ from match_records import match_records
 def merge(a_iter, b_iter, m=None):
   A = rows_to_checklist(a_iter, {"name": "A"})  # meta
   B = rows_to_checklist(b_iter, {"name": "B"})  # meta
-  return preorder(analyze(A, B, m))
+  AB = analyze(A, B, m)
+  log("here")
+  return merge_preorder_rows(AB)
 
 def analyze(A, B, m=None):
   AB = make_workspace(A, B, {"name": "AB"})
@@ -31,6 +33,23 @@ def analyze(A, B, m=None):
   load_matches(m, AB)
   spanning_tree(AB)
   return AB
+
+def merge_preorder_rows(AB, props=None):
+  return workspace.preorder_rows(AB, props or usual_merge_props(AB))
+
+def usual_merge_props(AB):
+
+  def recover_id_a(z, default=None):
+    x = get_left_persona(AB, z)
+    return get_primary_key(get_outject(x)) if x else default
+
+  def recover_id_b(z, default=None):
+    y = get_right_persona(AB, z)
+    return get_primary_key(get_outject(y)) if y else default
+
+  return usual_workspace_props + \
+     (prop.get_property("taxonID_A", getter=recover_id_a),
+      prop.get_property("taxonID_B", getter=recover_id_b))
 
 # -----------------------------------------------------------------------------
 # Spanning tree computation.
@@ -64,8 +83,8 @@ def process_lineage(AB, z):
   def propose_sup(z, rs, note, rx, ry):
     propose_superior(AB, z, rs, None, note)
     # TBD: if there's an equation, and z is in A, make z a synonym
-    if rx: assert isinstance(rx, Related)
-    if ry: assert isinstance(ry, Related)
+    if rx: assert isinstance(rx, Relative)
+    if ry: assert isinstance(ry, Relative)
     state[0:3] = (rs.record, rx, ry)
 
   def propose_deprecation(x, z, rp, ry):
@@ -105,13 +124,13 @@ def process_lineage(AB, z):
     else:
       x = rx.record if rx else None
       y = ry.record if ry else None
-      relation = mtrmset_relation(AB, x, y)
-      assert relation != DISJOINT
-      if relation == LT:            # different mtrmsets
+      ship = mtrmset_relationship(AB, x, y)
+      assert ship != DISJOINT
+      if ship == LT:            # different mtrmsets
         propose_sup(z, rx, "MTRMs(x) ⊂ MTRMs(y)", rp, ry) # No choice
-      elif relation == GT:          # different mtrmsets
+      elif ship == GT:          # different mtrmsets
         propose_sup(z, ry, "MTRMs(y) ⊂ MTRMs(x)", rx, rq)
-      elif relation == CONFLICT:
+      elif ship == CONFLICT:
         # x conflicts with y.  Delete x, take min(p, q) as parent
         # Parent of z is y, not x; skip x and go right to p
         propose_deprecation(x, z, rp, ry)
@@ -124,9 +143,9 @@ def process_lineage(AB, z):
       elif not rq:
         propose_sup(z, x, None, rp, ry)
       else:
-        assert relation == COMPARABLE
+        assert ship == COMPARABLE
         n = get_match(y)
-        if n and n.relation == EQ:
+        if n and n.relationship == EQ:
           if n.record == x:
             rw = propose_eq(rx, ry, "similar|%s" % (n.note or 'match'))
             propose_sup(z, rw, "parents match", rp, rq)
@@ -135,17 +154,53 @@ def process_lineage(AB, z):
                         rx, rq)
         else:
           m = get_match(x)
-          if m and m.relation == EQ:
+          if m and m.relationship == EQ:
             propose_sup(z, rx, "priority A because hoping for match", 
                         rp, ry)
-          else:
+          elif True:
             # Unmatched against unmatched = toss-up
-            propose_sup(z, rx, "priority A because toss-up", 
-                        rp, ry)
+            propose_sup(z, rx, "tossup A", rp, ry)
+          else:
+            # Doesn't seem to work so well
+            rw = propose_eq(rx, ry, "shot in the dark")
+            propose_sup(z, rw, "shot in the dark", rp, rq)
     return state
 
   while (rx or ry) and get_superior(z, None) == None:
     (z, rx, ry) = consider(z, rx, ry)
+
+# -----------------------------------------------------------------------------
+# Find mutual tipward matches
+
+def find_MTRMs(AB):
+  find_TRMs(AB.A, AB.in_left, set_trm)
+  counter = [1]
+  def set_if_mutual(z, m):      # z in B
+    set_trm(z, m)           # Nonmutual, might be of interest
+    z2 = m.record           # z2 in A
+    m2 = get_trm(z2, None)      # tipward match to/in A
+    if m2 and m2.relationship == EQ and m2.record == z:
+      #if monitor(z): log("# MTRM: %s :=: %s" % (blurb(z), blurb(z2)))
+      propose_equation(AB, z2, z, "MTRM")
+  find_TRMs(AB.B, AB.in_right, set_if_mutual)    # of AB.flip()
+
+(get_trm, set_trm) = prop.get_set(prop.get_property("TRM"))
+
+def find_TRMs(A, in_left, set_trm):
+  ensure_inferiors_indexed(A)
+  def traverse(x):
+    seen = False
+    for c in get_inferiors(x):
+      seen = traverse(c) or seen
+    if not seen and not is_top(x):
+      z = in_left(x)
+      m = get_match(z)
+      if m and m.relationship == EQ:
+        #if monitor(z): log("# TRM: %s = %s" % (blurb(z), blurb(m.record)))
+        set_trm(z, m)
+        seen = z
+    return seen
+  traverse(A.top)
 
 # -----------------------------------------------------------------------------
 # Load/dump a set of provisional matches (could be either record match
@@ -173,27 +228,33 @@ def load_matches(row_iterator, AB):
         y = AB.in_right(y_in_B) 
 
     # The columns of the csv file
-    rel = rcc5_relation(get_match_relation(match))
+
+    rel = rcc5_relationship(get_match_relationship(match)) # EQ, NOINFO
     note = get_match_note(match, MISSING)
 
     # x or y might be None with rel=NOINFO ... hope this is OK
 
-    if x:
-      set_match(x, Related(rel, y, "record match", note))
     if y:
-      set_match(y, Related(reverse_relation(rel), x, "record match",
+      set_match(y, relation(reverse_relationship(rel), x, "record match",
                            reverse_note(note)))
+    if x:
+      set_match(x, relation(rel, y, "record match", note))
     if x and y: match_count += 1
     else: miss_count += 1
 
   log("# %s matches, %s misses" % (match_count, miss_count))
 
+get_match_relationship = prop.getter(prop.get_property("relation", inherit=False))
+
 def reverse_note(note):
-  return "↔ " + note            # tbd: deal with 'coambiguous'
+  if ' ' in note:
+    return "↔ " + note            # tbd: deal with 'coambiguous'
+  else:
+    return note
 
 def record_match(x):
-  ship = get_match(x)
-  if ship.relation == EQ: return ship.record
+  rel = get_match(x)
+  if rel.relationship == EQ: return rel.record
   return None
 
 # -----------------------------------------------------------------------------
@@ -208,7 +269,7 @@ def test():
                           {"name": "A"})  # meta
 
     AB = analyze(A, B)
-    workspace.show_workspace(AB)
+    workspace.show_workspace(AB, props=usual_merge_props(AB))
   testit("a", "a")
   testit("(c,d)a", "(c,e)b")
   testit("((a,b)e,c)d1", "(a,(b,c)f)d2")

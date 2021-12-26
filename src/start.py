@@ -26,6 +26,7 @@ def start_csv(inport, params, outport, args):
 
   can_pos = windex(in_header, "canonicalName")
   sci_pos = windex(in_header, "scientificName")
+  rank_pos = windex(in_header, "taxonRank")
   source_pos = windex(in_header, "source")
   landmark_pos = windex(in_header, "Landmark")
   if landmark_pos != None: in_header[landmark_pos] = "landmark_status"
@@ -67,6 +68,7 @@ def start_csv(inport, params, outport, args):
   previous_pk = 0
   conflicts = 0
   senior = 0
+  managed = 0
   for row in reader:
 
     # Deal with raggedness if any
@@ -81,7 +83,7 @@ def start_csv(inport, params, outport, args):
       assert False
 
     # Filter out senior synonyms
-    if tax_status_pos != None and row1[tax_status_pos] == "senior synonym":
+    if tax_status_pos != None and row[tax_status_pos] == "senior synonym":
       senior += 1
       continue
 
@@ -142,8 +144,14 @@ def start_csv(inport, params, outport, args):
 
     # Add managed_id if necessary
     if args.managed:
-      id = row[managed_col_pos]
-      managed_id = prefix + id if id else MISSING
+      if prefix == "mdd" and (('synonym' in stat) or
+                              row[rank_pos] != 'species'):
+        # id added by Prashant
+        managed_id = MISSING
+      else:
+        id = row[managed_col_pos]
+        managed_id = "%s:%s" % (prefix, id) if id else MISSING
+        managed += 1
       out_row = out_row + [managed_id]
 
     writer.writerow(out_row)
@@ -155,7 +163,10 @@ def start_csv(inport, params, outport, args):
         (count, len(in_header), minted, names_cleaned, accepteds_normalized),
         file=sys.stderr)
   if senior > 0:
-    print("-- start: filterd out %s senior synonyms" % senior)
+    print("-- start: filtered out %s senior synonyms" % senior,
+          file=sys.stderr)
+  if managed > 0:
+    print("-- start: %s managed ids" % managed, file=sys.stderr)
   if trimmed > 0:
     # Ignoring extra values is appropriate behavior for DH 0.9.  But
     # elsewhere we might want ragged input to be treated as an error.

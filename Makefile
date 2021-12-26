@@ -282,39 +282,32 @@ gbif%-raw.csv: gbif%/dump/meta.xml $P/start.py
 
 # MDD
 
-work/mdd1.7-raw.csv: $(HOME)/Downloads/MDD_DwC_versions/MDD_v1.7_6567species_inDwC.csv
+MDDSOURCE?=$(HOME)/Downloads/MDD_DwC_versions
+#MDDSOURCE?=$(HOME)/Downloads/MDD_DwC_versions.20211222
+
+work/mdd1.0-source.csv: $(MDDSOURCE)/MDD_v1_6495species_JMamm_inDwC.csv
 	cp -p $< $@
-work/mdd1.7.csv: work/mdd1.7-raw.csv
-work/mdd1.6-raw.csv: $(HOME)/Downloads/MDD_DwC_versions/MDD_v1.6_6557species_inDwC.csv
+work/mdd1.1-source.csv: $(MDDSOURCE)/MDD_v1.1_6526species_inDwC.csv
 	cp -p $< $@
-work/mdd1.6.csv: work/mdd1.6-raw.csv
-work/mdd1.5-raw.csv: $(HOME)/Downloads/MDD_DwC_versions/MDD_v1.5_6554species_inDwC.csv \
-		 $P/start.py
-	$P/start.py < $< --pk taxonID > $@.new
+work/mdd1.2-source.csv: $(MDDSOURCE)/MDD_v1.2_6485species_inDwC.csv
+	cp -p $< $@
+work/mdd1.3-source.csv: $(MDDSOURCE)/MDD_v1.3_6513species_inDwC.csv
+	cp -p $< $@
+work/mdd1.31-source.csv: $(MDDSOURCE)/MDD_v1.31_6513species_inDwC.csv
+	cp -p $< $@
+work/mdd1.4-source.csv: $(MDDSOURCE)/MDD_v1.4_6533species_inDwC.csv
+	cp -p $< $@
+work/mdd1.5-source.csv: $(MDDSOURCE)/MDD_v1.5_6554species_inDwC.csv
+	cp -p $< $@
+work/mdd1.6-source.csv: $(MDDSOURCE)/MDD_v1.6_6557species_inDwC.csv
+	cp -p $< $@
+work/mdd1.7-source.csv: $(MDDSOURCE)/MDD_v1.7_6567species_inDwC.csv
+	cp -p $< $@
+
+work/mdd%-raw.csv: work/mdd%-source.csv $P/start.py
+	$P/start.py < $< --pk taxonID --managed mdd:taxonID > $@.new
 	@mv -f $@.new $@
-work/mdd1.5.csv: work/mdd1.5-raw.csv
-work/mdd1.4-raw.csv: $(HOME)/Downloads/MDD_DwC_versions/MDD_v1.4_6533species_inDwC.csv \
-		 $P/start.py
-	$P/start.py < $< --pk taxonID > $@.new
-	@mv -f $@.new $@
-work/mdd1.4.csv: work/mdd1.4-raw.csv
-work/mdd1.3-raw.csv: $(HOME)/Downloads/MDD_DwC_versions/MDD_v1.3_6513species_inDwC.csv
-	cp -p $< $@
-work/mdd1.3.csv: work/mdd1.3-raw.csv
-work/mdd1.31-raw.csv: $(HOME)/Downloads/MDD_DwC_versions/MDD_v1.31_6513species_inDwC.csv
-	cp -p $< $@
-work/mdd1.31.csv: work/mdd1.3-raw.csv
-work/mdd1.2-raw.csv: $(HOME)/Downloads/MDD_DwC_versions/MDD_v1.2_6485species_inDwC.csv
-	cp -p $< $@
-work/mdd1.2.csv: work/mdd1.2-raw.csv
-work/mdd1.1-raw.csv: $(HOME)/Downloads/MDD_DwC_versions/MDD_v1.1_6526species_inDwC.csv
-	cp -p $< $@
-work/mdd1.1.csv: work/mdd1.1-raw.csv
-work/mdd1.0-raw.csv: $(HOME)/Downloads/MDD_DwC_versions/MDD_v1_6495species_JMamm_inDwC.csv \
-		 $P/start.py
-	$P/start.py < $< --pk taxonID > $@.new
-	@mv -f $@.new $@
-work/mdd1.0.csv: work/mdd1.0-raw.csv
+.PRECIOUS: mdd%-raw.csv
 
 # ----- 4. EOL examples
 

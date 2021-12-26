@@ -74,8 +74,6 @@ def compute_sum(a_table, b_table, pk_col_arg, index_by):
   pk_pos2 = windex(header2, pk_col)
   assert pk_pos1 != None 
   assert pk_pos2 != None
-  stat_pos1 = windex(header1, "taxonomicStatus")
-  stat_pos2 = windex(header2, "taxonomicStatus")
 
   coproduct = []
 
@@ -146,9 +144,6 @@ def compute_sum(a_table, b_table, pk_col_arg, index_by):
   punt = 0
 
   for (key1, row1) in all_rows1.items():
-    if stat_pos1 != None and row1[stat_pos1] == "senior synonym":
-      punt += 1
-      continue
     (rel2, key2, remark) = find_match(key1, best_rows_in_file2,
                                       best_rows_in_file1, pk_pos1, pk_pos2,
                                       True)
@@ -160,19 +155,16 @@ def compute_sum(a_table, b_table, pk_col_arg, index_by):
   copunt = 0
 
   for (key2, row2) in all_rows2.items():
-    if stat_pos1 != None and row1[stat_pos2] == "senior synonym":
-      copunt += 1
-      continue
     if not key2 in seen2:
       (rel1, key1, remark) = find_match(key2, best_rows_in_file1,
                                         best_rows_in_file2, pk_pos2, pk_pos1,
                                         False)
-      if key1 != None:
+      if key1:
         # shouldn't happen
         remark = "! surprising match: %s <-> %s" % (key2, key1)
       # Addition - why did it fail?
       # Unique match means outcompeted, probably?
-      rel2 = reverse_relation(rel1) # <= to >=
+      rel2 = reverse_relationship(rel1) # <= to >=
       connect(key1, rel2, key2, remark)
 
   if punt + copunt > 0:
@@ -247,6 +239,7 @@ def find_best_matches(header1, header2, all_rows1, all_rows2, pk_col):
   best_rows_in_file1 = {}    # key2 -> (score, rows1)
   prop_count = 0
   for (key1, row1) in all_rows1.items():
+    assert len(row1) == len(header1)
     # The following check is also enforced by start.py... flush them here?
     best2_so_far = no_info
     best_rows_so_far2 = no_info
@@ -256,6 +249,7 @@ def find_best_matches(header1, header2, all_rows1, all_rows2, pk_col):
         print("# %s property values..." % prop_count, file=sys.stderr)
       prop_count += 1
       for row2 in rows2_by_property.get(prop, []):
+        assert len(row2) == len(header2)
         key2 = row2[pk_pos2]
         score = compute_score(row1, row2, corr_12, weights)
         best_rows_so_far1 = best_rows_in_file1.get(key2, no_info)
@@ -341,6 +335,7 @@ def index_rows_by_property(all_rows, header):
   rows_by_property = {}
   entry_count = 0
   for (key, row) in all_rows.items():
+    assert len(row) == len(header)
     for property in row_properties(row, header, positions):
       rows = rows_by_property.get(property)
       if rows != None:

@@ -16,7 +16,7 @@ def get_left_superior(AB, z):
                  lambda x:get_superior(x, None),
                  lambda y:None)
   if ship:
-    return Related(ship.relation, AB.in_left(ship.record), ship.status, ship.note)
+    return relation(ship.relationship, AB.in_left(ship.record), ship.status, ship.note)
   return None
 
 def get_right_superior(AB, z):
@@ -27,7 +27,7 @@ def get_right_superior(AB, z):
                  lambda x:None,
                  lambda y:get_superior(y, None))
   if ship:
-    return Related(ship.relation, AB.in_right(ship.record), ship.status, ship.note)
+    return relation(ship.relationship, AB.in_right(ship.record), ship.status, ship.note)
   return None
 
 def get_left_persona(AB, z):
@@ -59,18 +59,70 @@ def equated(x, y):              # Are x and y equated?
   z = get_equated(x, None)
   return z and z.record == y
 
-def mtrmset_lt(AB, x, y):
-  rel = mtrmset_relation(AB, x, y)
-  return rel == LT    # or LE for synonyms ...?
+# -----------------------------------------------------------------------------
+# Decide about relations between two trees
+
+# Returns a pair (overlap, outlier)
+#   overlap is in y and x {< = > ><} y (but not !)
+#   outlier is in y and x {< >< !} y (but not {> =}) x ⋧ y
+#   either can be None
+
+def analyze(AB, x, y):
+  (over, out) = (None, None)
+  for d in get_inferiors(y):
+    (over2, out2) = analyze(x, d)
+    over = over or over2; out = out or out2
+    if over and out: return (over, out)
+  # TBD: if over and out are both present, and one of the two is a synonym ...
+  if over or out:      # Exclude peripherals
+    return (over, out)
+  m = AB.record_match(y)
+  j = AB.join(m, y)
+  return (j, None) if m else (None, j)
+
+def outlier(AB, x, y):
+  (over, _) = analyze(x, y)
+  return out
+
+# Cache this.
+# Satisfies: if y = shadow(x) then x ~<= y, and if x' = shadow(y),
+# then if x' <= x then x ~= y, or if x' > x then x > y.
+#
+# i.e.   x ≲ y ≲ x' ≤ x   →   x ≅ y   (same 'block')
+# i.e.   x ≲ y ≲ x' > x   →   x < y
+
+def get_estimate(AB, x, other):
+  m = functools.reduce(mrca,
+                       (get_shadow(c) for c in get_inferiors(x)),
+                       None)
+  if m == None:
+    return record_match(x, other) or None
+  return m
+
+# RCC5 decision procedure, where x and y are in different sources.
+
+def cross_ge(AB, x, y):
+  return not outlier(AB, x, y)
+
+def cross_eq(AB, x, y):
+  # see if they're peers ??
+  return cross_ge(x, y) and cross_ge(y, x)
+
+def gt(AB, x, y):
+  return cross_ge(x, y) and not cross_ge(y, x)
 
 # -----------------------------------------------------------------------------
 # Precompute MTRM sets.  Assumes compute_mtrmsets has already run.
 
-def mtrmset_relation(AB, x, y):
+def mtrmset_lt(AB, x, y):
+  rel = mtrmset_relationship(AB, x, y)
+  return rel == LT    # or LE for synonyms ...?
+
+def mtrmset_relationship(AB, x, y):
   assert isinstance(x, prop.Record)
   assert isinstance(y, prop.Record)
   if in_same_tree(AB, x, y):
-    rel = simple_relation(AB.case(x, lambda x:x, lambda y:y),
+    rel = simple_relationship(AB.case(x, lambda x:x, lambda y:y),
                           AB.case(y, lambda x:x, lambda y:y))
     return rel
   else:
@@ -116,43 +168,6 @@ def relate_mtrmsets(e1, e2):  # ASSUMES OVERLAP
 (get_mtrmset, set_mtrmset) = prop.get_set(prop.get_property("mtrmset"))
 
 # -----------------------------------------------------------------------------
-# Find mutual tipward matches
-
-def find_MTRMs(AB):
-  find_TRMs(AB.A, AB.in_left, set_trm)
-  counter = [1]
-  def set_if_mutual(z, m):      # z in B
-    set_trm(z, m)           # Nonmutual, might be of interest
-    z2 = m.record           # z2 in A
-    m2 = get_trm(z2, None)      # tipward match to/in A
-    if m2 and m2.relation == EQ and m2.record == z:
-      #if monitor(z): log("# MTRM: %s :=: %s" % (blurb(z), blurb(z2)))
-      propose_equation(AB, z2, z,
-                       "MTRM;%s;%s" % (m2.note, m.note))
-  find_TRMs(AB.B, AB.in_right, set_if_mutual)    # of AB.flip()
-
-(get_trm, set_trm) = prop.get_set(prop.get_property("TRM"))
-
-def find_TRMs(A, in_left, set_trm):
-  ensure_inferiors_indexed(A)
-  def traverse(x):
-    seen = False
-    for c in get_inferiors(x):
-      seen = traverse(c) or seen
-    if not seen and not is_top(x):
-      z = in_left(x)
-      m = get_match(z)
-      if m and m.relation == EQ:
-        #if monitor(z): log("# TRM: %s = %s" % (blurb(z), blurb(m.record)))
-        set_trm(z, m)
-        seen = z
-    return seen
-  traverse(A.top)
-
-def loser():
-  if False: yield "lose"
-
-# -----------------------------------------------------------------------------
 # Alignment building...
 
 # Propose that x = y (= ry.record)
@@ -163,23 +178,25 @@ def propose_equation(AB, x, y, why_equiv):
   (x, y) = AB.case(x, lambda xx: (x, y), lambda yy: (y, x))
 
   # Record reason for the equation
-  set_equated(y, Related(EQ, x, "equivalent", why_equiv))
-  set_equated(x, Related(EQ, y, "equivalent", why_equiv))
+  # This is a kludge - I'm encoding the A/B polarity in the relationship
+  set_equated(y, relation(EQ, x, "equivalent", why_equiv))
+  set_equated(x, relation(SYNONYM, y, "equivalent", why_equiv))
 
   # Deprecate the non-priority record of the two
-  set_superior(x, Related(SYNONYM, y, "equivalent", why_equiv))
+  # This doesn't work; y might already be a synonym
+  # set_superior(x, relation(SYNONYM, y, "equivalent", why_equiv))
 
 # Propose that rs.record should be the parent (superior) of z
 
 def propose_superior(AB, z, rs, status, note):
   assert rs
   assert isinstance(z, prop.Record), blurb(z)
-  assert isinstance(rs, Related)
-  assert rs.relation == ACCEPTED or rs.relation == SYNONYM
-  set_superior(z, Related(rs.relation,
-                          rs.record,
-                          status or rs.status,    # accepted, etc
-                          note))  # explanation of why < or <=
+  assert isinstance(rs, Relative)
+  assert rs.relationship == ACCEPTED or rs.relationship == SYNONYM
+  set_superior(z, relation(rs.relationship,
+                           rs.record,
+                           status or rs.status,    # accepted, etc
+                           note))  # explanation of why < or <=
 
 # -----------------------------------------------------------------------------
 # Same-tree relations
@@ -188,7 +205,7 @@ def propose_superior(AB, z, rs, status, note):
 #   /       \
 #  x         y   'smaller'
 
-def simple_relation(x, y):             # Within a single tree
+def simple_relationship(x, y):             # Within a single tree
   (x1, y1) = find_peers(x, y)    # Decrease levels as needed
   if x1 == y1:     # x <= x1 = y1 >= y
     if x == y:
@@ -213,6 +230,17 @@ def find_peers(x, y):
   return (x, y)
 
 (get_level, set_level) = prop.get_set(prop.get_property("level", inherit=False))
+
+# MRCA within the same tree
+
+def mrca(x, y):
+  if x == BOTTOM: return y
+  if y == BOTTOM: return x
+  (x, y) = find_peers(x, y)
+  while not (x is y):
+    x = get_superior(x)
+    y = get_superior(y)
+  return x
 
 def simple_le(x, y):
   # Is x <= y?  Scan from x upwards, see if we find y

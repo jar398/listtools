@@ -35,12 +35,15 @@ def make_workspace(A, B, meta=None):
       set_outject(z, x)
       set_source(z, AB)
       have_key = get_primary_key(z)
-      if not have_key or not REUSE_KEYS:
+      if REUSE_KEYS and have_key:
+        if '!' in have_key:
+          key = have_key
+        else:
+          key = "%s!%s" % (get_source_name(x), have_key)
+        set_primary_key(z, key)
+      else:
         pk_counter[0] += 1
         set_primary_key(z, str(pk_counter[0]))
-      elif not ('!' in have_key):
-        key = "%s!%s" % (get_source_name(x), have_key)
-        set_primary_key(z, key)
       register(z)
     return z
 
@@ -64,11 +67,10 @@ def make_workspace(A, B, meta=None):
   atop = AB.in_left(A.top)
   btop = AB.in_right(B.top)
 
-  set_equated(atop, Related(EQ, btop, "top"))
-  set_equated(btop, Related(EQ, atop, "top"))
+  set_equated(atop, relation(EQ, btop, "top"))
+  set_equated(btop, relation(EQ, atop, "top"))
   AB.top = btop
 
-  AB.topship = Related(ACCEPTED, AB.top, "uninitialized")
   AB.indexed = False
   AB.meta = meta
 
@@ -115,35 +117,17 @@ def is_senior(synonym_item, accepted_item):
 
 # Output with additional columns needed by report.py
 
-def workspace_to_rows(AB, props=usual_props):
+def workspace_preorder_rows(AB, props=None):
+  return checklist.preorder_rows(AB, props or usual_workspace_props)
 
-  # Do we need these at all?
-
-  def get_id_a(z, default=None):
-    x = left_persona(AB, z)
-    return get_primary_key(x) if x else default
-
-  def get_id_b(z, default=None):
-    y = right_persona(AB, z)
-    return get_primary_key(y) if y else default
-
-  workspace_props = props + \
-      (prop.get_property("taxonID_A", getter=get_id_a),
-       prop.get_property("taxonID_B", getter=get_id_b),
-       prop.get_property("match_key", getter=recover_match_key),
-       prop.get_property("match_note", getter=recover_match_note))
-
-  return checklist_to_rows(AB, props)
-
-def recover_match_key(z, default=None):
-  m = get_match(z, None)
-  return get_primary_key(m.record) if m else default
-
-def recover_match_note(z, default=None):
-  m = get_match(z, None)
-  return m.note if m else default
+usual_workspace_props = usual_props + \
+    (prop.get_property("equated_id", getter=recover_equated_key),
+     prop.get_property("equated_note", getter=recover_equated_note),
+     prop.get_property("match_id", getter=recover_match_key),
+     prop.get_property("match_note", getter=recover_match_note))
 
 # -----------------------------------------------------------------------------
+# Little baby tests
 
 import newick
 
@@ -154,9 +138,10 @@ def workspace_from_newicks(m, n):
                         {"name": "A"})  # meta
   return make_workspace(A, B, {"name": "AB"})
 
-def show_workspace(AB):
+def show_workspace(AB, props=None):
+  props = props or usual_workspace_props
   writer = csv.writer(sys.stdout)
-  rows = list(preorder(AB))
+  rows = list(workspace_preorder_rows(AB, props))
   for row in rows:
     writer.writerow(row)
   print(' = ' + newick.compose_newick(rows))
