@@ -296,10 +296,10 @@ def resolve_merge_links(M):
     key = get_equated_key(record, None)
     note = get_equated_note(record, None)
     if key != None:
-      # record is in B
+      # Only B records have equated's: record EQ z LE record
       z = look_up_record(M, key, record)
       if z:
-        assert get_superior(z).relationship == EQ
+        assert get_superior(z).relationship == LE
       else:
         z = ensure_record(M, key, record)   # in A
         set_superior(z, relation(EQ, record, "equivalent", note))
