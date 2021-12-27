@@ -211,7 +211,7 @@ def simple_relationship(x, y):             # Within a single tree
       if synx and syny:
         return NOINFO         # blah
       else:
-        return LE
+        return LE if syny else GE
     else:
       return EQ
   if get_level(x, None) == None or get_level(x, None) == None:
@@ -225,9 +225,6 @@ def simple_relationship(x, y):             # Within a single tree
       return LT
     else:
       assert False  # can't happen
-  elif synx or syny:
-    assert synx and syny
-    return NOINFO
   else:
     return DISJOINT
 

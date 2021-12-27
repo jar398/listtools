@@ -26,6 +26,12 @@ def report(merged_iter, full_report):
 # Full mode shows every concept in the sum.
 # Diff mode only shows changed/new/removed concepts.
 
+readable = {'++': 'kept but renamed',
+            '==': 'kept',
+            'o+': 'new',
+            '+o': 'deprecated',
+            }
+
 def generate_report(AB, full_report):
   yield ("A name", "B name", "rank", "comment", "remarks")
   stats = {}
@@ -56,7 +62,8 @@ def generate_report(AB, full_report):
     log("# status of %s is %s" % (blurb(x), n1))
     log("# status of %s is %s" % (blurb(y), n2))
     status_of_name(y)
-    tick("%s,%s" % (n1, n2))
+    blob = readable.get(n1+n2) or "%s,%s" % (n1, n2)
+    tick(blob)
 
   for key in sorted(list(stats.keys())):
     s = stats[key]

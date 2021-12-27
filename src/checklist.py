@@ -149,7 +149,7 @@ def resolve_superior_link(S, record):
       else:
         sup = relation(SYNONYM, accepted_record, status)
     else:
-      sup = relation(SYNONYM, top, "dangling reference")
+      sup = relation(SYNONYM, S.top, "dangling reference")
   elif parent_key:
     parent_record = look_up_record(S, parent_key, record)
     if parent_record:
@@ -157,10 +157,13 @@ def resolve_superior_link(S, record):
       # If it's not accepted or valid or something darn close, we're confused
       sup = relation(ACCEPTED, parent_record, status)
     else:
-      sup = relation(ACCEPTED, top, "dangling reference")
-  else:
-    # This is a root.  Do not set superior.
+      sup = relation(ACCEPTED, S.top, "dangling reference")
+  elif is_top(record):
+    # This is the root.  Do not set superior.
     return
+  else:
+    # This is a root.  Hang on to it so that preorder can see it.
+    sup = relation(ACCEPTED, S.top, "root1", "dangling reference")
   set_superior_carefully(record, sup)
   if False and (monitor(record) or monitor(sup.record)):
     log("> Relate %s %s" % (blurb(record), blurb(sup)))
