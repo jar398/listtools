@@ -183,8 +183,11 @@ def get_records(column):
   assert isinstance(column, Column)
   return column.value_to_record.values()
 
-def get_record(column, value, default=None):
-  return column.value_to_record[value]
+def get_record(column, value, default=_NODEFAULT):
+  if default == _NODEFAULT:
+    return column.value_to_record[value]
+  else:
+    return column.value_to_record.get(value, default)
 
 def get_registrar(pk_prop, Q):
   get_pk = getter(pk_prop)
@@ -250,10 +253,9 @@ _global_record_counter = 0
 
 # Maps keyed by record
 
-_nodefault = []
 def mep(): return {}
-def mep_get(mep, inst, default=_nodefault):
-  if default is _nodefault:
+def mep_get(mep, inst, default=_NODEFAULT):
+  if default is _NODEFAULT:
     return mep[inst.id]
   else:
     return mep.get(inst.id, default)

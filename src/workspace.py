@@ -68,8 +68,8 @@ def make_workspace(A, B, meta=None):
   btop = AB.in_right(B.top)
 
   # cf. propose_equation
-  set_equated(atop, relation(EQ, btop, "top"))
-  set_equated(btop, relation(SYNONYM, atop, "top"))
+  set_superior(atop, relation(EQ, btop, "top"))
+  set_equated(btop, relation(EQ, atop, "top"))
   AB.top = btop
 
   AB.indexed = False

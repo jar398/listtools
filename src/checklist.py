@@ -59,6 +59,7 @@ get_superior_note = prop.getter(superior_note_prop)
 (get_children, set_children) = prop.get_set(prop.get_property("children", inherit=False))
 (get_synonyms, set_synonyms) = prop.get_set(prop.get_property("synonyms", inherit=False))
 
+# Merge related links
 get_equated_key = prop.getter(equated_key_prop)
 get_equated_note = prop.getter(equated_note_prop)
 (get_equated, set_equated) = prop.get_set(equated_prop)
@@ -80,20 +81,6 @@ def relation(ship, record, status, note=''):
           isinstance(record, prop.Record))
   assert isinstance(ship, int)
   return Relative(ship, record, status, note)
-
-# -----------------------------------------------------------------------------
-# Common code... for both alignments and checklists...
-
-# every object using this must do  foo.context = Context()
-
-def look_up_record(C, key, comes_from=None):
-  if not key: return None
-  col = prop.get_column(primary_key_prop, C.context) # we could cache this
-  probe = prop.get_record(col, key, default=None)
-  if not probe:
-    log("-- Dangling taxonID reference: %s (from %s)" %
-        (key, comes_from))
-  return probe
 
 # -----------------------------------------------------------------------------
 # Source checklists
@@ -120,13 +107,14 @@ def all_records(C):             # not including top
 def rows_to_checklist(iterabl, meta):
   S = Source(meta)
   # Three passes: read, link, reverse link
-  Q = rows_to_context(iterabl, primary_key_prop)
+  (Q, register) = rows_to_context(iterabl, primary_key_prop)
   S.context = Q
+  S.register = register
+  S.top = make_top(S)             # Superior of last resort
   column = prop.get_column(primary_key_prop, Q)
   for record in prop.get_records(column):
     set_source(record, S)       # not same as EOL "source" column
-  S.top = make_top(S)             # Superior of last resort
-  resolve_superior_links(S)
+    resolve_superior_link(S, record)
   return S
 
 def rows_to_context(row_iterable, primary_key_prop):
@@ -137,7 +125,7 @@ def rows_to_context(row_iterable, primary_key_prop):
   for row in row_iterator:
     assert (isinstance(row, tuple) or isinstance(row, list)), row
     register(prop.construct(plan, row))
-  return Q
+  return (Q, register)
 
 # Two ways to make these things.  One is using plans (with `construct`).
 # The other is by using the custom constructor (`make_record`, two arguments).
@@ -147,16 +135,11 @@ make_record = prop.constructor(primary_key_prop, source_prop)
 # Create direct references to records, rather than leaving links as
 # ids
 
-def resolve_superior_links(S):
-  for record in all_records(S): # not including top
-    resolve_superior_link(record)
-
-def resolve_superior_link(record):
+def resolve_superior_link(S, record):
   sup = get_superior(record, None)
   if sup != None: return sup
   parent_key = get_parent_key(record, None)
   accepted_key = get_accepted_key(record, None)
-  S = get_source(record)
   if accepted_key:
     accepted_record = look_up_record(S, accepted_key, record)
     if accepted_record:
@@ -176,24 +159,26 @@ def resolve_superior_link(record):
     else:
       sup = relation(ACCEPTED, top, "dangling reference")
   else:
-    sup = relation(ACCEPTED, S.top, "root")
+    # This is a root.  Do not set superior.
+    return
   set_superior_carefully(record, sup)
   if False and (monitor(record) or monitor(sup.record)):
     log("> Relate %s %s" % (blurb(record), blurb(sup)))
 
 def set_superior_carefully(x, rel):
-  assert_local(x, rel.record)
+  assert x != rel.record        # no self-loops
   set_superior(x, rel)
 
-def assert_local(x, y):
-  assert get_source(x) == get_source(y), \
-    (blurb(x), get_source_name(x), blurb(y), get_source_name(y))
+def look_up_record(C, key, comes_from=None):
+  if not key: return None
+  col = prop.get_column(primary_key_prop, C.context) # we could cache this
+  return prop.get_record(col, key, default=None)
 
 # -----------------------------------------------------------------------------
 # Collect parent/child and accepted/synonym relationships;
 # set children and synonyms properties.
 # **** Checklist could be either source or coproduct. ****
-# Run this after all rows have been indexed by their primary keys.
+# Run this AFTER all superior links have been set in other ways (e.g. merge).
 
 # E.g. Glossophaga bakeri (in 1.7) split from Glossophaga commissarisi (in 1.6)
 
@@ -216,7 +201,7 @@ def ensure_inferiors_indexed(C):
       # TBD: what to do about CONFLICT records
       else:
         # Default relation, if none given, is child of top ('orphan')
-        sup = relation(ACCEPTED, C.top, "root")
+        sup = relation(ACCEPTED, C.top, "root2")
       set_superior_carefully(record, sup)
       # continue
 
@@ -241,9 +226,15 @@ def ensure_inferiors_indexed(C):
         ch.append(record)
       else:
         set_synonyms(accepted, [record])
+      # if EQ then also set equivalent ??
+      # but the target may be a ghost.
 
   C.indexed = True
   #log("# Top has %s child(ren)" % len(get_children(C.top)))
+
+def assert_local(x, y):
+  assert get_source(x) == get_source(y), \
+    (blurb(x), get_source_name(x), blurb(y), get_source_name(y))
 
 def get_source_name(x):
   return get_source(x).meta['name']
@@ -262,13 +253,19 @@ def is_top(x):
 def is_toplike(x):
   return get_canonical(x) == TOP
 
-def add_child(c, x, status="accepted"):
-  ch = get_children(x, None)
-  if ch != None:
-    ch.append(c)
+# Not used I think
+def add_inferior(r, status="accepted"):
+  if r.relationship == LT:
+    ch = get_children(x, None)
+    s = set_children
   else:
-    ch = [c]
-  set_superior_carefully(c, relation(ACCEPTED, x, status))
+    ch = get_synoyms(x, None)
+    s = set_synonyms
+  if ch != None:
+    ch.append(r.record)
+  else:
+    s(x, [r.record])
+  set_superior_carefully(c, r)
 
 def get_inferiors(x):
   yield from get_children(x, ())
@@ -379,8 +376,8 @@ def keep_record(x):
     # If record is unmatched, or matches something not equivalent,
     # then keep it
     return True
-  can = get_canonical(x)
-  if can and can != get_canonical(m.record):
+  can2 = get_canonical(m.record)
+  if can2 and get_canonical(x) != can2:
     # Similarly, keep if canonical differs
     return True
   # Can't figure out a way for them to be different.  Flush it.

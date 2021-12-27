@@ -3,6 +3,7 @@
 import sys, csv, argparse
 import util, property as prop
 import checklist, workspace, merge
+import theory
 
 from util import windex, MISSING
 from property import mep_get, mep_set
@@ -10,20 +11,16 @@ from rcc5 import *
 from checklist import *
 from workspace import *
 
-from checklist import primary_key_prop, get_primary_key, \
-  canonical_prop, get_canonical, \
-  scientific_prop, get_scientific, \
-  get_superior, \
-  get_children, \
-  get_canonical, get_rank
+from merge import get_left_id, get_right_id
 
-change_prop = prop.get_property("change")
-get_change = prop.getter(change_prop)
 
 #
 
 def report(merged_iter, full_report):
   AB = merge.rows_to_merged(merged_iter, {'name': 'AB'})
+  merge.resolve_merge_links(AB)
+  ensure_inferiors_indexed(AB)
+  theory.ensure_levels(AB)
   return generate_report(AB, full_report)
 
 # Full mode shows every concept in the sum.
@@ -45,13 +42,46 @@ def generate_report(AB, full_report):
       s[1] += 1
 
   for z in all_records(AB):
-    def foo():
-      m = get_match(z)
-      pass
-    e = get_equivalent(z)    # z is a B node; get the A node
-    foo(z)
-    foo(e)
 
+    x_id = get_left_id(z, None)
+    y_id = get_right_id(z, None)
+    if y_id:
+      y = z
+      if x_id: x = get_equated(z).record
+    else:
+      x = None
+      y = z
+    n1 = status_of_name(x)
+    n2 = status_of_name(y)
+    log("# status of %s is %s" % (blurb(x), n1))
+    log("# status of %s is %s" % (blurb(y), n2))
+    status_of_name(y)
+    tick("%s,%s" % (n1, n2))
+
+  for key in sorted(list(stats.keys())):
+    s = stats[key]
+    log("%7d %7d %s" % (s[0], s[1], key))
+
+# y = possessor of name
+
+def status_of_name(y):
+  if y == None:
+    return 'o'   # extension not present
+  else:
+    m = get_match(y, None)
+    if m == None:
+      return '+'   # no match (deprecated / new) ⏚
+    else:
+      r = theory.simple_relationship(y, m.record)
+      if r == EQ:
+        can1 = get_canonical(y, None)
+        can2 = get_canonical(m.record, None)
+        if can1 and can2 and can1 != can2:
+          return '~'
+      return rcc5_symbol(r)
+
+
+def fooooo():
   def traverse(u):
     x = out_a(u, None)
     y = out_b(u, None)
@@ -64,7 +94,7 @@ def generate_report(AB, full_report):
       change2 = None
 
     change = get_change(u, None)   # relative to record match
-    name_changed = (get_blurb(x) != get_blurb(y))
+    name_changed = (blurb(x) != blurb(y))
 
     if x and y:
       if get_accepted(x, None):
@@ -83,7 +113,7 @@ def generate_report(AB, full_report):
           tick(comment)
       elif get_accepted(y, None):
         # accepted -> synonym
-        comment = "lumped into %s" % get_blurb(get_accepted(y))
+        comment = "lumped into %s" % blurb(get_accepted(y))
         tick("demoted to synonym")
       else:
         # accepted -> accepted
@@ -128,9 +158,9 @@ def generate_report(AB, full_report):
     if comment or not full_report:
       rank = get_rank(y or x, MISSING)
       noise = noises.get(rank, ". . . . .")
-      bx = get_blurb(x)
+      bx = blurb(x)
       if x and get_accepted(x, None): bx = bx + "*"
-      by = get_blurb(y)
+      by = blurb(y)
       if y and get_accepted(y, None): by = by + "*"
       if not full_report:
         bx = bx + " " + noise
@@ -142,9 +172,6 @@ def generate_report(AB, full_report):
     for s in get_synonyms(u, []):
       for row in traverse(s): yield row
   for row in traverse(AB.top): yield row
-  for key in sorted(list(stats.keys())):
-    s = stats[key]
-    log("%7d %7s %s" % (s[0], s[1], key))
 
 
 noises = {"subspecies": "",
@@ -156,13 +183,6 @@ noises = {"subspecies": "",
           "order": "_ _ _ _",
           "class": "_ _ _ _ _",
           }
-
-def get_blurb(z):
-  if z:
-    blurb = get_canonical(z, None) or get_scientific(z, None) or get_primary_key(z)
-    return blurb
-  else:
-    return MISSING
 
 # -----------------------------------------------------------------------------
 

@@ -22,9 +22,7 @@ from match_records import match_records
 def merge(a_iter, b_iter, matches=None):
   A = rows_to_checklist(a_iter, {"name": "A"})  # meta
   B = rows_to_checklist(b_iter, {"name": "B"})  # meta
-  log("# here 1")
   AB = analyze(A, B, matches)
-  log("# here 2")
   return merge_preorder_rows(AB)
 
 def analyze(A, B, m_iter=None):
@@ -54,7 +52,7 @@ def usual_merge_props(AB):
 
 left_id_prop = prop.get_property("taxonID_A")
 right_id_prop = prop.get_property("taxonID_B")
-get_left_id = prop.getter(left_id_prop)
+(get_left_id, set_left_id) = prop.get_set(left_id_prop)
 get_right_id = prop.getter(right_id_prop)
 
 # -----------------------------------------------------------------------------
@@ -101,8 +99,9 @@ def process_lineage(AB, z):
   # State variables: z, rw, ry
 
   while rx or ry:
-    clog("# Candidates for superior of %s are %s, %s" %
-         (blurb(z), blurb(rx), blurb(ry)))
+    if False:
+      clog("# Candidates for superior of %s are %s, %s" %
+           (blurb(z), blurb(rx), blurb(ry)))
 
     assert rx or ry
 
@@ -268,24 +267,27 @@ def record_match(x):
 # N.b. this will be a mere checklist, not a workspace.
 
 def rows_to_merged(rows, meta):
-  M = checklist.rows_to_checklist(rows, meta)
+  M = checklist.rows_to_checklist(rows, meta)  # sets superiors
   resolve_merge_links(M)
   return M
 
-# This is used for reporting (not for merging)
+# This is used for reporting (not for merging).
+# When we get here, superiors have already been set, so the ghosts
+# will be bypassed in enumerations (preorder and all_records).
 
 def resolve_merge_links(M):
+  conjured = {}
+  def register(rec):
+    conjured[get_primary_key(rec)] = rec
   for record in all_records(M):
 
-    key = get_match_key(record, None)
     note = get_match_note(record, None)
+    key = get_match_key(record, None)
     if key != None:
-      z = look_up_record(C, key, record)
+      z = look_up_record(M, key, record) or conjured.get(key, None)
       if not z:
-        # record is in B, match is in A
-        z = ensure_record(C, key, record)
-        if not get_canonical(z, get_canonical(record), None):
-          set_canonical(z, get_canonical(record))    # for reporting
+        z = conjure_record(M, key, record, register)
+      if not get_match(z, None):
         set_match(z, relation(EQ, record, "record match",
                               reverse_note(note)))
       # z is record's record match regardless
@@ -293,27 +295,31 @@ def resolve_merge_links(M):
     elif note:
       set_match(record, relation(NOINFO, None, None, note))
 
-    key = get_equated_key(record, None)
     note = get_equated_note(record, None)
+    key = get_equated_key(record, None)
     if key != None:
-      # Only B records have equated's: record EQ z LE record
-      z = look_up_record(M, key, record)
-      if z:
-        assert get_superior(z).relationship == LE
-      else:
-        z = ensure_record(M, key, record)   # in A
+      # Only B records have equated's:
+      #  have equation record EQ z, want synonym z EQ record
+      z = look_up_record(M, key, record) or conjured.get(key, None)
+      if not z:
+        z = conjure_record(M, key, record, register)   # in A
+      if not get_superior(z, None):
         set_superior(z, relation(EQ, record, "equivalent", note))
       set_equated(record, relation(EQ, z, "equivalent", note))  # B->A
+      left_id = get_left_id(record, None)
+      if left_id:
+        z_left = get_left_id(z, None)
+        if z_left: assert z_left == left_id
+        else: set_left_id(z, left_id)
+  return conjured
 
 # Create new dummy records if needed so that we can link to them
 
-def ensure_record(C, key, record):
-  rec = look_up_record(C, key, record)
-  if rec: return rec 
-  assert isinB(record)  # if record is in B, we can refer to ghost in A
-  rec = checklist.make_record(key, C)
+def conjure_record(C, key, record, register):
   log("# Creating record %s on demand" % key)
-  # that's all there is to it?
+  rec = checklist.make_record(key, C)
+  set_left_id(rec, get_left_id(record))    # ???
+  register(rec)
   return rec
 
 #      x0 ---

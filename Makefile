@@ -392,18 +392,22 @@ work/%-mapped.csv: work/%-raw.csv work/%-map.csv $P/idmap.py
 
 # -----
 
+tags:
+	etags $P/*.py
+
 test:
-	src/property.py
-	src/checklist.py
-	src/workspace.py
-	src/merge.py --test
+	$P/property.py
+	$P/checklist.py
+	$P/workspace.py
+	$P/merge.py --test
 	$(MAKE) A=work/test1 B=work/test2 report
 
 test-report:
 	$(MAKE) A=work/test1 B=work/test2 report
+	$P/newick.py < work/test1.csv
 
 work/test1-raw.csv:
-	src/newick.py --newick "((a,b)d,c)f1"  >$@
+	$P/newick.py --newick "((a,b)d,c)f1"  >$@
 
 work/test2-raw.csv:
-	src/newick.py --newick "(a,(b,c)e)f2" >$@
+	$P/newick.py --newick "(a,(b,c)e)f2" >$@

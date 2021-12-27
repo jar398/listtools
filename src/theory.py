@@ -204,19 +204,41 @@ def propose_superior(AB, z, rs, status, note):
 #  x         y   'smaller'
 
 def simple_relationship(x, y):             # Within a single tree
+  (x, synx) = drop_synonym(x)
+  (y, syny) = drop_synonym(y)
+  if x == y:
+    if synx or syny:
+      if synx and syny:
+        return NOINFO         # blah
+      else:
+        return LE
+    else:
+      return EQ
+  if get_level(x, None) == None or get_level(x, None) == None:
+    clog("# No level for one of these:", x, y)
+    return NOINFO
   (x1, y1) = find_peers(x, y)    # Decrease levels as needed
   if x1 == y1:     # x <= x1 = y1 >= y
-    if x == y:
-      return EQ
-    elif x1 == x:     # x = x1 = y1 > y, x > y
+    if x1 == x:     # x = x1 = y1 > y, x > y
       return GT
     elif y1 == y:
       return LT
     else:
-      assert False
+      assert False  # can't happen
+  elif synx or syny:
+    assert synx and syny
+    return NOINFO
   else:
-    # !!! FIX FOR SYNONYMS
     return DISJOINT
+
+def drop_synonym(x):
+  sup = get_superior(x, None)
+  if not sup or sup.relationship == ACCEPTED:
+    return (x, None)
+  elif sup.relationship == EQ:
+    return (sup.record, None)
+  else:
+    return (sup.record, x)
 
 def find_peers(x, y):
   i = get_level(x)
