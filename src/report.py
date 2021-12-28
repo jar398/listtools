@@ -26,7 +26,7 @@ def report(merged_iter, full_report):
 # Full mode shows every concept in the sum.
 # Diff mode only shows changed/new/removed concepts.
 
-readable = {'++': 'kept but renamed',
+readable = {'++': 'kept, renamed',
             '==': 'kept',
             'o+': 'new',
             '+o': 'deprecated',
@@ -53,14 +53,16 @@ def generate_report(AB, full_report):
     y_id = get_right_id(z, None)
     if y_id:
       y = z
-      if x_id: x = get_equated(z).record
+      if x_id:
+        rx = get_equated(y, None)  # how can this be missing??
+        if rx: x = rx.record
     else:
-      x = None
-      y = z
+      y = None
+      x = z
     n1 = status_of_name(x)
     n2 = status_of_name(y)
-    log("# status of %s is %s" % (blurb(x), n1))
-    log("# status of %s is %s" % (blurb(y), n2))
+    log("# status of %s (in A) is %s" % (blurb(x), n1))
+    log("# status of %s (in B) is %s" % (blurb(y), n2))
     status_of_name(y)
     blob = readable.get(n1+n2) or "%s,%s" % (n1, n2)
     tick(blob)
@@ -72,7 +74,7 @@ def generate_report(AB, full_report):
 # y = possessor of name
 
 def status_of_name(y):
-  if y == None:
+  if not y:
     return 'o'   # extension not present
   else:
     m = get_match(y, None)

@@ -149,8 +149,8 @@ def resolve_superior_link(S, record):
       status = get_taxonomic_status(record, "synonym")
       if status == "equivalent":
         sup = relation(EQ, accepted_record, status)
-        set_equivalent(accepted_record,
-                       relation(EQ, record, "equivalent"))
+        set_equated(accepted_record,
+                    relation(EQ, record, "equivalent"))
       else:
         sup = relation(SYNONYM, accepted_record, status)
     else:
