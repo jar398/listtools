@@ -133,11 +133,14 @@ def rows_to_context(row_iterable, primary_key_prop):
 make_record = prop.constructor(primary_key_prop, source_prop)
 
 # Create direct references to records, rather than leaving links as
-# ids
+# ids.  Sets a superior for every record other than top.
 
 def resolve_superior_link(S, record):
-  sup = get_superior(record, None)
-  if sup != None: return sup
+  if record == S.top: return None
+
+  assert not get_superior(record, None)
+  # if sup != None: return sup
+
   parent_key = get_parent_key(record, None)
   accepted_key = get_accepted_key(record, None)
   if accepted_key:
@@ -146,6 +149,8 @@ def resolve_superior_link(S, record):
       status = get_taxonomic_status(record, "synonym")
       if status == "equivalent":
         sup = relation(EQ, accepted_record, status)
+        set_equivalent(accepted_record,
+                       relation(EQ, record, "equivalent"))
       else:
         sup = relation(SYNONYM, accepted_record, status)
     else:
@@ -158,19 +163,24 @@ def resolve_superior_link(S, record):
       sup = relation(ACCEPTED, parent_record, status)
     else:
       sup = relation(ACCEPTED, S.top, "dangling reference")
-  elif is_top(record):
-    # This is the root.  Do not set superior.
-    return
   else:
     # This is a root.  Hang on to it so that preorder can see it.
-    sup = relation(ACCEPTED, S.top, "root1", "dangling reference")
+    sup = relation(ACCEPTED, S.top, "root", "no parent")
   set_superior_carefully(record, sup)
-  if False and (monitor(record) or monitor(sup.record)):
-    log("> Relate %s %s" % (blurb(record), blurb(sup)))
 
-def set_superior_carefully(x, rel):
-  assert x != rel.record        # no self-loops
-  set_superior(x, rel)
+def set_superior_carefully(x, sup):
+  assert x != sup.record        # no self-loops
+  have = get_superior(x, None)
+  if have:
+    assert have.record == sup.record, \
+      (blurb(x), blurb(get_superior(x)), blurb(sup)) # record
+    if have.relationship != sup.relationship:
+      log("#**** Changing sup of %s from %a to %s" %
+          (blurb(x), blurb(have), blurb(sup)))
+  set_superior(x, sup)
+  if False:
+    if (monitor(x) or monitor(sup.record)):  #False and 
+      log("> superior of %s is %s" % (blurb(x), blurb(sup)))
 
 def look_up_record(C, key, comes_from=None):
   if not key: return None
@@ -187,30 +197,20 @@ def look_up_record(C, key, comes_from=None):
 
 def ensure_inferiors_indexed(C):
   if C.indexed: return
-  #log("# indexing inferiors")
+  log("# --indexing inferiors")
+
+  count = 0
 
   for record in all_records(C):
-    assert get_source(record) == C
     if record == C.top: continue
+    # top has no superior, all others
 
+    assert get_source(record) == C
     sup = get_superior(record, None)
-    if not sup:
-      log("# %s has no superior" % blurb(record))
-      # Suppress uninteresting EQ partners
-      erel = get_equated(record, None)    # in A
-      if erel:
-        log("# %s is matched to priority" % blurb(record))
-        continue
-      # TBD: what to do about CONFLICT records
-      else:
-        # Default relation, if none given, is child of top ('orphan')
-        sup = relation(ACCEPTED, C.top, "root2")
-      set_superior_carefully(record, sup)
-      # continue
-
+    assert sup, blurb(record)
     assert_local(record, sup.record)
 
-    if sup.relationship == ACCEPTED:   # accepted
+    if sup.relationship == ACCEPTED:
       #log("# accepted %s -> %s" % (blurb(record), blurb(sup.record)))
       parent = sup.record
       # Add record to list of parent's children
@@ -219,9 +219,10 @@ def ensure_inferiors_indexed(C):
         ch.append(record)
       else:
         set_children(parent, [record])
+        #log("# child of %s is %s" % (blurb(parent), blurb(record)))
+      count += 1
 
-    else:
-      # SYNONYM or EQ
+    else:                       # SYNONYM or EQ
       accepted = sup.record
       # Add record to list of accepted record's synonyms
       ch = get_synonyms(accepted, None)
@@ -231,9 +232,11 @@ def ensure_inferiors_indexed(C):
         set_synonyms(accepted, [record])
       # if EQ then also set equivalent ??
       # but the target may be a ghost.
+      count += 1
 
   C.indexed = True
-  #log("# Top has %s child(ren)" % len(get_children(C.top)))
+  log("# %s inferiors indexed.  Top has %s child(ren)" %
+      (count, len(get_children(C.top, ()))))
 
 def assert_local(x, y):
   assert get_source(x) == get_source(y), \
@@ -294,13 +297,13 @@ def get_inferiors(x):
 
 def recover_parent_key(x, default=MISSING):
   sup = get_superior(x, None)
-  if sup and not is_toplike(sup.record) and sup.relationship == ACCEPTED:
+  if sup and not is_top(sup.record) and sup.relationship == ACCEPTED:
     return get_primary_key(sup.record)
   else: return default
 
 def recover_accepted_key(x, default=MISSING):
   sup = get_superior(x, None)
-  if sup and not is_toplike(sup.record) and sup.relationship != ACCEPTED:
+  if sup and not is_top(sup.record) and sup.relationship != ACCEPTED:
     return get_primary_key(sup.record)
   else: return default
 
@@ -364,39 +367,42 @@ def checklist_to_rows(C, props=None):
     if keep_record(x):
       yield record_to_row(x)
 
+def preorder_rows(C, props=None):
+  (header, record_to_row) = begin_table(C, props)
+  yield header
+  ensure_inferiors_indexed(C)
+  def traverse(x):
+    if keep_record(x):
+      yield record_to_row(x)
+    for c in get_inferiors(x):
+      yield from traverse(c)
+  yield from traverse(C.top)
+
 # Filter out unnecessary equivalent A records!
 
 def keep_record(x):
   if is_toplike(x):
     return False
   sup = get_superior(x, None)
-  if not sup:
-    assert False
+  # if not sup: assert False
   if sup.relationship != EQ:
     return True
+
+  # Hmm.  we're an A node that's EQ to some B node.
+  # Are they also a record match?
   m = get_match(x, None)
   if not m or m.record != sup.record:
     # If record is unmatched, or matches something not equivalent,
     # then keep it
     return True
-  can2 = get_canonical(m.record)
-  if can2 and get_canonical(x) != can2:
+  # They're a record match, are they also a name match?
+  can1 = get_canonical(x)       # in A
+  can2 = get_canonical(m.record) # in B
+  if can1 and can1 != can2:
     # Similarly, keep if canonical differs
     return True
   # Can't figure out a way for them to be different.  Flush it.
   return False
-
-def preorder_rows(C, props=None):
-  (header, record_to_row) = begin_table(C, props)
-  yield header
-  ensure_inferiors_indexed(C)
-  def traverse(x):
-    if not is_toplike(x):
-      if keep_record(x):
-        yield record_to_row(x)
-    for c in get_inferiors(x):
-      yield from traverse(c)
-  yield from traverse(C.top)
 
 def begin_table(C, props):
   if props == None: props = usual_props
@@ -424,7 +430,12 @@ def blurb(r):
     else:
       return name
   elif isinstance(r, Relative):
-    return "[%s %s]" % (rcc5_symbol(r.relationship), blurb(r.record))
+    if r.note:
+      return ("[%s %s '%s']" %
+              (rcc5_symbol(r.relationship),
+               blurb(r.record), r.note))
+    else:
+      return "[%s %s]" % (rcc5_symbol(r.relationship), blurb(r.record))
   elif isinstance(r, str):
     return "'%s'" % r           # kludge
   elif r:

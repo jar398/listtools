@@ -30,6 +30,7 @@ def analyze(A, B, m_iter=None):
   if not m_iter:
     m_iter = match_records(checklist_to_rows(AB.A), checklist_to_rows(AB.B))
   load_matches(m_iter, AB)
+  AB.get_cross_mrca = mrca_crosser(AB)
   spanning_tree(AB)
   return AB
 
@@ -61,49 +62,98 @@ get_right_id = prop.getter(right_id_prop)
 def spanning_tree(AB):
   find_MTRMs(AB)
   compute_blocks(AB)
-  ensure_levels(AB.A)
+  ensure_levels(AB.A)           # N.b. NOT levels in AB
   ensure_levels(AB.B)
+  # Do this bottom up.  We'll sometimes hit nodes we've already processed.
   def traverse(v, in_leftright):
-    z = in_leftright(v)
-    if get_superior(z, None): return
     for c in get_inferiors(v):
       traverse(c, in_leftright)
-    assert isinstance(z, prop.Record)
+    z = in_leftright(v)
     process_lineage(AB, z) # Goes all the way up to the root
+  log("#-- start B pass")
   traverse(AB.B.top, AB.in_right)
+  log("#-- start A pass")
   traverse(AB.A.top, AB.in_left)
+  ensure_inferiors_indexed(AB)
 
 # x in A, y in B
 
 def process_lineage(AB, z):
+
   rx = get_left_superior(AB, z)
   ry = get_right_superior(AB, z)
-  if not (rx or ry): return
 
   # Links should only go from most dominant to most dominant
   # b->b, a->b (a not = anything), b->a (similarly), a->a (similarly)
 
   def propose_sup(z, rs, note, rx, ry):
+    # Always copy relation and status from rs ?? is that right?
     propose_superior(AB, z, rs, None, note)  # status, note
     assert rs != ry and rs != rx
     return (rs.record, rx, ry)
 
-  def propose_deprecation(x, z, rp, ry):
-    clog("# Need to deprecate", x)
-
   def propose_eq(rx, ry, note):
     propose_equation(AB, rx.record, ry.record, note)
 
+  # z and ry stay constant while we scan up the A lineage looking for
+  # a non-conflicting ancestor of x (x conflicts with y).
+
+  def propose_dep(z, rx, note, rp, ry):
+    propose_deprecation(AB, rx.record, ry.record, note)
+    return (z, rp, ry)    # z's parent could be y, or p (above the conflict)
+
+  # Work in progress
+
+  def relationship_per_heuristics(x, y):
+    if not y:
+      return (LT, "y beyond top, shouldn't happen")
+    elif not x:
+      return (GT, "x beyond top, shouldn't happen")
+
+    ship = relationship_per_blocks(AB, x, y) # compare blocks
+    assert ship != DISJOINT
+    if ship == LT:            # different MTRM sets
+      return (LT, "MTRMs(x) ⊂ MTRMs(y)")
+    elif ship == GT:          # different MTRM sets
+      return (GT, "MTRMs(y) ⊂ MTRMs(x)")
+    elif ship == CONFLICT:
+      return (CONFLICT, "MTRMs(x) >< MTRMs(y)")
+
+    else:
+      rp = get_left_superior(AB, x)
+      rq = get_right_superior(AB, y)
+      if (rp and rq and
+          blocks_lt(AB, x, rp.record) and
+          blocks_lt(AB, y, rq.record)):
+        return (EQ, "squeeze")    # z parent is x≡y
+      else:
+        n = get_match(y)
+        if n and n.relationship == EQ:
+          if n.record == x:
+            return (EQ, "name match (%s) and compatiblae" % (n.note or 'match'))
+          else:
+            return (LT, "priority B because hoping for name match")
+        else:
+          m = get_match(x)
+          if m and m.relationship == EQ:
+            return (GT, "priority A because hoping for name match")
+          elif True:
+            # Unmatched against unmatched = toss-up.
+            return (GT, "toss-up")
+          else:
+            return (EQ, "shot in the dark")
+
   # Consider rx and ry as possible parent relationships for z
 
-  # State variables: z, rw, ry
-
   while rx or ry:
-    if False:
+
+    if get_superior(z, None):
+      #clog("# 2nd(?) or so visit to %s" % (blurb(z),))
+      break
+
+    if True:
       clog("# Candidates for superior of %s are %s, %s" %
            (blurb(z), blurb(rx), blurb(ry)))
-
-    assert rx or ry
 
     rp = get_left_superior(AB, rx.record) if rx else None
     rq = get_right_superior(AB, ry.record) if ry else None
@@ -115,7 +165,7 @@ def process_lineage(AB, z):
     else:
       x = rx.record if rx else None
       y = ry.record if ry else None
-      ship = estimate_relationship(AB, x, y) # compare blocks
+      ship = relationship_per_blocks(AB, x, y) # compare blocks
       assert ship != DISJOINT
       if ship == LT:            # different MTRM sets
         t = propose_sup(z, rx, "MTRMs(x) ⊂ MTRMs(y)", rp, ry) # No choice
@@ -124,16 +174,15 @@ def process_lineage(AB, z):
       elif ship == CONFLICT:
         # x conflicts with y.  Delete x, take min(p, q) as parent
         # Parent of z is y, not x; skip x and go right to p
-        propose_deprecation(x, z, rp, ry)
-        t = (z, rp, ry)
-      elif not rp:
+        t = propose_dep(z, rx, "conflict over %s" % blurb(z), rp, ry)
+      elif not rp:              # EQ or COMPARABLE (not sure)
         if rq:
-          t = propose_sup(z, ry, None, rx, rq)
+          t = propose_sup(z, ry, "rule 1", rx, rq)
         else:
           propose_eq(rx, ry, "top")
-          t = propose_sup(z, ry, None, rp, rq)
+          t = propose_sup(z, ry, "rule 2", rp, rq)
       elif not rq:
-        t = propose_sup(z, x, None, rp, ry)
+        t = propose_sup(z, x, "rule 3", rp, ry)
       # "Triangle rule" forces us to gobble up remaining on
       # unsqueezed side of squeeze, since otherwise some nodes
       # will fail to get superiors
@@ -343,9 +392,9 @@ def test():
 
     AB = analyze(A, B)
     workspace.show_workspace(AB, props=usual_merge_props(AB))
-  testit("a", "a")
+  testit("a", "a")              # A + B
   testit("(c,d)a", "(c,e)b")
-  testit("((a,b)e,c)d1", "(a,(b,c)f)d2")
+  testit("((a,b)e,c)d", "(a,(b,c)f)D")
 
 if __name__ == '__main__':
   parser = argparse.ArgumentParser(description="""

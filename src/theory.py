@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-import types
+import types, functools
 import property as prop, checklist, workspace
 
 from util import log
@@ -52,6 +52,9 @@ def equal_partner(ship):
 def isinB(AB, z):
   return AB.case(z, lambda x: False, lambda x: True)
 
+def isinA(AB, z):
+  return AB.case(z, lambda x: True, lambda x: False)
+
 def equated(x, y):              # Are x and y equated?
   if x == y: return True
   z = get_equated(y, None)
@@ -91,14 +94,29 @@ def outlier(AB, x, y):
 # i.e.   x ≲ y ≲ x' ≤ x   →   x ≅ y   (same 'block')
 # i.e.   x ≲ y ≲ x' > x   →   x < y
 
-def get_estimate(AB, x, other):
-  assert False    # Not in use yet!
-  m = functools.reduce(mrca,
-                       (get_shadow(c) for c in get_inferiors(x)),
-                       None)
-  if m == None:
-    return record_match(x, other) or None
-  return m
+def mrca_crosser(AB):
+
+  # Cached
+  def compute_cross_mrca(z):
+    e = equatee(AB, z)
+    if e: return e
+    (x, in_left, in_right) = \
+      AB.case(z,
+              lambda x:(x, AB.in_left, AB.in_right),
+              lambda y:(y, AB.in_right, AB.in_left))
+    m = BOTTOM                  # identity for mrca
+    for c in get_inferiors(x):
+      q = get_cross_mrca(in_left(c))
+      if q:
+        r = AB.case(q, lambda x:x, lambda y:y)
+        m = mrca(r, m)
+    clog("# cross-mrca of %s is %s" % (blurb(x), blurb(m)))
+    return in_right(m) if m != BOTTOM else None
+  get_cross_mrca = \
+    prop.getter(prop.get_property("cross_mrca",
+                                  filler=compute_cross_mrca))
+  return get_cross_mrca
+
 
 # RCC5 decision procedure, where x and y are in different sources.
 
@@ -118,14 +136,14 @@ def gt(AB, x, y):
 def compute_blocks(AB):
   def traverse(x, in_left):
     # x is in A or B
-    e = null_block
+    e = BOTTOM_BLOCK
     for c in get_inferiors(x):  # inferiors in A/B
       e = join_blocks(e, traverse(c, in_left))
     if is_empty_block(e):
       z = in_left(x)
-      e = possible_MTRM_block(z)
-    if is_toplike(x):
-      e = top_block(e)
+      e = possible_MTRM_block(AB, z)
+    if is_top(x):
+      e = TOP_BLOCK
     if len(e) > 0:
       set_block(x, e)
     #log("# block(%s) = %s" % (blurb(x), e))
@@ -133,56 +151,52 @@ def compute_blocks(AB):
   traverse(AB.B.top, AB.in_right)
   traverse(AB.A.top, AB.in_left)
 
-def possible_MTRM_block(z):
-  w = get_equated(z, None)  # Does z represent an MTRM ?
-  if w:
-    return mtrm_block(z, w.record) # z is in B
+def possible_MTRM_block(AB, z):
+  w = equatee(AB, z)
+  return mtrm_block(z, w) if w else BOTTOM_BLOCK
+
+def equatee(AB, z):                 # in other tree
+  if isinB(AB, z):
+    ship = get_equated(z, None)  # Does z represent an MTRM ?
+    return ship.record if ship else None
   else:
-    w = get_superior(z, None)
-    if w and w.relationship == EQ:
-      return mtrm_block(z, w.record)  # z is in A
-  return null_block
+    ship = get_superior(z, None)
+    if ship and ship.relationship == EQ:
+      return ship.record    # z is in A
+    return None
 
 def blocks_lt(AB, x, y):
-  return get_block(x, null_block) < get_block(y, null_block)
+  b1 = get_block(x, BOTTOM_BLOCK)
+  b2 = get_block(x, BOTTOM_BLOCK)
+  if b1 == TOP_BLOCK: return False    # top not < anything
+  elif b2 == TOP_BLOCK: return True   # non-top < top
+  else: return b1 < b2
 
-def estimate_relationship(AB, x, y):
-  ship = block_relationship(get_block(x, null_block),
-                            get_block(y, null_block))
-  return ship
+def relationship_per_blocks(AB, x, y):
+  ship = block_relationship(get_block(x, BOTTOM_BLOCK),
+                            get_block(y, BOTTOM_BLOCK))
+  return COMPARABLE if ship == EQ else ship
 
 # Implementation of block as Python sets of MTRM ids.
 
 def block_relationship(e1, e2):   # can assume overlap
-  if e1 == e2: return COMPARABLE
+  if e1 == e2: return EQ          # same blocks
   elif e1.issubset(e2): return LT
   elif e2.issubset(e1): return GT
   elif e1.isdisjoint(e2): return DISJOINT
   else: return CONFLICT
 
-null_block = set()
+BOTTOM_BLOCK = set()
+TOP_BLOCK = True
 def join_blocks(e1, e2): return e1 | e2
 def same_block(e1, e2): return e1 == e2
 def is_empty_block(e): return len(e) == 0
 def mtrm_block(x, y): return {min(x.id, y.id)}
-def top_block(x): return x.union({-1})    # top
 
 (get_block, set_block) = prop.get_set(prop.get_property("block"))
 
 # -----------------------------------------------------------------------------
 # Alignment building...
-
-# Propose that x = y (= ry.record)
-
-def propose_equation(AB, x, y, why_equiv):
-  # Polarize
-  assert isinB(AB, x) != isinB(AB, y)
-  (x, y) = AB.case(x, lambda xx: (x, y), lambda yy: (y, x))
-
-  # Treat the A record like a synonym of the B record
-  set_superior(x, relation(EQ, y, "equivalent", why_equiv))
-  # Set uppointer from B to A
-  set_equated(y, relation(EQ, x, "equivalent", why_equiv))
 
 # Propose that rs.record should be the parent (superior) of z
 
@@ -191,10 +205,34 @@ def propose_superior(AB, z, rs, status, note):
   assert isinstance(z, prop.Record), blurb(z)
   assert isinstance(rs, Relative)
   assert rs.relationship == ACCEPTED or rs.relationship == SYNONYM
-  set_superior(z, relation(rs.relationship,
-                           rs.record,
-                           status or rs.status,    # accepted, etc
-                           note))  # explanation of why < or <=
+  rel = relation(rs.relationship,
+                 rs.record,
+                 status or rs.status,    # accepted, etc
+                 note)
+  set_superior_carefully(z, rel)  # explanation of why < or <=
+
+# Propose that x (in A) = y (in B).  x becomes an EQ synonym of y.
+
+def propose_equation(AB, x, y, why_equiv):
+  # Polarize
+  assert isinA(AB, x) and isinB(AB, y)
+  (x, y) = AB.case(x, lambda xx: (x, y), lambda yy: (y, x))
+
+  # Treat the A record like a synonym of the B record
+  set_superior_carefully(x, relation(EQ, y, "equivalent", why_equiv))
+  # Set uppointer from B to A
+  set_equated(y, relation(EQ, x, "equivalent", why_equiv))
+  log("# Equating %s (in A) with %s (in B)" %
+      (blurb(x), blurb(y)))
+
+def propose_deprecation(AB, x, y, note):
+  assert isinA(AB, x) and isinB(AB, y)
+  yy = AB.get_cross_mrca(x)
+  set_superior_carefully(x, relation(SYNONYM, yy, "conflicting", note))
+  log("# Deprecating %s because it conflicts with %s" %
+      (blurb(x), blurb(y)))
+  log("#   %s is now the 'accepted name' of %s" %
+      (blurb(yy), blurb(x)))
 
 # -----------------------------------------------------------------------------
 # Same-tree relations
@@ -255,9 +293,11 @@ def mrca(x, y):
   if y == BOTTOM: return x
   (x, y) = find_peers(x, y)
   while not (x is y):
-    x = get_superior(x)
-    y = get_superior(y)
+    x = get_superior(x).record
+    y = get_superior(y).record
   return x
+
+BOTTOM = None
 
 def simple_le(x, y):
   # Is x <= y?  Scan from x upwards, see if we find y
