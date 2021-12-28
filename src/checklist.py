@@ -169,7 +169,6 @@ def resolve_superior_link(S, record):
   set_superior_carefully(record, sup)
 
 def set_superior_carefully(x, sup):
-  assert x != sup.record        # no self-loops
   have = get_superior(x, None)
   if have:
     assert have.record == sup.record, \
@@ -177,6 +176,7 @@ def set_superior_carefully(x, sup):
     if have.relationship != sup.relationship:
       log("#**** Changing sup of %s from %a to %s" %
           (blurb(x), blurb(have), blurb(sup)))
+  assert x != sup.record, (blurb(x), blurb(sup))        # no self-loops
   set_superior(x, sup)
   if False:
     if (monitor(x) or monitor(sup.record)):  #False and 

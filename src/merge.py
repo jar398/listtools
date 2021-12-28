@@ -83,142 +83,120 @@ def process_lineage(AB, z):
   rx = get_left_superior(AB, z)
   ry = get_right_superior(AB, z)
 
-  # Links should only go from most dominant to most dominant
-  # b->b, a->b (a not = anything), b->a (similarly), a->a (similarly)
-
-  def propose_sup(z, rs, note, rx, ry):
-    # Always copy relation and status from rs ?? is that right?
-    propose_superior(AB, z, rs, None, note)  # status, note
-    assert rs != ry and rs != rx
-    return (rs.record, rx, ry)
-
-  def propose_eq(rx, ry, note):
-    propose_equation(AB, rx.record, ry.record, note)
-
-  # z and ry stay constant while we scan up the A lineage looking for
-  # a non-conflicting ancestor of x (x conflicts with y).
-
-  def propose_dep(z, rx, note, rp, ry):
-    propose_deprecation(AB, rx.record, ry.record, note)
-    return (z, rp, ry)    # z's parent could be y, or p (above the conflict)
-
-  # Work in progress
-
-  def relationship_per_heuristics(x, y):
-    if not y:
-      return (LT, "y beyond top, shouldn't happen")
-    elif not x:
-      return (GT, "x beyond top, shouldn't happen")
-
-    ship = relationship_per_blocks(AB, x, y) # compare blocks
-    assert ship != DISJOINT
-    if ship == LT:            # different MTRM sets
-      return (LT, "MTRMs(x) ⊂ MTRMs(y)")
-    elif ship == GT:          # different MTRM sets
-      return (GT, "MTRMs(y) ⊂ MTRMs(x)")
-    elif ship == CONFLICT:
-      return (CONFLICT, "MTRMs(x) >< MTRMs(y)")
-
-    else:
-      rp = get_left_superior(AB, x)
-      rq = get_right_superior(AB, y)
-      if (rp and rq and
-          blocks_lt(AB, x, rp.record) and
-          blocks_lt(AB, y, rq.record)):
-        return (EQ, "squeeze")    # z parent is x≡y
-      else:
-        n = get_match(y)
-        if n and n.relationship == EQ:
-          if n.record == x:
-            return (EQ, "name match (%s) and compatiblae" % (n.note or 'match'))
-          else:
-            return (LT, "priority B because hoping for name match")
-        else:
-          m = get_match(x)
-          if m and m.relationship == EQ:
-            return (GT, "priority A because hoping for name match")
-          elif True:
-            # Unmatched against unmatched = toss-up.
-            return (GT, "toss-up")
-          else:
-            return (EQ, "shot in the dark")
-
   # Consider rx and ry as possible parent relationships for z
 
-  while rx or ry:
+  while z != AB.top:
 
     if get_superior(z, None):
       #clog("# 2nd(?) or so visit to %s" % (blurb(z),))
       break
 
+    if rx and z == rx.record:
+      clog("# Lift rx", rx)
+      rx = get_left_superior(AB, rx.record)
+    elif ry and z == ry.record:
+      clog("# Lift ry", ry)
+      ry = get_right_superior(AB, ry.record)
+
     if True:
       clog("# Candidates for superior of %s are %s, %s" %
            (blurb(z), blurb(rx), blurb(ry)))
 
+    assert rx or ry
+    if rx and ry:
+      (ship, note) = relationship_per_heuristics(AB, rx.record, ry.record)
+    elif rx:
+      (ship, note) = (LT, "missing ry")
+    elif ry:
+      (ship, note) = (GT, "missing rx")
+    assert isinstance(ship, int), ship
+
     rp = get_left_superior(AB, rx.record) if rx else None
     rq = get_right_superior(AB, ry.record) if ry else None
 
-    if not ry:
-      t = propose_sup(z, rx, None, rp, None)
-    elif not rx:
-      t = propose_sup(z, ry, None, rq, None)
+    if ship == EQ:
+      propose_equation(AB, rx.record, ry.record, note)
+      t = (z, ry, note, rp, rq)
+    elif ship == LT or ship == SYNONYM:
+      t = (z, rx, note, rp, ry)
+    elif ship == CONFLICT:
+      # x conflicts with y.  Delete x, take min(p, q) as parent
+      # Parent of z is y, not x; skip x and go right to p
+      note = "conflict over %s" % blurb(z)
+      propose_deprecation(AB, rx.record, ry.record, note)
+      t = (z, ry, note, rp, ry)    # z's parent could be y, or p (above the conflict)
+    elif ship == GT:
+      t = (z, ry, note, rx, rq)
     else:
-      x = rx.record if rx else None
-      y = ry.record if ry else None
-      ship = relationship_per_blocks(AB, x, y) # compare blocks
-      assert ship != DISJOINT
-      if ship == LT:            # different MTRM sets
-        t = propose_sup(z, rx, "MTRMs(x) ⊂ MTRMs(y)", rp, ry) # No choice
-      elif ship == GT:          # different MTRM sets
-        t = propose_sup(z, ry, "MTRMs(y) ⊂ MTRMs(x)", rx, rq)
-      elif ship == CONFLICT:
-        # x conflicts with y.  Delete x, take min(p, q) as parent
-        # Parent of z is y, not x; skip x and go right to p
-        t = propose_dep(z, rx, "conflict over %s" % blurb(z), rp, ry)
-      elif not rp:              # EQ or COMPARABLE (not sure)
-        if rq:
-          t = propose_sup(z, ry, "rule 1", rx, rq)
-        else:
-          propose_eq(rx, ry, "top")
-          t = propose_sup(z, ry, "rule 2", rp, rq)
-      elif not rq:
-        t = propose_sup(z, x, "rule 3", rp, ry)
-      # "Triangle rule" forces us to gobble up remaining on
-      # unsqueezed side of squeeze, since otherwise some nodes
-      # will fail to get superiors
-      elif blocks_lt(AB, rx.record, rp.record):
-        # Parent is y, on B side, where there's still choice
-        if blocks_lt(AB, ry.record, rq.record):
-          propose_eq(rx, ry, "squeeze") # z parent is x≡y
-          t = propose_sup(z, ry, "compatible", rp, rq)
-        t = propose_sup(z, ry, "A squeeze", rx, rq)
-      elif blocks_lt(AB, ry.record, rq.record):
-        # Parent is x, on A side, where there's still choice
-        t = propose_sup(z, rx, "B squeeze", rp, ry)
-      else:
-        n = get_match(y)
-        if n and n.relationship == EQ:
-          if n.record == rx.record:
-            propose_eq(rx, ry, "similar|%s" % (n.note or 'match'))
-            t = propose_sup(z, ry, "name match and compatible", rp, rq)
-          else:
-            t = propose_sup(z, ry, "priority B because hoping for name match",
-                            rx, rq)
-        else:
-          m = get_match(x)
-          if m and m.relationship == EQ:
-            t = propose_sup(z, rx, "priority A because hoping for name match", 
-                            rp, ry)
-          elif True:
-            # Unmatched against unmatched = toss-up.
-            t = propose_sup(z, rx, "tossup", rp, ry)
-          else:
-            # Doesn't seem to work so well
-            propose_eq(rx, ry, "shot in the dark")
-            t = propose_sup(z, ry, "shot in the dark", rp, rq)
-    assert z != (z, rx, ry)
-    (z, rx, ry) = t
+      assert False, rcc5_symbol(ship)
+
+    (z, rsup, note, rx, ry) = t
+    sup = rsup.record
+    (ship, status) = consider_unaccepted(AB, z)
+    propose_superior(AB, z, rsup, ship, status, note)  # status, note
+    z = sup
+
     # end while
+
+
+def relationship_per_heuristics(AB, x, y):
+  assert isinA(AB, x) and isinB(AB, y)
+
+  rp = get_left_superior(AB, x)
+  rq = get_right_superior(AB, y)
+
+  ship = relationship_per_blocks(AB, x, y) # compare blocks
+  assert ship != DISJOINT
+  if ship == LT:            # different MTRM sets
+    ans = (ship, "MTRMs(x) ⊂ MTRMs(y)")
+  elif ship == GT:          # different MTRM sets
+    ans = (GT, "MTRMs(y) ⊂ MTRMs(x)")
+  elif ship == CONFLICT:
+    ans = (CONFLICT, "MTRMs(x) >< MTRMs(y)")
+  # *** ship is COMPARABLE at this point ***
+  elif (rp and rq and
+        get_block(x) != get_block(rp.record) and   # in different blocks?
+        get_block(y) != get_block(rq.record)):
+    ans = (EQ, "squeeze")    # z parent is x≡y
+  else:
+    n = get_match(y, None)
+    if n and n.relationship == EQ:
+      if n.record == x:
+        ans = (EQ, "name match (%s) and compatible" % (n.note or 'match'))
+      else:
+        ans = (ship, "priority y because hoping for name match")
+    else:
+      ans = (GT, "no match, x priority arbitrary")
+
+  return ans
+
+# Tweak relationship to preserve accepted/unaccepted distinction.
+# use this when set the superior of z.  not relevant for the x/y
+# parent choice.  This is a policy decision.
+
+def consider_unaccepted(AB, z):
+  assert isinstance(z, prop.Record)
+  if z == AB.top:
+    # everything accepted?  or everything a synonym?
+    log("# what is %s's relationship to top?" % blurb(z))
+    # but there's nothing to relate to.
+    return (LT, "at top")
+  # If it was a synonym in B, make it one in AB
+  rq = get_right_superior(AB, z)
+  if rq:
+    assert rq.relationship != None
+    if rq.relationship != ACCEPTED:
+      log("# making %s a synonym in A+B because it's one in B" % blurb(z))
+    return (rq.relationship, rq.status)
+  rp = get_left_superior(AB, z)
+  if rp:
+    assert rp.relationship != None
+    if rp.relationship != ACCEPTED:
+      log("# making %s a synonym in A+B because it's one in A" % blurb(z))
+    return (rp.relationship, rp.status)
+  else:
+    assert False
+
 
 # -----------------------------------------------------------------------------
 # Find mutual tipward matches

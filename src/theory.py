@@ -132,6 +132,7 @@ def gt(AB, x, y):
 
 # -----------------------------------------------------------------------------
 # Precompute 'blocks' (MTRM sets, implemented in one of various ways).
+# A block is represented as either a set or TOP_BLOCK
 
 def compute_blocks(AB):
   def traverse(x, in_left):
@@ -144,7 +145,7 @@ def compute_blocks(AB):
       e = possible_MTRM_block(AB, z)
     if is_top(x):
       e = TOP_BLOCK
-    if len(e) > 0:
+    if e != BOTTOM_BLOCK:
       set_block(x, e)
     #log("# block(%s) = %s" % (blurb(x), e))
     return e
@@ -165,7 +166,7 @@ def equatee(AB, z):                 # in other tree
       return ship.record    # z is in A
     return None
 
-def blocks_lt(AB, x, y):
+def lt_per_blocks(AB, x, y):
   b1 = get_block(x, BOTTOM_BLOCK)
   b2 = get_block(x, BOTTOM_BLOCK)
   if b1 == TOP_BLOCK: return False    # top not < anything
@@ -181,6 +182,8 @@ def relationship_per_blocks(AB, x, y):
 
 def block_relationship(e1, e2):   # can assume overlap
   if e1 == e2: return EQ          # same blocks
+  if e1 == TOP_BLOCK: return GT
+  if e2 == TOP_BLOCK: return LT
   elif e1.issubset(e2): return LT
   elif e2.issubset(e1): return GT
   elif e1.isdisjoint(e2): return DISJOINT
@@ -188,9 +191,12 @@ def block_relationship(e1, e2):   # can assume overlap
 
 BOTTOM_BLOCK = set()
 TOP_BLOCK = True
-def join_blocks(e1, e2): return e1 | e2
+def join_blocks(e1, e2):
+  if e1 == BOTTOM_BLOCK: return e2
+  if e2 == BOTTOM_BLOCK: return e1
+  return e1 | e2
 def same_block(e1, e2): return e1 == e2
-def is_empty_block(e): return len(e) == 0
+def is_empty_block(e): return e == BOTTOM_BLOCK
 def mtrm_block(x, y): return {min(x.id, y.id)}
 
 (get_block, set_block) = prop.get_set(prop.get_property("block"))
@@ -200,12 +206,12 @@ def mtrm_block(x, y): return {min(x.id, y.id)}
 
 # Propose that rs.record should be the parent (superior) of z
 
-def propose_superior(AB, z, rs, status, note):
+def propose_superior(AB, z, rs, ship, status, note):
   assert rs
   assert isinstance(z, prop.Record), blurb(z)
   assert isinstance(rs, Relative)
-  assert rs.relationship == ACCEPTED or rs.relationship == SYNONYM
-  rel = relation(rs.relationship,
+  assert ship == ACCEPTED or ship == SYNONYM
+  rel = relation(ship,
                  rs.record,
                  status or rs.status,    # accepted, etc
                  note)
