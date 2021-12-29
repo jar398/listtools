@@ -8,45 +8,47 @@ from checklist import *
 from workspace import *
 from match_records import match_records
 
+# This is run pre-merge so should not chase A->B synonym links.
+# If the parent is a synonym, that's a problem - shouldn't happen.
+
 def get_left_superior(AB, z):
-  #if not z: return None
   x = get_left_persona(AB, z)
   if not x: return None
-  ship = AB.case(x,
-                 lambda x:get_superior(x, None),
-                 lambda y:None)
-  if ship:
-    return relation(ship.relationship, AB.in_left(ship.record), ship.status, ship.note)
+  rel_in_A = get_superior(x, None)
+  # Return relation that's same as rel_in_A except in AB instead of A
+  if rel_in_A:
+    p = AB.in_left(rel_in_A.record)
+    return relation(rel_in_A.relationship, p, rel_in_A.status, rel_in_A.note)
   return None
 
 def get_right_superior(AB, z):
-  #if not z: return None
   y = get_right_persona(AB, z)
   if not y: return None
-  ship = AB.case(y,
-                 lambda x:None,
-                 lambda y:get_superior(y, None))
-  if ship:
-    return relation(ship.relationship, AB.in_right(ship.record), ship.status, ship.note)
+  rq = get_superior(y, None)
+  if rq:
+    q = AB.in_right(rq.record)
+    return relation(rq.relationship, q, rq.status, rq.note)
   return None
+
+# Returns a record in the left checklist, or None
 
 def get_left_persona(AB, z):    # left = A = nonpriority
   assert isinstance(z, prop.Record)
   assert get_outject(z, None)
-  p = AB.case(z,
-              lambda x:z,       # if z in A, then z
-              lambda y:equal_partner(get_equated(z, None)))
-  if p: assert get_outject(p, None)
-  return p
+  return AB.case(z,
+                 lambda x:x,       # if z in A, then z
+                 lambda y:equal_persona(get_equated(z, None)))
+
+# Returns a record in the right checklist, or None
 
 def get_right_persona(AB, z):   # right = B = priority
   return AB.case(z,
-                 lambda x:equal_partner(get_superior(z, None)),
-                 lambda y:z)    # if z in B, then z
+                 lambda x:equal_persona(get_superior(z, None)),
+                 lambda y:y)    # if z in B, then z
 
-def equal_partner(ship):
-  return (ship.record
-          if ship and ship.relationship == EQ
+def equal_persona(rel):
+  return (get_outject(rel.record)
+          if rel and rel.relationship == EQ
           else None)
 
 def isinB(AB, z):
@@ -249,14 +251,14 @@ def propose_deprecation(AB, x, y, note):
 #  x         y   'smaller'
 
 def simple_relationship(x, y):             # Within a single tree
-  (x, synx) = drop_synonym(x)
-  (y, syny) = drop_synonym(y)
+  (x, synx) = nip_synonym(x)
+  (y, syny) = nip_synonym(y)
   if x == y:
     if synx or syny:
       if synx and syny:
         return NOINFO         # blah
       else:
-        return LE if syny else GE
+        return LE if synx else GE
     else:
       return EQ
   if get_level(x, None) == None or get_level(x, None) == None:
@@ -273,47 +275,43 @@ def simple_relationship(x, y):             # Within a single tree
   else:
     return DISJOINT
 
-def drop_synonym(x):
-  sup = get_superior(x, None)
-  if not sup or sup.relationship == ACCEPTED:
-    return (x, None)
-  elif sup.relationship == EQ:
-    return (sup.record, None)
-  else:
-    return (sup.record, x)
+# Assumes already 'nipped'
 
 def find_peers(x, y):
   i = get_level(x)
-  assert get_level(y, None) != None, blurb(y)
   while i < get_level(y):
-    y = get_superior(y).record
+    y = get_parent(y)
   j = get_level(y)
   while get_level(x) > j:
-    x = get_superior(x).record
+    x = get_parent(x)
   return (x, y)
-
-(get_level, set_level) = prop.get_set(prop.get_property("level", inherit=False))
 
 # MRCA within the same tree
 
 def mrca(x, y):
   if x == BOTTOM: return y
   if y == BOTTOM: return x
+  if x == y: return x
+
+  (x, _) = nip_synonym(x)
+  (y, _) = nip_synonym(y)
   (x, y) = find_peers(x, y)
   while not (x is y):
-    x = get_superior(x).record
-    y = get_superior(y).record
+    x = get_parent(x)
+    y = get_parent(y)
   return x
 
 BOTTOM = None
 
 def simple_le(x, y):
   # Is x <= y?  Scan from x upwards, see if we find y
+  if x == y: return True
+  (y, _) = nip_synonym(y)
   x1 = x
   stop = get_level(y)
 
   while get_level(x1) > stop:
-    x1 = get_superior(x1).record    # y1 > previously, level(y1) < previously
+    x1 = get_parent(x1)    # y1 > previously, level(y1) < previously
 
   return x1 == y
 
@@ -324,9 +322,50 @@ def in_same_tree(AB, x, y):
   return (AB.case(x, lambda x:1, lambda x:2) ==
           AB.case(y, lambda x:1, lambda x:2))
 
+(really_get_level, set_level) = prop.get_set(prop.get_property("level", inherit=False))
+
+# ----- Levels maintenance
+
+# 2nd result is True if x is a synonym, False otherwise
+#
+def nip_synonym(x):
+  synx = False
+  while True:
+    sup = get_superior(x, None)
+    if not sup or sup.relationship == ACCEPTED:
+      break
+    if sup.relationship != EQ:
+      synx = True
+    x = sup.record
+  assert get_level(x, None) != None, blurb(x)
+  return (x, synx)
+
+def get_level(x, default=None):
+  i = really_get_level(x, None)
+  if i == None:
+    p = get_parent(x)
+    if not p:
+      i = 1                 # shouldn't happen.  top is level 1
+    else:
+      i = get_level(p, None) + 1
+    set_level(x, i)
+    if monitor(x):
+      log("# level(%s) = %s" % (blurb(x), i))
+  return i
+
+def get_parent(x):
+  rp = get_superior(x, None)
+  if rp:
+    if False and rp.relationship != ACCEPTED:    ##????
+      return get_parent(rp.record)
+    else:
+      return rp.record
+  else: return None
+
 def ensure_levels(S):
   def cache(x, n):
     set_level(x, n)
     for c in get_inferiors(x):
+      # This isn't right -- get_level works better
       cache(c, n+1)
   cache(S.top, 1)

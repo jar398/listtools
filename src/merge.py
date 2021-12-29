@@ -181,13 +181,13 @@ def consider_unaccepted(AB, z):
   rq = get_right_superior(AB, z)
   if rq:
     assert rq.relationship != None
-    if rq.relationship != ACCEPTED:
+    if False and rq.relationship != ACCEPTED:
       log("# making %s a synonym in A+B because it's one in B" % blurb(z))
     return (rq.relationship, rq.status)
   rp = get_left_superior(AB, z)
   if rp:
     assert rp.relationship != None
-    if rp.relationship != ACCEPTED:
+    if False and rp.relationship != ACCEPTED:
       log("# making %s a synonym in A+B because it's one in A" % blurb(z))
     return (rp.relationship, rp.status)
   else:
@@ -306,22 +306,6 @@ def resolve_merge_links(M):
     conjured[pk] = rec
   for record in all_records(M):
 
-    note = get_match_note(record, None)
-    key = get_match_key(record, None)
-    if key != None:
-      # B: record MATCHES z, A: z MATCHES record
-      z = look_up_record(M, key, record) or conjured.get(key, None)
-      if not z:
-        z = conjure_record(M, key, record, register)
-        set_match(z, relation(EQ, record, "nominal match",
-                              reverse_note(note)))
-      else:
-        # If z already exists, it will take care of its own match
-        pass
-      set_match(record, relation(EQ, z, "nominal match", note))
-    elif note:
-      set_match(record, relation(NOINFO, None, None, note))
-
     note = get_equated_note(record, None)
     key = get_equated_key(record, None)
     if key != None:
@@ -340,6 +324,22 @@ def resolve_merge_links(M):
         # If z already exsts, it will take care of its own synonymity
         pass
       set_equated(record, relation(EQ, z, "equivalent", note))  # B->A
+
+    note = get_match_note(record, None)
+    key = get_match_key(record, None)
+    if key != None:
+      # B: record MATCHES z, A: z MATCHES record
+      z = look_up_record(M, key, record) or conjured.get(key, None)
+      if not z:
+        z = conjure_record(M, key, record, register)
+        set_match(z, relation(EQ, record, "nominal match",
+                              reverse_note(note)))
+      else:
+        # If z already exists, it will take care of its own match
+        pass
+      set_match(record, relation(EQ, z, "nominal match", note))
+    elif note:
+      set_match(record, relation(NOINFO, None, None, note))
   return conjured
 
 # Create new dummy records if needed so that we can link to them.
@@ -348,7 +348,7 @@ def resolve_merge_links(M):
 # we need to 'conjure'.
 
 def conjure_record(C, key, record, register):
-  log("# Creating record %s by demand from %s" % (key, blurb(record)))
+  #log("# Creating record %s by demand from %s" % (key, blurb(record)))
   rec = checklist.make_record(key, C)
   register(rec)
   return rec
@@ -385,14 +385,15 @@ def find_difference(AB, z, default=None):
         return default
 
       # What about their parents?
-      lsup = get_left_superior(AB, z)
-      if lsup != sup.record:
-        if sup.relationship == ACCEPTED:
-          return "parent"
-        else:
-          return "accepted"
+      rq = get_superior(z)
+      rp = get_left_superior(AB, z)  # y -> x -> p
 
-      if sup.relationship != rx.relationship:
+      p = dequate(rp.record) if rp else None
+      q = rq.record if rq else None
+
+      if p != q:
+        return "superior"
+      if rp.relationship != rq.relationship:
         return "taxonomicstatus"
 
       # Say something about mismatched equivalent nodes
@@ -426,6 +427,13 @@ def keep_record(AB, x):
     return diff
   return True
     
+
+def dequate(x):
+  rp = get_superior(x, None)
+  if rp and rp.relationship == EQ:
+    return rp.record
+  return x
+
 
 # -----------------------------------------------------------------------------
 

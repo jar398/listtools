@@ -17,13 +17,13 @@ get_difference = prop.getter(merge.difference_prop)
 
 def report(merged_iter, full_report):
   AB = merge.rows_to_merged(merged_iter, {'name': 'AB'})
-  ensure_inferiors_indexed(AB)
-  for r in all_records(AB): assert get_superior(r)
-  theory.ensure_levels(AB)
   merge.resolve_merge_links(AB)
+  for r in all_records(AB): assert get_superior(r)  # sanity
+  ensure_inferiors_indexed(AB)
+  #theory.ensure_levels(AB)
   return generate_report(AB, full_report)
 
-readable_template = "belongs to %s extension"
+readable_template = "%s"
 
 # Full mode shows every concept in the sum.
 # Diff mode only shows changed/new/removed concepts.
@@ -32,13 +32,15 @@ readable = {'@@': 'kept, renamed',
             '==': 'kept, not renamed',
             'o@': 'only in B',
             '@o': 'only in A',
+            '><': 'kept, synonym (?)',
+            '<>': 'kept, synonym (?)',
             'o': 'not present',
             '@': 'no match',
             '=': readable_template % 'the same',
-            '<': readable_template % 'a wider',
-            '>': readable_template % 'a narrower',
-            '><': readable_template % 'a conflicting',
-            '!': readable_template % 'an unrelated',
+            '<': readable_template % 'wider',
+            '>': readable_template % 'narrower',
+            '><': readable_template % 'conflicting',
+            '!': readable_template % 'disjoint',
             }
 
 def generate_report(AB, full_report):
@@ -58,13 +60,16 @@ def generate_report(AB, full_report):
 
   for z in all_records(AB):
     diff = get_difference(z, None)
-    x = y = z
-    if diff == "not in A":
-      x = None
-    elif diff == "matched":
+
+    if diff == "matched":     # ??
+      # The taxon is in both A and B; this is the A "copy" of its B record
       continue
+    elif diff == "not in A":
+      x = None
+      y = z
     else:
       if diff == "not in B":
+        x = z
         y = None
       else:
         # There's an equation, so on this row (the B row) there should be
@@ -78,16 +83,21 @@ def generate_report(AB, full_report):
     n1 = status_of_name(x)
     n2 = status_of_name(y)
     if False:
-      log("# '%s' in A names a %s extension in B" % (blurb(x), n1))
-      log("# '%s' in B names a %s extension in A" % (blurb(y), n2))
+      log("# '%s' names %s in B" % (blurb(x), n1))
+      log("# '%s' names %s in A" % (blurb(y), n2))
     r1 = "A name %s" % readable.get(n1, '?') if x else "not in A"
     r2 = "B name %s" % readable.get(n2, '?') if y else "not in B"
-    blob = (readable.get(n1+n2) or "%s, %s" % (r1, r2))
+    key = n1 + n2
+    blob = (readable.get(key) or "%s; %s" % (r1, r2))
     tick(blob)
+    if key == '><' or key == '<>' or key == '!!':
+      log("# %s %s %s" % (key, blurb(x), blurb(y)))
 
   for key in sorted(list(stats.keys())):
     s = stats[key]
     log("%7d %7d %s" % (s[0], s[1], key))
+
+counter = 0
 
 # y = possessor of name
 
@@ -96,7 +106,7 @@ def status_of_name(y):
     return 'o'   # extension not present
   else:
     m = get_match(y, None)
-    if m == None:
+    if m == None or not m.record:
       return '@'   # no match (deprecated / new) ⏚
     else:
       r = theory.simple_relationship(y, m.record)

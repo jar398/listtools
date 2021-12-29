@@ -91,5 +91,12 @@ def write_rows(gen, outfile):
 
 # 
 
+log_allowance = 50
+
 def log(mess):
-  print(mess, file=sys.stderr)
+  global log_allowance
+  if log_allowance > 0:
+    print(mess, file=sys.stderr)
+  elif log_allowance == 0:
+    print("--- logging truncated ---", file=sys.stderr)
+  log_allowance -= 1

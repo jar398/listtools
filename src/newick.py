@@ -46,16 +46,17 @@ def parse_newick(newick):
     if m:
       name = m[0]
       if name.endswith('*'):
-        name = name[0:-1]
+        can = name[0:-1]
         parent = MISSING
         accepted = sup
         status = 'synonym'
       else:
+        can = name
         parent = sup
         accepted = MISSING
         status = 'accepted'
       n += len(name)
-    rows.append((str(id), name.strip(), str(sup), MISSING, status))
+    rows.append((str(id), can.strip(), str(parent), str(accepted), MISSING, status))
 
     return n
   n = parse(0, MISSING)
@@ -72,6 +73,7 @@ def compose_newick(rows):
   key_pos = windex(header, "taxonID")
   parent_pos = windex(header, "parentNameUsageID")
   accepted_pos = windex(header, "acceptedNameUsageID")
+  taxstat_pos = windex(header, "taxonomicStatus")
   name_pos = windex(header, "canonicalName")
   assert key_pos != None
   assert parent_pos != None
@@ -93,18 +95,31 @@ def compose_newick(rows):
       roots.append(ship)
   print("newick: %s roots, %s superiors" % (len(roots), len(inferiors)),
         file=sys.stderr)
+  def suppressp(ship):
+    (_, key) = ship
+    row = rows_dict[key]
+    return (row[taxstat_pos] == "equivalent"
+            if taxstat_pos != None
+            else False)
   def traverse(ship):
     (accepted, key) = ship
     row = rows_dict[key]
     name = row[name_pos]
     if not accepted: name = name + '*'
     if key in inferiors:
-      newicks = (traverse(child_ship) for child_ship in inferiors[key])
-      childs = ",".join(sorted(newicks))
-      return "(%s)%s" % (childs, name)
+      childs = traverse_seq(inferiors[key])
+      if childs == '':
+        return name
+      else:
+        return "(%s)%s" % (childs, name)
     else:
       return name
-  return ",".join(map(traverse, roots))
+  def traverse_seq(seq):
+    newicks = (traverse(child_ship)
+               for child_ship in seq
+               if not suppressp(child_ship))
+    return ",".join(sorted(newicks))
+  return traverse_seq(roots)
 
 if __name__ == '__main__':
   parser = argparse.ArgumentParser(description="""

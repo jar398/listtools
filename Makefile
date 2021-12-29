@@ -237,12 +237,12 @@ work/ncbi202008.ncbi-url:
 .PRECIOUS: %/dump/names.dmp
 
 # Convert NCBI taxdump to DwC form
-work/ncbi%-raw.csv: work/ncbi%/dump/names.dmp src/ncbi_to_dwc.py $P/start.py
+ncbi%-raw.csv: work/ncbi%/dump/names.dmp src/ncbi_to_dwc.py $P/start.py
 	$P/ncbi_to_dwc.py `dirname $<` \
 	| $P/start.py --pk $(PRIMARY_KEY) \
 	| $P/sortcsv.py --key $(PRIMARY_KEY) > $@.new
 	@mv -f $@.new $@
-.PRECIOUS: work/ncbi%-raw.csv
+.PRECIOUS: ncbi%-raw.csv
 
 # Adjoin 'type' and 'year' columns.  To skip this change the rule to
 # simply copy %-raw.csv to %.csv above. 
@@ -301,7 +301,7 @@ work/mdd1.6-source.csv: $(MDDSOURCE)/MDD_v1.6_6557species_inDwC.csv
 work/mdd1.7-source.csv: $(MDDSOURCE)/MDD_v1.7_6567species_inDwC.csv
 	cp -p $< $@
 
-work/mdd%-raw.csv: work/mdd%-source.csv $P/start.py
+mdd%-raw.csv: work/mdd%-source.csv $P/start.py
 	$P/start.py < $< --pk taxonID --managed mdd:taxonID > $@.new
 	@mv -f $@.new $@
 .PRECIOUS: mdd%-raw.csv
@@ -402,12 +402,17 @@ test:
 	$P/merge.py --test
 	$(MAKE) A=work/test1 B=work/test2 report
 
-test-report:
+test-report: 
 	$(MAKE) A=work/test1 B=work/test2 report
-	$P/newick.py < work/test1.csv
+	@echo 'A: $(TEST1)'
+	@echo 'B: $(TEST2)'
+	$P/newick.py < work/test1-test2-merged.csv
+
+TEST1="((a,b)d,c)f1"
+TEST2="(a,(b,c)e)f2"
 
 work/test1-raw.csv:
-	$P/newick.py --newick "((a,b)d,c)f1"  >$@
+	$P/newick.py --newick $(TEST1)  >$@
 
 work/test2-raw.csv:
-	$P/newick.py --newick "(a,(b,c)e)f2" >$@
+	$P/newick.py --newick $(TEST2) >$@

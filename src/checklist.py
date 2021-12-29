@@ -147,36 +147,46 @@ def resolve_superior_link(S, record):
   if record == S.top: return None
 
   assert not get_superior(record, None)
-  # if sup != None: return sup
+  sup = None
 
-  parent_key = get_parent_key(record, None)
   accepted_key = get_accepted_key(record, None)
-  if accepted_key:
-    accepted_record = look_up_record(S, accepted_key, record)
-    if accepted_record:
+  if accepted_key and accepted_key != get_primary_key(record):
+    accepted = look_up_record(S, accepted_key, record)
+    if accepted:
       status = get_taxonomic_status(record, "synonym")
       if status == "equivalent":
-        sup = relation(EQ, accepted_record, status)
         rel = relation(EQ, record, "equivalent")
-        set_equated(accepted_record, rel)
+        set_equated(accepted, rel)
         if False:
           log("# Set equated for %s to %s" %
-              (blurb(accepted_record), blurb(rel)))
+              (blurb(accepted), blurb(rel)))
+        sup = relation(EQ, accepted, status)
       else:
-        sup = relation(SYNONYM, accepted_record, status)
+        sup = relation(SYNONYM, accepted, status)
+        if monitor(record):
+          log("> %s %s" % (blurb(record), blurb(sup)))
     else:
-      sup = relation(SYNONYM, S.top, "dangling reference")
-  elif parent_key:
-    parent_record = look_up_record(S, parent_key, record)
-    if parent_record:
-      status = get_taxonomic_status(record, "accepted")
-      # If it's not accepted or valid or something darn close, we're confused
-      sup = relation(ACCEPTED, parent_record, status)
-    else:
-      sup = relation(ACCEPTED, S.top, "dangling reference")
+      log("# Dangling accepted: %s -> %s" % (blurb(record), accepted_key))
+      sup = relation(SYNONYM, S.top, "root", "unresolved accepted id")
   else:
-    # This is a root.  Hang on to it so that preorder can see it.
-    sup = relation(ACCEPTED, S.top, "root", "no parent")
+    parent_key = get_parent_key(record, None)
+    if parent_key:
+      parent = look_up_record(S, parent_key, record)
+      if parent:
+        status = get_taxonomic_status(record, "accepted")
+        # If it's not accepted or valid or something darn close, we're confused
+        sup = relation(ACCEPTED, parent, status)
+      else:
+        log("# Dangling parent: %s -> %s" % (blurb(record), parent_key))
+        sup = relation(ACCEPTED, S.top, "unresolved parent id")
+    else:
+      # This is a root.  Hang on to it so that preorder can see it.
+      assert isinstance(record, prop.Record)
+      #log("# No accepted, no parent: %s '%s' '%s'" %
+       #   (blurb(record), parent_key, accepted_key))
+      sup = relation(ACCEPTED, S.top, "root", "no parent")
+
+  assert sup.record != record
   set_superior_carefully(record, sup)
 
 def set_superior_carefully(x, sup):
@@ -241,6 +251,7 @@ def ensure_inferiors_indexed(C):
         ch.append(record)
       else:
         set_synonyms(accepted, [record])
+      #log("# %s of %s is %s" % (sup.status, blurb(accepted), blurb(record)))
       # if EQ then also set equivalent ??
       # but the target may be a ghost.
       count += 1
@@ -318,7 +329,7 @@ def recover_accepted_key(x, default=MISSING):
     return get_primary_key(sup.record)
   else: return default
 
-def recover_status(x, default=MISSING):
+def recover_status(x, default=MISSING): # taxonomicStatus
   sup = get_superior(x, None)
   if not sup:
     return default
@@ -448,7 +459,8 @@ def blurb(r):
     return "[no match]"
 
 def monitor(x):
-  return (x and len(get_canonical(x, None)) == 1) #.startswith("Metachirus"))
+  return ((x and len(get_canonical(x, '')) == 1) #.startswith("Metachirus"))
+          or x == "Ornithorhynchus crispus")
 
 # -----------------------------------------------------------------------------
 
