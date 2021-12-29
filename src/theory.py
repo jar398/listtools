@@ -228,17 +228,18 @@ def propose_equation(AB, x, y, why_equiv):
   set_superior_carefully(x, relation(EQ, y, "equivalent", why_equiv))
   # Set uppointer from B to A
   set_equated(y, relation(EQ, x, "equivalent", why_equiv))
-  log("# Equating %s (in A) with %s (in B)" %
-      (blurb(x), blurb(y)))
+  #log("# Equating %s (in A) with %s (in B)" %
+  #    (blurb(x), blurb(y)))
 
 def propose_deprecation(AB, x, y, note):
   assert isinA(AB, x) and isinB(AB, y)
   yy = AB.get_cross_mrca(x)
   set_superior_carefully(x, relation(SYNONYM, yy, "conflicting", note))
-  log("# Deprecating %s because it conflicts with %s" %
-      (blurb(x), blurb(y)))
-  log("#   %s is now the 'accepted name' of %s" %
-      (blurb(yy), blurb(x)))
+  if False:
+    log("# Deprecating %s because it conflicts with %s" %
+        (blurb(x), blurb(y)))
+    log("#  ... %s is now the 'accepted name' of %s" %
+        (blurb(yy), blurb(x)))
 
 # -----------------------------------------------------------------------------
 # Same-tree relations
@@ -283,6 +284,7 @@ def drop_synonym(x):
 
 def find_peers(x, y):
   i = get_level(x)
+  assert get_level(y, None) != None, blurb(y)
   while i < get_level(y):
     y = get_superior(y).record
   j = get_level(y)

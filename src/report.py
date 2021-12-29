@@ -11,25 +11,34 @@ from rcc5 import *
 from checklist import *
 from workspace import *
 
-from merge import get_left_id, get_right_id
-
+get_difference = prop.getter(merge.difference_prop)
 
 #
 
 def report(merged_iter, full_report):
   AB = merge.rows_to_merged(merged_iter, {'name': 'AB'})
-  merge.resolve_merge_links(AB)
   ensure_inferiors_indexed(AB)
+  for r in all_records(AB): assert get_superior(r)
   theory.ensure_levels(AB)
+  merge.resolve_merge_links(AB)
   return generate_report(AB, full_report)
+
+readable_template = "belongs to %s extension"
 
 # Full mode shows every concept in the sum.
 # Diff mode only shows changed/new/removed concepts.
 
-readable = {'++': 'kept, renamed',
-            '==': 'kept',
-            'o+': 'new',
-            '+o': 'deprecated',
+readable = {'@@': 'kept, renamed',
+            '==': 'kept, not renamed',
+            'o@': 'only in B',
+            '@o': 'only in A',
+            'o': 'not present',
+            '@': 'no match',
+            '=': readable_template % 'the same',
+            '<': readable_template % 'a wider',
+            '>': readable_template % 'a narrower',
+            '><': readable_template % 'a conflicting',
+            '!': readable_template % 'an unrelated',
             }
 
 def generate_report(AB, full_report):
@@ -48,23 +57,32 @@ def generate_report(AB, full_report):
       s[1] += 1
 
   for z in all_records(AB):
-
-    x_id = get_left_id(z, None)
-    y_id = get_right_id(z, None)
-    if y_id:
-      y = z
-      if x_id:
-        rx = get_equated(y, None)  # how can this be missing??
-        if rx: x = rx.record
+    diff = get_difference(z, None)
+    x = y = z
+    if diff == "not in A":
+      x = None
+    elif diff == "matched":
+      continue
     else:
-      y = None
-      x = z
+      if diff == "not in B":
+        y = None
+      else:
+        # There's an equation, so on this row (the B row) there should be
+        #   B -> A equated link
+        # and on the corresponding A record there should be
+        #   A -> B synonym link
+        rx = get_equated(z, None)  # how can this be missing??
+        assert rx
+        x = rx.record
+        y = z
     n1 = status_of_name(x)
     n2 = status_of_name(y)
-    log("# status of %s (in A) is %s" % (blurb(x), n1))
-    log("# status of %s (in B) is %s" % (blurb(y), n2))
-    status_of_name(y)
-    blob = readable.get(n1+n2) or "%s,%s" % (n1, n2)
+    if False:
+      log("# '%s' in A names a %s extension in B" % (blurb(x), n1))
+      log("# '%s' in B names a %s extension in A" % (blurb(y), n2))
+    r1 = "A name %s" % readable.get(n1, '?') if x else "not in A"
+    r2 = "B name %s" % readable.get(n2, '?') if y else "not in B"
+    blob = (readable.get(n1+n2) or "%s, %s" % (r1, r2))
     tick(blob)
 
   for key in sorted(list(stats.keys())):
@@ -79,7 +97,7 @@ def status_of_name(y):
   else:
     m = get_match(y, None)
     if m == None:
-      return '+'   # no match (deprecated / new) ⏚
+      return '@'   # no match (deprecated / new) ⏚
     else:
       r = theory.simple_relationship(y, m.record)
       if r == EQ:
@@ -88,100 +106,6 @@ def status_of_name(y):
         if can1 and can2 and can1 != can2:
           return '~'
       return rcc5_symbol(r)
-
-
-def fooooo():
-  def traverse(u):
-    x = out_a(u, None)
-    y = out_b(u, None)
-    m = get_record_match(u, None)
-
-    # WORK IN PROGRESS
-    if False and y and m:
-      change2 = rcc5_symbols[related_how(m, y)[0]]
-    else:
-      change2 = None
-
-    change = get_change(u, None)   # relative to record match
-    name_changed = (blurb(x) != blurb(y))
-
-    if x and y:
-      if get_accepted(x, None):
-        if get_accepted(y, None):
-          if name_changed:
-            # This doesn't happen
-            comment = "renamed synonym"
-            tick(comment)
-          else:
-            comment = "kept synonym"
-            tick(comment)
-          if full_report: comment = None
-        else:
-          # synonym -> accepted
-          comment = "promoted to accepted"
-          tick(comment)
-      elif get_accepted(y, None):
-        # accepted -> synonym
-        comment = "lumped into %s" % blurb(get_accepted(y))
-        tick("demoted to synonym")
-      else:
-        # accepted -> accepted
-        if name_changed:
-          comment = "renamed accepted"
-          tick(comment)
-        else:
-          comment = None if full_report else "kept"
-          tick("kept accepted")
-    else:
-      if x and get_accepted(x, None):
-        comment = None
-        tick("dropped synonym")
-      elif y and get_accepted(y, None):
-        comment = None
-        tick("added synonym")
-      elif not change:            # who knows what happened
-        if y:
-          comment = "new/split/renamed"
-          tick("added accepted")
-        else:
-          comment = "deprecated/lumped/renamed"
-          tick("dropped accepted")
-      else:
-        # New taxon concept with prior record match
-        if change == '<':
-          comment = "widened"
-        elif change == '>':
-          comment = "narrowed"
-        elif change == '><':
-          comment = "changed incomparably"
-        elif change == '?':
-          # Accepted with sibling synonym or within-cluster peer.
-          # No way to distinguish.
-          comment = "promoted to accepted"
-        else:
-          # = or !
-          comment = "merge failure"
-        if x: comment = "(%s)" % comment
-        tick(comment)
-
-    if comment or not full_report:
-      rank = get_rank(y or x, MISSING)
-      noise = noises.get(rank, ". . . . .")
-      bx = blurb(x)
-      if x and get_accepted(x, None): bx = bx + "*"
-      by = blurb(y)
-      if y and get_accepted(y, None): by = by + "*"
-      if not full_report:
-        bx = bx + " " + noise
-        by = noise + " " + by
-      add_remark(u, comment)
-      yield [bx, by, rank, comment, get_remarks(u, MISSING)]
-    for c in get_children(u, []):
-      for row in traverse(c): yield row
-    for s in get_synonyms(u, []):
-      for row in traverse(s): yield row
-  for row in traverse(AB.top): yield row
-
 
 noises = {"subspecies": "",
           "species": "_",

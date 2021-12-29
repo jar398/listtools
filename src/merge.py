@@ -35,26 +35,22 @@ def analyze(A, B, m_iter=None):
   return AB
 
 def merge_preorder_rows(AB, props=None):
-  return checklist.preorder_rows(AB, props or usual_merge_props(AB))
+  def filtered_records():
+    for z in checklist.preorder_records(AB):
+      if keep_record(AB, z):
+        yield z
+  return records_to_rows(AB, filtered_records(),
+                         props or usual_merge_props(AB))
 
 def usual_merge_props(AB):
 
-  def recover_left_id(z, default=None):
-    x = get_left_persona(AB, z)
-    return get_primary_key(get_outject(x)) if x else default
-
-  def recover_right_id(z, default=None):
-    y = get_right_persona(AB, z)
-    return get_primary_key(get_outject(y)) if y else default
+  def get_difference(z, default=None):
+    return find_difference(AB, z, default)
 
   return usual_workspace_props + \
-     (prop.get_property("taxonID_A", getter=recover_left_id),
-      prop.get_property("taxonID_B", getter=recover_right_id))
+     (prop.get_property("difference", getter=get_difference),)
 
-left_id_prop = prop.get_property("taxonID_A")
-right_id_prop = prop.get_property("taxonID_B")
-(get_left_id, set_left_id) = prop.get_set(left_id_prop)
-get_right_id = prop.getter(right_id_prop)
+difference_prop = prop.get_property("difference")
 
 # -----------------------------------------------------------------------------
 # Spanning tree computation.
@@ -70,9 +66,9 @@ def spanning_tree(AB):
       traverse(c, in_leftright)
     z = in_leftright(v)
     process_lineage(AB, z) # Goes all the way up to the root
-  log("#-- start B pass")
+  log("-- merge: start B pass")
   traverse(AB.B.top, AB.in_right)
-  log("#-- start A pass")
+  log("-- merge: start A pass")
   traverse(AB.A.top, AB.in_left)
   ensure_inferiors_indexed(AB)
 
@@ -92,13 +88,13 @@ def process_lineage(AB, z):
       break
 
     if rx and z == rx.record:
-      clog("# Lift rx", rx)
+      #clog("# Lift rx", rx)
       rx = get_left_superior(AB, rx.record)
     elif ry and z == ry.record:
-      clog("# Lift ry", ry)
+      #clog("# Lift ry", ry)
       ry = get_right_superior(AB, ry.record)
 
-    if True:
+    if False:
       clog("# Candidates for superior of %s are %s, %s" %
            (blurb(z), blurb(rx), blurb(ry)))
 
@@ -232,8 +228,8 @@ def find_TRMs(A, in_left, set_trm):
   traverse(A.top)
 
 # -----------------------------------------------------------------------------
-# Load/dump a set of provisional matches (could be either record match
-# or taxonomic matches... but basically, record matches)
+# Load/dump a set of provisional matches (could be either nominal match
+# or taxonomic matches... but basically, nominal matches)
 
 def load_matches(row_iterator, AB):
   log("# Loading matches")
@@ -265,14 +261,14 @@ def load_matches(row_iterator, AB):
     # x or y might be None with rel=NOINFO ... hope this is OK
 
     if y:
-      set_match(y, relation(reverse_relationship(rel), x, "record match",
+      set_match(y, relation(reverse_relationship(rel), x, "nominal match",
                            reverse_note(note)))
     if x:
-      set_match(x, relation(rel, y, "record match", note))
+      set_match(x, relation(rel, y, "nominal match", note))
     if x and y: match_count += 1
     else: miss_count += 1
 
-  log("# %s matches, %s misses" % (match_count, miss_count))
+  #log("# %s matches, %s misses" % (match_count, miss_count))
 
 get_match_relationship = prop.getter(prop.get_property("relation", inherit=False))
 
@@ -305,20 +301,24 @@ def rows_to_merged(rows, meta):
 def resolve_merge_links(M):
   conjured = {}
   def register(rec):
-    conjured[get_primary_key(rec)] = rec
+    pk = get_primary_key(rec)
+    if pk in conjured: log("** duplicate: %s" % pk)
+    conjured[pk] = rec
   for record in all_records(M):
 
     note = get_match_note(record, None)
     key = get_match_key(record, None)
     if key != None:
+      # B: record MATCHES z, A: z MATCHES record
       z = look_up_record(M, key, record) or conjured.get(key, None)
       if not z:
         z = conjure_record(M, key, record, register)
-      if not get_match(z, None):
-        set_match(z, relation(EQ, record, "record match",
+        set_match(z, relation(EQ, record, "nominal match",
                               reverse_note(note)))
-      # z is record's record match regardless
-      set_match(record, relation(EQ, z, "record match", note))
+      else:
+        # If z already exists, it will take care of its own match
+        pass
+      set_match(record, relation(EQ, z, "nominal match", note))
     elif note:
       set_match(record, relation(NOINFO, None, None, note))
 
@@ -330,22 +330,26 @@ def resolve_merge_links(M):
       z = look_up_record(M, key, record) or conjured.get(key, None)
       if not z:
         z = conjure_record(M, key, record, register)   # in A
-      if not get_superior(z, None):
         set_superior(z, relation(EQ, record, "equivalent", note))
+        if False:
+          # big fragile kludge
+          sup_level = get_level(record, None)
+          assert sup_level != None, blurb(record)
+          set_level(z, sup_level+1)
+      else:
+        # If z already exsts, it will take care of its own synonymity
+        pass
       set_equated(record, relation(EQ, z, "equivalent", note))  # B->A
-      left_id = get_left_id(record, None)
-      if left_id:
-        z_left = get_left_id(z, None)
-        if z_left: assert z_left == left_id
-        else: set_left_id(z, left_id)
   return conjured
 
-# Create new dummy records if needed so that we can link to them
+# Create new dummy records if needed so that we can link to them.
+# key is for what record matches and is unresolved.  That means that the
+# record was a B record, and key is for a suppressed A record that 
+# we need to 'conjure'.
 
 def conjure_record(C, key, record, register):
-  log("# Creating record %s on demand" % key)
+  log("# Creating record %s by demand from %s" % (key, blurb(record)))
   rec = checklist.make_record(key, C)
-  set_left_id(rec, get_left_id(record))    # ???
   register(rec)
   return rec
 
@@ -356,6 +360,72 @@ def conjure_record(C, key, record, register):
 #        \
 #  match  \
 #           --- y0
+
+# -----------------------------------------------------------------------------
+
+# Returns a string summarizing the main way in which a B node differs from
+# its corresponding A node
+
+def find_difference(AB, z, default=None):
+  if isinB(AB, z):
+    rx = get_equated(z, None)
+
+    if rx:
+
+      # Canonical name match?
+      can1 = get_canonical(z)        # in B
+      can2 = get_canonical(rx.record) # in A
+      if can1 and can1 != can2:
+        # Similarly, keep if canonical differs.
+        # Could do the same for scientificName and/or other fields.
+        return "canonicalName"
+
+      sup = get_superior(z, None)
+      if not sup:               # top
+        return default
+
+      # What about their parents?
+      lsup = get_left_superior(AB, z)
+      if lsup != sup.record:
+        if sup.relationship == ACCEPTED:
+          return "parent"
+        else:
+          return "accepted"
+
+      if sup.relationship != rx.relationship:
+        return "taxonomicstatus"
+
+      # Say something about mismatched equivalent nodes
+      m = get_match(z, None)
+      if not m:
+        return "name-match presence"    # extensional
+      if m.record != rx.record:
+        return "extension/record correspondence"
+
+      return default
+
+    else:
+      # Present in B but not in A
+      return "not in A"   # String matters, see report.py
+  else:
+    sup = get_superior(z)
+    if sup and sup.relationship == EQ:
+      # The extension is in both A and B; this is a "copy"
+      return "matched"          # String matters
+
+    # In A but not in B
+    return "not in B"
+
+def keep_record(AB, x):
+  sup = get_superior(x, None)
+  if sup and sup.relationship == EQ:
+    diff = find_difference(AB, sup.record, None)
+    if False:
+      if diff: log("# Keeping A record %s (= %s) because %s" %
+                   (blurb(x), blurb(sup.record), diff))
+    return diff
+  return True
+    
 
 # -----------------------------------------------------------------------------
 
@@ -380,8 +450,8 @@ if __name__ == '__main__':
     """)
   parser.add_argument('--A', help="the A checklist (defaults to stdin)")
   parser.add_argument('--B', help="the B checklist")
-  parser.add_argument('--matches', help="record matches")
-  parser.add_argument('--test', action='store_true', help="run tests")
+  parser.add_argument('--matches', help="file containing match-records output")
+  parser.add_argument('--test', action='store_true', help="run smoke tests")
   args=parser.parse_args()
 
   if args.test:

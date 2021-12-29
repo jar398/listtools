@@ -10,14 +10,15 @@ tokenize = re.compile("[^,()]+")
 def parse_newick(newick):
   rows = []
 
-  rows.append(("taxonID", "canonicalName", "parentNameUsageID", "acceptedNameUsageID"))
+  rows.append(("taxonID", "canonicalName", "parentNameUsageID",
+               "acceptedNameUsageID", "taxonomicStatus"))
   counter = [0]
 
   def gen():
     counter[0] += 1
     return counter[0]
 
-  def parse(n, parent):
+  def parse(n, sup):
     id = gen()
 
     if n >= len(newick):
@@ -40,11 +41,21 @@ def parse_newick(newick):
           assert False
 
     name = MISSING
+
     m = tokenize.match(newick, n)
     if m:
       name = m[0]
+      if name.endswith('*'):
+        name = name[0:-1]
+        parent = MISSING
+        accepted = sup
+        status = 'synonym'
+      else:
+        parent = sup
+        accepted = MISSING
+        status = 'accepted'
       n += len(name)
-    rows.append((str(id), name.strip(), str(parent), MISSING,))
+    rows.append((str(id), name.strip(), str(sup), MISSING, status))
 
     return n
   n = parse(0, MISSING)
@@ -86,7 +97,7 @@ def compose_newick(rows):
     (accepted, key) = ship
     row = rows_dict[key]
     name = row[name_pos]
-    if not accepted: name = name + "*"
+    if not accepted: name = name + '*'
     if key in inferiors:
       newicks = (traverse(child_ship) for child_ship in inferiors[key])
       childs = ",".join(sorted(newicks))

@@ -95,6 +95,14 @@ def all_records(C):             # not including top
   col = prop.get_column(primary_key_prop, C.context)
   return prop.get_records(col)
 
+def preorder_records(C):
+  ensure_inferiors_indexed(C)
+  def traverse(x):
+    yield x
+    for c in get_inferiors(x):
+      yield from traverse(c)
+  yield from traverse(C.top)
+
 # -----------------------------------------------------------------------------
 # Read and write Darwin Core files
 #  (reading always yield source checklist not sum??)
@@ -149,8 +157,11 @@ def resolve_superior_link(S, record):
       status = get_taxonomic_status(record, "synonym")
       if status == "equivalent":
         sup = relation(EQ, accepted_record, status)
-        set_equated(accepted_record,
-                    relation(EQ, record, "equivalent"))
+        rel = relation(EQ, record, "equivalent")
+        set_equated(accepted_record, rel)
+        if False:
+          log("# Set equated for %s to %s" %
+              (blurb(accepted_record), blurb(rel)))
       else:
         sup = relation(SYNONYM, accepted_record, status)
     else:
@@ -174,7 +185,7 @@ def set_superior_carefully(x, sup):
     assert have.record == sup.record, \
       (blurb(x), blurb(get_superior(x)), blurb(sup)) # record
     if have.relationship != sup.relationship:
-      log("#**** Changing sup of %s from %a to %s" %
+      log("**** Changing sup of %s from %a to %s" %
           (blurb(x), blurb(have), blurb(sup)))
   assert x != sup.record, (blurb(x), blurb(sup))        # no self-loops
   set_superior(x, sup)
@@ -197,7 +208,7 @@ def look_up_record(C, key, comes_from=None):
 
 def ensure_inferiors_indexed(C):
   if C.indexed: return
-  log("# --indexing inferiors")
+  #log("# --indexing inferiors")
 
   count = 0
 
@@ -235,8 +246,8 @@ def ensure_inferiors_indexed(C):
       count += 1
 
   C.indexed = True
-  log("# %s inferiors indexed.  Top has %s child(ren)" %
-      (count, len(get_children(C.top, ()))))
+  #log("# %s inferiors indexed.  Top has %s child(ren)" %
+  #   (count, len(get_children(C.top, ()))))
 
 def assert_local(x, y):
   assert get_source(x) == get_source(y), \
@@ -361,28 +372,21 @@ usual_props = \
 # Alternative ways to order the rows
 
 def checklist_to_rows(C, props=None):
-  (header, record_to_row) = begin_table(C, props)
-  yield header
-  for x in all_records(C):
-    if keep_record(x):
-      yield record_to_row(x)
+  return records_to_rows(C, all_records(C), props)
 
 def preorder_rows(C, props=None):
+  return records_to_rows(C, preoder(C), props)
+
+def records_to_rows(C, records, props=None):
   (header, record_to_row) = begin_table(C, props)
   yield header
-  ensure_inferiors_indexed(C)
-  def traverse(x):
-    if keep_record(x):
+  for x in records:
+    if not is_toplike(x):       # ?
       yield record_to_row(x)
-    for c in get_inferiors(x):
-      yield from traverse(c)
-  yield from traverse(C.top)
 
 # Filter out unnecessary equivalent A records!
 
-def keep_record(x):
-  if is_toplike(x):
-    return False
+def keep_record_notused(x):
   sup = get_superior(x, None)
   # if not sup: assert False
   if sup.relationship != EQ:
