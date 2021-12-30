@@ -322,15 +322,25 @@ def get_inferiors(x):
 
 def recover_parent_key(x, default=MISSING):
   sup = get_superior(x, None)
-  if sup and not is_top(sup.record) and sup.relationship == ACCEPTED:
-    return get_primary_key(sup.record)
-  else: return default
+  if sup and sup.relationship == ACCEPTED:
+    y = dequate(sup.record)
+    if not is_top(y):
+      return get_primary_key(y)
+  return default
 
 def recover_accepted_key(x, default=MISSING):
   sup = get_superior(x, None)
-  if sup and not is_top(sup.record) and sup.relationship != ACCEPTED:
-    return get_primary_key(sup.record)
-  else: return default
+  if sup and sup.relationship != ACCEPTED:
+    y = dequate(sup.record)
+    if not is_top(y):
+      return get_primary_key(y)
+  return default
+
+def dequate(x):
+  rp = get_superior(x, None)
+  if rp and rp.relationship == EQ:
+    return rp.record
+  return x
 
 def recover_status(x, default=MISSING): # taxonomicStatus
   sup = get_superior(x, None)
