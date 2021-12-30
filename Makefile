@@ -192,7 +192,7 @@ $(DELTA): $A.csv $B.csv $P/delta.py $P/match_records.py $P/property.py
 # ncbi 40674, gbif 359, dh1 EOL-000000627548, dh0.9 -168130, page 1642
 
 TAXON=Mammalia
-taxon=mammalia
+taxon=mammals
 TAXON_NCBI=$(TAXON)
 TAXON_GBIF=$(TAXON)
 TAXON_DH1=$(TAXON)
@@ -328,18 +328,22 @@ DH12_LP="https://opendata.eol.org/dataset/tram-807-808-809-810-dh-v1-1/resource/
 
 work/dh12.taxafilename:
 	@mkdir -p work
-	echo `$(RAKE) dwca:taxafilename OPENDATA=$(DH12_LP)` >$@
+	echo `$(RAKE) dwca:taxa_path OPENDATA=$(DH12_LP)` >$@.new
+	@mv -f $@.new $@
 
-work/%.taxafilename: work/%.eol-resource-id
+%.taxafilename: %.eol-resource-id
 	@mkdir -p work
+	@echo Resource id is $$(cat $<)
 	ID=$$(cat $<); \
-	echo `$(RAKE) resource:taxafilename \ CONF=$(ASSEMBLY) ID=$$ID` >$@
+	  echo `$(RAKE) resource:taxa_path CONF=$(ASSEMBLY) ID=$$ID` >$@.new
+	@mv -f $@.new $@
+	@echo Taxa path is `cat $@`
 
 # about half a minute for DH 1.1
 # the managed_id can only be set if DH 0.9 has its records mapped to
 # pages (see -mapped)
 
-work/dh09-raw.csv: work/%.taxafilename $P/start.py
+work/dh09-raw.csv: work/dh09.taxafilename $P/start.py
 	@mkdir -p work
 	$P/start.py --input `cat $<` \
                     --managed eol:EOLid \
@@ -349,8 +353,9 @@ work/dh09-raw.csv: work/%.taxafilename $P/start.py
 
 # taxonID is managed in 1.1 and following, but not in 0.9
 
-work/dh1%-raw.csv: work/dh1%.taxafilename $P/start.py
+dh1%-raw.csv: dh1%.taxafilename $P/start.py
 	@mkdir -p work
+	cat $<
 	$P/start.py --input `cat $<` \
                     --managed eolnode:taxonID \
 		    --pk taxonID \
