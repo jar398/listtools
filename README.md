@@ -8,4 +8,4 @@ diff'](https://github.com/jar398/cldiff) tool.  Although most
 list comparison functionality is in place, the logic for comparing
 hierarchies is still being debugged.
 
-* [User guide](guide.md)
+* [User guide](doc/guide.md)
