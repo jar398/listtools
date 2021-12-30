@@ -112,7 +112,7 @@ def mrca_crosser(AB):
       if q:
         r = AB.case(q, lambda x:x, lambda y:y)
         m = mrca(r, m)
-    clog("# cross-mrca of %s is %s" % (blurb(x), blurb(m)))
+    #clog("# cross-mrca of %s is %s" % (blurb(x), blurb(m)))
     return in_right(m) if m != BOTTOM else None
   get_cross_mrca = \
     prop.getter(prop.get_property("cross_mrca",

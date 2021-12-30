@@ -125,7 +125,7 @@ usual_workspace_props = usual_props + \
     (prop.get_property("equated_id", getter=recover_equated_key),
      prop.get_property("equated_note", getter=recover_equated_note),
      prop.get_property("match_id", getter=recover_match_key),
-     prop.get_property("match_note", getter=recover_match_note))
+     prop.get_property("basis_of_match", getter=recover_basis_of_match))
 
 # -----------------------------------------------------------------------------
 # Little baby tests

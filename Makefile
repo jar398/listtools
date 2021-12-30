@@ -98,6 +98,7 @@ RAKE?=cd ../plotter && rake
 
 # MDD-style comparison report:
 
+SUMMARY=work/$(shell basename $A)-$(shell basename $B)-summary.txt
 REPORT=work/$(shell basename $A)-$(shell basename $B)-report.csv
 MERGED=work/$(shell basename $A)-$(shell basename $B)-merged.csv
 MATCHES=work/$(shell basename $A)-$(shell basename $B)-matches.csv
@@ -110,7 +111,7 @@ REPORT_OPTIONS?=
 $(REPORT): $(MERGED) $P/report.py $P/property.py
 	@echo
 	@echo "--- PREPARING REPORT ---"
-	$P/report.py $(REPORT_OPTIONS) < $(MERGED) > $@.new
+	$P/report.py $(REPORT_OPTIONS) --summary $(SUMMARY) < $(MERGED) > $@.new
 	@mv -f $@.new $@
 
 # Merged checklist on which the report is based:

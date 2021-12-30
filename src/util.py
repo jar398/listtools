@@ -98,5 +98,5 @@ def log(mess):
   if log_allowance > 0:
     print(mess, file=sys.stderr)
   elif log_allowance == 0:
-    print("--- logging truncated ---", file=sys.stderr)
+    print("*** logging truncated ***", file=sys.stderr)
   log_allowance -= 1

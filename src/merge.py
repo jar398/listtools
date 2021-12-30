@@ -48,7 +48,7 @@ def usual_merge_props(AB):
     return find_difference(AB, z, default)
 
   return usual_workspace_props + \
-     (prop.get_property("difference", getter=get_difference),)
+     (prop.get_property("difference", filler=get_difference),)
 
 difference_prop = prop.get_property("difference")
 
@@ -144,7 +144,7 @@ def relationship_per_heuristics(AB, x, y):
   ship = relationship_per_blocks(AB, x, y) # compare blocks
   assert ship != DISJOINT
   if ship == LT:            # different MTRM sets
-    ans = (ship, "MTRMs(x) ⊂ MTRMs(y)")
+    ans = (LT, "MTRMs(x) ⊂ MTRMs(y)")
   elif ship == GT:          # different MTRM sets
     ans = (GT, "MTRMs(y) ⊂ MTRMs(x)")
   elif ship == CONFLICT:
@@ -155,12 +155,12 @@ def relationship_per_heuristics(AB, x, y):
         get_block(y) != get_block(rq.record)):
     ans = (EQ, "squeeze")    # z parent is x≡y
   else:
-    n = get_match(y, None)
-    if n and n.relationship == EQ:
-      if n.record == x:
-        ans = (EQ, "name match (%s) and compatible" % (n.note or 'match'))
+    n = get_matched(y)
+    if n:
+      if n == x:
+        ans = (EQ, "name match (%s) and compatible" % (get_basis_of_match(y, None) or '...'))
       else:
-        ans = (ship, "priority y because hoping for name match")
+        ans = (LT, "priority y because hoping for name match")
     else:
       ans = (GT, "no match, x priority arbitrary")
 
@@ -202,9 +202,9 @@ def find_MTRMs(AB):
   counter = [1]
   def set_if_mutual(z, m):      # z in B
     set_trm(z, m)           # Nonmutual, might be of interest
-    z2 = m.record           # z2 in A
+    z2 = m                  # z2 in A
     m2 = get_trm(z2, None)      # tipward match to/in A
-    if m2 and m2.relationship == EQ and m2.record == z:
+    if m2 == z:
       #if monitor(z): log("# MTRM: %s :=: %s" % (blurb(z), blurb(z2)))
       propose_equation(AB, z2, z, "MTRM")
   find_TRMs(AB.B, AB.in_right, set_if_mutual)    # of AB.flip()
@@ -219,9 +219,9 @@ def find_TRMs(A, in_left, set_trm):
       seen = traverse(c) or seen
     if not seen and not is_top(x):
       z = in_left(x)
-      m = get_match(z)
-      if m and m.relationship == EQ:
-        #if monitor(z): log("# TRM: %s = %s" % (blurb(z), blurb(m.record)))
+      m = get_matched(z)
+      if m:
+        #if monitor(z): log("# TRM: %s = %s" % (blurb(z), blurb(m)))
         set_trm(z, m)
         seen = z
     return seen
@@ -256,13 +256,11 @@ def load_matches(row_iterator, AB):
     # The columns of the csv file
 
     rel = rcc5_relationship(get_match_relationship(match)) # EQ, NOINFO
-    note = get_match_note(match, MISSING)
-
+    note = get_basis_of_match(match, MISSING)
     # x or y might be None with rel=NOINFO ... hope this is OK
-
     if y:
       set_match(y, relation(reverse_relationship(rel), x, "nominal match",
-                           reverse_note(note)))
+                            reverse_note(note)))
     if x:
       set_match(x, relation(rel, y, "nominal match", note))
     if x and y: match_count += 1
@@ -279,87 +277,7 @@ def reverse_note(note):
     return note
 
 def record_match(x):
-  rel = get_match(x)
-  if rel.relationship == EQ: return rel.record
-  return None
-
-# -----------------------------------------------------------------------------
-
-# Load a merged checklist, recovering equated, match, and
-# maybe... left/right id links? ... ...
-# N.b. this will be a mere checklist, not a workspace.
-
-def rows_to_merged(rows, meta):
-  M = checklist.rows_to_checklist(rows, meta)  # sets superiors
-  resolve_merge_links(M)
-  return M
-
-# This is used for reporting (not for merging).
-# When we get here, superiors have already been set, so the ghosts
-# will be bypassed in enumerations (preorder and all_records).
-
-def resolve_merge_links(M):
-  conjured = {}
-  def register(rec):
-    pk = get_primary_key(rec)
-    if pk in conjured: log("** duplicate: %s" % pk)
-    conjured[pk] = rec
-  for record in all_records(M):
-
-    note = get_equated_note(record, None)
-    key = get_equated_key(record, None)
-    if key != None:
-      # Only B records have equated's:
-      #  have equation record EQ z, want synonym z EQ record
-      z = look_up_record(M, key, record) or conjured.get(key, None)
-      if not z:
-        z = conjure_record(M, key, record, register)   # in A
-        set_superior(z, relation(EQ, record, "equivalent", note))
-        if False:
-          # big fragile kludge
-          sup_level = get_level(record, None)
-          assert sup_level != None, blurb(record)
-          set_level(z, sup_level+1)
-      else:
-        # If z already exsts, it will take care of its own synonymity
-        pass
-      set_equated(record, relation(EQ, z, "equivalent", note))  # B->A
-
-    note = get_match_note(record, None)
-    key = get_match_key(record, None)
-    if key != None:
-      # B: record MATCHES z, A: z MATCHES record
-      z = look_up_record(M, key, record) or conjured.get(key, None)
-      if not z:
-        z = conjure_record(M, key, record, register)
-        set_match(z, relation(EQ, record, "nominal match",
-                              reverse_note(note)))
-      else:
-        # If z already exists, it will take care of its own match
-        pass
-      set_match(record, relation(EQ, z, "nominal match", note))
-    elif note:
-      set_match(record, relation(NOINFO, None, None, note))
-  return conjured
-
-# Create new dummy records if needed so that we can link to them.
-# key is for what record matches and is unresolved.  That means that the
-# record was a B record, and key is for a suppressed A record that 
-# we need to 'conjure'.
-
-def conjure_record(C, key, record, register):
-  #log("# Creating record %s by demand from %s" % (key, blurb(record)))
-  rec = checklist.make_record(key, C)
-  register(rec)
-  return rec
-
-#      x0 ---
-#             \   match
-#              \
-#       x  <->  y    SYNONYM / EQ
-#        \
-#  match  \
-#           --- y0
+  return get_matched(x)
 
 # -----------------------------------------------------------------------------
 
@@ -418,23 +336,14 @@ def find_difference(AB, z, default=None):
         diffs.append("not in A")   # String matters, see report.py
 
       # Say something about mismatched equivalent nodes
-      m = get_match(z, None)       # In A (rx is also in A)
-      if m and m.record and m.record != (rx == None or rx.record):
+      m = get_matched(z)       # In A (rx is also in A)
+      if m and m != (rx == None or rx.record):
         diffs.append("use of name (in A %s in B)" %
-                     rcc5_symbol(simple_relationship(m.record, z)))
-
-    if False:
-      # Not in B.  Flush shadow records. ... ????
-      # (unless they have children that are only in A??)
-      for c in get_inferiors(z):
-        if isinA(AB, c):
-          log("# Keeping %s because it has children in A" % blurb(z))
-          diffs.append('children')
-          break
+                     rcc5_symbol(simple_relationship(m, z)))
 
   else:                   # Not in B
-    diffs.append("not in B")
-  if len(diffs) == 0:           # In both, no differences
+    diffs.append("not in B")    # filter out ??
+  if len(diffs) == 0:             # In both, no differences
     return None
   else:
     return ';'.join(diffs)
@@ -512,7 +421,7 @@ if __name__ == '__main__':
     b_path = args.B
     a_name = args.Aname or os.path.splitext(os.path.basename(a_path))[0]
     b_name = args.Aname or os.path.splitext(os.path.basename(b_path))[0]
-    assert not(a_path == '-' and b_path == '-')
+    assert a_path != b_path
     matches_path = args.matches
 
     with stdopen(a_path) as a_file:

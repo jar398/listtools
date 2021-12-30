@@ -34,7 +34,7 @@ equated_prop = prop.get_property("equated", inherit=False)    # value is a Relat
 
 # For record matches made by name(s)
 match_key_prop = prop.get_property("match_id", inherit=False)
-match_note_prop = prop.get_property("match_note", inherit=False)
+basis_of_match_prop = prop.get_property("basis_of_match", inherit=False)
 match_prop = prop.get_property("match", inherit=False)
 
 # For workspaces
@@ -65,7 +65,7 @@ get_equated_note = prop.getter(equated_note_prop)
 (get_equated, set_equated) = prop.get_set(equated_prop)
 
 get_match_key = prop.getter(match_key_prop)
-get_match_note = prop.getter(match_note_prop)
+get_basis_of_match = prop.getter(basis_of_match_prop)
 (get_match, set_match) = prop.get_set(match_prop)
 
 (get_outject, set_outject) = prop.get_set(outject_prop)
@@ -281,7 +281,7 @@ def is_top(x):
   return x == get_source(x).top
 
 def is_toplike(x):
-  return get_canonical(x) == TOP
+  return get_canonical(x, None) == TOP
 
 # Not used I think
 def add_inferior(r, status="accepted"):
@@ -356,14 +356,20 @@ def recover_equated_note(x, default=MISSING):
   return m.note if m else default
 
 def recover_match_key(x, default=MISSING):
-  m = get_match(x, None)
-  if m and m.record:
-    return get_primary_key(m.record)
+  m = get_matched(x)
+  if m: return get_primary_key(m)
   else: return default
 
-def recover_match_note(x, default=MISSING):
+def recover_basis_of_match(x, default=MISSING):
   m = get_match(x, None)
   return m.note if m else default
+
+def get_matched(x):
+  if x:
+    rel = get_match(x, None)
+    if rel and rel.relationship == EQ:
+      return rel.record
+  return None
 
 # -----------------------------------------------------------------------------
 # Convert a checklist to csv rows (as an iterable); inverse of rows_to_checklist, above
@@ -408,7 +414,7 @@ def keep_record_notused(x):
 
   # Hmm.  we're an A node that's EQ to some B node.
   # Are they also a record match?
-  m = get_match(x, None)
+  m = get_matched(x)
   if not m or m.record != sup.record:
     # If record is unmatched, or matches something not equivalent,
     # then keep it
