@@ -166,7 +166,8 @@ def resolve_superior_link(S, record):
         if monitor(record):
           log("> %s %s" % (blurb(record), blurb(sup)))
     else:
-      log("# Dangling accepted: %s -> %s" % (blurb(record), accepted_key))
+      log("# Dangling accepted in %s: %s -> %s" %
+          (S.meta['name'], blurb(record), accepted_key))
       sup = relation(SYNONYM, S.top, "root", "unresolved accepted id")
   else:
     parent_key = get_parent_key(record, None)
@@ -177,7 +178,8 @@ def resolve_superior_link(S, record):
         # If it's not accepted or valid or something darn close, we're confused
         sup = relation(ACCEPTED, parent, status)
       else:
-        log("# Dangling parent: %s -> %s" % (blurb(record), parent_key))
+        log("# Dangling parent in %s: %s -> %s" %
+            (S.meta['name'], blurb(record), parent_key))
         sup = relation(ACCEPTED, S.top, "unresolved parent id")
     else:
       # This is a root.  Hang on to it so that preorder can see it.
@@ -378,7 +380,8 @@ usual_props = \
      prop.get_property("acceptedNameUsageID",
                        getter=recover_accepted_key),
      prop.get_property("taxonomicStatus",
-                       getter=recover_status))
+                       getter=recover_status),
+     managed_id_prop)
 
 # Alternative ways to order the rows
 
@@ -386,7 +389,7 @@ def checklist_to_rows(C, props=None):
   return records_to_rows(C, all_records(C), props)
 
 def preorder_rows(C, props=None):
-  return records_to_rows(C, preoder(C), props)
+  return records_to_rows(C, preorder_records(C), props)
 
 def records_to_rows(C, records, props=None):
   (header, record_to_row) = begin_table(C, props)
@@ -440,7 +443,7 @@ def blurb(r):
             get_primary_key(r, None) or
             "[no identifier]")
     sup = get_superior(r, None)
-    if sup and sup.status == SYNONYM:
+    if sup and sup.relationship != ACCEPTED:
       return name + "*"
     else:
       return name

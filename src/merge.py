@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-import types, argparse
+import types, argparse, os
 import property as prop, checklist, workspace, theory
 
 from util import log
@@ -19,9 +19,9 @@ from match_records import match_records
 #   - A set of dropped nodes (conflicting or garbage)
 # umm, that's pretty much it??
 
-def merge(a_iter, b_iter, matches=None):
-  A = rows_to_checklist(a_iter, {"name": "A"})  # meta
-  B = rows_to_checklist(b_iter, {"name": "B"})  # meta
+def merge(a_iter, b_iter, A_name='A', B_name='B', matches=None):
+  A = rows_to_checklist(a_iter, {"name": A_name})  # meta
+  B = rows_to_checklist(b_iter, {"name": B_name})  # meta
   AB = analyze(A, B, matches)
   return merge_preorder_rows(AB)
 
@@ -36,7 +36,7 @@ def analyze(A, B, m_iter=None):
 
 def merge_preorder_rows(AB, props=None):
   def filtered_records():
-    for z in checklist.preorder_records(AB):
+    for z in checklist.preorder_records(AB):  #checklist.all_records(AB):
       if keep_record(AB, z):
         yield z
   return records_to_rows(AB, filtered_records(),
@@ -366,67 +366,91 @@ def conjure_record(C, key, record, register):
 # Returns a string summarizing the main way in which a B node differs from
 # its corresponding A node
 
+"""
+
+extension
+   not in B x in both x not in A
+   synonym x accepted
+   parent=y
+
+name
+   named(x) rcc5 named(x)
+
+
+"""
+
+
 def find_difference(AB, z, default=None):
+  diffs = []
   if isinB(AB, z):
-    rx = get_equated(z, None)
+    rq = get_superior(z, None)
+    if rq:               # Not top?
+      rx = get_equated(z, None)
+      if rx:                      # In A too?
+        def check_field(prope):
+          get = prop.getter(prope)
+          # Field value match?
+          name1 = get(z, None)         # in B
+          name2 = get(rx.record, None) # in A
+          if name1 and name1 != name2:
+            # Similarly, keep if canonical differs.
+            # Could do the same for scientificName and/or other fields.
+            diffs.append(prope.label)
+            return True
+          return False
+        check_field(canonical_prop) or \
+          check_field(scientific_prop)
 
-    if rx:
-
-      # Canonical name match?
-      can1 = get_canonical(z)        # in B
-      can2 = get_canonical(rx.record) # in A
-      if can1 and can1 != can2:
-        # Similarly, keep if canonical differs.
-        # Could do the same for scientificName and/or other fields.
-        return "canonicalName"
-
-      sup = get_superior(z, None)
-      if not sup:               # top
-        return default
-
-      # What about their parents?
-      rq = get_superior(z)
-      rp = get_left_superior(AB, z)  # y -> x -> p
-
-      p = dequate(rp.record) if rp else None
-      q = rq.record if rq else None
-
-      if p != q:
-        return "superior"
-      if rp.relationship != rq.relationship:
-        return "taxonomicstatus"
+        # What about their parents?
+        rp = get_left_superior(AB, z)  # y -> x -> p
+        if False:
+          p = dequate(rp.record) if rp else None
+          q = rq.record if rq else None
+          if p != q:
+            diffs.append('superior')
+        if rp.relationship != rq.relationship:
+          if rp.relationship == ACCEPTED:
+            diffs.append('synonym/accepted')
+          else:
+            diffs.append('accepted/synonym')
+      else:
+        # Present in B but not in A
+        diffs.append("not in A")   # String matters, see report.py
 
       # Say something about mismatched equivalent nodes
-      m = get_match(z, None)
-      if not m:
-        return "name-match presence"    # extensional
-      if m.record != rx.record:
-        return "extension/record correspondence"
+      m = get_match(z, None)       # In A (rx is also in A)
+      if m and m.record and m.record != (rx == None or rx.record):
+        diffs.append("use of name (in A %s in B)" %
+                     rcc5_symbol(simple_relationship(m.record, z)))
 
-      return default
+    if False:
+      # Not in B.  Flush shadow records. ... ????
+      # (unless they have children that are only in A??)
+      for c in get_inferiors(z):
+        if isinA(AB, c):
+          log("# Keeping %s because it has children in A" % blurb(z))
+          diffs.append('children')
+          break
 
-    else:
-      # Present in B but not in A
-      return "not in A"   # String matters, see report.py
+  else:                   # Not in B
+    diffs.append("not in B")
+  if len(diffs) == 0:           # In both, no differences
+    return None
   else:
-    sup = get_superior(z)
-    if sup and sup.relationship == EQ:
-      # The extension is in both A and B; this is a "copy"
-      return "matched"          # String matters
-
-    # In A but not in B
-    return "not in B"
+    return ';'.join(diffs)
 
 def keep_record(AB, x):
   sup = get_superior(x, None)
   if sup and sup.relationship == EQ:
-    diff = find_difference(AB, sup.record, None)
-    if False:
-      if diff: log("# Keeping A record %s (= %s) because %s" %
-                   (blurb(x), blurb(sup.record), diff))
-    return diff
+    y = sup.record
+    assert isinB(AB, y)
+    # This is an A record that's = to some B record.
+    # Get rid of it unless there is some important difference.
+    diffs = find_difference(AB, y, None)
+    #if diffs: log("# Keeping A record %s (= %s) because %s" %
+    #              (blurb(x), blurb(sup.record), diffs))
+    return diffs
   return True
-    
 
 def dequate(x):
   rp = get_superior(x, None)
@@ -452,12 +476,31 @@ def test():
   testit("(c,d)a", "(c,e)b")
   testit("((a,b)e,c)d", "(a,(b,c)f)D")
 
+class Stdin:
+  def __enter__(self): return sys.stdin
+  def __exit__(self, exc_type, exc_val, exc_tb): return
+
+def stdopen(x):
+  if x == '-':
+    return Stdin()
+  else:
+    return open(x)
+
+
 if __name__ == '__main__':
   parser = argparse.ArgumentParser(description="""
-    TBD.  stdin = the A checklist
+    Only one of A or B can come from standard input.
+    Checklist names if not provided come from removing the extension
+    (usually '.csv') from the basename of the path name.
     """)
-  parser.add_argument('--A', help="the A checklist (defaults to stdin)")
-  parser.add_argument('--B', help="the B checklist")
+  parser.add_argument('--A', help="the A checklist, as path name or -",
+                      default='-')
+  parser.add_argument('--B', help="the B checklist, as path name or -",
+                      default='-')
+  parser.add_argument('--Aname',
+                      help="short durable name of the A checklist")
+  parser.add_argument('--Bname',
+                      help="short durable name of the B checklist")
   parser.add_argument('--matches', help="file containing match-records output")
   parser.add_argument('--test', action='store_true', help="run smoke tests")
   args=parser.parse_args()
@@ -467,30 +510,26 @@ if __name__ == '__main__':
   else:
     a_path = args.A
     b_path = args.B
+    a_name = args.Aname or os.path.splitext(os.path.basename(a_path))[0]
+    b_name = args.Aname or os.path.splitext(os.path.basename(b_path))[0]
+    assert not(a_path == '-' and b_path == '-')
     matches_path = args.matches
 
-    with open(b_path) as b_file:
-      def x(a_file):
-        # 3.
+    with stdopen(a_path) as a_file:
+      with stdopen(b_path) as b_file:
+
         def y(matches_iter):
           rows = merge(csv.reader(a_file),
                        csv.reader(b_file),
+                       A_name = a_name,
+                       B_name = b_name,
                        matches=matches_iter)
           writer = csv.writer(sys.stdout)
           for row in rows:
             writer.writerow(row)
 
-        # 2.
         if matches_path:
           with open(matches_path) as matches_file:
             y(csv.reader(matches_file))
         else:
           y(None)
-
-      # 1.
-      if a_path:
-        with open(a_path) as a_file:
-          x(a_file)
-      else:
-        x(sys.stdin)
-

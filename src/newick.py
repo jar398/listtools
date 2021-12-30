@@ -10,8 +10,9 @@ tokenize = re.compile("[^,()]+")
 def parse_newick(newick):
   rows = []
 
-  rows.append(("taxonID", "canonicalName", "parentNameUsageID",
-               "acceptedNameUsageID", "taxonomicStatus"))
+  rows.append(("taxonID", "canonicalName",
+               "parentNameUsageID", "acceptedNameUsageID",
+               "taxonomicStatus"))
   counter = [0]
 
   def gen():
@@ -56,7 +57,10 @@ def parse_newick(newick):
         accepted = MISSING
         status = 'accepted'
       n += len(name)
-    rows.append((str(id), can.strip(), str(parent), str(accepted), MISSING, status))
+    # taxonID, canonicalName,
+    #           parentNameUsageID, acceptedNameUsageID,
+    #           taxonomicStatus
+    rows.append((str(id), can.strip(), str(parent), str(accepted), status))
 
     return n
   n = parse(0, MISSING)
