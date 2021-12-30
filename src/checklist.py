@@ -36,6 +36,7 @@ equated_prop = prop.get_property("equated", inherit=False)    # value is a Relat
 match_key_prop = prop.get_property("match_id", inherit=False)
 basis_of_match_prop = prop.get_property("basis_of_match", inherit=False)
 match_prop = prop.get_property("match", inherit=False)
+get_match_relationship = prop.getter(prop.get_property("relationship", inherit=False))
 
 # For workspaces
 inject_prop = prop.get_property("inject") # Contextual only!

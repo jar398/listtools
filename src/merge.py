@@ -268,8 +268,6 @@ def load_matches(row_iterator, AB):
 
   #log("# %s matches, %s misses" % (match_count, miss_count))
 
-get_match_relationship = prop.getter(prop.get_property("relation", inherit=False))
-
 def reverse_note(note):
   if ' ' in note:
     return "↔ " + note            # tbd: deal with 'coambiguous'
@@ -360,12 +358,6 @@ def keep_record(AB, x):
     #              (blurb(x), blurb(sup.record), diffs))
     return diffs
   return True
-
-def dequate(x):
-  rp = get_superior(x, None)
-  if rp and rp.relationship == EQ:
-    return rp.record
-  return x
 
 
 # -----------------------------------------------------------------------------
