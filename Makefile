@@ -77,7 +77,7 @@ eol-report:
 col-report:
 	$(MAKE) A=work/col2019-mammals B=work/col2021-mammals report
 
-# make A=work/ncbi202008-mammals B=work/gbif20210303-mammals report
+# make A=work/col2021-mammals B=work/mdd1.7 report
 # and so on.
 
 # ----- General parameters
