@@ -11,6 +11,7 @@ status_col = windex(header, "nomenclaturalStatus")
 print("# %s %s %s" % (sci_col, can_col, status_col), file=sys.stderr)
 sci_count = 0
 for row in reader:
+  assert len(row) == len(header)
   name = MISSING
   if sci_col != None:
     name = row[sci_col]

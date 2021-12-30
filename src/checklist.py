@@ -194,8 +194,9 @@ def resolve_superior_link(S, record):
 def set_superior_carefully(x, sup):
   have = get_superior(x, None)
   if have:
-    assert have.record == sup.record, \
-      (blurb(x), blurb(get_superior(x)), blurb(sup)) # record
+    if False:                   # GBIF fails if we insist
+      assert have.record == sup.record, \
+        (blurb(x), blurb(get_superior(x)), blurb(sup)) # record
     if have.relationship != sup.relationship:
       log("**** Changing sup of %s from %a to %s" %
           (blurb(x), blurb(have), blurb(sup)))

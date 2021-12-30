@@ -21,6 +21,7 @@ B?=work/ncbi202008-mammals
 
 # make A=work/ncbi201505-mammals B=work/ncbi202008-mammals demo
 # time make A=work/ncbi201505 B=work/ncbi202008 demo
+# time make A=work/ncbi201505 B=work/ncbi202008 demo
 #  etc. etc.
 
 # N.b. managed_id has a specific meaning in this system; it's an id in
@@ -70,6 +71,14 @@ eol-report:
 
 # DELTA_KEY=EOLid MANAGE=EOLid,parentEOLid,taxonID,landmark_status \
 #   time make A=work/dh11-hier B=work/dh12-hier report
+
+# ----- 5. CoL examples:
+
+col-report:
+	$(MAKE) A=work/col2019-mammals B=work/col2021-mammals report
+
+# make A=work/ncbi202008-mammals B=work/gbif20210303-mammals report
+# and so on.
 
 # ----- General parameters
 
@@ -187,6 +196,15 @@ $(DELTA): $A.csv $B.csv $P/delta.py $P/match_records.py $P/property.py
 # something:
 # 	$P/scatter.py --dest $(basename $(DELTA)) < $(DELTA)
 
+# Any Darwin Core archive (DwCA):
+
+%/dump/meta.xml: %.dwca-url
+	mkdir -p `dirname $@`/dump
+	wget -O `dirname $@`.zip $$(cat $<)
+	unzip -d `dirname $@` `dirname $@`.zip
+	touch `dirname $@`/*
+.PRECIOUS: %/dump/meta.xml
+
 # ----- Mammals rules
 
 # ncbi 40674, gbif 359, dh1 EOL-000000627548, dh0.9 -168130, page 1642
@@ -213,11 +231,17 @@ dh1%-$(taxon)-raw.csv: dh1%-raw.csv $P/subset.py
 	@mv -f $@.new $@
 .PRECIOUS: dh1%-$(taxon)-raw.csv
 
-dh0%-$(taxon)-raw.csv: dh1%-raw.csv $P/subset.py
+dh0%-$(taxon)-raw.csv: dh0%-raw.csv $P/subset.py
 	$P/subset.py --hierarchy $< --root $(TAXON_DH09) < $< > $@.new
 	@mv -f $@.new $@
 .PRECIOUS: dh0%-$(taxon)-raw.csv
 
+work/col2021-$(taxon)-raw.csv: work/col2021-raw.csv $P/subset.py
+	$P/subset.py --hierarchy $< --root 6224G < $< > $@.new
+	@mv -f $@.new $@
+work/col2019-$(taxon)-raw.csv: work/col2019-raw.csv $P/subset.py
+	$P/subset.py --hierarchy $< --root 54767753 < $< > $@.new
+	@mv -f $@.new $@
 
 # ----- 1. NCBI-specific rules
 
@@ -247,26 +271,19 @@ ncbi%-raw.csv: work/ncbi%/dump/names.dmp src/ncbi_to_dwc.py $P/start.py
 
 # Adjoin 'type' and 'year' columns.  To skip this change the rule to
 # simply copy %-raw.csv to %.csv above. 
-%.csv: %-raw.csv $P/extract_names.py $P/use_parse.py
+%.csv: %-raw.csv $P/extract_names.py $P/use_gnparse.py
 	$P/extract_names.py < $< \
 	| gnparser -s \
-	| $P/use_parse.py --source $< > $@.new
+	| $P/use_gnparse.py --source $< > $@.new
 	@mv -f $@.new $@
 
 # ----- 2. GBIF-specific rules
 
-work/gbif20190916.gbif-url:
+work/gbif20190916.dwca-url:
 	echo https://rs.gbif.org/datasets/backbone/2019-09-06/backbone.zip >$@
 
-work/gbif20210303.gbif-url:
+work/gbif20210303.dwca-url:
 	echo https://rs.gbif.org/datasets/backbone/2021-03-03/backbone.zip >$@
-
-%/dump/meta.xml: %.gbif-url
-	mkdir -p `dirname $@`/dump
-	wget -O `dirname $@`.zip $$(cat $<)
-	unzip -d `dirname $@` `dirname $@`.zip
-	touch `dirname $@`/*
-.PRECIOUS: %/dump/meta.xml
 
 # Ingest GBIF dump, convert TSV to CSV, add managed_id column
 gbif%-raw.csv: gbif%/dump/meta.xml $P/start.py
@@ -274,7 +291,6 @@ gbif%-raw.csv: gbif%/dump/meta.xml $P/start.py
 	  --managed gbif:taxonID >$@.new
 	@mv -f $@.new $@
 .PRECIOUS: gbif%-raw.csv
-
 
 # ----- 3. ASU/BioKIC example
 
@@ -395,6 +411,22 @@ work/%-mapped.csv: work/%-raw.csv work/%-map.csv $P/idmap.py
 	$P/idmap.py --mapping $(basename $<)-map.csv) \
 		  < $< > $@.new
 	@mv -f $@.new $@
+
+# ----- 5. CoL
+
+work/col2021.dwca-url:
+	echo https://download.catalogueoflife.org/col/annual/2021_dwca.zip >$@
+
+work/col2019.dwca-url:
+	echo https://download.catalogueoflife.org/col/annual/2019_dwca.zip >$@
+
+# Ingest GBIF dump, convert TSV to CSV, add managed_id column
+# If CoL had record ids we could do --managed col:taxonID 
+col%-raw.csv: col%/dump/meta.xml $P/start.py
+	$P/start.py --pk $(PRIMARY_KEY) --input `src/find_taxa.py $<` \
+	  >$@.new
+	@mv -f $@.new $@
+.PRECIOUS: col%-raw.csv
 
 # -----
 

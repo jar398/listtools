@@ -15,7 +15,7 @@ debug = False
 
 import sys, os, csv, argparse
 
-from util import MISSING, csv_parameters
+from util import MISSING, windex, csv_parameters
 
 def extract_subset(infile, hier_path, root_id, outfile):
   (topo, root_tid) = read_topology(hier_path, root_id)
@@ -64,7 +64,7 @@ def read_topology(hier_path, root_id):
   topo = {}
   (delimiter, quotechar, mode) = csv_parameters(hier_path)
   counter = 0
-  root_tip = None
+  root_tid = None
   with open(hier_path, "r") as infile:
     print("# subset: scanning %s to obtain hierarchy" % hier_path,
           flush=True,
@@ -72,11 +72,11 @@ def read_topology(hier_path, root_id):
     reader = csv.reader(infile, delimiter=delimiter, quotechar=quotechar, quoting=mode)
     head = next(reader)
 
-    tid_column = head.index("taxonID") 
-    pid_column = head.index("parentNameUsageID")
-    aid_column = head.index("acceptedNameUsageID")
-    sid_column = head.index("taxonomicStatus")
-    name_column = head.index("canonicalName")
+    tid_column = windex(head, "taxonID") 
+    pid_column = windex(head, "parentNameUsageID")
+    aid_column = windex(head, "acceptedNameUsageID")
+    sid_column = windex(head, "taxonomicStatus")
+    name_column = windex(head, "canonicalName")
 
     if tid_column == None:      # usually 0
       print("** No taxonID column found", file=sys.stderr)

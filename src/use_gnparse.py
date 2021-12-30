@@ -13,38 +13,43 @@ year_re = regex.compile(' ([12][0-9]{3})\)?$')
 
 def use_parse(gn_iter, check_iter):
 
-  # gnparse output: gn_iter / header1
-  header1 = next(gn_iter)
+  # gnparse output: gn_iter / gn_header
+  gn_header = next(gn_iter)
   # Id,Verbatim,Cardinality,CanonicalStem,CanonicalSimple,CanonicalFull,Authorship,Year,Quality
-  if len(header1) != 9:
-    print("** Unexpected number of columns in %s" % (header1,),
+  if len(gn_header) != 9:
+    print("** Unexpected number of columns in %s" % (gn_header,),
           file=sys.stderr)
     assert False
-  verbatim_pos = windex(header1, "Verbatim")
-  cardinality_pos = windex(header1, "Cardinality")
-  stem_pos = windex(header1, "CanonicalStem")
-  canonical_full_pos = windex(header1, "CanonicalFull")
-  auth_pos = windex(header1, "Authorship")
-  year_pos = windex(header1, "Year")
-  quality_pos = windex(header1, "Quality")
+  verbatim_pos = windex(gn_header, "Verbatim")
+  cardinality_pos = windex(gn_header, "Cardinality")
+  stem_pos = windex(gn_header, "CanonicalStem")
+  canonical_full_pos = windex(gn_header, "CanonicalFull")
+  auth_pos = windex(gn_header, "Authorship")
+  year_pos = windex(gn_header, "Year")
+  quality_pos = windex(gn_header, "Quality")
 
-  header2 = next(check_iter)
+  checklist_header = next(check_iter)
   # May need to consult the source record too
-  add_canon = not "canonicalName" in header2
+  add_canon = not "canonicalName" in checklist_header
+  out_header = checklist_header
   if add_canon:
-    header2 = header2 + ["canonicalName"]
-  canonical_pos = windex(header2, "canonicalName")
-  header2 = header2 + ["canonicalStem", "year", "type"]
+    out_header = out_header + ["canonicalName"]
+  canonical_pos = windex(out_header, "canonicalName")
+  out_header = out_header + ["canonicalStem", "year", "type"]
 
   row_count = 0
   trim_count = 0
   year_count = 0
   canon_count = 0
 
-  yield header2
+  yield out_header
   for checklist_row in check_iter:
+    assert len(checklist_row) == len(checklist_header)
     row_count += 1
     gn_row = next(gn_iter)
+    out_row = checklist_row
+    if add_canon:
+      out_row = out_row + [MISSING]
 
     # gnparser tries to parse Verbatim into CanonicalFull [+ Authorship] [+ Year].
     # The original may have junk after the CanonicalFull.
@@ -87,24 +92,28 @@ def use_parse(gn_iter, check_iter):
         tipe = "TS|%s|%s|%s" % (year, epithet, auth)
 
       # Extra benefit: fill in canonical if it's missing from source (checklist_row)
-      full = gn_row[canonical_full_pos]
-      if add_canon: full = full + [MISSING]
-      if full:
-        have = checklist_row[canonical_pos]
+      canon_full = gn_row[canonical_full_pos]
+      if canon_full:
+        have = MISSING if add_canon else checklist_row[canonical_pos]
         if have == MISSING:
           quality = int(gn_row[quality_pos])
           verb = gn_row[verbatim_pos]
           if quality <= 2:
             if canon_count < CANON_SAMPLE_LIMIT:
-              print("# canonical := '%s' bc '%s'" % (full, verb),
+              print("# canonical := '%s' bc '%s'" % (canon_full, verb),
                     file=sys.stderr)
-            checklist_row[canonical_pos] = full
+            out_row[canonical_pos] = canon_full
             canon_count += 1
 
     # Add extra columns to the original input
-    yield checklist_row + [stemmed, year, tipe]
+    out_row = out_row + [stemmed, year, tipe]
+    if len(out_row) != len(out_header):
+      print("! %s %s" % (len(out_header), out_header,), file=sys.stderr)
+      print("! %s %s" % (len(out_row), out_row,), file=sys.stderr)
+      assert False
+    yield out_row
 
-  print("# use_parse: of %s rows, got epithet for %s, got year for %s, fixed canonical for %s" %
+  print("# use_gnparse: of %s rows, got epithet for %s, got year for %s, fixed canonical for %s" %
         (row_count, trim_count, year_count, canon_count),
         file=sys.stderr)
 

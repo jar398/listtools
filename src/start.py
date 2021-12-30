@@ -10,7 +10,7 @@ from util import csv_parameters, windex, stable_hash
 MISSING = ''
 
 def start_csv(inport, params, outport, args):
-  pk_col = args.pk
+  pk_col = args.pk or 'taxonID'
   cleanp = args.clean
 
   (d, q, g) = params
@@ -22,6 +22,12 @@ def start_csv(inport, params, outport, args):
       print("** start: Suspicious in_header", file=sys.stderr)
       print("** start: in_header is %s" % (in_header,), file=sys.stderr)
 
+  def fix(h):
+    if h == '\ufefftaxonID': return 'taxonID'  # CoL 2019
+    if h.startswith('dwc:'): return h[4:] # CoL 2021
+    else: return h
+  in_header = [fix(h) for h in in_header]
+
   pk_pos_in = windex(in_header, pk_col)
 
   can_pos = windex(in_header, "canonicalName")
@@ -30,14 +36,17 @@ def start_csv(inport, params, outport, args):
   source_pos = windex(in_header, "source")
   landmark_pos = windex(in_header, "Landmark")
   if landmark_pos != None: in_header[landmark_pos] = "landmark_status"
-  taxon_id_pos = windex(in_header, "taxonID")
   accepted_pos = windex(in_header, "acceptedNameUsageID")
   tax_status_pos = windex(in_header, "taxonomicStatus")
+  taxon_id_pos = windex(in_header, "taxonID")
 
-  must_affix_pk = (pk_col and pk_pos_in == None)
+  if taxon_id_pos == None:
+    print("** No taxonID column. Header is %s" % (in_header,), file=sys.stderr)
+
+  must_affix_pk = (pk_pos_in == None)
   if must_affix_pk:
-    print("Prepending a %s column" % pk_col, file=sys.stderr)
-    out_header = [pk_col] + in_header
+    print("-- Appending a %s column" % pk_col, file=sys.stderr)
+    out_header = in_header + [pk_col]
   else:
     out_header = in_header
 
@@ -50,6 +59,7 @@ def start_csv(inport, params, outport, args):
     assert managed_col_pos != None
     assert windex(in_header, "managed_id") == None
 
+    print("-- Appending a managed_id column", file=sys.stderr)
     out_header = in_header + ["managed_id"]
 
   # print("# Output header: %s" % (out_header,), file=sys.stderr)
@@ -96,11 +106,14 @@ def start_csv(inport, params, outport, args):
       accepteds_normalized += 1
 
     # Two ways to test whether a usage is accepted
-    usage_id = row[pk_pos_in]
+    usage_id = row[pk_pos_in] if pk_pos_in != None else MISSING
     au = row[accepted_pos] if accepted_pos != None else MISSING
     indication_1 = (au == MISSING or au == usage_id)
+
     stat = row[tax_status_pos] if tax_status_pos != None else "accepted"
-    indication_2 = (stat == "accepted" or stat == "valid")
+    indication_2 = (stat == "accepted" or stat == "valid" or
+                    stat == "accepted name")
+
     if indication_1 != indication_2 and conflicts < 10:
       print("-- %s has accepted %s but taxstatus %s" %
              (usage_id, au, stat),
@@ -125,7 +138,7 @@ def start_csv(inport, params, outport, args):
 
     # Mint a primary key if none provided
     if must_affix_pk:
-      out_row = [MISSING] + row
+      out_row = row + [MISSING]
     else:
       out_row = row
     pk = out_row[pk_pos_out]
@@ -154,6 +167,7 @@ def start_csv(inport, params, outport, args):
         managed += 1
       out_row = out_row + [managed_id]
 
+    assert len(out_row) == len(out_header)
     writer.writerow(out_row)
     count += 1
     if count % 250000 == 0:
@@ -193,7 +207,8 @@ Case analysis:
 """
 
 def normalize_accepted(row, accepted_pos, taxon_id_pos):
-  if accepted_pos != None and row[accepted_pos] == MISSING:
+  if (taxon_id_pos != None and
+      accepted_pos != None and row[accepted_pos] == MISSING):
     row[accepted_pos] = row[taxon_id_pos]
     return True
   return False
