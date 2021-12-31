@@ -333,18 +333,34 @@ def find_difference(AB, z, default=None):
         # Present in B but not in A
         diffs.append("not in A")   # String matters, see report.py
 
-      # Say something about mismatched equivalent nodes
+      # Say something about mismatched equivalent nodes.
       m = get_matched(z)       # In A (rx is also in A)
-      if m and m != (rx == None or rx.record):
-        diffs.append("use of name (in A %s in B)" %
-                     rcc5_symbol(simple_relationship(m, z)))
+      if m:
+        ship = post_hoc_relationship(AB, m, z)
+        if ship != EQ:
+          diffs.append("use of name (in A %s in B)" %
+                       rcc5_symbol(ship))
 
   else:                   # Not in B
     diffs.append("not in B")    # filter out ??
+
+    m = get_matched(z)       # In B (ry is also in B)
+    if m:
+      ship = post_hoc_relationship(AB, z, m)
+      if ship != EQ:
+        diffs.append("use of name (in A %s in B)" %
+                     rcc5_symbol(ship))
   if len(diffs) == 0:             # In both, no differences
     return None
   else:
     return ';'.join(diffs)
+
+def post_hoc_relationship(AB, m, z):
+  rel = relationship_per_blocks(AB, m, z)
+  if rel == COMPARABLE:
+    return simple_relationship(m, z) # ordering within block
+  else:
+    return rel
 
 def keep_record(AB, x):
   sup = get_superior(x, None)
