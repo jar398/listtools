@@ -95,3 +95,7 @@ incrementally update an in-database hierarchy, etc.
 
 Columns expected: `taxonID`, `parentNameUsageID`,
 `acceptedNameUsageID`, `taxonomicStatus`
+
+### idmap
+
+I forget what this is for.
