@@ -432,6 +432,7 @@ usual_props = \
     (primary_key_prop,
      canonical_prop,
      scientific_prop,
+     type_prop,
      rank_prop,
      prop.declare_property("parentNameUsageID",
                        getter=recover_parent_key),

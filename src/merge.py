@@ -36,7 +36,7 @@ def analyze(A, B, m_iter=None):
 
 def merge_preorder_rows(AB, props=None):
   def filtered_records():
-    for z in checklist.preorder_records(AB):  #checklist.all_records(AB):
+    for z in checklist.preorder_records(AB):
       if keep_record(AB, z):
         yield z
   return records_to_rows(AB, filtered_records(),
@@ -341,7 +341,12 @@ def find_difference(AB, z, default=None):
   else:                   # Not in B
     x = z
     y = None
-    diffs.append("not in B")    # filter out ??
+
+    a = get_superior(z, None)
+    if a and a.relationship == EQ:
+      diffs.append(REDUNDANT)  # cf. keep_record
+    else:
+      diffs.append('not in B')    # filter out ??
 
   if x:
     # Say something about mismatched equivalent nodes.
@@ -364,6 +369,24 @@ def find_difference(AB, z, default=None):
   else:
     return ';'.join(diffs)
 
+REDUNDANT = 'merged'
+
+def keep_record(AB, x):
+  sup = get_superior(x, None)
+  if sup and sup.relationship == EQ:
+    y = sup.record
+    assert isinB(AB, y)
+    # This is an A record that's = to some B record.
+    # Get rid of it unless there is some important difference.
+    # diffs = find_difference(AB, y, None) ...
+
+    # Only keep it if we get a new canonical name out of it
+    can1 = get_canonical(x, None)
+    can2 = get_canonical(y, None)
+
+    return can1 and can2 and can1 != can2
+  return True
+
 def post_hoc_relationship(AB, x, y):
 
   (x, synx) = nip_synonym(x)
@@ -380,20 +403,6 @@ def post_hoc_relationship(AB, x, y):
     return simple_relationship(x, y) # ordering within block
   else:
     return rel
-
-def keep_record(AB, x):
-  sup = get_superior(x, None)
-  if sup and sup.relationship == EQ:
-    y = sup.record
-    assert isinB(AB, y)
-    # This is an A record that's = to some B record.
-    # Get rid of it unless there is some important difference.
-    diffs = find_difference(AB, y, None)
-    #if diffs: log("# Keeping A record %s (= %s) because %s" %
-    #              (blurb(x), blurb(sup.record), diffs))
-    return diffs
-  return True
-
 
 # -----------------------------------------------------------------------------
 

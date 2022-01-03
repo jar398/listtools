@@ -82,8 +82,7 @@ def use_parse(gn_iter, check_iter):
       if stemmed and year and auth:
         if card > 1:
           # Figure out epithet part of type
-          pos = stemmed.index(' ', card-1)     # location of space
-          epithet = stemmed[pos+1:]         # species or subspecies epithet 
+          epithet = stemmed.split(' ')[-1]
           trim_count += 1
         else:
           assert card == 1
