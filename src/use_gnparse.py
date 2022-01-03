@@ -79,14 +79,10 @@ def use_parse(gn_iter, check_iter):
       m = auth_re.search(gn_row[auth_pos])
       auth = m[0] if m else MISSING
 
-      if stemmed and year and auth:
-        if card > 1:
-          # Figure out epithet part of type
-          epithet = stemmed.split(' ')[-1]
-          trim_count += 1
-        else:
-          assert card == 1
-          epithet = stemmed     # genus
+      if stemmed and year and auth and card > 1:
+        # Figure out epithet part of type
+        epithet = stemmed.split(' ')[-1]
+        trim_count += 1
         # Put them together
         tipe = "TS|%s|%s|%s" % (year, epithet, auth)
 

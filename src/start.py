@@ -72,6 +72,7 @@ def start_csv(inport, params, outport, args):
   count = 0
   trimmed = 0
   names_cleaned = 0
+  ranks_cleaned = 0
   accepteds_normalized = 0
   minted = 0
   seen_pks = {}
@@ -101,6 +102,8 @@ def start_csv(inport, params, outport, args):
     if cleanp:
       if clean_name(row, can_pos, sci_pos):
         names_cleaned += 1
+      if clean_rank(row, rank_pos, can_pos):
+        ranks_cleaned += 1
 
     if normalize_accepted(row, accepted_pos, taxon_id_pos):
       accepteds_normalized += 1
@@ -173,8 +176,11 @@ def start_csv(inport, params, outport, args):
     if count % 250000 == 0:
       print("row %s id %s" % (count, row[taxon_id_pos]),
             file=sys.stderr)
-  print("-- start: %s rows, %s columns, %s ids minted, %s names cleaned, %s accepteds normalized" %
-        (count, len(in_header), minted, names_cleaned, accepteds_normalized),
+  print("-- start: %s rows, %s columns, %s ids minted, %s accepteds normalized" %
+        (count, len(in_header), minted, accepteds_normalized),
+        file=sys.stderr)
+  print("-- start: %s names cleaned, %s ranks cleaned" %
+        (names_cleaned, ranks_cleaned),
         file=sys.stderr)
   if senior > 0:
     print("-- start: filtered out %s senior synonyms" % senior,
@@ -248,6 +254,15 @@ sci_re = re.compile(" [1-2][0-9]{3}\\b")
 
 def is_scientific(name):
   return sci_re.search(name)
+
+def clean_rank(row, rank_pos, can_pos):
+  if rank_pos != None and row[rank_pos] == MISSING and binomial_re.match(row[can_pos]):
+    row[rank_pos] = "species"
+    return True
+  return False
+
+binomial_re = re.compile("[A-Z][a-z]+ [a-z]{2,}")
+
 
 if __name__ == '__main__':
   parser = argparse.ArgumentParser(description="""

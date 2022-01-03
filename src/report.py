@@ -48,7 +48,7 @@ def generate_reports(AB, mode):
 
     for z in all_records(AB):
       (x, y) = personae(z)
-      if x or y:
+      if x or y:   #(x and is_accepted(x)) or (y and is_accepted(y)):
         diff = get_difference(z, None)
         rank = ((y and get_rank(y, None)) or (x and get_rank(x, None)))
         tick(diff or 'same', z, rank)
@@ -77,7 +77,9 @@ def generate_reports(AB, mode):
 
   return (generate_report(AB, mode, stats), generate_summary(stats))
 
-
+def is_accepted(x):
+  sup = get_superior(x, None)
+  return (not sup) or sup.relationship == ACCEPTED
 
 def personae(z):
   if is_top(z):
