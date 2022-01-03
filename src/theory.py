@@ -115,7 +115,7 @@ def mrca_crosser(AB):
     #clog("# cross-mrca of %s is %s" % (blurb(x), blurb(m)))
     return in_right(m) if m != BOTTOM else None
   get_cross_mrca = \
-    prop.getter(prop.get_property("cross_mrca",
+    prop.getter(prop.declare_property("cross_mrca",
                                   filler=compute_cross_mrca))
   return get_cross_mrca
 
@@ -144,7 +144,8 @@ def compute_blocks(AB):
       e = join_blocks(e, traverse(c, in_left))
     if LIBERAL_TIPE_SETS or is_empty_block(e):
       e2 = possible_tipe(AB, in_left(x))
-      if not is_empty_block(e) and not is_empty_block(e2):
+      if (not is_empty_block(e) and not is_empty_block(e2)
+          and monitor(x)):
         log("# non-mutual TRM as tipe: %s" % blurb(x))
       e = join_blocks(e2, e)
     if is_top(x):
@@ -165,7 +166,7 @@ def possible_tipe(AB, z):       # tipe as in type specimen/series
     w = equatee(AB, z)
   return mtrm_block(z, w) if w else BOTTOM_BLOCK
 
-(get_cotipe, set_cotipe) = prop.get_set(prop.get_property("cotipe"))
+(get_cotipe, set_cotipe) = prop.get_set(prop.declare_property("cotipe"))
 
 def equatee(AB, z):                 # in other tree
   if isinB(AB, z):
@@ -176,6 +177,12 @@ def equatee(AB, z):                 # in other tree
     if ship and ship.relationship == EQ:
       return ship.record    # z is in A
     return None
+
+def get_accepted(z):  # in priority tree, if possible
+  rel = get_superior(z, None)
+  if rel and rel.relationship != ACCEPTED:
+    return get_accepted(rel.record)
+  return z
 
 def lt_per_blocks(AB, x, y):
   b1 = get_block(x, BOTTOM_BLOCK)
@@ -210,7 +217,7 @@ def same_block(e1, e2): return e1 == e2
 def is_empty_block(e): return e == BOTTOM_BLOCK
 def mtrm_block(x, y): return {min(x.id, y.id)}
 
-(get_block, set_block) = prop.get_set(prop.get_property("block"))
+(get_block, set_block) = prop.get_set(prop.declare_property("block"))
 
 # -----------------------------------------------------------------------------
 # Alignment building...
@@ -222,8 +229,10 @@ def propose_superior(AB, z, rs, ship, status, note):
   assert isinstance(z, prop.Record), blurb(z)
   assert isinstance(rs, Relative)
   assert ship == ACCEPTED or ship == SYNONYM
+  # I don't feel good about these
+  s = get_accepted(rs.record)
   rel = relation(ship,
-                 rs.record,
+                 s,
                  status or rs.status,    # accepted, etc
                  note)
   set_superior_carefully(z, rel)  # explanation of why < or <=
@@ -244,13 +253,19 @@ def propose_equation(AB, x, y, why_equiv):
 
 def propose_deprecation(AB, x, y, note):
   assert isinA(AB, x) and isinB(AB, y)
-  yy = AB.get_cross_mrca(x)
-  set_superior_carefully(x, relation(SYNONYM, yy, "conflicting", note))
+  # NO GOOD.
+  if False:
+    yy = AB.get_cross_mrca(x)
+    set_superior_carefully(x, relation(SYNONYM, yy, "conflicting", note))
+  else:
+    set_conflict(x, y)
   if False:
     log("# Deprecating %s because it conflicts with %s" %
         (blurb(x), blurb(y)))
     log("#  ... %s is now the 'accepted name' of %s" %
         (blurb(yy), blurb(x)))
+
+(get_conflict, set_conflict) = prop.get_set(prop.declare_property("conflict"))
 
 # -----------------------------------------------------------------------------
 # Same-tree relations
@@ -329,7 +344,7 @@ def in_same_tree(AB, x, y):
   return (AB.case(x, lambda x:1, lambda x:2) ==
           AB.case(y, lambda x:1, lambda x:2))
 
-(really_get_level, set_level) = prop.get_set(prop.get_property("level", inherit=False))
+(really_get_level, set_level) = prop.get_set(prop.declare_property("level", inherit=False))
 
 # ----- Levels maintenance
 
@@ -350,14 +365,20 @@ def nip_synonym(x):
 def get_level(x, default=None):
   i = really_get_level(x, None)
   if i == None:
+    set_level(x, "cycle")
     p = get_parent(x)
     if not p:
       i = 1                 # shouldn't happen.  top is level 1
     else:
-      i = get_level(p, None) + 1
+      assert p != x
+      lev = get_level(p, None)
+      assert lev != "cycle", \
+        ("**** cycle detected while traversing ancestor chain: %s->%s" %
+            (blurb(x), blurb(p)))
+      i = lev + 1
     set_level(x, i)
-    if monitor(x):
-      log("# level(%s) = %s" % (blurb(x), i))
+    #if monitor(x):
+    #  log("# level(%s) = %s" % (blurb(x), i))
   return i
 
 def get_parent(x):

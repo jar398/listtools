@@ -10,37 +10,37 @@ from util import log, MISSING
 from rcc5 import *
 
 # Strings (field values)
-primary_key_prop = prop.get_property("taxonID")
-canonical_prop = prop.get_property("canonicalName")
-scientific_prop = prop.get_property("scientificName")
-year_prop = prop.get_property("year")  # http://rs.tdwg.org/dwc/terms/year
-rank_prop = prop.get_property("taxonRank")
-managed_id_prop = prop.get_property("managed_id")
-type_prop = prop.get_property("type")
+primary_key_prop = prop.declare_property("taxonID")
+canonical_prop = prop.declare_property("canonicalName")
+scientific_prop = prop.declare_property("scientificName")
+year_prop = prop.declare_property("year")  # http://rs.tdwg.org/dwc/terms/year
+rank_prop = prop.declare_property("taxonRank")
+managed_id_prop = prop.declare_property("managed_id")
+type_prop = prop.declare_property("type") # a.k.a. 'tipe'
 
 # Other checklist properties
-source_prop = prop.get_property("source", inherit=False)    # which checklist does this belong to?
+source_prop = prop.declare_property("source", inherit=False)    # which checklist does this belong to?
 
 # Links to other records, sometimes with explanation
-parent_key_prop = prop.get_property("parentNameUsageID", inherit=False)    # LT
-accepted_key_prop = prop.get_property("acceptedNameUsageID", inherit=False) # LE
-superior_note_prop = prop.get_property("superior_note", inherit=False)
-superior_prop = prop.get_property("superior", inherit=False)    # value is a Related
+parent_key_prop = prop.declare_property("parentNameUsageID", inherit=False)    # LT
+accepted_key_prop = prop.declare_property("acceptedNameUsageID", inherit=False) # LE
+superior_note_prop = prop.declare_property("superior_note", inherit=False)
+superior_prop = prop.declare_property("superior", inherit=False)    # value is a Related
 
 # For A/B identifications
-equated_key_prop = prop.get_property("equated_id", inherit=False)    # value is a Related
-equated_note_prop = prop.get_property("equated_note", inherit=False)    # value is a Related
-equated_prop = prop.get_property("equated", inherit=False)    # value is a Related
+equated_key_prop = prop.declare_property("equated_id", inherit=False)    # value is a Related
+equated_note_prop = prop.declare_property("equated_note", inherit=False)    # value is a Related
+equated_prop = prop.declare_property("equated", inherit=False)    # value is a Related
 
 # For record matches made by name(s)
-match_key_prop = prop.get_property("match_id", inherit=False)
-basis_of_match_prop = prop.get_property("basis_of_match", inherit=False)
-match_prop = prop.get_property("match", inherit=False)
-get_match_relationship = prop.getter(prop.get_property("relationship", inherit=False))
+match_key_prop = prop.declare_property("match_id", inherit=False)
+basis_of_match_prop = prop.declare_property("basis_of_match", inherit=False)
+match_prop = prop.declare_property("match", inherit=False)
+get_match_relationship = prop.getter(prop.declare_property("relationship", inherit=False))
 
 # For workspaces
-inject_prop = prop.get_property("inject") # Contextual only!
-outject_prop = prop.get_property("outject")
+inject_prop = prop.declare_property("inject") # Contextual only!
+outject_prop = prop.declare_property("outject")
 
 (get_primary_key, set_primary_key) = prop.get_set(primary_key_prop)
 (get_source, set_source) = prop.get_set(source_prop)
@@ -54,11 +54,11 @@ outject_prop = prop.get_property("outject")
 (get_parent_key, set_parent_key) = prop.get_set(parent_key_prop)
 (get_accepted_key, set_accepted_key) = prop.get_set(accepted_key_prop)
 (get_taxonomic_status, set_taxonomic_status) = \
-  prop.get_set(prop.get_property("taxonomicStatus"))
+  prop.get_set(prop.declare_property("taxonomicStatus"))
 get_superior_note = prop.getter(superior_note_prop)
 (get_superior, set_superior) = prop.get_set(superior_prop)
-(get_children, set_children) = prop.get_set(prop.get_property("children", inherit=False))
-(get_synonyms, set_synonyms) = prop.get_set(prop.get_property("synonyms", inherit=False))
+(get_children, set_children) = prop.get_set(prop.declare_property("children", inherit=False))
+(get_synonyms, set_synonyms) = prop.get_set(prop.declare_property("synonyms", inherit=False))
 
 # Merge related links
 get_equated_key = prop.getter(equated_key_prop)
@@ -164,10 +164,8 @@ def resolve_superior_link(S, record):
         sup = relation(EQ, accepted, status)
       else:
         sup = relation(SYNONYM, accepted, status)
-        if monitor(record):
-          log("> %s %s" % (blurb(record), blurb(sup)))
     else:
-      log("# Dangling accepted in %s: %s -> %s" %
+      log("# Dangling accepted reference in %s: %s -> %s" %
           (S.meta['name'], blurb(record), accepted_key))
       sup = relation(SYNONYM, S.top, "root", "unresolved accepted id")
   else:
@@ -179,7 +177,7 @@ def resolve_superior_link(S, record):
         # If it's not accepted or valid or something darn close, we're confused
         sup = relation(ACCEPTED, parent, status)
       else:
-        log("# Dangling parent in %s: %s -> %s" %
+        log("# Dangling parent reference in %s: %s -> %s" %
             (S.meta['name'], blurb(record), parent_key))
         sup = relation(ACCEPTED, S.top, "unresolved parent id")
     else:
@@ -202,6 +200,16 @@ def set_superior_carefully(x, sup):
       log("**** Changing sup of %s from %a to %s" %
           (blurb(x), blurb(have), blurb(sup)))
   assert x != sup.record, (blurb(x), blurb(sup))        # no self-loops
+
+  # If sup itself is a synonym, we're in trouble
+  if sup.relationship != EQ:
+    grand = get_superior(sup.record, None)
+    if grand and grand.relationship != ACCEPTED:
+      log("** synonym of synonym: %s %s %s" %
+          (blurb(x), blurb(sup), blurb(grand)))
+      assert False
+
+  # OK go for it
   set_superior(x, sup)
   if False:
     if (monitor(x) or monitor(sup.record)):  #False and 
@@ -211,6 +219,34 @@ def look_up_record(C, key, comes_from=None):
   if not key: return None
   col = prop.get_column(primary_key_prop, C.context) # we could cache this
   return prop.get_record(col, key, default=None)
+
+# -----------------------------------------------------------------------------
+# Check for children of synonyms, cycles, etc.
+
+def validate(C):
+
+  seen = prop.mep()
+  def traverse(x):
+    assert not prop.mep_get(seen, x, False)
+    prop.mep_set(seen, x, True)
+    for c in get_inferiors(x):
+      traverse(c)
+  traverse(C.top)
+  log("# %s records reachable from top" % len(seen))
+
+  count = 0
+  for x in all_records(C):
+    count += 1
+    if not prop.mep_get(seen, x, False):
+      log("** %s not in hierarchy; has to be a cycle" % (blurb(x),))
+    sup = get_superior(x, None)
+    if sup and sup.relationship == SYNONYM:
+      if len(get_children(x, ())) > 0:
+        log("** synonym %s has child %s" % (blurb(x), blurb(get_children(x)[0])))
+      if len(get_synonyms(x, ())) > 0:
+        if monitor(x):
+          log("> synonym %s has synonym %s" % (blurb(x), blurb(get_synonyms(x)[0])))
+  log("# %s total records" % len(seen))
 
 # -----------------------------------------------------------------------------
 # Collect parent/child and accepted/synonym relationships;
@@ -263,6 +299,7 @@ def ensure_inferiors_indexed(C):
   C.indexed = True
   #log("# %s inferiors indexed.  Top has %s child(ren)" %
   #   (count, len(get_children(C.top, ()))))
+  validate(C)
 
 def assert_local(x, y):
   assert get_source(x) == get_source(y), \
@@ -324,7 +361,7 @@ def get_inferiors(x):
 def recover_parent_key(x, default=MISSING):
   sup = get_superior(x, None)
   if sup and sup.relationship == ACCEPTED:
-    y = dequate(sup.record)
+    y = get_accepted(sup.record)
     if not is_top(y):
       return get_primary_key(y)
   return default
@@ -332,15 +369,18 @@ def recover_parent_key(x, default=MISSING):
 def recover_accepted_key(x, default=MISSING):
   sup = get_superior(x, None)
   if sup and sup.relationship != ACCEPTED:
-    y = dequate(sup.record)
+    y = get_accepted(sup.record)
     if not is_top(y):
       return get_primary_key(y)
   return default
 
-def dequate(x):
+def get_accepted(x):
   rp = get_superior(x, None)
-  if rp and rp.relationship == EQ:
-    return rp.record
+  if rp and rp.relationship != ACCEPTED:
+    if monitor(x):
+      log("> snap link %s %s" % (blurb(x), blurb(rp)))
+    return get_accepted(rp.record) # Eeeek!
+    # return rp.record
   return x
 
 def recover_status(x, default=MISSING): # taxonomicStatus
@@ -393,11 +433,11 @@ usual_props = \
      canonical_prop,
      scientific_prop,
      rank_prop,
-     prop.get_property("parentNameUsageID",
+     prop.declare_property("parentNameUsageID",
                        getter=recover_parent_key),
-     prop.get_property("acceptedNameUsageID",
+     prop.declare_property("acceptedNameUsageID",
                        getter=recover_accepted_key),
-     prop.get_property("taxonomicStatus",
+     prop.declare_property("taxonomicStatus",
                        getter=recover_status),
      managed_id_prop)
 
@@ -480,8 +520,11 @@ def blurb(r):
     return "[no match]"
 
 def monitor(x):
-  return ((x and len(get_canonical(x, '')) == 1) #.startswith("Metachirus"))
-          or x == "Ornithorhynchus crispus")
+  if not x: return False
+  name = get_canonical(x, '')
+  return ((x and len(name) == 1)
+          or name.startswith("Muri")
+          )
 
 # -----------------------------------------------------------------------------
 

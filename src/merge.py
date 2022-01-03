@@ -48,20 +48,23 @@ def usual_merge_props(AB):
     return find_difference(AB, z, default)
 
   return usual_workspace_props + \
-     (prop.get_property("difference", filler=get_difference),)
+     (prop.declare_property("difference", filler=get_difference),)
 
-difference_prop = prop.get_property("difference")
+difference_prop = prop.declare_property("difference")
 
 # -----------------------------------------------------------------------------
 # Spanning tree computation.
 
 def spanning_tree(AB):
-  find_MTRMs(AB)                # also find tipes
+  analyze_tipwards(AB)                # also find tipes
   compute_blocks(AB)
   ensure_levels(AB.A)           # N.b. NOT levels in AB
   ensure_levels(AB.B)
   # Do this bottom up.  We'll sometimes hit nodes we've already processed.
   def traverse(v, in_leftright):
+    u = get_conflict(v, None)
+    if u:
+      log("# conflict: %s >< %s" % (blurb(u), blurb(v)))
     for c in get_inferiors(v):
       traverse(c, in_leftright)
     z = in_leftright(v)
@@ -197,17 +200,17 @@ def consider_unaccepted(AB, z):
 # -----------------------------------------------------------------------------
 # Find mutual tipward matches
 
-def find_MTRMs(AB):
-  find_tipes(AB.A, AB.in_left, lambda x,y:None)
+def analyze_tipwards(AB):
+  find_cotipes(AB.A, AB.in_left, lambda x,y:None)
   counter = [1]
   def finish(z, m):             # z in B
     # z is tipward.  If m is too, we have a MTRM.
     if get_cotipe(m, None) == z:
       #if monitor(z): log("# MTRM: %s :=: %s" % (blurb(z), blurb(m)))
       propose_equation(AB, m, z, "MTRM")
-  find_tipes(AB.B, AB.in_right, finish)    # of AB.flip()
+  find_cotipes(AB.B, AB.in_right, finish)    # of AB.flip()
 
-def find_tipes(A, in_left, finish):
+def find_cotipes(A, in_left, finish):
   ensure_inferiors_indexed(A)
   def traverse(x):
     seen = False

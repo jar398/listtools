@@ -22,7 +22,7 @@ class Plan(NamedTuple):
 
 def make_plan_from_header(header):
   #log("%s" % (header,))
-  props = [get_property(label) for label in header]
+  props = [declare_property(label) for label in header]
   #log("%s" % (tuple(((prop.id, prop.label) for prop in props)),))
   return make_plan(props)
 
@@ -52,7 +52,7 @@ class Property(NamedTuple):
 _global_property_counter = 0
 _label_to_propid = {}
 
-def get_property(label, filler=None, getter=None, setter=None,
+def declare_property(label, filler=None, getter=None, setter=None,
                  fresh=False, inherit=True):
   global _global_property_counter
   id = _label_to_propid.get(label)
@@ -132,7 +132,7 @@ def ambient_setter(prop):
       x.lookedup[prop.id] = stored
   return setit
 
-# e.g. checklist.get_parent = contextual_getter(get_property("parent"), checklist)
+# e.g. checklist.get_parent = contextual_getter(declare_property("parent"), checklist)
 
 def contextual_getter(prop, context):
   column_mep = _get_column_mep(prop, context)
@@ -272,9 +272,9 @@ if __name__ == '__main__':
     if x != y:
       log("** Test %s failed because %s != %s" % (n, x, y))
       failed += 1
-  a = get_property('a')
-  b = get_property('b')
-  c = get_property('c')
+  a = declare_property('a')
+  b = declare_property('b')
+  c = declare_property('c')
   plan = make_plan_from_header(['a', 'b', 'c'])
   x = construct(plan, ['x.a', 'x.b', 'x.c'])
   (get_a, set_a) = get_set(a)
@@ -286,7 +286,7 @@ if __name__ == '__main__':
   expect('set', get_a(x), 'x.a 1')
   expect('unused default', get_b(x, 'lose'), 'x.b')
 
-  m = get_property('m')
+  m = declare_property('m')
   j = constructor(a, b, more=(m,))
   y = j('y.a', 'y.b')
   expect('get y.a via constructor', get_a(y), 'y.a')
@@ -299,7 +299,7 @@ if __name__ == '__main__':
   set_m(x, 'x.m')
   expect('unused default', get_m(x, 'no m'), 'x.m')
 
-  n = get_property('n', filler=lambda x:'filled')
+  n = declare_property('n', filler=lambda x:'filled')
   (get_n, set_n) = get_set(n)
   expect('fill x.n', get_n(x), 'filled')
   set_n(x, 'x.n')
@@ -316,7 +316,7 @@ if __name__ == '__main__':
   set_a(x, 'q.a')
   expect('set q.a', get_a(q), 'q.a')
 
-  bb = get_property('b', inherit=False)
+  bb = declare_property('b', inherit=False)
   get_bb = getter(bb)
   # error: expect('no inherit', get_bb(q), 'default')
   expect('no inherit', get_bb(q, 'default'), 'default')
