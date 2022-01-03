@@ -133,7 +133,7 @@ def gt(AB, x, y):
   return cross_ge(x, y) and not cross_ge(y, x)
 
 # -----------------------------------------------------------------------------
-# Precompute 'blocks' (MTRM sets, implemented in one of various ways).
+# Precompute 'blocks' (tipe sets, implemented in one of various ways).
 # A block is represented as either a set or TOP_BLOCK
 
 def compute_blocks(AB):
@@ -142,9 +142,11 @@ def compute_blocks(AB):
     e = BOTTOM_BLOCK
     for c in get_inferiors(x):  # inferiors in A/B
       e = join_blocks(e, traverse(c, in_left))
-    if is_empty_block(e):
-      z = in_left(x)
-      e = possible_MTRM_block(AB, z)
+    if LIBERAL_TIPE_SETS or is_empty_block(e):
+      e2 = possible_tipe(AB, in_left(x))
+      if not is_empty_block(e) and not is_empty_block(e2):
+        log("# non-mutual TRM as tipe: %s" % blurb(x))
+      e = join_blocks(e2, e)
     if is_top(x):
       e = TOP_BLOCK
     if e != BOTTOM_BLOCK:
@@ -154,9 +156,16 @@ def compute_blocks(AB):
   traverse(AB.B.top, AB.in_right)
   traverse(AB.A.top, AB.in_left)
 
-def possible_MTRM_block(AB, z):
-  w = equatee(AB, z)
+LIBERAL_TIPE_SETS = True
+
+def possible_tipe(AB, z):       # tipe as in type specimen/series
+  if LIBERAL_TIPE_SETS:
+    w = get_cotipe(z, None)
+  else:
+    w = equatee(AB, z)
   return mtrm_block(z, w) if w else BOTTOM_BLOCK
+
+(get_cotipe, set_cotipe) = prop.get_set(prop.get_property("cotipe"))
 
 def equatee(AB, z):                 # in other tree
   if isinB(AB, z):
@@ -180,7 +189,7 @@ def relationship_per_blocks(AB, x, y):
                             get_block(y, BOTTOM_BLOCK))
   return COMPARABLE if ship == EQ else ship
 
-# Implementation of block as Python sets of MTRM ids.
+# Implementation of blocks as Python sets of 'tipes.'
 
 def block_relationship(e1, e2):   # can assume overlap
   if e1 == e2: return EQ          # same blocks
@@ -255,15 +264,10 @@ def simple_relationship(x, y):             # Within a single tree
   (y, syny) = nip_synonym(y)
   if x == y:
     if synx or syny:
-      if synx and syny:
-        return NOINFO         # blah
-      else:
-        return LE if synx else GE
+      if synx and syny: return NOINFO         # blah
+      else: return LE if synx else GE
     else:
       return EQ
-  if get_level(x, None) == None or get_level(x, None) == None:
-    clog("# No level for one of these:", x, y)
-    return NOINFO
   (x1, y1) = find_peers(x, y)    # Decrease levels as needed
   if x1 == y1:     # x <= x1 = y1 >= y
     if x1 == x:     # x = x1 = y1 > y, x > y
@@ -278,6 +282,9 @@ def simple_relationship(x, y):             # Within a single tree
 # Assumes already 'nipped'
 
 def find_peers(x, y):
+  if get_level(x, None) == None or get_level(x, None) == None:
+    clog("# No level for one of these:", x, y)
+    return NOINFO
   i = get_level(x)
   while i < get_level(y):
     y = get_parent(y)

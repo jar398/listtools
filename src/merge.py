@@ -56,7 +56,7 @@ difference_prop = prop.get_property("difference")
 # Spanning tree computation.
 
 def spanning_tree(AB):
-  find_MTRMs(AB)
+  find_MTRMs(AB)                # also find tipes
   compute_blocks(AB)
   ensure_levels(AB.A)           # N.b. NOT levels in AB
   ensure_levels(AB.B)
@@ -143,16 +143,16 @@ def relationship_per_heuristics(AB, x, y):
 
   ship = relationship_per_blocks(AB, x, y) # compare blocks
   assert ship != DISJOINT
-  if ship == LT:            # different MTRM sets
-    ans = (LT, "MTRMs(x) ⊂ MTRMs(y)")
-  elif ship == GT:          # different MTRM sets
-    ans = (GT, "MTRMs(y) ⊂ MTRMs(x)")
+  if ship == LT:            # different tipe sets
+    ans = (LT, "types(x) ⊂ types(y)")
+  elif ship == GT:          # different tipe sets
+    ans = (GT, "types(y) ⊂ types(x)")
   elif ship == CONFLICT:
-    ans = (CONFLICT, "MTRMs(x) >< MTRMs(y)")
+    ans = (CONFLICT, "types(x) >< types(y)")
   # *** ship is COMPARABLE at this point ***
   elif (rp and rq and
-        get_block(x) != get_block(rp.record) and   # in different blocks?
-        get_block(y) != get_block(rq.record)):
+        get_block(x, BOTTOM_BLOCK) != get_block(rp.record, BOTTOM_BLOCK) and   # in different blocks?
+        get_block(y, BOTTOM_BLOCK) != get_block(rq.record, BOTTOM_BLOCK)):
     ans = (EQ, "squeeze")    # z parent is x≡y
   else:
     n = get_matched(y)
@@ -198,20 +198,16 @@ def consider_unaccepted(AB, z):
 # Find mutual tipward matches
 
 def find_MTRMs(AB):
-  find_TRMs(AB.A, AB.in_left, set_trm)
+  find_tipes(AB.A, AB.in_left, lambda x,y:None)
   counter = [1]
-  def set_if_mutual(z, m):      # z in B
-    set_trm(z, m)           # Nonmutual, might be of interest
-    z2 = m                  # z2 in A
-    m2 = get_trm(z2, None)      # tipward match to/in A
-    if m2 == z:
-      #if monitor(z): log("# MTRM: %s :=: %s" % (blurb(z), blurb(z2)))
-      propose_equation(AB, z2, z, "MTRM")
-  find_TRMs(AB.B, AB.in_right, set_if_mutual)    # of AB.flip()
+  def finish(z, m):             # z in B
+    # z is tipward.  If m is too, we have a MTRM.
+    if get_cotipe(m, None) == z:
+      #if monitor(z): log("# MTRM: %s :=: %s" % (blurb(z), blurb(m)))
+      propose_equation(AB, m, z, "MTRM")
+  find_tipes(AB.B, AB.in_right, finish)    # of AB.flip()
 
-(get_trm, set_trm) = prop.get_set(prop.get_property("TRM"))
-
-def find_TRMs(A, in_left, set_trm):
+def find_tipes(A, in_left, finish):
   ensure_inferiors_indexed(A)
   def traverse(x):
     seen = False
@@ -221,8 +217,10 @@ def find_TRMs(A, in_left, set_trm):
       z = in_left(x)
       m = get_matched(z)
       if m:
-        #if monitor(z): log("# TRM: %s = %s" % (blurb(z), blurb(m)))
-        set_trm(z, m)
+        #if monitor(z): log("# cotipe: %s = %s" % (blurb(z), blurb(m)))
+        finish(z, m)
+        set_cotipe(z, m)
+        set_cotipe(m, z)
         seen = z
     return seen
   traverse(A.top)
@@ -299,15 +297,18 @@ name
 def find_difference(AB, z, default=None):
   diffs = []
   if isinB(AB, z):
+    y = z
+    x = None  # overridden
     rq = get_superior(z, None)
     if rq:               # Not top?
       rx = get_equated(z, None)
       if rx:                      # In A too?
+        x = rx.record
         def check_field(prope):
           get = prop.getter(prope)
           # Field value match?
-          name1 = get(z, None)         # in B
-          name2 = get(rx.record, None) # in A
+          name1 = get(y, None)         # in B
+          name2 = get(x, None) # in A
           if name1 and name1 != name2:
             # Similarly, keep if canonical differs.
             # Could do the same for scientificName and/or other fields.
@@ -316,6 +317,7 @@ def find_difference(AB, z, default=None):
           return False
         check_field(canonical_prop) or \
           check_field(scientific_prop)
+        check_field(rank_prop)
 
         # What about their parents?
         rp = get_left_superior(AB, z)  # y -> x -> p
@@ -333,32 +335,46 @@ def find_difference(AB, z, default=None):
         # Present in B but not in A
         diffs.append("not in A")   # String matters, see report.py
 
-      # Say something about mismatched equivalent nodes.
-      m = get_matched(z)       # In A (rx is also in A)
-      if m:
-        ship = post_hoc_relationship(AB, m, z)
-        if ship != EQ:
-          diffs.append("use of name (in A %s in B)" %
-                       rcc5_symbol(ship))
-
   else:                   # Not in B
+    x = z
+    y = None
     diffs.append("not in B")    # filter out ??
 
-    m = get_matched(z)       # In B (ry is also in B)
+  if x:
+    # Say something about mismatched equivalent nodes.
+    m = get_matched(x)       # m in B (ry is also in B)
     if m:
-      ship = post_hoc_relationship(AB, z, m)
-      if ship != EQ:
-        diffs.append("use of name (in A %s in B)" %
+      ship = post_hoc_relationship(AB, x, m)
+      if ship != EQ and ship != NOINFO:
+        diffs.append("use of A name (in A %s in B)" %
+                     rcc5_symbol(ship))
+
+  if y:
+    m = get_matched(y)       # n in A (rx is also in A)
+    if m:
+      ship = post_hoc_relationship(AB, m, y)
+      if ship != EQ and ship != NOINFO:
+        diffs.append("use of B name (in A %s in B)" %
                      rcc5_symbol(ship))
   if len(diffs) == 0:             # In both, no differences
     return None
   else:
     return ';'.join(diffs)
 
-def post_hoc_relationship(AB, m, z):
-  rel = relationship_per_blocks(AB, m, z)
+def post_hoc_relationship(AB, x, y):
+
+  (x, synx) = nip_synonym(x)
+  (y, syny) = nip_synonym(y)
+  if x == y:
+    if synx or syny:
+      if synx and syny: return NOINFO         # blah
+      else: return LE if synx else GE
+    else:
+      return EQ
+
+  rel = relationship_per_blocks(AB, x, y)
   if rel == COMPARABLE:
-    return simple_relationship(m, z) # ordering within block
+    return simple_relationship(x, y) # ordering within block
   else:
     return rel
 
