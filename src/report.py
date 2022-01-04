@@ -11,7 +11,7 @@ from rcc5 import *
 from checklist import *
 from workspace import *
 
-from merge import reverse_note
+from merge import reverse_note, NO_CHANGE
 
 get_difference = prop.getter(merge.difference_prop)
 
@@ -43,7 +43,8 @@ def generate_reports(AB, mode):
         s = [0, 0]      # [all, species only]
         stats[stat] = s
       s[0] += 1
-      if rank == "species":
+      rq = get_superior(y)
+      if rank == 'species' and (rq and rq.relationship == ACCEPTED):
         s[1] += 1
 
     for z in all_records(AB):
@@ -55,7 +56,7 @@ def generate_reports(AB, mode):
         if mode == 'full':
           doit = True
         elif mode == 'mdd':
-          doit = (diff and rank == 'species')
+          doit = ((diff != NO_CHANGE) and rank == 'species')
         else:
           assert False   # invalid mode
         if doit:
@@ -141,6 +142,9 @@ def resolve_merge_links(M):
         # If z already exsts, it will take care of its own synonymity
         pass
       set_equated(record, relation(EQ, z, "equivalent", note))  # B->A
+      if not get_canonical(z, None):
+        can = get_canonical(record, None)
+        if can: set_canonical(z, can)
 
     note = get_basis_of_match(record, None)
     key = get_match_key(record, None)
@@ -196,7 +200,6 @@ if __name__ == '__main__':
   util.write_rows(report, sys.stdout)
 
   summary = list(summary)  # need it 2x
-  log("# Summary has %s rows" % len(summary))
   for line in summary: print(line, file=sys.stderr)
   if args.summary:
     with open(args.summary, "w") as sumfile:

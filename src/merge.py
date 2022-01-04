@@ -302,25 +302,26 @@ def find_difference(AB, z, default=None):
   if isinB(AB, z):
     y = z
     x = None  # overridden
-    rq = get_superior(z, None)
-    if rq:               # Not top?
-      rx = get_equated(z, None)
-      if rx:                      # In A too?
+    rx = get_equated(z, None)
+    if rx:                      # In A too?
+      diffs.append(NO_CHANGE)
+      rq = get_superior(z, None)
+      if rq:               # Not top?
         x = rx.record
-        def check_field(prope):
+        def field_differs(prope):
           get = prop.getter(prope)
           # Field value match?
           name1 = get(y, None)         # in B
           name2 = get(x, None) # in A
-          if name1 and name1 != name2:
+          if name1 and name2 and name1 != name2:
             # Similarly, keep if canonical differs.
             # Could do the same for scientificName and/or other fields.
             diffs.append(prope.label)
             return True
           return False
-        check_field(canonical_prop) or \
-          check_field(scientific_prop)
-        check_field(rank_prop)
+        field_differs(canonical_prop) or \
+          field_differs(scientific_prop)
+        field_differs(rank_prop)
 
         # What about their parents?
         rp = get_left_superior(AB, z)  # y -> x -> p
@@ -334,9 +335,9 @@ def find_difference(AB, z, default=None):
             diffs.append('synonym/accepted')
           else:
             diffs.append('accepted/synonym')
-      else:
-        # Present in B but not in A
-        diffs.append("not in A")   # String matters, see report.py
+    else:
+      # Present in B but not in A
+      diffs.append('not in A')   # String matters, see report.py
 
   else:                   # Not in B
     x = z
@@ -369,6 +370,7 @@ def find_difference(AB, z, default=None):
   else:
     return ';'.join(diffs)
 
+NO_CHANGE = 'in both'
 REDUNDANT = 'merged'
 
 def keep_record(AB, x):

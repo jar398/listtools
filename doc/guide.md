@@ -279,7 +279,8 @@ it looks like today, 12/31/2021.)
 
 The rows in this table are for categories of records / taxa.  The
 first column is the number of taxa (rows, records) in the category.
-The second is the number of species.  The third is a telegraphic
+The second is the number of species [I changed something since this
+table was made: it's now the number of _accepted_ species].  The third is a telegraphic
 description of the category.  The categories are mutually exclusive.
 The description is a set of differences separated by semicolons.
 
