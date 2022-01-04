@@ -107,7 +107,7 @@ RAKE?=cd ../plotter && rake
 
 # MDD-style comparison report:
 
-SUMMARY=work/$(shell basename $A)-$(shell basename $B)-summary.txt
+SUMMARY=work/$(shell basename $A)-$(shell basename $B)-summary.csv
 REPORT=work/$(shell basename $A)-$(shell basename $B)-report.csv
 MERGED=work/$(shell basename $A)-$(shell basename $B)-merged.csv
 MATCHES=work/$(shell basename $A)-$(shell basename $B)-matches.csv

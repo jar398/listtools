@@ -30,7 +30,7 @@ def make_workspace(A, B, meta=None):
   def ensure_injected(x):
     z = get_inject(x, None)
     if not z:
-      z = prop.clone(x)
+      z = prop.clone(x)         # sets canonical, scientific, rank, type etc
       set_inject(x, z)          # contextual
       set_outject(z, x)
       set_source(z, AB)

@@ -16,7 +16,8 @@ scientific_prop = prop.declare_property("scientificName")
 year_prop = prop.declare_property("year")  # http://rs.tdwg.org/dwc/terms/year
 rank_prop = prop.declare_property("taxonRank")
 managed_id_prop = prop.declare_property("managed_id")
-type_prop = prop.declare_property("type") # a.k.a. 'tipe'
+tipe_prop = prop.declare_property("type") # a.k.a. 'tipe'
+stemmed_prop = prop.declare_property("canonicalStem") # a.k.a. 'tipe'
 
 # Other checklist properties
 source_prop = prop.declare_property("source", inherit=False)    # which checklist does this belong to?
@@ -49,6 +50,8 @@ outject_prop = prop.declare_property("outject")
 (get_rank, set_rank) = prop.get_set(rank_prop)
 (get_year, set_year) = prop.get_set(year_prop)
 (get_managed_id, set_managed_id) = prop.get_set(managed_id_prop)
+(get_stemmed, set_stemmed) = prop.get_set(stemmed_prop)
+(get_tipe, set_tipe) = prop.get_set(managed_id_prop)
 
 # Links
 (get_parent_key, set_parent_key) = prop.get_set(parent_key_prop)
@@ -432,7 +435,7 @@ usual_props = \
     (primary_key_prop,
      canonical_prop,
      scientific_prop,
-     type_prop,
+     tipe_prop,
      rank_prop,
      prop.declare_property("parentNameUsageID",
                        getter=recover_parent_key),

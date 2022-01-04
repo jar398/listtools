@@ -222,6 +222,7 @@ def normalize_accepted(row, accepted_pos, taxon_id_pos):
 # Returns True if a change was made
 
 def clean_name(row, can_pos, sci_pos):
+  mod = False
   if can_pos != None and sci_pos != None:
     c = row[can_pos]
     s = row[sci_pos]
@@ -229,26 +230,30 @@ def clean_name(row, can_pos, sci_pos):
       if is_scientific(c):
         row[sci_pos] = c
         row[can_pos] = MISSING
-        return True
-      return False
-    if is_scientific(s):
-      return False
+        mod = True
+    elif is_scientific(s):
+      pass
     # s is nonnull and not 'scientific'
-    if c == MISSING:
+    elif c == MISSING:
       # swap
       row[sci_pos] = None
       row[can_pos] = s
       # print("start: c := s", file=sys.stderr) - frequent in DH 1.1
-      return True
-    if c == s:
+      mod = True
+    elif c == s:
       if is_scientific(c):
         # should gnparse!
         row[can_pos] = None
       else:
         row[sci_pos] = None
-      # print("start: flush s", file=sys.stderr) - happens all the time in 1.1
-      return True
-  return False
+      # print("start: flush s", file=sys.stderr) - frequent in DH 1.1
+      mod = True
+  if sci_pos != None and row[sci_pos]:
+    repl = row[sci_pos].replace(' and ', ' & ') # frequent in DH 1.1
+    if repl != row[sci_pos]:
+      row[sci_pos] = repl
+      mod = True
+  return mod
 
 sci_re = re.compile(" [1-2][0-9]{3}\\b")
 

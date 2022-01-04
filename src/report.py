@@ -71,12 +71,16 @@ def generate_reports(AB, mode):
                  rank, diff,
                  get_basis_of_match(y, '') if y else '')
 
-  def generate_summary(stats):
+  def generate_summary_foo(stats):
     for key in sorted(list(stats.keys())):
       s = stats[key]
-      yield("%7d %7d %s" % (s[0], s[1], key))
+      yield((s[0], s[1], key))
 
-  return (generate_report(AB, mode, stats), generate_summary(stats))
+  return (generate_report(AB, mode, stats), generate_summary_foo(stats))
+
+def formatted_summary(rows):
+  for row in rows:
+    yield("%7d %7d %s" % row)
 
 def is_accepted(x):
   sup = get_superior(x, None)
@@ -193,14 +197,16 @@ if __name__ == '__main__':
                       default='mdd',
                       help="report type: 'mdd' or 'full'")
   parser.add_argument('--summary',
-                      help="where to write the summary report (path)")
+                      help="where to write the summary report (path) (csv)")
   args=parser.parse_args()
 
   (report, summary) = reports(csv.reader(sys.stdin), args.mode)
   util.write_rows(report, sys.stdout)
 
   summary = list(summary)  # need it 2x
-  for line in summary: print(line, file=sys.stderr)
+  for line in formatted_summary(summary):
+    print(line, file=sys.stderr)
   if args.summary:
     with open(args.summary, "w") as sumfile:
-      for line in summary: print(line, file=sumfile)
+      writer = csv.writer(sumfile)
+      for row in summary: writer.writerow(row)

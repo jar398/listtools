@@ -215,7 +215,21 @@ def join_blocks(e1, e2):
   return e1 | e2
 def same_block(e1, e2): return e1 == e2
 def is_empty_block(e): return e == BOTTOM_BLOCK
-def mtrm_block(x, y): return {min(x.id, y.id)}
+def mtrm_block(x, y):
+  v1 = get_tipe(x, None)
+  if v1 and v1 == get_tipe(y, None): return {v1}
+  v1 = get_scientific(x, None)
+  if v1 and v1 == get_scientific(y, None): return {v1}
+  v1 = get_canonical(x, None)
+  if v1 and v1 == get_canonical(y, None): return {v1}
+  v1 = get_stemmed(x, None)     # 'Balaenoptera omurai and' in DH 1.1
+  if v1 and v1 == get_stemmed(y, None): return {v1}
+  v1 = get_managed_id(x, None)
+  if v1 and v1 == get_managed_id(y, None): return {v1}
+  # Phyllostoma bilabiatum / Phyllostomus bilabiatum  ... hmph
+  # Why do these match? Dermanura anderseni, Artibeus anderseni*  ????
+  # log("# Why do these match? %s, %s" % (blurb(x), blurb(y)))
+  return {min(x.id, y.id)}
 
 (get_block, set_block) = prop.get_set(prop.declare_property("block"))
 
@@ -248,8 +262,11 @@ def propose_equation(AB, x, y, why_equiv):
   set_superior_carefully(x, relation(EQ, y, "equivalent", why_equiv))
   # Set uppointer from B to A
   set_equated(y, relation(EQ, x, "equivalent", why_equiv))
-  #log("# Equating %s (in A) with %s (in B)" %
-  #    (blurb(x), blurb(y)))
+  sci = get_scientific(x, None)
+  if not get_scientific(y, None) and sci:
+    if sci.startswith(get_canonical(y, None)):
+      set_scientific(y, sci)
+      log("# transferring '%s' from A to B" % sci)
 
 def propose_deprecation(AB, x, y, note):
   assert isinA(AB, x) and isinB(AB, y)
