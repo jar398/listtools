@@ -236,10 +236,10 @@ dh0%-$(taxon)-raw.csv: dh0%-raw.csv $P/subset.py
 	@mv -f $@.new $@
 .PRECIOUS: dh0%-$(taxon)-raw.csv
 
-work/col2021-$(taxon)-raw.csv: work/col2021-raw.csv $P/subset.py
+work/col2021-mammals-raw.csv: work/col2021-raw.csv $P/subset.py
 	$P/subset.py --hierarchy $< --root 6224G < $< > $@.new
 	@mv -f $@.new $@
-work/col2019-$(taxon)-raw.csv: work/col2019-raw.csv $P/subset.py
+work/col2019-mammals-raw.csv: work/col2019-raw.csv $P/subset.py
 	$P/subset.py --hierarchy $< --root 54767753 < $< > $@.new
 	@mv -f $@.new $@
 

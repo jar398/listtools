@@ -505,7 +505,7 @@ def blurb(r):
             get_primary_key(r, None) or
             "[no identifier]")
     sup = get_superior(r, None)
-    if sup and sup.relationship != ACCEPTED:
+    if sup and sup.relationship == SYNONYM:
       return name + "*"
     else:
       return name

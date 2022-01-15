@@ -90,6 +90,12 @@ This is specific to EOL.  It applies a taxon id (`taxonID`) to
 'page id' mapping to a file full of records to generate a file
 with one record per page, giving the parent of each taxon.
 
+This looks up the EOL 'node ids' in a dynamic hierarchy file to obtain
+the corresponding 'page ids'.  A draft DH will contain many taxa that
+didn't have page ids at the time the draft was produced, but page ids
+are assigned when the draft is 'harvested' and can be found by looking
+at the database.  that is what this tool does, I believe.
+
 The resulting taxon list can be subjected to `delta` and `scatter` to
 incrementally update an in-database hierarchy, etc.
 
@@ -98,4 +104,4 @@ Columns expected: `taxonID`, `parentNameUsageID`,
 
 ### idmap
 
-I forget what this is for.
+I don't know how this differs from `hierarchy`.
