@@ -249,7 +249,7 @@ def clean_name(row, can_pos, sci_pos):
       # print("start: flush s", file=sys.stderr) - frequent in DH 1.1
       mod = True
   if sci_pos != None and row[sci_pos]:
-    repl = row[sci_pos].replace(' and ', ' & ') # frequent in DH 1.1
+    repl = row[sci_pos].replace(' & ', ' and ') # frequent in DH 1.1
     if repl != row[sci_pos]:
       row[sci_pos] = repl
       mod = True

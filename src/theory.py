@@ -266,15 +266,19 @@ def propose_equation(AB, x, y, why_equiv):
   if not get_scientific(y, None) and sci:
     if sci.startswith(get_canonical(y, None)):
       set_scientific(y, sci)
-      log("# transferring '%s' from A to B" % sci)
+      #log("# transferring '%s' from A to B" % sci)
 
-def propose_deprecation(AB, x, y, note):
+# x and y are candidate parents for node z, and they conflict with one
+# another.  y has priority.
+
+def propose_deprecation(AB, z, x, y):
   assert isinA(AB, x) and isinB(AB, y)
   # NO GOOD.
   if False:
     yy = AB.get_cross_mrca(x)
     set_superior_carefully(x, relation(SYNONYM, yy, "conflicting", note))
   else:
+    # set_alt_parent(z, x) ...
     set_conflict(x, y)
   if False:
     log("# Deprecating %s because it conflicts with %s" %

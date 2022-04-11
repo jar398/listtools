@@ -16,8 +16,10 @@ all:
 # Default example:
 # Compare two versions of NCBI mammals
 
-A?=work/ncbi201505-mammals
-B?=work/ncbi202008-mammals
+TAXON?=Mammalia
+taxon?=mammals
+A?=work/ncbi201505-$(taxon)
+B?=work/ncbi202008-$(taxon)
 
 # make A=work/ncbi201505-mammals B=work/ncbi202008-mammals demo
 # time make A=work/ncbi201505 B=work/ncbi202008 demo
@@ -32,14 +34,14 @@ B?=work/ncbi202008-mammals
 # ----- 1. NCBI example:
 
 ncbi-report:
-	$(MAKE) A=work/ncbi201505-mammals B=work/ncbi202008-mammals report
+	$(MAKE) A=work/ncbi201505-$(taxon) B=work/ncbi202008-$(taxon) report
 
 # make A=work/ncbi201505 B=work/ncbi202008 report  # big, will take forever
 
 # ----- 2. GBIF examples:
 
 gbif-report:
-	$(MAKE) A=work/gbif20190916-mammals B=work/gbif20210303-mammals report
+	$(MAKE) A=work/gbif20190916-$(taxon) B=work/gbif20210303-$(taxon) report
 
 # make A=work/ncbi202008-mammals B=work/gbif20210303-mammals report
 # and so on.
@@ -58,7 +60,7 @@ mdd-report:
 # Requires clone of 'plotter' repo:
 
 eol-report:
-	$(MAKE) A=work/dh11-mammals B=work/dh12-mammals report
+	$(MAKE) A=work/dh11-$(taxon) B=work/dh12-$(taxon) report
 
 # time make A=work/dh11-mammals B=work/dh12-mammals round
 # time make A=work/dh09-mammals B=work/dh11-mammals round
@@ -75,7 +77,7 @@ eol-report:
 # ----- 5. CoL examples:
 
 col-report:
-	$(MAKE) A=work/col2019-mammals B=work/col2021-mammals report
+	$(MAKE) A=work/col2019-$(taxon) B=work/col2021-$(taxon) report
 
 # make A=work/col2021-mammals B=work/mdd1.7 report
 # and so on.
@@ -208,39 +210,41 @@ $(DELTA): $A.csv $B.csv $P/delta.py $P/match_records.py $P/property.py
 # ----- Mammals rules
 
 # ncbi 40674, gbif 359, dh1 EOL-000000627548, dh0.9 -168130, page 1642
-
-TAXON=Mammalia
-taxon=mammals
-TAXON_NCBI=$(TAXON)
-TAXON_GBIF=$(TAXON)
-TAXON_DH1=$(TAXON)
-TAXON_DH09=$(TAXON)
+# Most of these rules may be redundant now.  Cull at some point.
 
 ncbi%-$(taxon)-raw.csv: ncbi%-raw.csv $P/subset.py
-	$P/subset.py --hierarchy $< --root $(TAXON_NCBI) < $< > $@.new
+	$P/subset.py --hierarchy $< --root $(TAXON) < $< > $@.new
 	@mv -f $@.new $@
 .PRECIOUS: ncbi%-$(taxon)-raw.csv
 
 gbif%-$(taxon)-raw.csv: gbif%-raw.csv $P/subset.py
-	$P/subset.py --hierarchy $< --root $(TAXON_GBIF) < $< > $@.new
+	$P/subset.py --hierarchy $< --root $(TAXON) < $< > $@.new
 	@mv -f $@.new $@
 .PRECIOUS: gbif%-$(taxon)-raw.csv
 
 dh1%-$(taxon)-raw.csv: dh1%-raw.csv $P/subset.py
-	$P/subset.py --hierarchy $< --root $(TAXON_DH1) < $< > $@.new
+	$P/subset.py --hierarchy $< --root $(TAXON) < $< > $@.new
 	@mv -f $@.new $@
 .PRECIOUS: dh1%-$(taxon)-raw.csv
 
 dh0%-$(taxon)-raw.csv: dh0%-raw.csv $P/subset.py
-	$P/subset.py --hierarchy $< --root $(TAXON_DH09) < $< > $@.new
+	$P/subset.py --hierarchy $< --root $(TAXON) < $< > $@.new
 	@mv -f $@.new $@
 .PRECIOUS: dh0%-$(taxon)-raw.csv
 
 work/col2021-mammals-raw.csv: work/col2021-raw.csv $P/subset.py
 	$P/subset.py --hierarchy $< --root 6224G < $< > $@.new
 	@mv -f $@.new $@
-work/col2019-mammals-raw.csv: work/col2019-raw.csv $P/subset.py
-	$P/subset.py --hierarchy $< --root 54767753 < $< > $@.new
+work/col2021-primates-raw.csv: work/col2021-raw.csv $P/subset.py
+	$P/subset.py --hierarchy $< --root 3W7 < $< > $@.new
+	@mv -f $@.new $@
+%-$(taxon)-raw.csv: %-raw.csv $P/subset.py
+	$P/subset.py --hierarchy $< --root $(TAXON) < $< > $@.new
+	@mv -f $@.new $@
+.PRECIOUS: %-$(taxon)-raw.csv
+
+work/mdd1.7-$(taxon)-raw.csv: work/mdd1.7-raw.csv $P/subset.py
+	$P/subset.py --hierarchy $< --root $(TAXON) < $< > $@.new
 	@mv -f $@.new $@
 
 # ----- 1. NCBI-specific rules
@@ -287,7 +291,7 @@ work/gbif20210303.dwca-url:
 
 # Ingest GBIF dump, convert TSV to CSV, add managed_id column
 gbif%-raw.csv: gbif%/dump/meta.xml $P/start.py
-	$P/start.py --pk $(PRIMARY_KEY) --input `dirname $<`/Taxon.tsv \
+	$P/start.py --pk $(PRIMARY_KEY) --input `src/find_taxa.py $<` \
 	  --managed gbif:taxonID >$@.new
 	@mv -f $@.new $@
 .PRECIOUS: gbif%-raw.csv
@@ -318,7 +322,7 @@ work/mdd1.6-source.csv: $(MDDSOURCE)/MDD_v1.6_6557species_inDwC.csv
 work/mdd1.7-source.csv: $(MDDSOURCE)/MDD_v1.7_6567species_inDwC.csv
 	cp -p $< $@
 
-mdd%-raw.csv: work/mdd%-source.csv $P/start.py
+work/mdd%-raw.csv: work/mdd%-source.csv $P/start.py
 	$P/start.py < $< --pk taxonID --managed mdd:taxonID > $@.new
 	@mv -f $@.new $@
 .PRECIOUS: mdd%-raw.csv

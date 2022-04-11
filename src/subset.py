@@ -19,6 +19,7 @@ from util import MISSING, windex, csv_parameters
 
 def extract_subset(infile, hier_path, root_id, outfile):
   (topo, root_tid) = read_topology(hier_path, root_id)
+  assert root_tid
   all = closure(topo, root_tid)
   write_subset(infile, root_tid, all, topo, outfile)
 
@@ -77,6 +78,7 @@ def read_topology(hier_path, root_id):
     aid_column = windex(head, "acceptedNameUsageID")
     sid_column = windex(head, "taxonomicStatus")
     name_column = windex(head, "canonicalName")
+    sci_column = windex(head, "scientificName")
 
     if tid_column == None:      # usually 0
       print("** No taxonID column found", file=sys.stderr)
@@ -103,7 +105,8 @@ def read_topology(hier_path, root_id):
         (children, _) = get_topo_record(parent_id, topo)
         children.append(tid)
       if (tid == root_id or
-          name_column != None and row[name_column] == root_id):
+          (name_column != None and row[name_column] == root_id) or
+          (sci_column != None and row[sci_column] == root_id)):
         root_tid = tid
         
     print("-- subset: %s hierarchy items of which %s have children and/or synonyms" %

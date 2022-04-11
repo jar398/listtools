@@ -88,6 +88,19 @@ def write_rows(gen, outfile):
   for row in gen:
     writer.writerow(row)
 
+# Random.  Simplifies processing of command line args that are
+# filename or - (for stdin); lets you use 'with' without having to
+# discriminate between the two argument forms.
+
+class Stdin:
+  def __enter__(self): return sys.stdin
+  def __exit__(self, exc_type, exc_val, exc_tb): return
+
+def stdopen(x):
+  if x == '-':
+    return Stdin()
+  else:
+    return open(x)
 
 # 
 

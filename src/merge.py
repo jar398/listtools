@@ -121,8 +121,7 @@ def process_lineage(AB, z):
     elif ship == CONFLICT:
       # x conflicts with y.  Delete x, take min(p, q) as parent
       # Parent of z is y, not x; skip x and go right to p
-      note = "conflict over %s" % blurb(z)
-      propose_deprecation(AB, rx.record, ry.record, note)
+      propose_deprecation(AB, z, rx.record, ry.record)
       t = (z, ry, note, rp, ry)    # z's parent could be y, or p (above the conflict)
     elif ship == GT:
       t = (z, ry, note, rx, rq)
@@ -320,7 +319,7 @@ def find_difference(AB, z, default=None):
             return True
           return False
         field_differs(canonical_prop) or \
-          field_differs(scientific_prop)
+          field_differs(tipe_prop)
         field_differs(rank_prop)
 
         # What about their parents?
@@ -388,6 +387,10 @@ def keep_record(AB, x):
 
     return can1 and can2 and can1 != can2
   return True
+
+# Returns the RCC5 relationship between x and y.  This is to be called
+# only after the trees have been merged, i.e. after all the
+# within-block relationships have been established by process_lineage.
 
 def post_hoc_relationship(AB, x, y):
 
