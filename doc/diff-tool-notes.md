@@ -119,10 +119,11 @@ and consider also the reverse comparison (B compared to A).
 
   1. x = y  where x is a tipward record match to y
   2. x = y  where x and y unambiguously subtend the same TRMs (see above)
-  3. x < y  where x has no equivalent in B ('addition')
+  3. x < y  where x and its descendants have no equivalent in B ('addition')
   4. x < y  where y has no equivalent in A ('refinement')
   5. x >< y  where x < parent(y)  ('inconsistency')
-  6. x R y  where x and y are record matches and R is not =
+  6. x R y  where x and y are record matches, and R is one of the RCC-5
+     relations other than =
 
 
 # 'Diff' file format
@@ -133,6 +134,6 @@ like to see reports generated in two steps:
   1. Generate a set of articulations, as above, that captures the
      result of alignment process such as the one outlined here; one
      might call this a 'basic report'.
-  2. A set of tools that take a 'basic report' as input and
+  2. A set of tools, each of which takes a 'basic report' as input and
      generates whatever kind of report is needed: summaries,
-     diffs (similar to MDD diffs?), merges, diagrams, etc.
+     diffs (similar to MDD diffs?), Euler/X syntax, merges, diagrams, etc.
