@@ -11,10 +11,12 @@ instead)
 ## Input
 
 Two checklists in Darwin Core format.  Rows are for either accepted
-names or synonyms.  Eah synonym links to its corresponding accepted
+names or synonyms.  Each synonym links to its corresponding accepted
 row via `acceptedNameUsageID` per Darwin Core.  The `canonicalName`
 extension is also processed; this column is used in GBIF and gives the
-`scienficName` minus the authority and year information.
+`scientificName` minus the authority and year information (so, usually
+a binomial or uninomial or trinomial, but also _var._, temporary taxon
+names, and so on).
 
 Within each checklist, it is assumed that every record denotes a
 distinct extension, i.e. for any pair of records there is some
@@ -29,9 +31,13 @@ or synonyms to have different extensions in the two inputs.  The tool
 is dealing centrally with taxon concepts, only using names
 heuristically to try to match concepts between the two checklists.
 
+Assume throughout the following that 'A' and 'B' are the two
+checklists that are the inputs to the tool.
+
+
 ## Cleaning
 
-`start.py` performs a miscellaneous set of functions to ensure
+On each checklist input, `start.py` performs a miscellaneous set of functions to ensure
 well-formed and canonical inputs:
   1. converts TSV to CSV
   2. checks for presence and uniqueness of primary keys (`taxonID`)
@@ -66,7 +72,7 @@ if no field allows a unique match, no match is made at all.
 
 Things to note:
   - a synonym can match either a synonym or an accepted
-  - a subspecies might match a species or synonym, if not better option is available
+  - a subspecies might match a species or synonym, if no better option is available
 
 For example, a record in checklist A with `canonicalName` _Saguinus
 labiatus thomasi_ (a subspecies) could record-match to a record with
@@ -111,6 +117,12 @@ good evidence that the higher taxa are different concepts (because we
 can point to a matched node pair where a node is subtended by one of the
 higher nodes, and not by the other).
 
+Note: If a species has synonyms or subspecies that are TRMs, then the
+species will not itself be a TRM.  This may seem odd - it implies that
+we might be matching species records to one another entirely on the
+basis of their synonyms, with the species names not mattering very
+much.
+
 
 ## Matching higher nodes
 
@@ -134,11 +146,17 @@ Having identified TRMs and higher record matches based on TRM
 subtension, we are in a position to determine the RCC-5 relationship
 between any node in one checklist and any node in the other.
 
-(For within-checklist questions, we can answer RCC-5 questions by
-observing the hierarchy in the usual way: a child may be assumed `<`
-its parent, accepted children of the same parent are disjoint, and we
-do not know the relationships between any unaccepted name (synonym) and
-its siblings.)
+For within-checklist questions, we can answer RCC-5 questions by
+observing the hierarchy in the usual way: 
+ * an accepted child is `<` its parent
+ * accepted children of the same parent are disjoint (`!`)
+ * a synonym (unaccepted name) is either `<` or `=` its parent, i.e. `<=`
+ * we do not know the relationships between a synonym and any or its siblings;
+   it could be any of the five RCC-5 relationships.
+
+These assumed within-checklist relations, together with the
+equivalences between tipward record matches, are the basis on which
+articulations between the two checklists are inferred.
 
 One obvious output format would be a set of articulations between
 nodes of the two checklists, but which articulations should be
@@ -154,9 +172,9 @@ and consider also the reverse comparison (B compared to A).
 
   1. x = y  where x is a tipward record match to y
   2. x = y  where x and y unambiguously subtend the same TRMs (see above)
-  3. x < y  where x and its descendants have no equivalent in B ('addition')
-  4. x < y  where y has no equivalent in A ('refinement')
-  5. x >< y  where x < parent(y)  ('inconsistency')
+  3. x < y  where x and its descendants have no equivalent in B ('addition' of x to y)
+  4. x < y  where y has no equivalent in A (y is a 'refinement' of x's parent)
+  5. x >< y  where x < parent(y)  ('inconsistency', maximal)
   6. x R y  where x and y are record matches, and R is one of the RCC-5
      relations other than =
 
@@ -166,7 +184,7 @@ and consider also the reverse comparison (B compared to A).
 I don't know what the most useful 'diff' format would be.  I would
 like to see reports generated in two steps:
 
-  1. Generate a set of articulations, as above, that captures the
+  1. Generate some set of articulations, as above, that captures the
      result of alignment process such as the one outlined here; one
      might call this a 'basic report'.
   2. A set of tools, each of which takes a 'basic report' as input and
@@ -187,7 +205,9 @@ event would be reflected in the analysis as follows:
 * Suppose that T is a tipward record match to T'
 * Suppose that S' and T' are siblings
 * Suppose that S and S' are record matches (not tipward)
-* Then we can infer that species S in A has been split into S' and T' in B.
+* We can infer that 
+  the name (of S in A, S' in B) has been split into S' and T' in B.  
+  That is, the name refers to different 'concepts' in the two checklists.
 
 Similarly, if the direction of change is reversed (B changed to become
 A), we would say the S' and T' are lumped to form S.
@@ -208,9 +228,9 @@ classifications taking T' as a synonym and others taking it as
 accepted, with the synonym classification given priority, initially,
 and the accepted classification gaining priority later on.
 
-In the aggregators, this problem generally applies to splitting events
+In the aggregators (NCBI, GBIF, and so on), this problem generally applies to splitting events
 but not to lumping events, because when records are lumped, the
 non-type source records are demoted from accepted to synonym, and the
-synonym records remain in the newer checklist version.  If our
+synonym records are retained in the newer checklist version.  If our
 checklists do not have curated synonyms or subspecies, then lumps and
-splits will only be detected at ranks higher than species.
+splits will only be detected at ranks higher than species (genus, family, etc.).
