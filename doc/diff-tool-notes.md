@@ -8,6 +8,27 @@ Some of these steps correspond to commands that a part of the
 tools (currently `merge.py` but potentially elsewhere in addition or
 instead)
 
+## Input
+
+Two checklists in Darwin Core format.  Rows are for either accepted
+names or synonyms.  Eah synonym links to its corresponding accepted
+row via `acceptedNameUsageID` per Darwin Core.  The `canonicalName`
+extension is also processed; this column is used in GBIF and gives the
+`scienficName` minus the authority and year information.
+
+Within each checklist, it is assumed that every record denotes a
+distinct extension, i.e. for any pair of records there is some
+specimen that falls under one record but not the other.  This may not
+be always be true (e.g. when considering objective synonyms in the
+absence of lumping or splitting), but I don't think this will matter
+much in practice; it is a simple assumption to explain and reason about.
+
+Between checklists, extensions may or may not be shared, and in
+particular a single name might be found through analysis of hierarchy
+or synonyms to have different extensions in the two inputs.  The tool
+is dealing centrally with taxon concepts, only using names
+heuristically to try to match concepts between the two checklists.
+
 ## Cleaning
 
 `start.py` performs a miscellaneous set of functions to ensure
@@ -43,12 +64,26 @@ necessarily, but when they are a single record is matched to a single
 record.  Unambiguous matches can be based on any key-like field, but
 if no field allows a unique match, no match is made at all.
 
+Things to note:
+  - a synonym can match either a synonym or an accepted
+  - a subspecies might match a species or synonym, if not better option is available
+
+For example, a record in checklist A with `canonicalName` _Saguinus
+labiatus thomasi_ (a subspecies) could record-match to a record with
+`canonicalName` _Saguinus thomasi_ in B, but only if _Saguinus
+thomasi_ does not occur in A (which it probably does not).
+
 ## Tipward record matches
 
-Record matches include both those for tips (usually species or
-subspecies) and internal nodes (usually higher taxa).  Matching must
+Record matches include both those for tips (usually species,
+subspecies, or synonyms) and internal nodes (usually higher taxa).  Matching must
 begin with just the tips since species can get moved from one genus or
 family to another, making higher taxon names unreliable.
+
+For purposes of this analysis, synonyms are treated the same as other
+descendants.  For example, if a species S has a synonym T that is a
+record match to T', then T to T' will be a tipward record match, while
+S isn't.
 
 So, there is a scan over each of the two inputs checklists to find the
 "most tipward" record matches, which form a subset of the complete
@@ -137,3 +172,45 @@ like to see reports generated in two steps:
   2. A set of tools, each of which takes a 'basic report' as input and
      generates whatever kind of report is needed: summaries,
      diffs (similar to MDD diffs?), Euler/X syntax, merges, diagrams, etc.
+
+
+# How lumping and splitting are detected
+
+If we suppose that checklist B is a later 'version' of a curated
+checklist, and checklist A is an earlier 'version', we can talk about
+differences between A and B as resulting from 'changes' or 'events' to
+the curated checklist.  The most common and important of these events
+are 'lumping' and 'splitting' events.  A simple lumping or a splitting
+event would be reflected in the analysis as follows:
+
+* Suppose species S in checklist A has synonym or subspecies T
+* Suppose that T is a tipward record match to T'
+* Suppose that S' and T' are siblings
+* Suppose that S and S' are record matches (not tipward)
+* Then we can infer that species S in A has been split into S' and T' in B.
+
+Similarly, if the direction of change is reversed (B changed to become
+A), we would say the S' and T' are lumped to form S.
+
+An obvious limitation is that even if S' + T' is a split of S, if
+there is no record T in A matching T', then we do not know whether the
+new record T' is split off from S, or split from one of S's sibling
+species.  And of course we also can't distinguish the case where T' is
+split from S or a sibling from the case where T' is "wholly new"
+(newly discovered).
+
+The presence of T is a matter of luck and would typically result from
+the split undoing a previous lump, i.e. the restoration of a previous
+classification in which T had been accepted, but later lumped in with
+S.  Or, in a very similar manner, it could also result from a
+checklist being aggregated from multiple classications with some
+classifications taking T' as a synonym and others taking it as
+accepted, with the synonym classification given priority, initially,
+and the accepted classification gaining priority later on.
+
+In the aggregators, this problem generally applies to splitting events
+but not to lumping events, because when records are lumped, the
+non-type source records are demoted from accepted to synonym, and the
+synonym records remain in the newer checklist version.  If our
+checklists do not have curated synonyms or subspecies, then lumps and
+splits will only be detected at ranks higher than species.
