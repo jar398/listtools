@@ -54,10 +54,10 @@ def match_records(a_reader, b_reader, pk_col="taxonID", index_by=default_index_b
 
 def generate_sum(coproduct, pk_col):
   yield ["match_id", "relationship", pk_col, "basis_of_match"]
-  for (key1, rel, key2, remark) in coproduct:
-    # if rel == NOINFO: rel_sym = ''  ... ...
-    rel_sym = rcc5_symbol(rel)
-    yield [key1, rel_sym, key2, remark]
+  for (key1, ship, key2, remark) in coproduct:
+    if ship != NOINFO or remark:
+      ship_sym = rcc5_symbol(ship)
+      yield [key1, ship_sym, key2, remark]
 
 # table * table -> sum (cf. delta.py)
 

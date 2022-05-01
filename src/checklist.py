@@ -26,12 +26,12 @@ source_prop = prop.declare_property("source", inherit=False)    # which checklis
 parent_key_prop = prop.declare_property("parentNameUsageID", inherit=False)    # LT
 accepted_key_prop = prop.declare_property("acceptedNameUsageID", inherit=False) # LE
 superior_note_prop = prop.declare_property("superior_note", inherit=False)
-superior_prop = prop.declare_property("superior", inherit=False)    # value is a Related
+superior_prop = prop.declare_property("superior", inherit=False)    # value is a Relative
 
 # For A/B identifications
-equated_key_prop = prop.declare_property("equated_id", inherit=False)    # value is a Related
-equated_note_prop = prop.declare_property("equated_note", inherit=False)    # value is a Related
-equated_prop = prop.declare_property("equated", inherit=False)    # value is a Related
+equated_key_prop = prop.declare_property("equated_id", inherit=False)    # value is a Relative
+equated_note_prop = prop.declare_property("equated_note", inherit=False)    # value is a Relative
+equated_prop = prop.declare_property("equated", inherit=False)    # value is a Relative
 
 # For record matches made by name(s)
 match_key_prop = prop.declare_property("match_id", inherit=False)
@@ -529,6 +529,57 @@ def monitor(x):
   return ((x and len(name) == 1)
           or name.startswith("Muri")
           )
+
+# -----------------------------------------------------------------------------
+# Load/dump a set of provisional matches (could be either nominal match
+# or taxonomic matches... but basically, nominal matches)
+
+def load_matches(row_iterator, AB):
+  log("# Loading matches")
+
+  header = next(row_iterator)
+  plan = prop.make_plan_from_header(header)
+  match_count = 0
+  miss_count = 0
+  for row in row_iterator:
+    # row = [matchID, rel, taxonID, remark]
+    match = prop.construct(plan, row)
+    x = y = None
+    xkey = get_match_key(match, None)
+    if xkey:
+      x_in_A = look_up_record(AB.A, xkey)
+      if x_in_A:
+        x = AB.in_left(x_in_A)
+    ykey = get_primary_key(match, None)
+    if ykey:
+      y_in_B = look_up_record(AB.B, ykey)
+      if y_in_B:
+        y = AB.in_right(y_in_B) 
+
+    # The columns of the csv file
+
+    rel = rcc5_relationship(get_match_relationship(match)) # EQ, NOINFO
+    note = get_basis_of_match(match, MISSING)
+    # x or y might be None with rel=NOINFO ... hope this is OK
+    if y and rel:
+      set_match(y, relation(reverse_relationship(rel), x, "record match",
+                            reverse_note(note)))
+    if x:
+      set_match(x, relation(rel, y, "record match", note))
+    if x: match_count += 1
+    else: miss_count += 1
+
+  #log("# %s matches, %s misses" % (match_count, miss_count))
+
+def reverse_note(note):
+  if ' ' in note:
+    return "↔ " + note            # tbd: deal with 'coambiguous'
+  else:
+    return note
+
+def record_match(x):
+  return get_matched(x)
+
 
 # -----------------------------------------------------------------------------
 

@@ -112,6 +112,7 @@ RAKE?=cd ../plotter && rake
 SUMMARY=work/$(shell basename $A)-$(shell basename $B)-summary.csv
 REPORT=work/$(shell basename $A)-$(shell basename $B)-report.csv
 MERGED=work/$(shell basename $A)-$(shell basename $B)-merged.csv
+ALIGNED=work/$(shell basename $A)-$(shell basename $B)-aligned.csv
 MATCHES=work/$(shell basename $A)-$(shell basename $B)-matches.csv
 ROUND=work/$(shell basename $A)-$(shell basename $B)-round.csv
 DELTA=work/$(shell basename $A)-$(shell basename $B)-delta.csv
@@ -133,6 +134,17 @@ $(MERGED): $(MATCHES) $P/merge.py $P/theory.py $P/workspace.py $P/checklist.py $
 	@echo
 	@echo "--- MERGING ---"
 	$P/merge.py --A $A.csv --B $B.csv --matches $(MATCHES) \
+		    > $@.new
+	@mv -f $@.new $@
+
+# Alignment of two checklists:
+
+aligned: $(ALIGNED)
+
+$(ALIGNED): $(MATCHES) $P/align.py $P/theory.py $P/workspace.py $P/checklist.py $P/property.py
+	@echo
+	@echo "--- ALIGNING ---"
+	$P/align.py --A $A.csv --B $B.csv --matches $(MATCHES) \
 		    > $@.new
 	@mv -f $@.new $@
 
@@ -244,6 +256,13 @@ work/col2021-primates-raw.csv: work/col2021-raw.csv $P/subset.py
 .PRECIOUS: %-$(taxon)-raw.csv
 
 work/mdd1.7-$(taxon)-raw.csv: work/mdd1.7-raw.csv $P/subset.py
+	$P/subset.py --hierarchy $< --root $(TAXON) < $< > $@.new
+	@mv -f $@.new $@
+work/mdd1.6-$(taxon)-raw.csv: work/mdd1.6-raw.csv $P/subset.py
+	$P/subset.py --hierarchy $< --root $(TAXON) < $< > $@.new
+	@mv -f $@.new $@
+# Don't know why this doesn't work
+work/mdd1.0-$(taxon)-raw.csv: work/mdd1.0-raw.csv $P/subset.py
 	$P/subset.py --hierarchy $< --root $(TAXON) < $< > $@.new
 	@mv -f $@.new $@
 
@@ -441,7 +460,7 @@ test:
 	$P/property.py
 	$P/checklist.py
 	$P/workspace.py
-	$P/merge.py --test
+	$P/align.py --test
 	$(MAKE) A=work/test1 B=work/test2 report
 
 test-report: 

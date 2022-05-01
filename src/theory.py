@@ -8,6 +8,8 @@ from checklist import *
 from workspace import *
 from match_records import match_records
 
+# ---- tools for working with sum taxonomy A+B
+
 # This is run pre-merge so should not chase A->B synonym links.
 # If the parent is a synonym, that's a problem - shouldn't happen.
 
@@ -56,11 +58,6 @@ def isinB(AB, z):
 
 def isinA(AB, z):
   return AB.case(z, lambda x: True, lambda x: False)
-
-def equated(x, y):              # Are x and y equated?
-  if x == y: return True
-  z = get_equated(y, None)
-  return z and z.record == x
 
 # -----------------------------------------------------------------------------
 # Decide about relations between two trees
@@ -168,6 +165,11 @@ def possible_tipe(AB, z):       # tipe as in type specimen/series
 
 (get_cotipe, set_cotipe) = prop.get_set(prop.declare_property("cotipe"))
 
+def equated(x, y):              # Are x and y equated?
+  if x == y: return True
+  z = get_equated(y, None)
+  return z and z.record == x
+
 def equatee(AB, z):                 # in other tree
   if isinB(AB, z):
     ship = get_equated(z, None)  # Does z represent an MTRM ?
@@ -183,6 +185,10 @@ def get_accepted(z):  # in priority tree, if possible
   if rel and rel.relationship != ACCEPTED:
     return get_accepted(rel.record)
   return z
+
+# Assuming x and y are in different trees, and that we are only
+# looking at the 'blocks' (not topology otherwise), what is the
+# relationship between x and y?
 
 def lt_per_blocks(AB, x, y):
   b1 = get_block(x, BOTTOM_BLOCK)
@@ -289,7 +295,7 @@ def propose_deprecation(AB, z, x, y):
 (get_conflict, set_conflict) = prop.get_set(prop.declare_property("conflict"))
 
 # -----------------------------------------------------------------------------
-# Same-tree relations
+# Same-tree relationships (with a single tree)
 
 #    x1 ? y1     'larger'
 #   /       \
@@ -418,3 +424,35 @@ def ensure_levels(S):
       # This isn't right -- get_level works better
       cache(c, n+1)
   cache(S.top, 1)
+
+# -----------------------------------------------------------------------------
+# Find mutual tipward matches
+
+def analyze_tipwards(AB):
+  find_cotipes(AB.A, AB.in_left, lambda x,y:None)
+  counter = [1]
+  def finish(z, m):             # z in B
+    # z is tipward.  If m is too, we have a MTRM.
+    if get_cotipe(m, None) == z:
+      #if monitor(z): log("# MTRM: %s :=: %s" % (blurb(z), blurb(m)))
+      propose_equation(AB, m, z, "MTRM")
+  find_cotipes(AB.B, AB.in_right, finish)    # of AB.flip()
+
+def find_cotipes(A, in_left, finish):
+  ensure_inferiors_indexed(A)
+  def traverse(x):
+    seen = False
+    for c in get_inferiors(x):
+      seen = traverse(c) or seen
+    if not seen and not is_top(x):
+      z = in_left(x)
+      m = get_matched(z)
+      if m:
+        #if monitor(z): log("# cotipe: %s = %s" % (blurb(z), blurb(m)))
+        finish(z, m)
+        set_cotipe(z, m)
+        set_cotipe(m, z)
+        seen = z
+    return seen
+  traverse(A.top)
+
