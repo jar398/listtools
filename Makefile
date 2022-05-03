@@ -41,9 +41,9 @@ ncbi-report:
 # ----- 2. GBIF examples:
 
 gbif-report:
-	$(MAKE) A=work/gbif20190916-$(taxon) B=work/gbif20210303-$(taxon) report
+	$(MAKE) A=work/gbif20180620-$(taxon) B=work/gbif20220317-$(taxon) report
 
-# make A=work/ncbi202008-mammals B=work/gbif20210303-mammals report
+# make A=work/ncbi202008-mammals B=work/gbif20220317-mammals report
 # and so on.
 
 # ----- 3. BioKIC/ATCR examples:
@@ -51,9 +51,10 @@ gbif-report:
 mdd-report:
 	$(MAKE) A=work/mdd1.6 B=work/mdd1.7 report
 
-# make A=work/mdd1.2-mammals B=work/mdd1.3 report
 # make A=work/mdd1.2 B=work/mdd1.3 report
-# make A=work/gbif20210303-mammals B=work/mdd1.0-mammals report
+# make A=work/gbif20220317-mammals B=work/mdd1.0-mammals report
+# Prashant's request, see slack on 5/2/2022:
+# make A=work/mdd1.7 B=work/gbif20220317-mammals report
 
 # ----- 4. EOL examples:
 
@@ -200,12 +201,12 @@ $(DELTA): $A.csv $B.csv $P/delta.py $P/match_records.py $P/property.py
 
 # Any Darwin Core archive (DwCA):
 
-%/dump/meta.xml: %.dwca-url
+%/dump: %.dwca-url
 	mkdir -p `dirname $@`/dump
 	wget -O `dirname $@`.zip $$(cat $<)
 	unzip -d `dirname $@` `dirname $@`.zip
 	touch `dirname $@`/*
-.PRECIOUS: %/dump/meta.xml
+.PRECIOUS: %/dump
 
 # ----- Mammals rules
 
@@ -283,14 +284,14 @@ ncbi%-raw.csv: work/ncbi%/dump/names.dmp src/ncbi_to_dwc.py $P/start.py
 
 # ----- 2. GBIF-specific rules
 
-work/gbif20190916.dwca-url:
+work/gbif20180620.dwca-url:
 	echo https://rs.gbif.org/datasets/backbone/2019-09-06/backbone.zip >$@
 
-work/gbif20210303.dwca-url:
+work/gbif20220317.dwca-url:
 	echo https://rs.gbif.org/datasets/backbone/2021-03-03/backbone.zip >$@
 
 # Ingest GBIF dump, convert TSV to CSV, add managed_id column
-gbif%-raw.csv: gbif%/dump/meta.xml $P/start.py
+gbif%-raw.csv: gbif%/dump $P/start.py
 	$P/start.py --pk $(PRIMARY_KEY) --input `src/find_taxa.py $<` \
 	  --managed gbif:taxonID >$@.new
 	@mv -f $@.new $@
@@ -426,7 +427,7 @@ work/col2019.dwca-url:
 
 # Ingest GBIF dump, convert TSV to CSV, add managed_id column
 # If CoL had record ids we could do --managed col:taxonID 
-col%-raw.csv: col%/dump/meta.xml $P/start.py
+col%-raw.csv: col%/dump $P/start.py
 	$P/start.py --pk $(PRIMARY_KEY) --input `src/find_taxa.py $<` \
 	  >$@.new
 	@mv -f $@.new $@

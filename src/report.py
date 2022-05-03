@@ -72,6 +72,7 @@ def generate_reports(AB, mode):
                  get_basis_of_match(y, '') if y else '')
 
   def generate_summary_foo(stats):
+    yield(("taxa", "species", "differences"))
     for key in sorted(list(stats.keys())):
       s = stats[key]
       yield((s[0], s[1], key))
@@ -80,7 +81,7 @@ def generate_reports(AB, mode):
 
 def formatted_summary(rows):
   for row in rows:
-    yield("%7d %7d %s" % row)
+    yield("%7s %7s %s" % row)
 
 def is_accepted(x):
   sup = get_superior(x, None)
