@@ -131,7 +131,7 @@ def gt(AB, x, y):
 
 # -----------------------------------------------------------------------------
 # Precompute 'blocks' (tipe sets, implemented in one of various ways).
-# A block is represented as either a set or TOP_BLOCK
+# A block is represented as either a set or TOP_BLOCK or BOTTOM_BLOCK
 
 def compute_blocks(AB):
   def traverse(x, in_left):

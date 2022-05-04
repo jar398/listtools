@@ -19,8 +19,7 @@ def align(a_iter, b_iter, A_name='A', B_name='B', matches_iter=None):
   if not matches_iter:
     matches_iter = match_records(checklist_to_rows(A), checklist_to_rows(B))
   AB = workspace.make_workspace(A, B, {"name": "AB"})
-  load_matches(matches_iter, AB)
-  AB.get_cross_mrca = theory.mrca_crosser(AB)
+  theory.load_matches(matches_iter, AB)
   return align_checklists(AB)
 
 # Traverse either A or B to find equivalences
@@ -30,10 +29,11 @@ def align(a_iter, b_iter, A_name='A', B_name='B', matches_iter=None):
 #     show < if not 'obvious' (commutative diagram)
 
 def align_checklists(AB):
-  A = AB.A
-  B = AB.B
+  AB.get_cross_mrca = theory.mrca_crosser(AB)
   theory.analyze_tipwards(AB)                # also find tipes
   theory.compute_blocks(AB)
+  A = AB.A
+  B = AB.B
   theory.ensure_levels(A)           # N.b. NOT levels in AB
   theory.ensure_levels(B)
   alignment = []     # [idA nameA ship nameB idB comment]
