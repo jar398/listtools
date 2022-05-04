@@ -8,6 +8,7 @@ from checklist import *
 from workspace import *
 from theory import *
 from match_records import match_records
+from rcc5 import rcc5_symbol
 
 # So how does this work.
 # We determine an alignment heuristically.
@@ -29,8 +30,8 @@ def analyze(A, B, m_iter=None):
   AB = make_workspace(A, B, {"name": "AB"})
   if not m_iter:
     m_iter = match_records(checklist_to_rows(AB.A), checklist_to_rows(AB.B))
-  load_matches(m_iter, AB)
-  AB.get_cross_mrca = mrca_crosser(AB)
+  theory.load_matches(m_iter, AB)
+  AB.get_cross_mrca = theory.mrca_crosser(AB)
   spanning_tree(AB)
   return AB
 
@@ -73,7 +74,7 @@ def spanning_tree(AB):
   traverse(AB.B.top, AB.in_right)
   log("-- merge: start A pass")
   traverse(AB.A.top, AB.in_left)
-  ensure_inferiors_indexed(AB)
+  ensure_inferiors_indexed(AB)  # children and synonyms properties
 
 # x in A, y in B
 
@@ -327,6 +328,16 @@ def post_hoc_relationship(AB, x, y):
     return simple_relationship(x, y) # ordering within block
   else:
     return rel
+
+def foo_equatee(AB, z):                 # in other tree
+  if theory.isinB(AB, z):                  # UNFORTUNATE
+    ship = get_equated(z, None)  # Does z represent an MTRM ?
+    return ship.record if ship else None
+  else:
+    ship = get_superior(z, None)
+    if ship and ship.relationship == EQ:
+      return ship.record    # z is in A
+    return None
 
 # -----------------------------------------------------------------------------
 
