@@ -9,7 +9,130 @@ from workspace import *
 from match_records import match_records
 from rcc5 import rcc5_relationship, reverse_relationship
 
-# Satisfies: 
+def isinA(AB, z):
+  return AB.case(z, lambda x: True, lambda x: False)
+
+def isinB(AB, z):
+  return AB.case(z, lambda x: False, lambda x: True)
+
+#-----------------------------------------------------------------------------
+
+# This is the implementation of the RCC-5 theory of AB (A+B).
+
+# x and y are in ... AB, not in A or B
+# Returns a Relative to y
+
+# TBD: set status to "accepted" or "synonym" as appropriate
+
+def cross_relation(x, y):
+  b1 = get_block(x, BOTTOM_BLOCK)
+  b2 = get_block(y, BOTTOM_BLOCK)
+  ship = block_relationship(b1, b2)
+  if ship != EQ:
+    return relation(ship, y, None, "MTRM set comparison")
+
+  # Look for a record match for x or y, and punt to simple case
+  n = get_match(x)              # n.record is in AB (from B)
+  if n and n.record and n.relationship == EQ:
+    # NO - the relative.record needs to be y
+    rel1 = simple_relationship(outject(n.record), outject(y))
+
+  m = get_match(y)
+  if m and m.record and m.relationship == EQ:
+    rel2 = simple_relationship(outject(x), outject(m.record))
+
+  rel = rel1 or rel2
+  if rel:
+    if (not rel1 or not rel2 or
+        rel1.relationship == rel2.relationship):
+      return relation(rel.relationship, y, rel.status, rel.note)
+    return relation(NOINFO, y, None, "lineage out of order??")
+
+  if is_empty_block(b1):
+    return relation(DISJOINT, y, None, "disconnected orphans")
+
+  # No equivalent either way, but same block, so OVERLAP.
+  # TBD: If no child or parent of x or y is in same block, then EQ.
+  return relation(OVERLAP, y, None, "same block but no record match")
+
+# RCC-5 relationship across the two checklists
+# x is in A and y is in B, or vice versa
+
+def cross_lt(x, y):
+  return cross_relation(x, y).relationship == LT
+
+# -----------------------------------------------------------------------------
+
+# Returns a Relative y to x such that x = y.  x and y are in AB, not A or B.
+# TBD: should cache this.
+
+def get_equivalent(AB, x):
+  y = None
+  rel1 = get_match(x)            # Record match
+  if rel1 and rel1.record and rel1.relationship == EQ:
+    y = rel1.record
+  else:
+    y = get_cross_mrca(x)
+  rel2 = cross_relation(x, y)
+  if rel2.relationship == EQ:
+    return rel2                 # hmm. combine rel1 and rel2 ?
+  return None
+
+def get_injected_superior(AB, a):
+  return AB.case(z,
+                 lambda x: AB.in_left(get_superior(x)),
+                 lambda y: AB.in_right(get_superior(y)))
+
+# -----------------------------------------------------------------------------
+# Least node in opposite checklist that's greater than x.
+# x is in A (or B), not AB, and result is in B (or A), not in AB.
+
+def cross_superior(AB, x):
+  q = AB.get_cross_mrca(x)
+  while q and not cross_lt(x, q):
+    q = get_superior(q)
+  return q
+
+# -----------------------------------------------------------------------------
+# Find mutual tipward record matches (MTRMs)
+
+(get_tipward, set_tipward) = prop.get_set(prop.declare_property("tipward"))
+
+def analyze_tipwards(AB):
+  find_tipwards(AB.A, AB.in_left)
+  find_tipwards(AB.B, AB.in_right)
+
+# Postorder iteration over one of the two summands.
+
+def find_tipwards(A, in_left, finish):
+  ensure_inferiors_indexed(A)  # children and synonyms properties
+  def traverse(x):
+    seen = False
+    for c in get_inferiors(x):
+      seen = traverse(c) or seen
+    if not seen and not is_top(x):
+      z = in_left(x)            # z is tipward...
+      rel = get_match(z, None)  # rel is a Relative...
+      if rel:
+        # z is tipward and has a match, not necessarily tipward ...
+        set_tipward(z, rel)
+        seen = x
+    return seen
+  traverse(A.top)
+
+# argument is in AB, result is in AB (from opposite summands)
+
+def get_mtrm(z):
+  rel = get_tipward(z, None)
+  if rel:
+    q = rel.record              # in AB
+    rel2 = get_tipward(q, None)
+    if rel2 and rel2.record == z:
+      return q
+  return None
+
+# -----------------------------------------------------------------------------
+# cross_mrca satisfies: 
 #   1. if y = cross_mrca(x) then x ~<= y
 #   2. if furthermore x' = cross_mrca(y), then
 #      (a) if x' <= x then x ≅ y, 
@@ -18,36 +141,32 @@ from rcc5 import rcc5_relationship, reverse_relationship
 # i.e.   x ≲ y ≲ x' ≤ x   →   x ≅ y   (same 'block')
 # i.e.   x ≲ y ≲ x' > x   →   x < y
 #
-# Cached under the 'cross_mrca' property.
+# Cached in AB nodes under the 'cross_mrca' property.
+# Needed for equivalent and cosuperior calculations
 
-def mrca_crosser(AB, equatee):
+def compute_cross_mrcas(AB):
+  def crosses(AB):
+    A = AB.A
+    def traverse(x):            # arg in A, result in B
+      m = BOTTOM                # identity for mrca
+      z = AB.in_left(x)         # in AB
+      probe = get_mtrm(z)       # in AB
+      if probe:
+        m = outject(probe)      # in B
+      else:
+        for c in get_inferiors(x):
+          q = traverse(c)       # in B
+          if q:
+            m = mrca(q, m)      # in B
+      if m != BOTTOM:
+        set_cross_mrca(z, m)
+        return m
+      return None
+    traverse(A.top)
+  crosses(AB)
+  crosses(AB.swap())
 
-  # Cached
-  def compute_cross_mrca(z):
-    e = equatee(AB, z)
-    if e: return e
-    (x, in_left, in_right) = \
-      AB.case(z,
-              lambda x:(x, AB.in_left, AB.in_right),
-              lambda y:(y, AB.in_right, AB.in_left))
-    m = BOTTOM                  # identity for mrca
-    for c in get_inferiors(x):
-      q = get_cross_mrca(in_left(c))
-      if q:
-        r = AB.case(q, lambda x:x, lambda y:y)
-        m = mrca(r, m)
-    #clog("# cross-mrca of %s is %s" % (blurb(x), blurb(m)))
-    return in_right(m) if m != BOTTOM else None
-  get_cross_mrca = \
-    prop.getter(prop.declare_property("cross_mrca",
-                                      filler=compute_cross_mrca))
-  return get_cross_mrca
-
-def isinA(AB, z):
-  return AB.case(z, lambda x: True, lambda x: False)
-
-def isinB(AB, z):
-  return AB.case(z, lambda x: False, lambda x: True)
+(get_cross_mrca, set_cross_mrca) = prop.get_set(prop.declare_property("cross_mrca"))
 
 # -----------------------------------------------------------------------------
 # Precompute 'blocks' (tipe sets, implemented in one of various ways).
@@ -70,119 +189,44 @@ def compute_blocks(AB):
       set_block(x, e)
     #log("# block(%s) = %s" % (blurb(x), e))
     return e
-  traverse(AB.B.top, AB.in_right)
   traverse(AB.A.top, AB.in_left)
+  traverse(AB.B.top, AB.in_right)
 
 def possible_mtrm_block(AB, z):
   rel = get_mtrm(z)             # a Relative
   return mtrm_block(z, rel.record) if rel else BOTTOM_BLOCK
 
-(get_tipward, set_tipward) = prop.get_set(prop.declare_property("tipward"))
-
-def get_accepted(z):  # in priority tree, if possible
-  rel = get_superior(z, None)
-  if rel and rel.relationship != ACCEPTED:
-    return get_accepted(rel.record)
-  return z
-
-def lt_per_blocks(AB, x, y):
-  b1 = get_block(x, BOTTOM_BLOCK)
-  b2 = get_block(x, BOTTOM_BLOCK)
-  if b1 == TOP_BLOCK: return False    # top not < anything
-  elif b2 == TOP_BLOCK: return True   # non-top < top
-  else: return b1 < b2
-
-def relationship_per_blocks(AB, x, y):
-  ship = block_relationship(get_block(x, BOTTOM_BLOCK),
-                            get_block(y, BOTTOM_BLOCK))
-  return COMPARABLE if ship == EQ else ship
-
+# -----------------------------------------------------------------------------
 # Implementation of blocks as Python sets of 'tipes.'
 
+# RCC-5 relationship between two blocks
+
 def block_relationship(e1, e2):   # can assume overlap
-  if e1 == e2: return EQ          # same blocks
-  if e1 == TOP_BLOCK: return GT
-  if e2 == TOP_BLOCK: return LT
+  if e1 == e2: return EQ          # same block
+  elif e1 == TOP_BLOCK: return GT
+  elif e2 == TOP_BLOCK: return LT
   elif e1.issubset(e2): return LT
   elif e2.issubset(e1): return GT
   elif e1.isdisjoint(e2): return DISJOINT
   else: return CONFLICT
+
+# Lattice join (union) of two blocks
 
 BOTTOM_BLOCK = set()
 TOP_BLOCK = True
 def combine_blocks(e1, e2):
   if e1 == BOTTOM_BLOCK: return e2
   if e2 == BOTTOM_BLOCK: return e1
+  if e1 == TOP_BLOCK: return e1
+  if e2 == TOP_BLOCK: return e2
   return e1 | e2
 def same_block(e1, e2): return e1 == e2
 def is_empty_block(e): return e == BOTTOM_BLOCK
-def mtrm_block(x, y):
-  v1 = get_tipe(x, None)
-  if v1 and v1 == get_tipe(y, None): return {v1}
-  v1 = get_scientific(x, None)
-  if v1 and v1 == get_scientific(y, None): return {v1}
-  v1 = get_canonical(x, None)
-  if v1 and v1 == get_canonical(y, None): return {v1}
-  v1 = get_stemmed(x, None)     # 'Balaenoptera omurai and' in DH 1.1
-  if v1 and v1 == get_stemmed(y, None): return {v1}
-  v1 = get_managed_id(x, None)
-  if v1 and v1 == get_managed_id(y, None): return {v1}
-  # Phyllostoma bilabiatum / Phyllostomus bilabiatum  ... hmph
-  # Why do these match? Dermanura anderseni, Artibeus anderseni*  ????
-  # log("# Why do these match? %s, %s" % (blurb(x), blurb(y)))
+
+def mtrm_block(x, y):           # x = y
   return {min(x.id, y.id)}
 
 (get_block, set_block) = prop.get_set(prop.declare_property("block"))
-
-# -----------------------------------------------------------------------------
-# Alignment building...
-
-# Propose that rs.record should be the parent (superior) of z
-
-def propose_superior(AB, z, rs, ship, status, note):
-  assert rs
-  assert isinstance(z, prop.Record), blurb(z)
-  assert isinstance(rs, Relative)
-  assert ship == ACCEPTED or ship == SYNONYM
-  # I don't feel good about these
-  s = get_accepted(rs.record)
-  rel = relation(ship,
-                 s,
-                 status or rs.status,    # accepted, etc
-                 note)
-  set_superior_carefully(z, rel)  # explanation of why < or <=
-
-# Propose that x (in A) = y (in B).  x becomes an EQ synonym of y.
-
-def propose_equation(AB, x, y, why_equiv):
-  # Polarize
-  assert isinA(AB, x) and isinB(AB, y)
-  (x, y) = AB.case(x, lambda xx: (x, y), lambda yy: (y, x))
-
-  # Treat the A record like a synonym of the B record
-  set_superior_carefully(x, relation(EQ, y, "equivalent", why_equiv))
-  # Set uppointer from B to A
-  set_equated(y, relation(EQ, x, "equivalent", why_equiv))
-  sci = get_scientific(x, None)
-  if not get_scientific(y, None) and sci:
-    if sci.startswith(get_canonical(y, None)):
-      set_scientific(y, sci)
-      #log("# transferring '%s' from A to B" % sci)
-
-# x and y are candidate parents for node z, and they conflict with one
-# another.  y has priority.
-
-def propose_deprecation(AB, z, x, y):
-  assert isinA(AB, x) and isinB(AB, y)
-  # set_alt_parent(z, x) ...
-  set_conflict(x, y)
-  if False:
-    log("# Deprecating %s because it conflicts with %s" %
-        (blurb(x), blurb(y)))
-    log("#  ... %s is now the 'accepted name' of %s" %
-        (blurb(yy), blurb(x)))
-
-(get_conflict, set_conflict) = prop.get_set(prop.declare_property("conflict"))
 
 # -----------------------------------------------------------------------------
 # Same-tree relations
@@ -191,25 +235,31 @@ def propose_deprecation(AB, z, x, y):
 #   /       \
 #  x         y   'smaller'
 
+# Returns a Relative explaining justification
+
 def simple_relationship(x, y):             # Within a single tree
   (x, synx) = nip_synonym(x)
   (y, syny) = nip_synonym(y)
   if x == y:
     if synx or syny:
-      if synx and syny: return NOINFO         # blah
-      else: return LE if synx else GE
+      if synx and syny:
+        return relation(NOINFO, y, None, "sibling synonyms") # blah
+      elif synx:
+        return relation(LE, y, "synonym", "synonym <= accepted")
+      else:
+        return relation(GE, y, None, "accepted >= synonym")
     else:
-      return EQ
+      return relation(EQ, y, None, "accepted = accepted")
   (x1, y1) = find_peers(x, y)    # Decrease levels as needed
   if x1 == y1:     # x <= x1 = y1 >= y
     if x1 == x:     # x = x1 = y1 > y, x > y
-      return GT
+      return relation(GT, y, None, "in-checklist")
     elif y1 == y:
-      return LT
+      return (LT, y, None, "in-checklist")
     else:
       assert False  # can't happen
   else:
-    return DISJOINT
+    return (DISJOINT, y, "in-checklist")
 
 # Assumes already 'nipped'
 
@@ -316,90 +366,6 @@ def ensure_levels(S):
   cache(S.top, 1)
 
 # -----------------------------------------------------------------------------
-
-# This (?) is run pre-merge so should not chase A->B synonym links.
-# If the parent is a synonym, that's a problem - shouldn't happen.
-
-def get_left_superior(AB, z):
-  x = get_left_persona(AB, z)
-  if not x: return None
-  rel_in_A = get_superior(x, None)
-  # Return relation that's same as rel_in_A except in AB instead of A
-  if rel_in_A:
-    p = AB.in_left(rel_in_A.record)
-    return relation(rel_in_A.relationship, p, rel_in_A.status, rel_in_A.note)
-  return None
-
-def get_right_superior(AB, z):
-  y = get_right_persona(AB, z)
-  if not y: return None
-  rq = get_superior(y, None)
-  if rq:
-    q = AB.in_right(rq.record)
-    return relation(rq.relationship, q, rq.status, rq.note)
-  return None
-
-# Returns a record in the left checklist, or None
-
-def get_left_persona(AB, z):    # left = A = nonpriority
-  assert isinstance(z, prop.Record)
-  assert get_outject(z, None)
-  return AB.case(z,
-                 lambda x:x,       # if z in A, then z
-                 lambda y:equal_persona(get_equated(z, None)))
-
-# Returns a record in the right checklist, or None
-
-def get_right_persona(AB, z):   # right = B = priority
-  return AB.case(z,
-                 lambda x:equal_persona(get_superior(z, None)),
-                 lambda y:y)    # if z in B, then z
-
-def equal_persona(rel):
-  return (get_outject(rel.record)
-          if rel and rel.relationship == EQ
-          else None)
-
-def equated(x, y):              # Are x and y equated?
-  if x == y: return True
-  z = get_equated(y, None)
-  return z and z.record == x
-
-# -----------------------------------------------------------------------------
-# Find mutual tipward record matches (MTRMs)
-
-def analyze_tipwards(AB):
-  find_tipwards(AB.A, AB.in_left)
-  find_tipwards(AB.B, AB.in_right)
-
-# Postorder iteration over one of the two summands.
-
-def find_tipwards(A, in_left, finish):
-  ensure_inferiors_indexed(A)  # children and synonyms properties
-  def traverse(x):
-    seen = False
-    for c in get_inferiors(x):
-      seen = traverse(c) or seen
-    if not seen and not is_top(x):
-      z = in_left(x)            # z is tipward...
-      rel = get_match(z, None)  # rel is a Relative...
-      if rel:
-        # z is tipward and has a match, not necessarily tipward ...
-        set_tipward(z, rel)
-        seen = x
-    return seen
-  traverse(A.top)
-
-def get_mtrm(z):
-  rel = get_tipward(z, None)
-  if rel:
-    q = rel.record
-    rel2 = get_tipward(q, None)
-    if rel2 and rel2.record == z:
-      return q
-  return None
-
-# -----------------------------------------------------------------------------
 # Load/dump a set of provisional matches (could be either record match
 # or taxonomic matches... but basically, record matches).  The matches are stored 
 # as Relations under the 'match' property of nodes in AB.
@@ -430,10 +396,10 @@ def load_matches(row_iterator, AB):
     note = get_basis_of_match(match, MISSING)
     # x or y might be None with ship=NOINFO ... hope this is OK
     if y:
-      set_match(y, relation(reverse_relationship(ship), x, "nominal match",
+      set_match(y, relation(reverse_relationship(ship), x, None,
                             reverse_note(note)))
     if x:
-      set_match(x, relation(ship, y, "nominal match", note))
+      set_match(x, relation(ship, y, None, note))
     if x and y: match_count += 1
     else: miss_count += 1
 

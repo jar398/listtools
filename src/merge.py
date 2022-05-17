@@ -169,6 +169,38 @@ def relationship_per_heuristics(AB, x, y):
 
   return ans
 
+# relationship_per_blocks(AB, get_superior(x).record, get_cosuperior(x)) ...
+
+def relationship_per_blocks(AB, x, y):
+  ship = block_relationship(get_block(x, BOTTOM_BLOCK),
+                            get_block(y, BOTTOM_BLOCK))
+  if ship == EQ and get_matched(x) == y:
+    return ship
+  elif ship == EQ:
+    return COMPARABLE
+  else:
+    return ship
+
+"""
+# What on earth is going on here !!??
+
+def mtrm_block(x, y):
+  v1 = get_tipe(x, None)
+  if v1 and v1 == get_tipe(y, None): return {v1}
+  v1 = get_scientific(x, None)
+  if v1 and v1 == get_scientific(y, None): return {v1}
+  v1 = get_canonical(x, None)
+  if v1 and v1 == get_canonical(y, None): return {v1}
+  v1 = get_stemmed(x, None)     # 'Balaenoptera omurai and' in DH 1.1
+  if v1 and v1 == get_stemmed(y, None): return {v1}
+  v1 = get_managed_id(x, None)
+  if v1 and v1 == get_managed_id(y, None): return {v1}
+  # Phyllostoma bilabiatum / Phyllostomus bilabiatum  ... hmph
+  # Why do these match? Dermanura anderseni, Artibeus anderseni*  ????
+  # log("# Why do these match? %s, %s" % (blurb(x), blurb(y)))
+  return {min(x.id, y.id)}
+"""
+
 # Tweak relationship to preserve accepted/unaccepted distinction.
 # use this when set the superior of z.  not relevant for the x/y
 # parent choice.  This is a policy decision.
@@ -329,15 +361,34 @@ def post_hoc_relationship(AB, x, y):
   else:
     return rel
 
-def foo_equatee(AB, z):                 # in other tree
-  if theory.isinB(AB, z):                  # UNFORTUNATE
-    ship = get_equated(z, None)  # Does z represent an MTRM ?
-    return ship.record if ship else None
-  else:
-    ship = get_superior(z, None)
-    if ship and ship.relationship == EQ:
-      return ship.record    # z is in A
-    return None
+# -----------------------------------------------------------------------------
+
+# This (?) is run pre-merge so should not chase A->B synonym links.
+# If the parent is a synonym, that's a problem - shouldn't happen.
+
+def get_left_superior(AB, z):
+  x = get_left_persona(AB, z)
+  if not x: return None
+  rel_in_A = get_superior(x, None)
+  # Return relation that's same as rel_in_A except in AB instead of A
+  if rel_in_A:
+    p = AB.in_left(rel_in_A.record)
+    return relation(rel_in_A.relationship, p, rel_in_A.status, rel_in_A.note)
+  return None
+
+def get_right_superior(AB, z):
+  y = get_right_persona(AB, z)
+  if not y: return None
+  rq = get_superior(y, None)
+  if rq:
+    q = AB.in_right(rq.record)
+    return relation(rq.relationship, q, rq.status, rq.note)
+  return None
+
+def equated(x, y):              # Are x and y equated?
+  if x == y: return True
+  z = get_equated(y, None)
+  return z and z.record == x
 
 # -----------------------------------------------------------------------------
 
@@ -413,3 +464,60 @@ if __name__ == '__main__':
             y(csv.reader(matches_file))
         else:
           y(None)
+
+# -----------------------------------------------------------------------------
+# Match building...
+
+def get_accepted(z):  # in priority tree, if possible
+  rel = get_superior(z, None)
+  if rel and rel.relationship != ACCEPTED:
+    return get_accepted(rel.record)
+  return z
+
+# Propose that rs.record should be the parent (superior) of z
+
+def propose_superior(AB, z, rs, ship, status, note):
+  assert rs
+  assert isinstance(z, prop.Record), blurb(z)
+  assert isinstance(rs, Relative)
+  assert ship == ACCEPTED or ship == SYNONYM
+  # I don't feel good about these
+  s = get_accepted(rs.record)
+  rel = relation(ship,
+                 s,
+                 status or rs.status,    # accepted, etc
+                 note)
+  set_superior_carefully(z, rel)  # explanation of why < or <=
+
+# Propose that x (in A) = y (in B).  x becomes an EQ synonym of y.
+
+def propose_equation(AB, x, y, why_equiv):
+  # Polarize
+  assert isinA(AB, x) and isinB(AB, y)
+  (x, y) = AB.case(x, lambda xx: (x, y), lambda yy: (y, x))
+
+  # Treat the A record like a synonym of the B record
+  set_superior_carefully(x, relation(EQ, y, "equivalent", why_equiv))
+  # Set uppointer from B to A
+  set_equated(y, relation(EQ, x, "equivalent", why_equiv))
+  sci = get_scientific(x, None)
+  if not get_scientific(y, None) and sci:
+    if sci.startswith(get_canonical(y, None)):
+      set_scientific(y, sci)
+      #log("# transferring '%s' from A to B" % sci)
+
+# x and y are candidate parents for node z, and they conflict with one
+# another.  y has priority.
+
+def propose_deprecation(AB, z, x, y):
+  assert isinA(AB, x) and isinB(AB, y)
+  # set_alt_parent(z, x) ...
+  set_conflict(x, y)
+  if False:
+    log("# Deprecating %s because it conflicts with %s" %
+        (blurb(x), blurb(y)))
+    log("#  ... %s is now the 'accepted name' of %s" %
+        (blurb(yy), blurb(x)))
+
+(get_conflict, set_conflict) = prop.get_set(prop.declare_property("conflict"))
+

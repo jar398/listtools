@@ -5,13 +5,13 @@ import util, csv, newick
 import checklist, workspace, theory
 
 from rcc5 import *
+from util import log
 
 from checklist import rows_to_checklist, checklist_to_rows, load_matches, \
   get_superior
 from newick import parse_newick
 from util import log, MISSING
 from match_records import match_records
-
 
 def align(a_iter, b_iter, A_name='A', B_name='B', matches_iter=None):
   A = rows_to_checklist(a_iter, {"name": A_name})  # meta
@@ -22,7 +22,7 @@ def align(a_iter, b_iter, A_name='A', B_name='B', matches_iter=None):
   theory.load_matches(matches_iter, AB)
   return align_checklists(AB)
 
-# Traverse either A or B to find equivalences
+# Traverse A+B to find equivalences
 #   If record match but not topo match: show true articulation
 #   If not topo match: (should be A/B symmetric)
 #     find witness to >< if any
@@ -36,19 +36,41 @@ def align_checklists(AB):
   B = AB.B
   theory.ensure_levels(A)           # N.b. NOT levels in AB
   theory.ensure_levels(B)
+  span(AB)
   alignment = []     # [idA nameA ship nameB idB comment]
   alignment.append(["id in A", "name in B",
-                    "rel",
+                    "rcc5",
                     "name in B", "id in B",
                     "status", "note"])
-  for x in checklist.preorder_records(A): # in A
+  def visit(z):
+    y = outject(z)
+    emit(y)
+    for d in sorted(get_inferiors(yy), key=inferior_key):
+      visit(d)
+  visit(AB.top, True)
+
+
+def align_checklists_foo(AB):
+  AB.get_cross_mrca = theory.mrca_crosser(AB)
+  theory.analyze_tipwards(AB)                # also find tipes
+  theory.compute_blocks(AB)
+  A = AB.A
+  B = AB.B
+  theory.ensure_levels(A)           # N.b. NOT levels in AB
+  theory.ensure_levels(B)
+  alignment = []     # [idA nameA ship nameB idB comment]
+  alignment.append(["id in A", "name in B",
+                    "rcc5",
+                    "name in B", "id in B",
+                    "status", "note"])
+  def visit(x):
     xx = AB.in_left(x)                  # in A+B
     xsup = get_superior(x, None)       # in A
-    rel = checklist.get_match(xx, None) # Relative
+    rel = checklist.get_match(xx, None) # Relative in B
     if rel:
       if rel.record:
         yy = rel.record         # in A+B
-        y = theory.get_right_persona(AB, yy) # in B
+        y = outject(yy) # in B
         ysup = get_superior(y, None) # in B
         #if ysup and ysup.relationship == SYNONYM:
         #  y = ysup.record       # Get accepted
@@ -72,8 +94,14 @@ def align_checklists(AB):
                           MISSING,
                           rel.status,
                           rel.note])
+    for c in sort(get_inferiors(x), key=get_sort_key):
+      visit(c)
+  visit(B.top)
   log("%s articulations" % (len(alignment) - 1))
   return alignment
+
+def get_sort_key(c):
+  return get_canonical(c) or get_scientific(c) or get_id(c)
 
 def test():
   print("ok")

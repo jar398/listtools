@@ -107,6 +107,14 @@ def preorder_records(C):
       yield from traverse(c)
   yield from traverse(C.top)
 
+def postorder_records(C):
+  ensure_inferiors_indexed(C)
+  def traverse(x):
+    for c in get_inferiors(x):
+      yield from traverse(c)
+    yield x
+  yield from traverse(C.top)
+
 # -----------------------------------------------------------------------------
 # Read and write Darwin Core files
 #  (reading always yield source checklist not sum??)
