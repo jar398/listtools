@@ -82,8 +82,8 @@ class Relative(NamedTuple):
 
 def relation(ship, record, status, note=''):
   assert ((ship == NOINFO and not record) or \
-          isinstance(record, prop.Record))
-  assert isinstance(ship, int)
+          isinstance(record, prop.Record)), record
+  assert isinstance(ship, int), ship
   return Relative(ship, record, status, note)
 
 # -----------------------------------------------------------------------------

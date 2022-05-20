@@ -48,10 +48,10 @@ def make_workspace(A, B, meta=None):
     return z
 
   def _in_left(x):
-    assert get_source(x) == A
+    assert get_source(x) == A, get_source_name(x)
     return ensure_injected(x)
   def _in_right(y):
-    assert get_source(y) == B
+    assert get_source(y) == B, get_source_name(y)
     return ensure_injected(y)
   def _case(z, when_left, when_right):
     w = get_outject(z, None)

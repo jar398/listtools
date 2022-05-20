@@ -3,7 +3,7 @@
 import types, argparse, os
 import property as prop, checklist, workspace, theory
 
-from util import log
+from util import log, stdopen
 from checklist import *
 from workspace import *
 from theory import *
@@ -391,81 +391,6 @@ def equated(x, y):              # Are x and y equated?
   return z and z.record == x
 
 # -----------------------------------------------------------------------------
-
-def test():
-  def testit(m, n):
-    log("\n-- Test: %s + %s --" % (m, n))
-
-    B = rows_to_checklist(newick.parse_newick(n),
-                          {"name": "B"})  # meta
-    A = rows_to_checklist(newick.parse_newick(m),
-                          {"name": "A"})  # meta
-
-    AB = analyze(A, B)
-    workspace.show_workspace(AB, props=usual_merge_props(AB))
-  testit("a", "a")              # A + B
-  testit("(c,d)a", "(c,e)b")
-  testit("((a,b)e,c)d", "(a,(b,c)f)D")
-
-class Stdin:
-  def __enter__(self): return sys.stdin
-  def __exit__(self, exc_type, exc_val, exc_tb): return
-
-def stdopen(x):
-  if x == '-':
-    return Stdin()
-  else:
-    return open(x)
-
-
-if __name__ == '__main__':
-  parser = argparse.ArgumentParser(description="""
-    Only one of A or B can come from standard input.
-    Checklist names if not provided come from removing the extension
-    (usually '.csv') from the basename of the path name.
-    """)
-  parser.add_argument('--A', help="the A checklist, as path name or -",
-                      default='-')
-  parser.add_argument('--B', help="the B checklist, as path name or -",
-                      default='-')
-  parser.add_argument('--Aname',
-                      help="short durable name of the A checklist")
-  parser.add_argument('--Bname',
-                      help="short durable name of the B checklist")
-  parser.add_argument('--matches', help="file containing match-records output")
-  parser.add_argument('--test', action='store_true', help="run smoke tests")
-  args=parser.parse_args()
-
-  if args.test:
-    test()
-  else:
-    a_path = args.A
-    b_path = args.B
-    a_name = args.Aname or os.path.splitext(os.path.basename(a_path))[0]
-    b_name = args.Aname or os.path.splitext(os.path.basename(b_path))[0]
-    assert a_path != b_path
-    matches_path = args.matches
-
-    with stdopen(a_path) as a_file:
-      with stdopen(b_path) as b_file:
-
-        def y(matches_iter):
-          rows = merge(csv.reader(a_file),
-                       csv.reader(b_file),
-                       A_name = a_name,
-                       B_name = b_name,
-                       matches=matches_iter)
-          writer = csv.writer(sys.stdout)
-          for row in rows:
-            writer.writerow(row)
-
-        if matches_path:
-          with open(matches_path) as matches_file:
-            y(csv.reader(matches_file))
-        else:
-          y(None)
-
-# -----------------------------------------------------------------------------
 # Match building...
 
 def get_accepted(z):  # in priority tree, if possible
@@ -521,3 +446,67 @@ def propose_deprecation(AB, z, x, y):
 
 (get_conflict, set_conflict) = prop.get_set(prop.declare_property("conflict"))
 
+# -----------------------------------------------------------------------------
+
+def test():
+  def testit(m, n):
+    log("\n-- Test: %s + %s --" % (m, n))
+
+    B = rows_to_checklist(newick.parse_newick(n),
+                          {"name": "B"})  # meta
+    A = rows_to_checklist(newick.parse_newick(m),
+                          {"name": "A"})  # meta
+
+    AB = analyze(A, B)
+    workspace.show_workspace(AB, props=usual_merge_props(AB))
+  testit("a", "a")              # A + B
+  testit("(c,d)a", "(c,e)b")
+  testit("((a,b)e,c)d", "(a,(b,c)f)D")
+
+
+if __name__ == '__main__':
+  parser = argparse.ArgumentParser(description="""
+    Only one of A or B can come from standard input.
+    Checklist names if not provided come from removing the extension
+    (usually '.csv') from the basename of the path name.
+    """)
+  parser.add_argument('--A', help="the A checklist, as path name or -",
+                      default='-')
+  parser.add_argument('--B', help="the B checklist, as path name or -",
+                      default='-')
+  parser.add_argument('--Aname',
+                      help="short durable name of the A checklist")
+  parser.add_argument('--Bname',
+                      help="short durable name of the B checklist")
+  parser.add_argument('--matches', help="file containing match-records output")
+  parser.add_argument('--test', action='store_true', help="run smoke tests")
+  args=parser.parse_args()
+
+  if args.test:
+    test()
+  else:
+    a_path = args.A
+    b_path = args.B
+    a_name = args.Aname or os.path.splitext(os.path.basename(a_path))[0]
+    b_name = args.Aname or os.path.splitext(os.path.basename(b_path))[0]
+    assert a_path != b_path
+    matches_path = args.matches
+
+    with stdopen(a_path) as a_file:
+      with stdopen(b_path) as b_file:
+
+        def y(matches_iter):
+          rows = merge(csv.reader(a_file),
+                       csv.reader(b_file),
+                       A_name = a_name,
+                       B_name = b_name,
+                       matches=matches_iter)
+          writer = csv.writer(sys.stdout)
+          for row in rows:
+            writer.writerow(row)
+
+        if matches_path:
+          with open(matches_path) as matches_file:
+            y(csv.reader(matches_file))
+        else:
+          y(None)

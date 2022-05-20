@@ -17,39 +17,62 @@ def isinB(AB, z):
 
 #-----------------------------------------------------------------------------
 
+def find_equivalents(AB):
+  for y in checklist.postorder_records(AB.B):
+    rel = get_match(y, None)
+    if rel and rec.record:
+      x = rel.record
+      b1 = get_block(x, BOTTOM_BLOCK)
+      b2 = get_block(y, BOTTOM_BLOCK)
+      if same_block(b1, b2):    # Perhaps empty
+        rel2 = get_match(x, None)
+        if rel2 and rel2.record:
+          set_equivalent(y, rel)
+          set_equivalent(x, rel2)
+
+(get_equivalent, set_equivalent) = prop.get_set(prop.declare_property("equivalent"))
+
+#-----------------------------------------------------------------------------
+
 # This is the implementation of the RCC-5 theory of AB (A+B).
 
-# x and y are in ... AB, not in A or B
+# x and y are Records in ... AB, not in A or B
 # Returns a Relative to y
 
 # TBD: set status to "accepted" or "synonym" as appropriate
 
-def cross_relation(x, y):
+def cross_relationship(x, y):
+  e = get_equivalent(x, None)
+  if e and e.record == y: return e
+
   b1 = get_block(x, BOTTOM_BLOCK)
   b2 = get_block(y, BOTTOM_BLOCK)
   ship = block_relationship(b1, b2)
   if ship != EQ:
     return relation(ship, y, None, "MTRM set comparison")
 
-  # Look for a record match for x or y, and punt to simple case
-  n = get_match(x)              # n.record is in AB (from B)
-  if n and n.record and n.relationship == EQ:
-    # NO - the relative.record needs to be y
-    rel1 = simple_relationship(outject(n.record), outject(y))
+  if False:
 
-  m = get_match(y)
-  if m and m.record and m.relationship == EQ:
-    rel2 = simple_relationship(outject(x), outject(m.record))
+    # Look for a record match for x or y, and punt to simple case
+    rel1 = rel2 = None
+    n = get_match(x, None)              # n.record is in AB (from B)
+    if n and n.record and n.relationship == EQ:
+      # NO - the relative.record needs to be y
+      rel1 = simple_relationship(outject(n.record), outject(y))
 
-  rel = rel1 or rel2
-  if rel:
-    if (not rel1 or not rel2 or
-        rel1.relationship == rel2.relationship):
-      return relation(rel.relationship, y, rel.status, rel.note)
-    return relation(NOINFO, y, None, "lineage out of order??")
+    m = get_match(y, None)
+    if m and m.record and m.relationship == EQ:
+      rel2 = simple_relationship(outject(x), outject(m.record))
+
+    rel = rel1 or rel2
+    if rel:
+      if (not rel1 or not rel2 or
+          rel1.relationship == rel2.relationship):
+        return relation(rel.relationship, y, rel.status, rel.note)
+      return relation(NOINFO, y, None, "lineage out of order??")
 
   if is_empty_block(b1):
-    return relation(DISJOINT, y, None, "disconnected orphans")
+    return relation(DISJOINT, y, None, "no overlap")
 
   # No equivalent either way, but same block, so OVERLAP.
   # TBD: If no child or parent of x or y is in same block, then EQ.
@@ -59,21 +82,21 @@ def cross_relation(x, y):
 # x is in A and y is in B, or vice versa
 
 def cross_lt(x, y):
-  return cross_relation(x, y).relationship == LT
+  return cross_relationship(x, y).relationship == LT
 
 # -----------------------------------------------------------------------------
 
 # Returns a Relative y to x such that x = y.  x and y are in AB, not A or B.
 # TBD: should cache this.
 
-def get_equivalent(AB, x):
+def find_equivalent(AB, x):
   y = None
   rel1 = get_match(x)            # Record match
   if rel1 and rel1.record and rel1.relationship == EQ:
     y = rel1.record
   else:
-    y = get_cross_mrca(x)
-  rel2 = cross_relation(x, y)
+    y = AB.get_cross_mrca(x)
+  rel2 = cross_relationship(x, y)
   if rel2.relationship == EQ:
     return rel2                 # hmm. combine rel1 and rel2 ?
   return None
@@ -84,13 +107,20 @@ def get_injected_superior(AB, a):
                  lambda y: AB.in_right(get_superior(y)))
 
 # -----------------------------------------------------------------------------
-# Least node in opposite checklist that's greater than x.
+# Least node in opposite checklist that's definitely greater than x.
 # x is in A (or B), not AB, and result is in B (or A), not in AB.
+# Returns a Relative to y in B, or None
 
 def cross_superior(AB, x):
-  q = AB.get_cross_mrca(x)
+  q = AB.get_cross_mrca(x, None) # in B
+  # increase q until x is less than it
+  i = 0
   while q and not cross_lt(x, q):
-    q = get_superior(q)
+    rel = get_superior(q, None)
+    if rel:
+      q = rel.record
+      assert len(checklist.get_source_name(q)) == 1
+    else: break
   return q
 
 # -----------------------------------------------------------------------------
@@ -104,7 +134,7 @@ def analyze_tipwards(AB):
 
 # Postorder iteration over one of the two summands.
 
-def find_tipwards(A, in_left, finish):
+def find_tipwards(A, in_left):
   ensure_inferiors_indexed(A)  # children and synonyms properties
   def traverse(x):
     seen = False
@@ -121,6 +151,7 @@ def find_tipwards(A, in_left, finish):
   traverse(A.top)
 
 # argument is in AB, result is in AB (from opposite summands)
+# returns Relative - a record match to the argument
 
 def get_mtrm(z):
   rel = get_tipward(z, None)
@@ -128,7 +159,7 @@ def get_mtrm(z):
     q = rel.record              # in AB
     rel2 = get_tipward(q, None)
     if rel2 and rel2.record == z:
-      return q
+      return rel
   return None
 
 # -----------------------------------------------------------------------------
@@ -145,28 +176,37 @@ def get_mtrm(z):
 # Needed for equivalent and cosuperior calculations
 
 def compute_cross_mrcas(AB):
+  (get_cross_mrca, set_cross_mrca) = \
+      prop.get_set(prop.declare_property("cross_mrca"))
   def crosses(AB):
-    A = AB.A
     def traverse(x):            # arg in A, result in B
       m = BOTTOM                # identity for mrca
       z = AB.in_left(x)         # in AB
       probe = get_mtrm(z)       # in AB
       if probe:
-        m = outject(probe)      # in B
+        m = AB.case(probe.record,   # in B
+                    lambda x:2/(3-3),
+                    lambda y:y)
       else:
         for c in get_inferiors(x):
           q = traverse(c)       # in B
           if q:
             m = mrca(q, m)      # in B
       if m != BOTTOM:
-        set_cross_mrca(z, m)
+        set_cross_mrca(x, m)
         return m
       return None
-    traverse(A.top)
+    traverse(AB.A.top)
+  AB.get_cross_mrca = get_cross_mrca
   crosses(AB)
-  crosses(AB.swap())
+  crosses(swap(AB))
 
-(get_cross_mrca, set_cross_mrca) = prop.get_set(prop.declare_property("cross_mrca"))
+def swap(AB):
+  BA = AB.swap()
+  BA.get_cross_mrca = AB.get_cross_mrca
+  BA.A = AB.B
+  BA.B = AB.A
+  return BA
 
 # -----------------------------------------------------------------------------
 # Precompute 'blocks' (tipe sets, implemented in one of various ways).
@@ -209,6 +249,9 @@ def block_relationship(e1, e2):   # can assume overlap
   elif e2.issubset(e1): return GT
   elif e1.isdisjoint(e2): return DISJOINT
   else: return CONFLICT
+
+def same_block(e1, e2):
+  return e1 == e2
 
 # Lattice join (union) of two blocks
 
