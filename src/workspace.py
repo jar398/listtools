@@ -64,15 +64,6 @@ def make_workspace(A, B, meta=None):
   AB = Coproduct(_in_left, _in_right, _case)
   AB.context = Q
 
-  atop = AB.in_left(A.top)
-  btop = AB.in_right(B.top)
-
-  # cf. propose_equation
-  set_superior(atop, relation(EQ, btop, "top"))
-  set_equated(btop, relation(EQ, atop, "top"))
-  AB.top = btop
-
-  AB.indexed = False
   AB.meta = meta
 
   AB.A = A           # need ??
@@ -84,6 +75,19 @@ def make_workspace(A, B, meta=None):
   #log("# taxonID counter: %s" % pk_counter[0])
 
   return AB
+
+# NOT INVOKED
+
+def some_stuff_to_do(AB):
+  atop = AB.in_left(AB.A.top)
+  btop = AB.in_right(AB.B.top)
+
+  # cf. propose_equation
+  set_superior(atop, relation(EQ, btop, "top"))
+  set_equated(btop, relation(EQ, atop, "top"))
+  AB.top = btop
+
+  AB.indexed = False
 
 # Is given synonym usage a senior synonym of its accepted usage?
 # In the case of splitting, we expect the synonym to be a senior

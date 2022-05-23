@@ -17,18 +17,29 @@ def isinB(AB, z):
 
 #-----------------------------------------------------------------------------
 
+# Store equivalents on nodes of AB
+
 def find_equivalents(AB):
+  v = AB.in_left(AB.A.top)
+  w = AB.in_right(AB.B.top)
+  set_equivalent(v, relation(EQ, w, "top"))
+  set_equivalent(w, relation(EQ, v, "top"))
+  count = 1
   for y in checklist.postorder_records(AB.B):
-    rel = get_match(y, None)
-    if rel and rec.record:
-      x = rel.record
-      b1 = get_block(x, BOTTOM_BLOCK)
-      b2 = get_block(y, BOTTOM_BLOCK)
-      if same_block(b1, b2):    # Perhaps empty
-        rel2 = get_match(x, None)
-        if rel2 and rel2.record:
-          set_equivalent(y, rel)
-          set_equivalent(x, rel2)
+    w = AB.in_right(y)
+    rel2 = get_match(w, None)
+    if rel2 and rel2.record and rel2.relationship == EQ:
+      v = rel2.record
+      b1 = get_block(v, BOTTOM_BLOCK)
+      b2 = get_block(w, BOTTOM_BLOCK)
+      if same_block(b1, b2) and rel2.relationship == EQ:    # Perhaps empty
+        rel1 = get_match(v, None)
+        assert rel1 and rel1.record
+        assert rel1.record == w
+        set_equivalent(v, relation(EQ, w, rel1.status, rel1.note))
+        set_equivalent(w, relation(EQ, v, rel2.status, rel2.note))
+        count += 1
+  log("# found %s B nodes with equivalents" % count)
 
 (get_equivalent, set_equivalent) = prop.get_set(prop.declare_property("equivalent"))
 
@@ -135,7 +146,7 @@ def analyze_tipwards(AB):
 # Postorder iteration over one of the two summands.
 
 def find_tipwards(A, in_left):
-  ensure_inferiors_indexed(A)  # children and synonyms properties
+  # ensure_inferiors_indexed(A)  # children and synonyms properties
   def traverse(x):
     seen = False
     for c in get_inferiors(x):
@@ -210,15 +221,17 @@ def swap(AB):
 
 # -----------------------------------------------------------------------------
 # Precompute 'blocks' (tipe sets, implemented in one of various ways).
-# A block is represented as either a set or TOP_BLOCK
+# A block is represented as either a set or TOP_BLOCK.
+# Blocks are stored on nodes in AB.
 
 def compute_blocks(AB):
   def traverse(x, in_left):
+    v = in_left(x)
     # x is in A or B
     e = BOTTOM_BLOCK
     for c in get_inferiors(x):  # inferiors in A/B
       e = combine_blocks(e, traverse(c, in_left))
-    e2 = possible_mtrm_block(AB, in_left(x))
+    e2 = possible_mtrm_block(AB, v)
     if (not is_empty_block(e) and not is_empty_block(e2)
         and monitor(x)):
       log("# non-mutual TRM as tipe: %s" % blurb(x))
@@ -226,11 +239,13 @@ def compute_blocks(AB):
     if is_top(x):
       e = TOP_BLOCK
     if e != BOTTOM_BLOCK:
-      set_block(x, e)
+      set_block(v, e)
     #log("# block(%s) = %s" % (blurb(x), e))
     return e
   traverse(AB.A.top, AB.in_left)
   traverse(AB.B.top, AB.in_right)
+
+# z is in AB
 
 def possible_mtrm_block(AB, z):
   rel = get_mtrm(z)             # a Relative
@@ -441,12 +456,14 @@ def load_matches(row_iterator, AB):
     if y:
       set_match(y, relation(reverse_relationship(ship), x, None,
                             reverse_note(note)))
+      match_count += 1
     if x:
       set_match(x, relation(ship, y, None, note))
+      match_count += 1
     if x and y: match_count += 1
     else: miss_count += 1
 
-  #log("# %s matches, %s misses" % (match_count, miss_count))
+  log("# loaded %s matches" % (match_count))
 
 def reverse_note(note):
   if ' ' in note:

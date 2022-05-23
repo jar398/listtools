@@ -100,7 +100,7 @@ def all_records(C):             # not including top
   return prop.get_records(col)
 
 def preorder_records(C):
-  ensure_inferiors_indexed(C)
+  #ensure_inferiors_indexed(C)
   def traverse(x):
     yield x
     for c in get_inferiors(x):
@@ -108,7 +108,7 @@ def preorder_records(C):
   yield from traverse(C.top)
 
 def postorder_records(C):
-  ensure_inferiors_indexed(C)
+  #ensure_inferiors_indexed(C)
   def traverse(x):
     for c in get_inferiors(x):
       yield from traverse(c)
@@ -221,10 +221,27 @@ def set_superior_carefully(x, sup):
       assert False
 
   # OK go for it
-  set_superior(x, sup)
+  link_superior(x, sup)
   if False:
     if (monitor(x) or monitor(sup.record)):  #False and 
       log("> superior of %s is %s" % (blurb(x), blurb(sup)))
+
+def link_superior(w, sup):
+  set_superior(w, sup)
+  if sup.relationship == ACCEPTED:
+    ch = get_children(sup.record, None)
+    if ch != None:
+      ch.append(w)
+    else:
+      set_children(sup.record, [w])
+  elif sup.relationship == SYNONYM:
+    ch = get_synonyms(sup.record, None)
+    if ch != None:
+      ch.append(w)
+    else:
+      set_synonyms(sup.record, [w])
+  else:
+    assert False
 
 def look_up_record(C, key, comes_from=None):
   if not key: return None
@@ -268,8 +285,9 @@ def validate(C):
 # E.g. Glossophaga bakeri (in 1.7) split from Glossophaga commissarisi (in 1.6)
 
 def ensure_inferiors_indexed(C):
-  if C.indexed: return
-  #log("# --indexing inferiors")
+  if get_children(C.top, None) == None: return
+
+  assert False, "top has no children"
 
   count = 0
 
@@ -307,7 +325,6 @@ def ensure_inferiors_indexed(C):
       # but the target may be a ghost.
       count += 1
 
-  C.indexed = True
   #log("# %s inferiors indexed.  Top has %s child(ren)" %
   #   (count, len(get_children(C.top, ()))))
   validate(C)
