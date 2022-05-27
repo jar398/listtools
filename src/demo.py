@@ -32,10 +32,11 @@ def generate_report(AB):
 
   report.append(("A id", "A name", "rcc5", "B name", "B id"))
 
-  def do_row(x, y):
+  def do_row(x, y): # x in A, y in B
+    rel = theory.cross_relationship(AB, AB.in_left(x), AB.in_right(y))
     report.append((get_primary_key(x),
                    get_canonical(x, None) or get_scientific(x),
-                   rcc5_symbol(theory.cross_relationship(AB, x, y).relationship),
+                   rcc5_symbol(rel.relationship),
                    get_canonical(y, None) or get_scientific(y),
                    get_primary_key(y)))
 
