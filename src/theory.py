@@ -39,7 +39,7 @@ def find_equivalents(AB):
         set_equivalent(v, relation(EQ, w, rel1.status, rel1.note))
         set_equivalent(w, relation(EQ, v, rel2.status, rel2.note))
         count += 1
-  log("# found %s B nodes with equivalents" % count)
+  log("# found %s B nodes with A equivalents" % count)
 
 (get_equivalent, set_equivalent) = prop.get_set(prop.declare_property("equivalent"))
 
@@ -52,9 +52,9 @@ def find_equivalents(AB):
 
 # TBD: set status to "accepted" or "synonym" as appropriate
 
-def cross_relationship(x, y):
+def cross_relationship(AB, x, y):
   e = get_equivalent(x, None)
-  if e and e.record == y: return e
+  if e and e.record == y: return e.relationship
 
   b1 = get_block(x, BOTTOM_BLOCK)
   b2 = get_block(y, BOTTOM_BLOCK)
@@ -62,7 +62,7 @@ def cross_relationship(x, y):
   if ship != EQ:
     return relation(ship, y, None, "MTRM set comparison")
 
-  if False:
+  if True:
 
     # Look for a record match for x or y, and punt to simple case
     rel1 = rel2 = None
@@ -92,8 +92,8 @@ def cross_relationship(x, y):
 # RCC-5 relationship across the two checklists
 # x is in A and y is in B, or vice versa
 
-def cross_lt(x, y):
-  return cross_relationship(x, y).relationship == LT
+def cross_lt(AB, x, y):
+  return cross_relationship(AB, x, y).relationship == LT
 
 # -----------------------------------------------------------------------------
 
@@ -107,7 +107,7 @@ def find_equivalent(AB, x):
     y = rel1.record
   else:
     y = AB.get_cross_mrca(x)
-  rel2 = cross_relationship(x, y)
+  rel2 = cross_relationship(AB, x, y)
   if rel2.relationship == EQ:
     return rel2                 # hmm. combine rel1 and rel2 ?
   return None
@@ -126,7 +126,7 @@ def cross_superior(AB, x):
   q = AB.get_cross_mrca(x, None) # in B
   # increase q until x is less than it
   i = 0
-  while q and not cross_lt(x, q):
+  while q and not cross_lt(AB, x, q):
     rel = get_superior(q, None)
     if rel:
       q = rel.record
@@ -474,3 +474,6 @@ def reverse_note(note):
 def record_match(x):
   return get_matched(x)
 
+def is_accepted(x):
+  sup = get_superior(x, None)
+  return (not sup) or sup.relationship != SYNONYM

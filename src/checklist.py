@@ -100,7 +100,6 @@ def all_records(C):             # not including top
   return prop.get_records(col)
 
 def preorder_records(C):
-  #ensure_inferiors_indexed(C)
   def traverse(x):
     yield x
     for c in get_inferiors(x):
@@ -108,7 +107,6 @@ def preorder_records(C):
   yield from traverse(C.top)
 
 def postorder_records(C):
-  #ensure_inferiors_indexed(C)
   def traverse(x):
     for c in get_inferiors(x):
       yield from traverse(c)

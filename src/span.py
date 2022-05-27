@@ -4,6 +4,10 @@
 
 # For each equivalent pair, only the B record will have a superior and inferiors.
 
+# Would it be worthwhile to have a way to write a spanning tree as a
+# checklist, so that it can be re-read without loss? ...
+# Actually, would it be worthwhile to be able to do that with a workspace ...
+
 import theory
 from checklist import rows_to_checklist, checklist_to_rows, get_superior, \
   set_superior, relation, get_children, set_children, get_synonyms, set_synonyms
@@ -40,6 +44,7 @@ def span(AB):
   traverse(theory.swap(AB), False)
   # checklist.ensure_inferiors_indexed(AB)  no...
   AB.indexed = True
+  return AB
 
 def plug_superior(w, sup, B_priority):
   assert len(checklist.get_source_name(w)) != 1
@@ -52,21 +57,18 @@ def plug_superior(w, sup, B_priority):
 # Returns Relation to p in A if insertion, or None
 
 def possible_insertion(AB, y, B_priority):
-  assert len(checklist.get_source_name(y)) == 1
   # Candidate superiors in A+B are {p, q} where p=get_superior(y)
   # Insertion candidate is p
   q_rel = get_superior(y, None)         # default, in B
   p = theory.cross_superior(AB, y) # in A
   if p:
-    assert len(checklist.get_source_name(p)) == 1
     p_rel = relation(LT, p, "accepted", "insertion")
   else:
     p_rel = None
   if not q_rel: return p_rel # Insertion (no q)
   if not p: return None
   q = q_rel.record                # in B
-  assert len(checklist.get_source_name(y)) == 1
-  ship = theory.cross_relationship(p, q).relationship
+  ship = theory.cross_relationship(AB, AB.in_left(p), AB.in_right(q))
   if ship == LT:
     # Insertion, y < p < q
     return p_rel
@@ -95,7 +97,6 @@ def test():
     theory.analyze_tipwards(AB)                # also find tipes
     theory.compute_blocks(AB)
     theory.find_equivalents(AB)
-
     theory.compute_cross_mrcas(AB)
     span(AB)
     print(newick.compose_newick(checklist.preorder_rows(AB)))
