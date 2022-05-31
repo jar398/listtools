@@ -26,23 +26,41 @@ def demo(A_iter, B_iter):
   span.span(AB)
   return generate_report(AB)
 
+# Returns an Iterable
+
 def generate_report(AB):
   # Too difficult to do a generator
   report = []
 
-  report.append(("A id", "A name", "rcc5", "B name", "B id"))
+  report.append(("A id", "A name", "rcc5", "B name", "B id", "comment"))
 
-  def do_row(x, y): # x in A, y in B
-    rel = theory.cross_relationship(AB, AB.in_left(x), AB.in_right(y))
-    report.append((get_primary_key(x),
-                   get_canonical(x, None) or get_scientific(x),
-                   rcc5_symbol(rel.relationship),
-                   get_canonical(y, None) or get_scientific(y),
-                   get_primary_key(y)))
+  def do_row(v, w, comment):
+    x_info = ('', '')
+    y_info = ('', '')
+    sym = ''
+    if v:
+      x = get_outject(v)
+      x_info = (get_primary_key(x),
+                get_canonical(x, None) or get_scientific(x))
+    if w:
+      y = get_outject(w)
+      y_info = (get_primary_key(y),
+                get_canonical(y, None) or get_scientific(y))
+    if v and w:
+      rel = theory.cross_relationship(AB, v, w)
+      sym = rcc5_symbol(rel.relationship)
 
-  for z in checklist.preorder_records(AB):
+    report.append((x_info[0],
+                   x_info[1],
+                   sym,
+                   y_info[1],
+                   y_info[0],
+                   comment))
+
+  def traverse(z):
 
     assert len(get_source(z).meta['name']) == 2
+    if monitor(z): log("traverse")
 
     # Eight cases, of which 3 are to be ignored.
 
@@ -60,36 +78,64 @@ def generate_report(AB):
     # 9     >                   CAN'T HAPPEN
 
     def when_A(x):
-      # cases 7-8
-      if is_accepted(x):
-        # case 7, acc >       acc.
-        do_row(x, theory.cross_superior(AB, x))
+      if get_rank(x, 'species') == 'species':
+        # cases 7-8
+        if is_acceptable(x):
+          # case 7, acc >       acc.
+          if monitor(z): log("when_A")
+          comment = 'a ambiguous' if get_match(z, None) else 'A only'
+          do_row(z, theory.cross_superior(AB.swap(), z), comment)
 
     def when_B(y):
-      # cases 1-6
-      rel = theory.get_equivalent(z, None)
-      if rel:
-        #       acc = acc
-        #       acc = syn < acc
-        # acc > syn = acc
-        x = get_outject(rel.record)
-        if is_accepted(y):
-          # cases 1-2
-          if is_accepted(x):
-            do_row(x, y)
-          else:
-            do_row(get_accepted(x), y)
-        elif is_accepted(x):
-          # case 4, acc.  ... < acc
-          do_row(x, get_accepted(y))
+      if get_rank(y, 'species') == 'species':
+        # cases 1-6
+        rel = theory.get_equivalent(z, None)
+        if rel:
+          #       acc = acc
+          #       acc = syn < acc
+          # acc > syn = acc
+          v = rel.record
+          x = get_outject(rel.record)
+          if is_acceptable(y):
+            # cases 1-2
+            if is_acceptable(x):
+              if monitor(z): log("when_B case 1")
+              do_row(v, z, '')
+            else:
+              if monitor(z): log("when_B case 2")
+              do_row(AB.in_left(get_accepted(x)), z,
+                     'via A synonym')
+          elif is_acceptable(x):
+            # case 4, acc.  ... < acc
+            if monitor(z): log("when_B case 4")
+            do_row(v, AB.in_right(get_accepted(y)),
+                   'via B synonym')
 
-      elif is_accepted(y):
-        # case 3, acc. ... < acc
-        do_row(theory.cross_superior(AB, y), y)
+        elif is_acceptable(y):
+          # case 3, acc. ... < acc
+          if monitor(z): log("when_B case 3")
+          comment = 'b ambiguous' if get_match(z, None) else 'B only'
+          rel = get_match(z, None)
+          if rel and rel.record:
+            comment = "b's match is %s" % blurb(rel.record)
+          do_row(theory.cross_superior(AB, z), z, comment)
 
-    AB.case(z, when_A, when_B)
+    if z != AB.top:
+      AB.case(z, when_A, when_B)
+    for c in sorted(get_inferiors(z), key=sort_key):
+      traverse(c)
+
+  traverse(AB.top)
 
   return report
+
+def is_acceptable(x):
+  return is_accepted(x) and not get_rank(x, None) == 'subspecies'
+
+def sort_key(c):
+  return (get_canonical(c, ''),
+          get_scientific(c, ''),
+          get_primary_key(c, ''))
 
 # -----------------------------------------------------------------------------
 

@@ -434,8 +434,8 @@ def recover_equated_note(x, default=MISSING):
   return m.note if m else default
 
 def recover_match_key(x, default=MISSING):
-  m = get_matched(x)
-  if m: return get_primary_key(m)
+  rel = get_matched(x)
+  if rel: return get_primary_key(rel.record)
   else: return default
 
 def recover_basis_of_match(x, default=MISSING):
@@ -446,7 +446,7 @@ def get_matched(x):
   if x:
     rel = get_match(x, None)
     if rel and rel.relationship == EQ:
-      return rel.record
+      return rel
   return None
 
 # -----------------------------------------------------------------------------
@@ -493,8 +493,8 @@ def keep_record_notused(x):
 
   # Hmm.  we're an A node that's EQ to some B node.
   # Are they also a record match?
-  m = get_matched(x)
-  if not m or m.record != sup.record:
+  rel = get_matched(x)
+  if (not rel) or rel.record != sup.record:
     # If record is unmatched, or matches something not equivalent,
     # then keep it
     return True
@@ -549,8 +549,7 @@ def blurb(r):
 def monitor(x):
   if not x: return False
   name = get_canonical(x, '')
-  return ((x and len(name) == 1)
-          or name.startswith("Muri")
+  return (name == "Adapis parisiensis"
           )
 
 # -----------------------------------------------------------------------------
@@ -601,7 +600,10 @@ def reverse_note(note):
     return note
 
 def record_match(x):
-  return get_matched(x)
+  rel = get_matched(x)
+  if rel:
+    return rel.record
+  return None
 
 
 # -----------------------------------------------------------------------------

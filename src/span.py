@@ -10,7 +10,8 @@
 
 import theory
 from checklist import rows_to_checklist, checklist_to_rows, get_superior, \
-  set_superior, relation, get_children, set_children, get_synonyms, set_synonyms
+  set_superior, relation, get_children, set_children, get_synonyms, set_synonyms, \
+  get_source, get_outject
 import newick
 import checklist, match_records, workspace
 from rcc5 import *
@@ -21,12 +22,11 @@ def span(AB):
   AB.top = AB.in_right(AB.B.top)
   def traverse(AB, B_priority):
     for y in checklist.preorder_records(AB.B):    # starts with top
-      w = AB.in_right(y)
       if B_priority or not theory.get_equivalent(y, None):
-        p_rel = possible_insertion(AB, y, B_priority)
+        w = AB.in_right(y)
+        p_rel = possible_insertion(AB, w, B_priority)
         if p_rel:
-          p = p_rel.record      # in A
-          z = AB.in_left(p)
+          z = p_rel.record      # in A
           sup = relation(p_rel.relationship, z, p_rel.status, p_rel.note)
           plug_superior(w, sup, B_priority)
         else:
@@ -35,14 +35,11 @@ def span(AB):
             z = AB.in_right(q_rel.record)
             sup = relation(q_rel.relationship, z, q_rel.status, q_rel.note)
             plug_superior(w, sup, B_priority)
-          else:
-            assert not AB.top
-            assert is_top(w)
-            AB.top = w
+
+  AB.top = AB.in_right(AB.B.top)
 
   traverse(AB, True)
   traverse(theory.swap(AB), False)
-  # checklist.ensure_inferiors_indexed(AB)  no...
   AB.indexed = True
   return AB
 
@@ -54,13 +51,14 @@ def plug_superior(w, sup, B_priority):
     checklist.link_superior(w, sup)
 
 # y is in B (possibly A/B swapped)
-# Returns Relation to p in A if insertion, or None
+# Returns Relation to p in AB if insertion, or None
 
-def possible_insertion(AB, y, B_priority):
+def possible_insertion(AB, w, B_priority):
+  y = get_outject(w)
   # Candidate superiors in A+B are {p, q} where p=get_superior(y)
   # Insertion candidate is p
   q_rel = get_superior(y, None)         # default, in B
-  p = theory.cross_superior(AB, y) # in A
+  p = theory.cross_superior(AB, w)      # AB -> AB
   if p:
     p_rel = relation(LT, p, "accepted", "insertion")
   else:
@@ -68,7 +66,7 @@ def possible_insertion(AB, y, B_priority):
   if not q_rel: return p_rel # Insertion (no q)
   if not p: return None
   q = q_rel.record                # in B
-  ship = theory.cross_relationship(AB, AB.in_left(p), AB.in_right(q))
+  ship = theory.cross_relationship(AB, p, AB.in_right(q))
   if ship == LT:
     # Insertion, y < p < q
     return p_rel
@@ -76,10 +74,10 @@ def possible_insertion(AB, y, B_priority):
     return None            #p >= q > y
   # CONFLICT or OVERLAP case.  Priority wins.
   if B_priority:
-    log("# making arbitrary parent choice (B, priority)")
+    #log("# making arbitrary parent choice (B, priority)")
     return None    #p is the default
   else:
-    log("# confirming arbitrary parent choice?")
+    #log("# confirming arbitrary parent choice?")
     return p_rel
 
 # -----------------------------------------------------------------------------
