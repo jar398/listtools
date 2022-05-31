@@ -83,7 +83,15 @@ def generate_report(AB):
         if is_acceptable(x):
           # case 7, acc >       acc.
           if monitor(z): log("when_A")
-          comment = 'a ambiguous' if get_match(z, None) else 'A only'
+          comment = 'A only'
+          rel = get_match(z, None) # in B
+          if rel:
+            if rel.relationship == EQ:
+              comment = 'match has different extension'
+            elif rel.record:
+              comment = 'ambiguous in A; match in B is %s' % blurb(rel.record)
+            else:
+              comment = 'ambiguous in B'
           do_row(z, theory.cross_superior(AB.swap(), z), comment)
 
     def when_B(y):
@@ -114,10 +122,15 @@ def generate_report(AB):
         elif is_acceptable(y):
           # case 3, acc. ... < acc
           if monitor(z): log("when_B case 3")
-          comment = 'b ambiguous' if get_match(z, None) else 'B only'
+          comment = 'B only'
           rel = get_match(z, None)
-          if rel and rel.record:
-            comment = "b's match is %s" % blurb(rel.record)
+          if rel:
+            if rel.relationship == EQ:
+              comment = 'match has different extension'
+            elif rel.record:
+              comment = "ambiguous in B; match in A is %s" % blurb(rel.record)
+            else:
+              comment = 'ambiguous in A'
           do_row(theory.cross_superior(AB, z), z, comment)
 
     if z != AB.top:

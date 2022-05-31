@@ -451,6 +451,13 @@ col%-raw.csv: col%/dump/meta.xml $P/start.py
 	@mv -f $@.new $@
 .PRECIOUS: col%-raw.csv
 
+# ----- 6. ITIS
+
+work/itis2022-mammals-raw.csv: work/itis2022-mammals/dump/meta.xml
+	$P/start.py --pk $(PRIMARY_KEY) --input `dirname $<`/taxa_*.txt \
+	  >$@.new
+	@mv -f $@.new $@
+
 # -----
 
 tags:
