@@ -128,6 +128,7 @@ def compute_sum(a_table, b_table, pk_col_arg, index_by):
             answer = (LOSER, row2[pk_pos2],
                       ("match not mutual: %s <- %s" %
                        (b1, row2[pk_pos2])))
+      # Maybe: if is_accepted(...) != is_accepted(...)
       else:
         # Probably an ambiguity {row1, row1'} <-> row2
         answer = (NOINFO, TOP, remark1)

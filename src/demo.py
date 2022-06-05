@@ -86,13 +86,17 @@ def generate_report(AB):
           comment = 'A only'
           rel = get_match(z, None) # in B
           if rel:
-            if rel.relationship == EQ:
-              comment = 'match has different extension'
-            elif rel.record:
-              comment = 'ambiguous in A; match in B is %s' % blurb(rel.record)
+            if rel.record:
+              if rel.relationship == EQ:
+                pass            # handled under when_B case
+              else:             # NOINFO
+                do_row(z, rel.record, 'multiple A records match B name')
             else:
-              comment = 'ambiguous in B'
-          do_row(z, theory.cross_superior(AB.swap(), z), comment)
+              do_row(z, theory.cross_superior(AB.swap(), z),
+                     'A name has multiple matches in B')
+          else:
+            do_row(z, theory.cross_superior(AB.swap(), z),
+                   comment)
 
     def when_B(y):
       if get_rank(y, 'species') == 'species':
@@ -125,13 +129,17 @@ def generate_report(AB):
           comment = 'B only'
           rel = get_match(z, None)
           if rel:
-            if rel.relationship == EQ:
-              comment = 'match has different extension'
-            elif rel.record:
-              comment = "ambiguous in B; match in A is %s" % blurb(rel.record)
+            if rel.record:
+              if rel.relationship == EQ:
+                comment = 'record match'
+              else:
+                comment = 'B name has multiple matches in A'
+              do_row(rel.record, z, comment)
             else:
-              comment = 'ambiguous in A'
-          do_row(theory.cross_superior(AB, z), z, comment)
+              do_row(theory.cross_superior(AB, z), z,
+                     'B name has multiple matches in A')
+          else:
+            do_row(theory.cross_superior(AB, z), z, comment)
 
     if z != AB.top:
       AB.case(z, when_A, when_B)
