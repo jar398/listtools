@@ -31,7 +31,6 @@ def analyze(A, B, m_iter=None):
   if not m_iter:
     m_iter = match_records(checklist_to_rows(AB.A), checklist_to_rows(AB.B))
   theory.load_matches(m_iter, AB)
-  AB.get_cross_mrca = theory.mrca_crosser(AB)
   spanning_tree(AB)
   return AB
 
@@ -445,6 +444,53 @@ def propose_deprecation(AB, z, x, y):
         (blurb(yy), blurb(x)))
 
 (get_conflict, set_conflict) = prop.get_set(prop.declare_property("conflict"))
+
+# -----------------------------------------------------------------------------
+
+# ---- tools for working with sum taxonomy A+B
+
+# This is run pre-merge so should not chase A->B synonym links.
+# If the parent is a synonym, that's a problem - shouldn't happen.
+
+def get_left_superior(AB, z):
+  x = get_left_persona(AB, z)
+  if not x: return None
+  rel_in_A = get_superior(x, None)
+  # Return relation that's same as rel_in_A except in AB instead of A
+  if rel_in_A:
+    p = AB.in_left(rel_in_A.record)
+    return relation(rel_in_A.relationship, p, rel_in_A.status, rel_in_A.note)
+  return None
+
+def get_right_superior(AB, z):
+  y = get_right_persona(AB, z)
+  if not y: return None
+  rq = get_superior(y, None)
+  if rq:
+    q = AB.in_right(rq.record)
+    return relation(rq.relationship, q, rq.status, rq.note)
+  return None
+
+# Returns a record in the left checklist, or None
+
+def get_left_persona(AB, z):    # left = A = nonpriority
+  assert isinstance(z, prop.Record)
+  assert get_outject(z, None)
+  return AB.case(z,
+                 lambda x:x,       # if z in A, then z
+                 lambda y:equal_persona(get_equated(z, None)))
+
+# Returns a record in the right checklist, or None
+
+def get_right_persona(AB, z):   # right = B = priority
+  return AB.case(z,
+                 lambda x:equal_persona(get_superior(z, None)),
+                 lambda y:y)    # if z in B, then z
+
+def equal_persona(rel):
+  return (get_outject(rel.record)
+          if rel and rel.relationship == EQ
+          else None)
 
 # -----------------------------------------------------------------------------
 
