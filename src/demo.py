@@ -19,8 +19,8 @@ def demo(A_iter, B_iter):
   matches_iter = match_records.match_records(checklist_to_rows(A),
                                              checklist_to_rows(B))
   theory.load_matches(matches_iter, AB)
-  theory.analyze_tipwards(AB)                # also find tipes
-  theory.compute_blocks(AB)
+  theory.analyze_tipwards(AB)                # also find the 'tipes'
+  theory.compute_blocks(AB)                  # sets of 'tipes'
   theory.find_equivalents(AB)
   theory.compute_cross_mrcas(AB)
   span.span(AB)
@@ -32,29 +32,45 @@ def generate_report(AB):
   # Too difficult to do a generator
   report = []
 
-  report.append(("A id", "A name", "rcc5", "B name", "B id", "comment"))
+  report.append(("A id", "A name", "rcc5", "B name", "B id",
+                 "action", "comment"))
 
   def do_row(v, w, comment):
     x_info = ('', '')
     y_info = ('', '')
     sym = ''
     if v:
+      action = 'deleted'
       x = get_outject(v)
       x_info = (get_primary_key(x),
                 get_canonical(x, None) or get_scientific(x))
     if w:
+      action = 'new'
       y = get_outject(w)
       y_info = (get_primary_key(y),
                 get_canonical(y, None) or get_scientific(y))
     if v and w:
       rel = theory.cross_relationship(AB, v, w)
       sym = rcc5_symbol(rel.relationship)
+      if rel.relationship == GT:
+        action = 'split'
+      elif rel.relationship == EQ:
+        action = ''
+      elif rel.relationship == LT:
+        action = 'lumped'
+      elif rel.relationship == DISJOINT:
+        action = 'moved'
+      elif rel.relationship == CONFLICT:
+        action = 'reorganized'
+      elif rel.relationship == CONFLICT:
+        action = 'unknown'
 
     report.append((x_info[0],
                    x_info[1],
                    sym,
                    y_info[1],
                    y_info[0],
+                   action,
                    comment))
 
   def traverse(z):
@@ -126,7 +142,6 @@ def generate_report(AB):
         elif is_acceptable(y):
           # case 3, acc. ... < acc
           if monitor(z): log("when_B case 3")
-          comment = 'B only'
           rel = get_match(z, None)
           if rel:
             if rel.record:
@@ -139,7 +154,7 @@ def generate_report(AB):
               do_row(theory.cross_superior(AB, z), z,
                      'B name has multiple matches in A')
           else:
-            do_row(theory.cross_superior(AB, z), z, comment)
+            do_row(theory.cross_superior(AB, z), z, 'B only')
 
     if z != AB.top:
       AB.case(z, when_A, when_B)

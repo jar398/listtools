@@ -86,6 +86,8 @@ def cross_relationship(AB, v, w):
     if m:
       rel2 = simple_relationship(get_outject(v), get_outject(m.record))
 
+    # There's valuable information in the note... keep it?
+
     rel = rel1 or rel2
     if rel:
       if (not rel1 or not rel2 or
@@ -470,13 +472,15 @@ def ensure_levels(S):
   cache(S.top, 1)
 
 # -----------------------------------------------------------------------------
+# load_matches is in file checklist.py
+
 # Load/dump a set of provisional matches (could be either record match
 # or taxonomic matches... but basically, record matches).  The matches are stored 
 # as Relations under the 'match' property of nodes in AB.
 
 # x and y are in AB
 
-def load_matches(row_iterator, AB):
+def load_matches_redundant_definition(row_iterator, AB):
   log("# Loading matches")
 
   header = next(row_iterator)

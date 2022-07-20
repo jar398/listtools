@@ -14,6 +14,13 @@ Here's what we're trying to do, as an n^2 method:
   (I.e. if record 1 = unique best match to record 2 AND v.v.)
 
 With some indexing, we can do it in approximately linear time.
+
+A row is represented according to what the CSV reader returns (i.e. a
+list of strings).
+
+pk_col is the name of the primary key column (typically "taxonID"),
+while pk_pos is the position in the row list of the primary key.
+
 """
 
 # -----
@@ -48,7 +55,7 @@ def match_records(a_reader, b_reader, pk_col="taxonID", index_by=default_index_b
   cop = compute_sum(a_table, b_table, pk_col, index_by)
   return generate_sum(cop, pk_col)
 
-# Sum -> row iterable.
+# Sum -> row iterable, suitable for writing to output CSV file.
 # B is priority, so treat A matches as annotations on it
 # Part of this module's API.
 
@@ -59,7 +66,7 @@ def generate_sum(coproduct, pk_col):
       ship_sym = rcc5_symbol(ship)
       yield [key1, ship_sym, key2, remark]
 
-# table * table -> sum (cf. delta.py)
+# table * table -> sum (cf. delta.py ?)
 
 def compute_sum(a_table, b_table, pk_col_arg, index_by):
   global INDEX_BY, pk_col, pk_pos1, pk_pos2
@@ -221,7 +228,7 @@ def check_match(key1, best_rows_in_file2, pk_pos2, key1_in_A):
 # (i.e. highest scoring) matches in the opposite input.
 
 def find_best_matches(header1, header2, all_rows1, all_rows2, pk_col):
-  global pk_pos1, pk_pos2, unweights
+  global pk_pos1, pk_pos2, unweights # Passed in
   assert len(all_rows2) > 0
   corr_12 = correspondence(header1, header2)
   positions = indexed_positions(header1, INDEX_BY)

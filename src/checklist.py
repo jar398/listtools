@@ -553,18 +553,21 @@ def monitor(x):
           )
 
 # -----------------------------------------------------------------------------
-# Load/dump a set of provisional matches (could be either nominal match
-# or taxonomic matches... but basically, nominal matches)
+# Load/dump a set of provisional matches (could be either record match
+# or taxonomic matches... but basically, record matches).  The matches are stored 
+# as Relations under the 'match' property of nodes in AB.
+
+# x and y are in AB
 
 def load_matches(row_iterator, AB):
   log("# Loading matches")
 
+  # match_id,relationship,taxonID,basis_of_match
   header = next(row_iterator)
   plan = prop.make_plan_from_header(header)
   match_count = 0
   miss_count = 0
   for row in row_iterator:
-    # row = [matchID, rel, taxonID, remark]
     match = prop.construct(plan, row)
     x = y = None
     xkey = get_match_key(match, None)
@@ -580,18 +583,18 @@ def load_matches(row_iterator, AB):
 
     # The columns of the csv file
 
-    rel = rcc5_relationship(get_match_relationship(match)) # EQ, NOINFO
+    ship = rcc5_relationship(get_match_relationship(match)) # EQ, NOINFO
     note = get_basis_of_match(match, MISSING)
-    # x or y might be None with rel=NOINFO ... hope this is OK
-    if y and rel:
-      set_match(y, relation(reverse_relationship(rel), x, "record match",
+    # x or y might be None with ship=NOINFO ... hope this is OK
+    if y and (ship == EQ or not get_match(y, None)):
+      set_match(y, relation(reverse_relationship(ship), x, None,
                             reverse_note(note)))
-    if x:
-      set_match(x, relation(rel, y, "record match", note))
-    if x: match_count += 1
+    if x and (ship == EQ or not get_match(x, None)):
+      set_match(x, relation(ship, y, None, note))
+    if x and y: match_count += 1
     else: miss_count += 1
 
-  #log("# %s matches, %s misses" % (match_count, miss_count))
+  log("# %s matches, %s misses" % (match_count, miss_count))
 
 def reverse_note(note):
   if ' ' in note:
