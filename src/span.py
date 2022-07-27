@@ -43,7 +43,7 @@ def span(AB):
       if equ and not B_priority:
         w = equ.record
         log("burying %s under %s" % (blurb(z), blurb(w)))
-        sup = relation(SYNONYM, w, "equivalent")
+        sup = relation(EQ, w, "equivalent")
 
       else:
         # One possible parent of z
