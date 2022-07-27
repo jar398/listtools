@@ -26,6 +26,23 @@ def demo(A_iter, B_iter):
   span.span(AB)
   return generate_report(AB)
 
+def generate_distinct(AB):
+  def generate(z):
+    children = tuple(get_inferiors(z))
+    if is_acceptable(get_outject(z)):
+      rel = get_match(z, None)
+      w = rel.record if rel else None
+      eq = w and is_acceptable(get_outject(w))
+      if eq and theory.isinB(AB, z):
+        return     # *** Has been processed differently
+      if z != AB.top:
+        yield z
+      if eq and theory.isinA(AB, z):
+        children = children + tuple(get_inferiors(w))
+    for c in sorted(children, key=sort_key):
+      yield from generate(c)
+  yield from generate(AB.top)
+
 # Returns an Iterable
 
 def generate_report(AB):
@@ -51,20 +68,10 @@ def generate_report(AB):
                 get_canonical(y, None) or get_scientific(y))
     if v and w:
       rel = theory.cross_relationship(AB, v, w)
+      if rel.relationship == NOINFO:
+        return
+      action = verbalize(rel)
       sym = rcc5_symbol(rel.relationship)
-      if rel.relationship == GT:
-        action = 'split'
-      elif rel.relationship == EQ:
-        action = ''
-      elif rel.relationship == LT:
-        action = 'lumped'
-      elif rel.relationship == DISJOINT:
-        action = 'moved'
-      elif rel.relationship == CONFLICT:
-        action = 'reorganized'
-      elif rel.relationship == CONFLICT:
-        action = 'unknown'
-
     report.append((x_info[0],
                    x_info[1],
                    sym,
@@ -73,111 +80,145 @@ def generate_report(AB):
                    action,
                    comment))
 
-  def traverse(z):
+  # Eight cases, of which 3 are to be ignored.
 
-    assert len(get_source(z).meta['name']) == 2
-    if monitor(z): log("traverse")
+  #   yy    y     x     xx
+  # 1       acc = acc
+  # 2       acc = syn < acc
+  # 4 acc > syn = acc
+  # 5 acc > syn = syn < acc   IGNORE
 
-    # Eight cases, of which 3 are to be ignored.
+  # 3       acc.      < acc
+  # 6 acc > syn.      < acc   IGNORE
 
-    #   yy    y     x     xx
-    # 1       acc = acc
-    # 2       acc = syn < acc
-    # 4 acc > syn = acc
-    # 5 acc > syn = syn < acc   IGNORE
+  # 7 acc >       acc
+  # 8 acc >       syn.        IGNORE
+  # 9     >                   CAN'T HAPPEN
 
-    # 3       acc.      < acc
-    # 6 acc > syn.      < acc   IGNORE
-
-    # 7 acc >       acc
-    # 8 acc >       syn.        IGNORE
-    # 9     >                   CAN'T HAPPEN
+  for z in generate_distinct(AB):
+    # N.b. z is acceptable...
 
     def when_A(x):
-      if get_rank(x, 'species') == 'species':
-        # cases 7-8
-        if is_acceptable(x):
-          # case 7, acc >       acc.
-          if monitor(z): log("when_A")
-          comment = 'A only'
-          rel = get_match(z, None) # in B
-          if rel:
-            if rel.record:
-              if rel.relationship == EQ:
-                pass            # handled under when_B case
-              else:             # NOINFO
-                do_row(z, rel.record, 'multiple A records match B name')
-            else:
-              do_row(z, theory.cross_superior(AB.swap(), z),
-                     'A name has multiple matches in B')
-          else:
-            do_row(z, theory.cross_superior(AB.swap(), z),
-                   comment)
+      # cases 7-8.  x is acceptable
+      # case 7, acc >       acc.
+      if monitor(z): log("when_A")
+      rel = get_match(z, None) # in B
+      if rel:
+        if rel.record:
+          if rel.relationship == EQ:
+            pass            # handled under when_B case
+          else:             # NOINFO
+            do_row(z, rel.record, 'multiple A records match B name')
+        else:
+          (p, comment) = partner(AB.swap(), z)
+          # 'A name has multiple matches in B'
+          do_row(z, p, comment)
 
     def when_B(y):
-      if get_rank(y, 'species') == 'species':
-        # cases 1-6
-        rel = theory.get_equivalent(z, None)
+      # cases 1-6.  y is acceptable
+      rel = theory.get_equivalent(z, None)
+      if rel:
+        #       acc = acc
+        #       acc = syn < acc
+        # acc > syn = acc
+        v = rel.record
+        x = get_outject(rel.record)
+        if is_acceptable(x):
+          # case 1, acc = acc
+          if monitor(z): log("when_B case 1")
+          do_row(v, z, '')
+        else:
+          # case 2
+          if monitor(z): log("when_B case 2")
+          do_row(AB.in_left(get_acceptable(x)), z,
+                 'via A synonym')
+
+      else:
+        # case 3, acc. ... < acc
+        if monitor(z): log("when_B case 3")
+        rel = get_match(z, None)
         if rel:
-          #       acc = acc
-          #       acc = syn < acc
-          # acc > syn = acc
-          v = rel.record
-          x = get_outject(rel.record)
-          if is_acceptable(y):
-            # cases 1-2
-            if is_acceptable(x):
-              if monitor(z): log("when_B case 1")
-              do_row(v, z, '')
+          if rel.record:
+            if rel.relationship == EQ:
+              do_row(rel.record, z, 'record match')
             else:
-              if monitor(z): log("when_B case 2")
-              do_row(AB.in_left(get_accepted(x)), z,
-                     'via A synonym')
-          elif is_acceptable(x):
-            # case 4, acc.  ... < acc
-            if monitor(z): log("when_B case 4")
-            do_row(v, AB.in_right(get_accepted(y)),
-                   'via B synonym')
-
-        elif is_acceptable(y):
-          # case 3, acc. ... < acc
-          if monitor(z): log("when_B case 3")
-          rel = get_match(z, None)
-          if rel:
-            if rel.record:
-              if rel.relationship == EQ:
-                comment = 'record match'
-              else:
-                comment = 'B name has multiple matches in A'
-              do_row(rel.record, z, comment)
-            else:
-              do_row(theory.cross_superior(AB, z), z,
-                     'B name has multiple matches in A')
+              do_row(rel.record, z, 'B name has multiple matches in A')
           else:
-            do_row(theory.cross_superior(AB, z), z, 'B only')
+            rel = theory.cross_superior(AB, z)
+            do_row(rel.record, z,
+                   'B name has multiple matches in A')
+        else:
+          (p, comment) = partner(AB, z)
+          do_row(p, z, comment)
 
-    if z != AB.top:
-      AB.case(z, when_A, when_B)
-    for c in sorted(get_inferiors(z), key=sort_key):
-      traverse(c)
-
-  traverse(AB.top)
+    AB.case(z, when_A, when_B)
 
   return report
 
+def partner(AB, v):
+  x = get_outject(v)
+  a = get_accepted(x)
+  if a != x:
+    comment = "via synonym"
+    v = AB.in_A(a)
+  rel = theory.get_equivalent(v, None)
+  w = rel.record if rel else None
+  if w:
+    comment = "equivalent"
+  else:
+    if False:
+      rel = get_match(v, None)
+      w = rel.record if rel else None
+      if w:
+        comment = "name match"
+    rel = theory.cross_superior(AB, v)
+    w = rel.record
+    if w:
+      comment = "nearest enclosing"
+
+  if x:
+    return get_acceptable(x)       # .... hmm ....
+  else:
+    if x:
+      return get_acceptable(x)
+    else:
+      rel = theory.cross_superior(AB, v)
+      return (rel.record, '(something) only')
+
+def get_acceptable(x):
+  a = AB.in_B(x)
+
+  return (a, 'comment')
+
 def is_acceptable(x):
-  return is_accepted(x) and not get_rank(x, None) == 'subspecies'
+  return is_accepted(x) and get_rank(x, 'species') == 'species'
 
 def sort_key(c):
   return (get_canonical(c, ''),
           get_scientific(c, ''),
           get_primary_key(c, ''))
 
+def verbalize(rel):
+  if rel.relationship == GT:
+    action = 'split'
+  elif rel.relationship == EQ:
+    action = ''
+  elif rel.relationship == LT:
+    action = 'lumped'
+  elif rel.relationship == DISJOINT:
+    action = 'moved'
+  elif rel.relationship == CONFLICT:
+    action = 'reorganized'
+  elif rel.relationship == OVERLAP:
+    action = 'overlap'
+  else:
+    action = rcc5_symbol(rel.relationship)
+  return action
+
 # -----------------------------------------------------------------------------
 
 if __name__ == '__main__':
   parser = argparse.ArgumentParser(description="""
-    standard input = the merged checklist we're reporting on
     """)
   parser.add_argument('--A', help="the A checklist, as path name or -",
                       default='-')

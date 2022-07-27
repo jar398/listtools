@@ -29,7 +29,7 @@ LE = def_rcc5_symbol(LT|EQ, '<=')       # ≤, synonym
 GE = def_rcc5_symbol(GT|EQ, '>=')       # ≥, accepted
 NOINFO = def_rcc5_symbol(LT|GT|EQ|CONFLICT|DISJOINT, '?')
 COMPARABLE = def_rcc5_symbol(LT|GT|EQ, '<=>')
-OVERLAP = def_rcc5_symbol(LT|GT|EQ|CONFLICT, '∩')  # equivalent, similar
+OVERLAP = def_rcc5_symbol(LT|GT|EQ|CONFLICT, 'not!')  # ∩, equivalent, similar
 
 ACCEPTED = LT
 SYNONYM = LE

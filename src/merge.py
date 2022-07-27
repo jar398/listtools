@@ -392,12 +392,6 @@ def equated(x, y):              # Are x and y equated?
 # -----------------------------------------------------------------------------
 # Match building...
 
-def get_accepted(z):  # in priority tree, if possible
-  rel = get_superior(z, None)
-  if rel and rel.relationship != ACCEPTED:
-    return get_accepted(rel.record)
-  return z
-
 # Propose that rs.record should be the parent (superior) of z
 
 def propose_superior(AB, z, rs, ship, status, note):

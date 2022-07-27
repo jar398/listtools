@@ -81,8 +81,9 @@ class Relative(NamedTuple):
   note : str = ''   # further comments justifying this relationship
 
 def relation(ship, record, status, note=''):
+  assert isinstance(ship, int)
   assert ((ship == NOINFO and not record) or \
-          isinstance(record, prop.Record)), record
+          isinstance(record, prop.Record)), blurb(record)
   assert isinstance(ship, int), ship
   return Relative(ship, record, status, note)
 
@@ -225,6 +226,7 @@ def set_superior_carefully(x, sup):
       log("> superior of %s is %s" % (blurb(x), blurb(sup)))
 
 def link_superior(w, sup):
+  assert get_superior(w, None) == None
   set_superior(w, sup)
   if sup.relationship == ACCEPTED:
     ch = get_children(sup.record, None)

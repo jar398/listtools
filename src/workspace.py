@@ -34,16 +34,17 @@ def make_workspace(A, B, meta=None):
       set_inject(x, z)          # contextual
       set_outject(z, x)
       set_source(z, AB)
+      if get_superior(z, None) != None:
+        set_superior(z, None)
+      if get_children(z, None) != None:
+        set_children(z, None)
+      if get_synonyms(z, None) != None:
+        set_synonyms(z, None)
+
       have_key = get_primary_key(z)
-      if REUSE_KEYS and have_key:
-        if '!' in have_key:
-          key = have_key
-        else:
-          key = "%s!%s" % (get_source_name(x), have_key)
-        set_primary_key(z, key)
-      else:
-        pk_counter[0] += 1
-        set_primary_key(z, str(pk_counter[0]))
+      # and not get_record(primary_key_prop, None)
+      key = "%s!%s" % (get_source_name(x), have_key)
+      set_primary_key(z, key)
       register(z)
     return z
 

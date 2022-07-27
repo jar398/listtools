@@ -126,11 +126,12 @@ def find_equivalent(AB, v):
   return None
 
 # -----------------------------------------------------------------------------
-# Least node in opposite (B) checklist that's definitely greater than w (in A).
+# Given a record w in the A checklist, return the least node in B
+# that's definitely greater than w.
 
 def cross_superior(AB, w):
-  if isinB(AB, w):
-    AB = AB.swap()
+  if isinB(AB, w): AB = swap(AB)
+  # w = in_A(x)
   if monitor(w): log("cross_superior %s" % blurb(w))
   w0 = w
   if is_empty_block(get_block(w, BOTTOM_BLOCK)):
@@ -141,16 +142,15 @@ def cross_superior(AB, w):
       rel = get_superior(x, None)
       assert rel
       ra = rel.record
-      w = AB.in_left(ra)        # in A
+      w = AB.in_left(ra)        # x's parent in A
       if is_empty_block(get_block(w, BOTTOM_BLOCK)):
         # w0 < w < ... overlaps with B ...
         if monitor(w0): log("cross_superior None empty %s" % blurb(w))
       else:
         # w0 < w = overlaps with B 
         break
-    q = get_cross_mrca(w, BOTTOM)
+    q = get_cross_mrca(w, BOTTOM) # w in AB
     if monitor(w0): log("cross_superior q %s" % blurb(q))
-    return q # ???
   else:
     # increase q until x is less than it
     q = get_cross_mrca(w, BOTTOM)     # candidate in AB
@@ -160,7 +160,7 @@ def cross_superior(AB, w):
       ship = cross_relationship(AB, w, q).relationship
       if ship == LT:
         # Satisfactory parent candidate.
-        return q
+        break
       qb = get_outject(q)
       if monitor(w0): log("xsup 3 %s %s" % (blurb(q), blurb(qb)))
       rel = get_superior(qb, None)
@@ -169,10 +169,13 @@ def cross_superior(AB, w):
         assert sb, blurb(sb)
         q = AB.in_right(sb)
         if ship == EQ:
-          return q
+          break
       else:
         if monitor(w): log("cross_superior None 2 %s" % blurb(x))
         return None             # Off top
+  assert isinB(AB, q)
+  rel = get_superior(get_outject(w), None)
+  return relation(rel.relationship, q, rel.note)
 
 # -----------------------------------------------------------------------------
 # Find mutual tipward record matches (MTRMs)
@@ -234,7 +237,7 @@ def get_mtrm(z):
 
 def compute_cross_mrcas(AB):
   def crosses(AB):
-    def traverse(x):            # arg in A, result in B
+    def traverse(x):            # arg in A, result = in_B(something)
       m = BOTTOM                # identity for mrca
       z = AB.in_left(x)         # in AB
       probe = get_mtrm(z)       # in AB
@@ -248,7 +251,7 @@ def compute_cross_mrcas(AB):
           if q:
             m = mrca(q, m)      # in B
       if m != BOTTOM:
-        set_cross_mrca(AB.in_left(x), AB.in_right(m))
+        set_cross_mrca(z, AB.in_right(m))
         return m
       return None
     traverse(AB.A.top)
