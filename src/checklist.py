@@ -95,19 +95,22 @@ class Source:
     self.context = prop.make_context()  # for lookup by primary key
     self.meta = meta
     self.indexed = False    # get_children, get_synonyms set?
+    self.top = None
 
-def all_records(C):             # not including top
+def all_records(C):
   col = prop.get_column(primary_key_prop, C.context)
   return prop.get_records(col)
 
-def preorder_records(C):
+def preorder_records(C):        # starting from top
+  assert C.top
   def traverse(x):
     yield x
     for c in get_inferiors(x):
       yield from traverse(c)
   yield from traverse(C.top)
 
-def postorder_records(C):
+def postorder_records(C):       # ending with top
+  assert C.top
   def traverse(x):
     for c in get_inferiors(x):
       yield from traverse(c)
@@ -175,7 +178,7 @@ def resolve_superior_link(S, record):
       else:
         sup = relation(SYNONYM, accepted, status)
     else:
-      log("# Dangling accepted reference in %s: %s -> %s" %
+      log("# Synonym %s with unresolvable accepted: %s -> %s" %
           (S.meta['name'], blurb(record), accepted_key))
       sup = relation(SYNONYM, S.top, "root", "unresolved accepted id")
   else:
@@ -187,7 +190,7 @@ def resolve_superior_link(S, record):
         # If it's not accepted or valid or something darn close, we're confused
         sup = relation(ACCEPTED, parent, status)
       else:
-        log("# Dangling parent reference in %s: %s -> %s" %
+        log("# Accepted %s with unresolvable parent: %s -> %s" %
             (S.meta['name'], blurb(record), parent_key))
         sup = relation(ACCEPTED, S.top, "unresolved parent id")
     else:
@@ -201,6 +204,8 @@ def resolve_superior_link(S, record):
   set_superior_carefully(record, sup)
 
 def set_superior_carefully(x, sup):
+  assert isinstance(x, prop.Record)
+  assert isinstance(sup, Relative)
   have = get_superior(x, None)
   if have:
     if False:                   # GBIF fails if we insist
@@ -234,14 +239,13 @@ def link_superior(w, sup):
       ch.append(w)
     else:
       set_children(sup.record, [w])
-  elif sup.relationship == SYNONYM:
+  else: # sup.relationship == SYNONYM or sup.relationship == EQ
     ch = get_synonyms(sup.record, None)
     if ch != None:
       ch.append(w)
     else:
       set_synonyms(sup.record, [w])
-  else:
-    assert False
+  #else: assert False
 
 def look_up_record(C, key, comes_from=None):
   if not key: return None
@@ -337,18 +341,18 @@ def get_source_name(x):
   return get_source(x).meta['name']
 
 def make_top(C):
-  top = make_record(TOP, C)     # key is TOP, source is C
+  top = make_record(TOP_NAME, C)     # key is TOP_NAME, source is C
   # registrar(primary_key_prop)(top)  # Hmmph
-  set_canonical(top, TOP)
+  set_canonical(top, TOP_NAME)
   return top
 
-TOP = "⊤"
+TOP_NAME = "⊤"
 
 def is_top(x):
   return x == get_source(x).top
 
 def is_toplike(x):
-  return get_canonical(x, None) == TOP
+  return get_canonical(x, None) == TOP_NAME
 
 # Not used I think
 def add_inferior(r, status="accepted"):
@@ -478,11 +482,11 @@ def checklist_to_rows(C, props=None):
 def preorder_rows(C, props=None):
   return records_to_rows(C, preorder_records(C), props)
 
-def records_to_rows(C, records, props=None):
+def records_to_rows(C, records, props=None): # Excludes top
   (header, record_to_row) = begin_table(C, props)
   yield header
   for x in records:
-    if not is_toplike(x):       # ?
+    if not x == C.top:
       yield record_to_row(x)
 
 # Filter out unnecessary equivalent A records!

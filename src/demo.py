@@ -67,7 +67,7 @@ def generate_report(AB):
       y_info = (get_primary_key(y),
                 get_canonical(y, None) or get_scientific(y))
     if v and w:
-      rel = theory.cross_relationship(AB, v, w)
+      rel = theory.cross_relation(AB, v, w)
       if rel.relationship == NOINFO:
         return
       action = verbalize(rel)
@@ -79,6 +79,38 @@ def generate_report(AB):
                    y_info[0],
                    action,
                    comment))
+
+  def promote(z):
+    a = get_accepted(z)
+    if a:
+      c = "via synonym")
+      if get_rank(a.record, None) == 'subspecies':
+        a = get_superior(a.record).record
+        c = "via subspecies"
+    else:
+      a = z
+      c = ""
+    if get_rank(a.record, None) == 'species':
+      return (a, c)
+    else:
+      return None
+
+  for z in preorder_rows(AB):
+    # Skip if z is not a species
+    if get_rank(z, None) == 'species':
+      if isinB(AB, z):
+        equ = get_equivalent(z, None)
+        if equ:
+          do_row(equ.record, z, "foo")
+        else:
+          rel = theory.cross_superior(AB, z)
+          (w, comment) = promote(rel.record)
+          do_row(w, z, comment)
+      elif not get_equivalent(z, None):
+        rel = theory.cross_superior(AB, z)
+        (v, comment) = promote(rel.record)
+        do_row(z, v, comment)
+
 
   # Eight cases, of which 3 are to be ignored.
 

@@ -31,57 +31,90 @@ from util import log
 # from the same checklist (r = p if z in A, r = q if z in B).
 
 def span(AB):
-  def traverse(AB, B_priority):
-    AB.top = AB.in_right(AB.B.top)
 
-    for y in checklist.preorder_records(AB.B):    # starts with top
-      z = AB.in_right(y)
-      assert get_superior(z, None) == None
+  AB.top = None                 # Updated further down
 
-      # Bury A records that have B equivalents
-      equ = theory.get_equivalent(z, None)
-      if equ and not B_priority:
-        w = equ.record
-        log("burying %s under %s" % (blurb(z), blurb(w)))
-        sup = relation(EQ, w, "equivalent")
+  def traverse(C):              # C is AB or swap(AB)
 
-      else:
-        # One possible parent of z
+    for y in checklist.preorder_records(C.B):    # starts with top
+
+      # y could be A.top or B.top
+      w = C.in_right(y)
+      assert get_superior(w, None) == None
+
+      # A.top is AB.B.top and has no superior
+      if y == AB.B.top:
+        assert not AB.top
+        AB.top = w
+        continue
+
+      sup = None
+
+      # Normalize non-dominant w to dominant equivalent
+      if theory.isinA(AB, w):
+        v_rel = theory.get_equivalent(w, None)
+        # N.b. w and v could be top
+        if v_rel:    # in A
+          # If w has an equivalent in B, synonymize the two
+          sup = relation(SYNONYM, v_rel.record, "equivalent",
+                         "treat equivalent as synonym")
+      if not sup:
+        # p is one possible parent of w
+        p_rel = theory.cross_superior(C, w)
+
+        # q is another possible parent of w
         qy_rel = get_superior(y, None)
 
-        if qy_rel:
-          q = AB.in_right(qy_rel.record)
-
-          # Another possible parent of z
-          p_rel = theory.cross_superior(AB, z)
-          assert p_rel
+        # If there are two possibilities, pick the smallest
+        if qy_rel and p_rel:
           p = p_rel.record
-
-          # See which one is best
-          pq_rel = theory.cross_relationship(AB, p, q)
-          if pq_rel.relationship == EQ:
-            # Best superior is p = q
-            sup = relation(p_rel.relationship, p, "equivalent parents")
-          elif pq_rel.relationship == LT:
-            # Override in B, jump to A.
-            # Best superior is p < q
-            # Wait, shouldn't the relationship come from q's checklist ??
-            sup = relation(p_rel.relationship, p, "graft")
+          q = C.in_right(qy_rel.record)
+          pq_rel = theory.cross_relation(C, p, q)
+          ship = pq_rel.relationship
+          blot = "%s %s %s" % (blurb(p), rcc5_symbol(ship), blurb(q))
+          if ship == GT or ship == GE:
+            sup = relation(qy_rel.relationship, q,
+                           "%s, choosing right" % blot)
+          elif ship == LT or ship == LE:
+            sup = relation(p_rel.relationship, p,
+                           "%s, choosing left" % blot)
+          elif ship == EQ:
+            if theory.isinB(AB, q):
+              sup = relation(qy_rel.relationship, q,
+                             "%s, choosing left" % blot)
+            else:
+              sup = relation(p_rel.relationship, p,
+                             "%s, choosing right" % blot)
           else:
-            # Best superior is q > p
-            sup = relation(qy_rel.relationship,
-                           q,
-                           qy_rel.note)
-        elif not B_priority:
-          # this may be redundant ... ?
-          sup = relation(SYNONYM, AB.top, 'spanning tree top rule')
+            log("incomparable parent candidates: %s" % blot)
+            sup = relation(qy_rel.relationship, q,
+                           "%s, choosing right" % blot)
+
+        elif qy_rel:
+          sup = relation(qy_rel.relationship,
+                         C.in_right(qy_rel.record),
+                         "root 1")
+        elif p_rel:
+          sup = relation(p_rel.relationship,
+                         p_rel.record,
+                         "root 2")
         else:
-          continue
+          log("no parent candidates!? %s" % blurb(w))
 
-      checklist.link_superior(z, sup) # adds z to children/synonyms list
+        # Normalize sup to dominant equivalent (transfer children and
+        # synonyms over to dominant node)
+        r = sup.record
+        s_rel = theory.get_equivalent(r, None)
+        if s_rel and theory.isinB(AB, s_rel.record):
+          sup = relation(sup.relationship, s_rel.record, sup.note + " normalized")
 
-  traverse(AB, True)
-  traverse(theory.swap(AB), False)
+      log("sup %s = %s" % (blurb(w), blurb(sup)))
+
+      checklist.link_superior(w, sup) # adds w to children/synonyms list
+
+  traverse(AB)
+  traverse(theory.swap(AB))
+  assert AB.top
   AB.indexed = True
   return AB
 

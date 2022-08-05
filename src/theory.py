@@ -41,7 +41,8 @@ def find_equivalents(AB):
           count += 1
     else:
       v = get_cross_mrca(w, BOTTOM)
-      if v != BOTTOM:
+      # If both v and w are unmatched, make them equivalent
+      if v != BOTTOM and not get_matched(v):
         u = get_cross_mrca(v, BOTTOM)
         if u == w:
           log("by subtension %s = %s" % (blurb(v), blurb(w)))
@@ -61,52 +62,58 @@ def find_equivalents(AB):
 
 # TBD: set status to "accepted" or "synonym" as appropriate
 
-def cross_relationship(AB, v, w):
-  assert isinA(AB, v) != isinA(AB, w)
-
-  e = get_equivalent(v, None)
-  if e and e.record == w: return e
+def cross_relation(AB, v, w):
+  if isinA(AB, v) == isinA(AB, w):
+    rel = simple_relationship(get_outject(v), get_outject(w))
+    return relation(rel.relationship, w, rel.status, rel.note)
 
   b1 = get_block(v, BOTTOM_BLOCK)
   b2 = get_block(w, BOTTOM_BLOCK)
   ship = block_relationship(b1, b2)
   if ship != EQ:
+    # Status/relationship could be synonym sometimes ??
     return relation(ship, w, None, "MTRM set comparison")
 
-  if True:
+  # Look for a record match for v or w, and punt to simple case
+  rel1 = rel2 = None
 
-    # Look for a record match for v or w, and punt to simple case
-    rel1 = rel2 = None
-    n = get_matched(v)              # v, n, n.record in AB (from B)
-    if n:
-      # NO - the relative.record needs to be w
-      rel1 = simple_relationship(get_outject(n.record), get_outject(w))
+  m = get_equivalent(w, None)   # w, m, m.record in AB
+  if m:
+    # v ? m = w
+    rel1 = simple_relationship(get_outject(v), get_outject(m.record))
 
-    m = get_matched(w)      # w, m, m.record in AB
-    if m:
-      rel2 = simple_relationship(get_outject(v), get_outject(m.record))
+  n = get_equivalent(v, None)  # v, n, n.record in AB (from B)
+  if n:
+    # v = n ? w
+    rel2 = simple_relationship(get_outject(n.record), get_outject(w))
 
-    # There's valuable information in the note... keep it?
+  # There's valuable information in the note... keep it?
 
-    rel = rel1 or rel2
-    if rel:
-      if (not rel1 or not rel2 or
-          rel1.relationship == rel2.relationship):
-        return relation(rel.relationship, w, rel.status, rel.note)
-      return relation(NOINFO, w, None, "lineage out of order??")
+  if m and n:
+    if rel1.relationship == rel2.relationship:
+      return relation(rel1.relationship, w, rel1.status, rel1.note)
+    elif is_top(get_outject(v)) and is_top(get_outject(w)):
+      log("top = top")
+      return relation(EQ, w, "equivalent", "top = top")
+    else:
+      log("shouldn't happen 1")
+      return relation(OVERLAP, w, None, "shouldn't happen 1")
 
-  if is_empty_block(b1):
-    return relation(DISJOINT, w, None, "no overlap")
+  if m:
+    return relation(rel1.relationship, w, rel1.status, rel1.note)
 
-  # No equivalent either way, but same block, so OVERLAP.
-  # TBD: If no child or parent of v or w is in same block, then EQ.
+  if n:
+    return relation(rel2.relationship, w, rel2.status, rel2.note)
+
+  # Neither v nor w has an equivalent, but they're in same block, so OVERLAP.
+  # TBD: If no child or parent of either v or w is in same block, then EQ.
   return relation(OVERLAP, w, None, "same block but no record match")
 
 # RCC-5 relationship across the two checklists
 # x and y are in AB
 
 def cross_lt(AB, v, w):
-  return cross_relationship(AB, v, w).relationship == LT
+  return cross_relation(AB, v, w).relationship == LT
 
 # -----------------------------------------------------------------------------
 
@@ -120,62 +127,74 @@ def find_equivalent(AB, v):
     y = rel1.record
   else:
     w = AB.get_cross_mrca(v)
-  rel2 = cross_relationship(AB, v, w)
+  rel2 = cross_relation(AB, v, w)
   if rel2.relationship == EQ:
     return rel2                 # hmm. combine rel1 and rel2 ?
   return None
 
 # -----------------------------------------------------------------------------
-# Given a record w in the A checklist, return the least node in B
-# that's definitely greater than w.
+# Given a record v in the A checklist, return the least node in B
+# that's definitely greater than v.
 
-def cross_superior(AB, w):
-  if isinB(AB, w): AB = swap(AB)
-  # w = in_A(x)
-  if monitor(w): log("cross_superior %s" % blurb(w))
-  w0 = w
-  if is_empty_block(get_block(w, BOTTOM_BLOCK)):
-    # increase w until it overlaps with B
+# Find an ancestor of v (in A tree) that overlaps the B tree
+
+def increase_until_overlap(AB, v):
+  v0 = v
+  if is_empty_block(get_block(v, BOTTOM_BLOCK)):
+    x = get_outject(v)
     while True:
-      x = get_outject(w)
       if is_top(x): return None
       rel = get_superior(x, None)
-      assert rel
-      ra = rel.record
-      w = AB.in_left(ra)        # x's parent in A
-      if is_empty_block(get_block(w, BOTTOM_BLOCK)):
-        # w0 < w < ... overlaps with B ...
-        if monitor(w0): log("cross_superior None empty %s" % blurb(w))
-      else:
-        # w0 < w = overlaps with B 
+      if not rel: return None   # Trees have no overlap !
+      x = rel.record
+      v = AB.in_left(x)        # x's parent in A
+      if not is_empty_block(get_block(v, BOTTOM_BLOCK)):
+        # v0 < v = overlaps with B 
         break
-    q = get_cross_mrca(w, BOTTOM) # w in AB
-    if monitor(w0): log("cross_superior q %s" % blurb(q))
-  else:
-    # increase q until x is less than it
-    q = get_cross_mrca(w, BOTTOM)     # candidate in AB
-    assert isinB(AB, q)
-    if monitor(w0): log("xsup 2 %s %s" % (blurb(x), blurb(q),))
-    while True:
-      ship = cross_relationship(AB, w, q).relationship
-      if ship == LT:
-        # Satisfactory parent candidate.
-        break
-      qb = get_outject(q)
-      if monitor(w0): log("xsup 3 %s %s" % (blurb(q), blurb(qb)))
-      rel = get_superior(qb, None)
-      if rel:
-        sb = rel.record
-        assert sb, blurb(sb)
-        q = AB.in_right(sb)
-        if ship == EQ:
-          break
       else:
-        if monitor(w): log("cross_superior None 2 %s" % blurb(x))
-        return None             # Off top
+        # v0 < v < ... overlaps with B ...
+        if monitor(v0): log("cross_superior None empty %s" % blurb(v))
+    q = get_cross_mrca(v, BOTTOM) # v in AB
+    if monitor(v0): log("cross_superior q %s" % blurb(q))
+  return v
+
+# AB.B could be priority, or not
+
+def cross_superior(AB, v):
+  if isinB(AB, v): AB = swap(AB)
+  # v = in_A(x)
+  if monitor(v): log("cross_superior %s" % blurb(v))
+  v0 = v
+  v = increase_until_overlap(AB, v)
+  if not v:
+    log("no overlap of %s with B" % blurb(v0))
+    return None
+
+  # increase q until v is less than it
+  q = get_cross_mrca(v, BOTTOM)     # candidate in AB
   assert isinB(AB, q)
-  rel = get_superior(get_outject(w), None)
-  return relation(rel.relationship, q, rel.note)
+  if monitor(v0): log("xsup 2 %s %s" % (blurb(x), blurb(q),))
+  while True:
+    ship = cross_relation(AB, v, q).relationship
+    if ship == LT or ship == LE:
+      break
+    if ship == EQ and v != v0:
+      break
+    q_in_B = get_outject(q)
+    if monitor(v0): log("xsup 3 %s %s" % (blurb(q), blurb(q_in_B)))
+    rel = get_superior(q_in_B, None)
+    if not rel:
+      log("no node in B is bigger than %s" % blurb(v0))
+      return None
+    q = AB.in_right(rel.record)
+
+  assert isinB(AB, q)
+  ship = cross_relation(AB, v, q).relationship
+  assert ship == LT or ship == LE, (blurb(v), rcc5_symbol(ship), blurb(q))
+
+  rel = get_superior(get_outject(v), None)
+  assert ship == rel.relationship # LT or LE
+  return relation(ship, q, rel.note)
 
 # -----------------------------------------------------------------------------
 # Find mutual tipward record matches (MTRMs)

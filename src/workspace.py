@@ -73,6 +73,7 @@ def make_workspace(A, B, meta=None):
   # Force local copies of all source records
   for y in all_records(B): AB.in_right(y) # not including top
   for x in all_records(A): AB.in_left(x)  # not including top
+  # AB.top is not set at this point.  Needs to be determined independently
   #log("# taxonID counter: %s" % pk_counter[0])
 
   return AB
