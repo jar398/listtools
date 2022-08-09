@@ -193,7 +193,8 @@ def cross_superior(AB, v):
   assert ship == LT or ship == LE, (blurb(v), rcc5_symbol(ship), blurb(q))
 
   rel = get_superior(get_outject(v), None)
-  assert ship == rel.relationship # LT or LE
+  assert ship == rel.relationship, \
+    (rcc5_symbol(ship), rcc5_symbol(rel.relationship))   # LT or LE
   return relation(ship, q, rel.note)
 
 # -----------------------------------------------------------------------------

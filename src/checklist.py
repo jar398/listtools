@@ -81,10 +81,9 @@ class Relative(NamedTuple):
   note : str = ''   # further comments justifying this relationship
 
 def relation(ship, record, status, note=''):
-  assert isinstance(ship, int)
+  assert isinstance(ship, int), ship
   assert ((ship == NOINFO and not record) or \
           isinstance(record, prop.Record)), blurb(record)
-  assert isinstance(ship, int), ship
   return Relative(ship, record, status, note)
 
 # -----------------------------------------------------------------------------
@@ -104,8 +103,10 @@ def all_records(C):
 def preorder_records(C):        # starting from top
   assert C.top
   def traverse(x):
+    assert isinstance(x, prop.Record)
     yield x
     for c in get_inferiors(x):
+      assert isinstance(c, prop.Record)
       yield from traverse(c)
   yield from traverse(C.top)
 
@@ -159,7 +160,7 @@ make_record = prop.constructor(primary_key_prop, source_prop)
 
 def resolve_superior_link(S, record):
   if record == S.top: return None
-
+  assert isinstance(record, prop.Record)
   assert not get_superior(record, None)
   sup = None
 
@@ -195,7 +196,6 @@ def resolve_superior_link(S, record):
         sup = relation(ACCEPTED, S.top, "unresolved parent id")
     else:
       # This is a root.  Hang on to it so that preorder can see it.
-      assert isinstance(record, prop.Record)
       #log("# No accepted, no parent: %s '%s' '%s'" %
        #   (blurb(record), parent_key, accepted_key))
       sup = relation(ACCEPTED, S.top, "root", "no parent")
@@ -230,16 +230,21 @@ def set_superior_carefully(x, sup):
     if (monitor(x) or monitor(sup.record)):  #False and 
       log("> superior of %s is %s" % (blurb(x), blurb(sup)))
 
-def link_superior(w, sup):
+# Establish a link of the form w -> p
+# sup is a Relative with record p
+
+def link_superior(w, sup):      # w is inferior Record, sup is Relative
+  assert isinstance(w, prop.Record)
+  assert isinstance(sup, Relative)
   assert get_superior(w, None) == None
   set_superior(w, sup)
   if sup.relationship == ACCEPTED:
-    ch = get_children(sup.record, None)
+    ch = get_children(sup.record, None) # list of records
     if ch != None:
       ch.append(w)
     else:
-      set_children(sup.record, [w])
-  else: # sup.relationship == SYNONYM or sup.relationship == EQ
+      set_children(sup.record, [w]) # w is a Record
+  else   : # sup.relationship == SYNONYM or sup.relationship == EQ
     ch = get_synonyms(sup.record, None)
     if ch != None:
       ch.append(w)
@@ -355,18 +360,18 @@ def is_toplike(x):
   return get_canonical(x, None) == TOP_NAME
 
 # Not used I think
-def add_inferior(r, status="accepted"):
-  if r.relationship == LT:
+def add_inferior(rel, status="accepted"):
+  if rel.relationship == ACCEPTED:
     ch = get_children(x, None)
-    s = set_children
+    set_inferiors = set_children
   else:
     ch = get_synoyms(x, None)
-    s = set_synonyms
+    set_inferiors = set_synonyms
   if ch != None:
-    ch.append(r.record)
+    ch.append(rel)
   else:
-    s(x, [r.record])
-  set_superior_carefully(c, r)
+    set_inferiors(x, [rel])
+  set_superior_carefully(c, rel)
 
 def get_inferiors(x):
   yield from get_children(x, ())
@@ -487,6 +492,7 @@ def records_to_rows(C, records, props=None): # Excludes top
   yield header
   for x in records:
     if not x == C.top:
+      assert isinstance(x, prop.Record)
       yield record_to_row(x)
 
 # Filter out unnecessary equivalent A records!

@@ -110,6 +110,7 @@ def span(AB):
 
       log("sup %s = %s" % (blurb(w), blurb(sup)))
 
+      assert isinstance(sup, checklist.Relative)
       checklist.link_superior(w, sup) # adds w to children/synonyms list
 
   traverse(AB)
@@ -134,8 +135,8 @@ def test():
     theory.compute_blocks(AB)
     theory.find_equivalents(AB)
     theory.compute_cross_mrcas(AB)
-    span(AB)
-    print(newick.compose_newick(checklist.preorder_rows(AB)))
+    S = span(AB)
+    print(newick.compose_newick(checklist.preorder_rows(S)))
   testit("a", "a")              # A + B
   testit("(c,d)a", "(c,e)b")
   testit("((a,b)e,c)d", "(a,(b,c)f)D")
