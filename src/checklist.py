@@ -620,6 +620,41 @@ def record_match(x):
     return rel.record
   return None
 
+"""
+taxonomy 2015 Prum
+(Aves Gall_Neoa_Clade Palaeognathae)
+(Gall_Neoa_Clade Galloanserae Neoaves)
+
+taxonomy 2014 Jarvis
+(Aves Neognathae Paleognathae)
+(Paleognathae Struthioniformes Tinamiformes)
+
+articulation 2015-2014 Prum-Jarvis
+[2015.Aves is_included_in 2014.Aves]
+[2015.Gall_Neoa_Clade equals 2014.Neognathae]
+[2015.Palaeognathae is_included_in 2014.Paleognathae]
+[2015.Galloanserae equals 2014.Struthioniformes]
+[2015.Neoaves equals 2014.Tinamiformes]
+"""
+
+# Unique name of the sort Euler/X likes
+# TBD: ensure name is unique (deal with multiple taxa with same canonical)
+
+def get_eulerx_name(x):
+  string = get_canonical(x) or get_scientific(x) or get_primary_key(x)
+  src = get_source_name(x)
+  return "%s.%s" % (src, string.replace(' ', '_'))
+
+def generate_eulerx_checklist(C):
+  src = C.meta['name']
+  yield ("taxonomy %s %s" % (src, src))
+  for rec in preorder_records(C):
+    if rec != C.top:
+      children = get_children(rec, None) # not the synonyms
+      if children:
+        sup_name = get_eulerx_name(rec)
+        yield ("(%s %s)" % (sup_name, ' '.join(map(get_eulerx_name, children))))
+  yield ''
 
 # -----------------------------------------------------------------------------
 

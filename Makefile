@@ -82,6 +82,11 @@ col-report:
 # make A=work/col2021-mammals B=work/mdd1.7 report
 # and so on.
 
+# ----- 6. GBIF/MSW/MDD:
+
+msw-demo:
+	$(MAKE) A=nate/msw3-$(taxon) B=nate/mdd1.9-$(taxon) demo
+
 # ----- General parameters
 
 SHELL?=/usr/bin/bash
@@ -116,6 +121,17 @@ ALIGNED=work/$(shell basename $A)-$(shell basename $B)-aligned.csv
 MATCHES=work/$(shell basename $A)-$(shell basename $B)-matches.csv
 ROUND=work/$(shell basename $A)-$(shell basename $B)-round.csv
 DELTA=work/$(shell basename $A)-$(shell basename $B)-delta.csv
+DEMO=work/$(shell basename $A)-$(shell basename $B)-demo.csv
+EULERX=work/$(shell basename $A)-$(shell basename $B)-eulerx.txt
+
+demo: $(DEMO)
+
+$(DEMO): $P/demo.py $P/checklist.py $P/align.py $A.csv $B.csv
+	@echo
+	@echo "--- PREPARING DEMO ---"
+	$P/demo.py --A $A.csv --B $B.csv --eulerx $(EULERX).new > $@.new
+	@mv -f $@.new $@
+	@mv -f $(EULERX).new $(EULERX)
 
 report: $(REPORT)
 REPORT_OPTIONS?=

@@ -67,6 +67,9 @@ def cross_relation(AB, v, w):
     rel = simple_relationship(get_outject(v), get_outject(w))
     return relation(rel.relationship, w, rel.status, rel.note)
 
+  #if v == AB.top: return relation(GT, w, None, "top > any")
+  #if w == AB.top: return relation(LT, w, None, "any < top")
+
   b1 = get_block(v, BOTTOM_BLOCK)
   b2 = get_block(w, BOTTOM_BLOCK)
   ship = block_relationship(b1, b2)
@@ -89,14 +92,21 @@ def cross_relation(AB, v, w):
 
   # There's valuable information in the note... keep it?
 
+  # See whether the diagram commutes
+  # v ? m = w
+  # v = n ? w
   if m and n:
-    if rel1.relationship == rel2.relationship:
-      return relation(rel1.relationship, w, rel1.status, rel1.note)
-    elif is_top(get_outject(v)) and is_top(get_outject(w)):
-      log("top = top")
-      return relation(EQ, w, "equivalent", "top = top")
+    ship = rel1.relationship & rel2.relationship
+    if ship != 0:
+      return relation(ship, w, rel1.status, rel1.note)
     else:
-      log("shouldn't happen 1")
+      log("shouldn't happen 1 %s %s %s / %s %s %s" %
+          (blurb(v),
+           rcc5_symbol(rel1.relationship), 
+           blurb(m.record),
+           blurb(n.record),
+           rcc5_symbol(rel2.relationship), 
+           blurb(w)))
       return relation(OVERLAP, w, None, "shouldn't happen 1")
 
   if m:
@@ -164,37 +174,34 @@ def cross_superior(AB, v):
   if isinB(AB, v): AB = swap(AB)
   # v = in_A(x)
   if monitor(v): log("cross_superior %s" % blurb(v))
-  v0 = v
-  v = increase_until_overlap(AB, v)
-  if not v:
-    log("no overlap of %s with B" % blurb(v0))
+  v1 = increase_until_overlap(AB, v)
+  if not v1:
+    log("no overlap of %s with B" % blurb(v))
     return None
 
-  # increase q until v is less than it
-  q = get_cross_mrca(v, BOTTOM)     # candidate in AB
+  # increase q until v1 is less (< or <=) than it
+  q = get_cross_mrca(v1, BOTTOM)     # candidate in AB
   assert isinB(AB, q)
-  if monitor(v0): log("xsup 2 %s %s" % (blurb(x), blurb(q),))
+  if monitor(v): log("xsup 2 %s %s" % (blurb(x), blurb(q),))
   while True:
-    ship = cross_relation(AB, v, q).relationship
+    ship = cross_relation(AB, v1, q).relationship
     if ship == LT or ship == LE:
       break
-    if ship == EQ and v != v0:
+    if ship == EQ and v1 != v:
       break
     q_in_B = get_outject(q)
-    if monitor(v0): log("xsup 3 %s %s" % (blurb(q), blurb(q_in_B)))
+    if monitor(v): log("xsup 3 %s %s" % (blurb(q), blurb(q_in_B)))
     rel = get_superior(q_in_B, None)
     if not rel:
-      log("no node in B is bigger than %s" % blurb(v0))
+      log("no node in B is bigger than %s" % blurb(v))
       return None
     q = AB.in_right(rel.record)
 
   assert isinB(AB, q)
-  ship = cross_relation(AB, v, q).relationship
+  rel = cross_relation(AB, v, q)
+  ship = rel.relationship
   assert ship == LT or ship == LE, (blurb(v), rcc5_symbol(ship), blurb(q))
 
-  rel = get_superior(get_outject(v), None)
-  assert ship == rel.relationship, \
-    (rcc5_symbol(ship), rcc5_symbol(rel.relationship))   # LT or LE
   return relation(ship, q, rel.note)
 
 # -----------------------------------------------------------------------------

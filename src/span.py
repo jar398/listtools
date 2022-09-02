@@ -78,18 +78,19 @@ def span(AB):
           elif ship == LT or ship == LE:
             sup = relation(p_rel.relationship, p,
                            "%s, choosing left" % blot)
+          elif theory.isinB(AB, w):
+            sup = relation(qy_rel.relationship, q,
+                           "%s, choosing dominant (on right)" % blot)
           elif ship == EQ:
-            if theory.isinB(AB, q):
-              sup = relation(qy_rel.relationship, q,
-                             "%s, choosing left" % blot)
-            else:
-              sup = relation(p_rel.relationship, p,
-                             "%s, choosing right" % blot)
+            sup = relation(p_rel.relationship, p,
+                           "%s, choosing dominant (on left)" % blot)
           else:
             log("incomparable parent candidates: %s" % blot)
-            sup = relation(qy_rel.relationship, q,
-                           "%s, choosing right" % blot)
-
+            # q is parent of w
+            if theory.isinA(AB, p):
+              sup = theory.cross_superior(AB, p)
+            else:
+              sup = theory.cross_superior(AB, q)
         elif qy_rel:
           sup = relation(qy_rel.relationship,
                          C.in_right(qy_rel.record),
@@ -108,7 +109,7 @@ def span(AB):
         if s_rel and theory.isinB(AB, s_rel.record):
           sup = relation(sup.relationship, s_rel.record, sup.note + " normalized")
 
-      log("sup %s = %s" % (blurb(w), blurb(sup)))
+      #log("sup %s = %s" % (blurb(w), blurb(sup)))
 
       assert isinstance(sup, checklist.Relative)
       checklist.link_superior(w, sup) # adds w to children/synonyms list
