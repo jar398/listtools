@@ -144,9 +144,10 @@ def workspace_from_newicks(m, n):
   A = rows_to_checklist(newick.parse_newick(m),
                         {"name": "A"})  # meta
   AB = make_workspace(A, B, {"name": "AB"})
-  for record in all_records(AB): # No merge
-    if record != AB.top:
-      set_superior(record, relation(SYNONYM, AB.top, "testing"))
+  if False:
+    for record in all_records(AB): # No merge
+      if record != AB.top:
+        set_superior(record, relation(SYNONYM, AB.top, "testing"))
   return AB
 
 def show_workspace(AB, props=None):

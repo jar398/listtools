@@ -24,10 +24,7 @@ def generate_alignment(A, B):
   matches_iter = match_records.match_records(checklist_to_rows(A),
                                              checklist_to_rows(B))
   theory.load_matches(matches_iter, AB)
-  theory.analyze_tipwards(AB)                # also find the 'tipes'
-  theory.compute_blocks(AB)                  # sets of 'tipes'
-  theory.find_equivalents(AB)
-  theory.compute_cross_mrcas(AB)
+  theory.theorize(AB)
   span.span(AB)
 
   seen = {}
@@ -164,13 +161,11 @@ def get_acceptable(AB, w):
 
 def is_acceptable(y):
   if get_accepted(y) != y:
-    log("# not accepted: %s" % blurb(y))
     return False
   if (get_rank(y, None) == 'species' or
       get_rank(y, None) == None):
     return True
   else:
-    log("# not acceptable: %s" % blurb(y))
     return False
 
 def sort_key(c):

@@ -132,10 +132,7 @@ def test():
     matches_iter = match_records.match_records(checklist_to_rows(A), checklist_to_rows(B))
     AB = workspace.make_workspace(A, B, {"name": "AB"})
     theory.load_matches(matches_iter, AB)
-    theory.analyze_tipwards(AB)                # also find tipes
-    theory.compute_blocks(AB)
-    theory.find_equivalents(AB)
-    theory.compute_cross_mrcas(AB)
+    theory.theorize(AB)
     S = span(AB)
     print(newick.compose_newick(checklist.preorder_rows(S)))
   testit("a", "a")              # A + B

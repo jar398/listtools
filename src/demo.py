@@ -33,7 +33,6 @@ def generate_report(A, B, al):
       yield (kind,
              A_id, get_canonical(r), rcc5, get_canonical(s), B_id,
              action, comment)
-  return report
 
 # Returns generator of lines (strings)
 
@@ -43,6 +42,9 @@ def generate_eulerx(A, B, al):
   yield from eulerx_alignment(A, B, al)
 
 def eulerx_alignment(A, B, al):
+  yield ("alignment %s-%s %s-%s" %
+         (checklist_tag(A), checklist_tag(B),
+          checklist_description(A), checklist_description(B)))
   for (kind, A_id, rcc5, B_id, action, comment) in al:
     r = look_up_record(A, A_id)
     s = look_up_record(B, B_id)
@@ -52,9 +54,9 @@ def eulerx_alignment(A, B, al):
 def eulerx_articulation(r, rcc5, s):
   re = eulerx_relationship(rcc5)
   if re:
-    return "[%s %s %s]" % (get_eulerx_name(r), re, get_eulerx_name(s))
+    return "[%s %s %s]" % (get_eulerx_qualified_name(r), re, get_eulerx_qualified_name(s))
   else:
-    return "#[%s %s %s]" % (get_eulerx_name(r), rcc5, get_eulerx_name(s))
+    return "#[%s %s %s]" % (get_eulerx_qualified_name(r), rcc5, get_eulerx_qualified_name(s))
 
 
 def eulerx_relationship(rcc5):
@@ -78,6 +80,8 @@ def test():
   testit("a", "a")              # A + B
   testit("(c,d)a", "(c,e)b")
   testit("((a,b)e,c)d", "(a,(b,c)f)D")
+  testit("(a,b*)c", "(a)c")
+  testit("((b*)a)c", "(a,b)c")     # WRONG WRONG
 
 if __name__ == '__main__':
   parser = argparse.ArgumentParser(description="""

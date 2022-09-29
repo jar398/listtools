@@ -56,8 +56,7 @@ difference_prop = prop.declare_property("difference")
 # Spanning tree computation.
 
 def spanning_tree(AB):
-  analyze_tipwards(AB)                # also find tipes
-  compute_blocks(AB)
+  analyze_blocks(AB)
   ensure_levels(AB.A)           # N.b. NOT levels in AB
   ensure_levels(AB.B)
   # Do this bottom up.  We'll sometimes hit nodes we've already processed.

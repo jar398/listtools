@@ -580,6 +580,7 @@ def load_matches(row_iterator, AB):
   match_count = 0
   miss_count = 0
   for row in row_iterator:
+    # row = [matchID (x id), rel, taxonID (y id), remark]
     match = prop.construct(plan, row)
     x = y = None
     xkey = get_match_key(match, None)
@@ -606,7 +607,7 @@ def load_matches(row_iterator, AB):
     if x and y: match_count += 1
     else: miss_count += 1
 
-  log("# %s matches, %s misses" % (match_count, miss_count))
+  log("# loaded %s matches, %s misses" % (match_count, miss_count))
 
 def reverse_note(note):
   if ' ' in note:
@@ -642,12 +643,16 @@ articulation 2015-2014 Prum-Jarvis
 
 def get_eulerx_name(x):
   string = get_canonical(x) or get_scientific(x) or get_primary_key(x)
+  return string.replace(' ', '_')
+
+def get_eulerx_qualified_name(x):
   src = get_source_name(x)
-  return "%s.%s" % (src, string.replace(' ', '_'))
+  return "%s.%s" % (src, get_eulerx_name(x))
 
 def generate_eulerx_checklist(C):
-  src = C.meta['name']
-  yield ("taxonomy %s %s" % (src, src))
+  tag = checklist_tag(C)
+  descr = checklist_description(C)
+  yield ("taxonomy %s %s" % (tag, descr))
   for rec in preorder_records(C):
     if rec != C.top:
       children = get_children(rec, None) # not the synonyms
@@ -655,6 +660,12 @@ def generate_eulerx_checklist(C):
         sup_name = get_eulerx_name(rec)
         yield ("(%s %s)" % (sup_name, ' '.join(map(get_eulerx_name, children))))
   yield ''
+
+def checklist_tag(C):
+  return C.meta['name']
+
+def checklist_description(C):
+  return checklist_tag(C) + "_checklist"
 
 # -----------------------------------------------------------------------------
 
