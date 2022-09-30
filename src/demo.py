@@ -78,9 +78,9 @@ def test():
     for line in eulerx:
       print(line, file=sys.stdout)
   testit("a", "a")              # A + B
-  testit("(c,d)a", "(c,e)b")
-  testit("((a,b)e,c)d", "(a,(b,c)f)D")
-  testit("(a,b*)c", "(a)c")
+  #testit("(c,d)a", "(c,e)b")
+  #testit("((a,b)e,c)d", "(a,(b,c)f)D")
+  #testit("(a,b*)c", "(a)c")
   testit("((b*)a)c", "(a,b)c")     # WRONG WRONG
 
 if __name__ == '__main__':

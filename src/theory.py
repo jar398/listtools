@@ -17,8 +17,8 @@ def isinB(AB, z):
 
 def theorize(AB):
   analyze_blocks(AB)                  # sets of 'tipes'
-  find_equivalents(AB)
   compute_reflections(AB)
+  find_equivalents(AB)
 
 # -----------------------------------------------------------------------------
 # Given a record v in the A checklist, return the least node in B
@@ -161,49 +161,34 @@ def find_equivalents(AB):
   set_equivalent(v, relation(EQ, w, "top"))
   set_equivalent(w, relation(EQ, v, "top"))
   count = 1
-  for y in checklist.postorder_records(AB.B):
-    rel = find_equivalent(w)    # -> a Relation
+  for x in checklist.postorder_records(AB.A):
+    v = AB.in_left(x)
+    rel = find_equivalent(v)    # -> a Relation
     if rel:
-      v = rel.record
-      set_equivalent(v, relation(EQ, w, rel1.status, rel1.note))
-      set_equivalent(w, relation(EQ, v, rel2.status, rel2.note))
-
-    w = AB.in_right(y)
-    rel2 = get_matched(w)
-    if rel2:
-      v = rel2.record
-      b1 = get_block(v, BOTTOM_BLOCK)
-      b2 = get_block(w, BOTTOM_BLOCK)
-      if same_block(b1, b2):    # Perhaps empty
-        rel1 = get_matched(v)
-        if rel1:
-          assert rel1.record == w
-
-          count += 1
-    else:
-      v = get_reflection(w, BOTTOM)
-      # If both v and w are unmatched, make them equivalent
-      if v != BOTTOM and not get_matched(v):
-        u = get_reflection(v, BOTTOM)
-        # This isn't right
-        if u == w:
-          log("by subtension %s = %s" % (blurb(v), blurb(w)))
-          set_equivalent(v, relation(EQ, w, None, "by subtension"))
-          set_equivalent(w, relation(EQ, v, None, "by subtension"))
-          count += 1
+      set_equivalent(v, rel)
+      set_equivalent(rel.record, relation(EQ, v, rel.status))
+      count += 1
   log("# found %s B nodes with A equivalents" % count)
 
 (get_equivalent, set_equivalent) = prop.get_set(prop.declare_property("equivalent"))
 
 # -----------------------------------------------------------------------------
 
-# Returns a Relative y to x such that x = y.  x and y are in AB, not A or B.
+# Given x, returns y such that x = y.  x and y are in AB, not A or B.
 # TBD: should cache this.
 
-def find_equivalent(AB, v):
-  w = get_reflection(v)
-  if equivalent(v, w): return w
-  return None
+def find_equivalent(v):
+  w = get_reflection(v, None)
+  if w and equivalent(v, w):
+    log("## equivalent %s = %s" % (blurb(v), blurb(w)))
+    return relation(EQ, w, "equivalent")
+  else:
+    log("## inequivalent %s != %s" % (blurb(v), blurb(w)))
+    if w:
+      log("##  because not equivalent")
+    else:
+      log("##  because no reflection")
+    return None
 
 def equivalent(v, w):
   # Same blocks, and
@@ -212,12 +197,21 @@ def equivalent(v, w):
   b1 = get_block(v, BOTTOM_BLOCK)
   b2 = get_block(w, BOTTOM_BLOCK)
   # Is this right???
-  return same_block(b1, b2) and get_matched(v) == w
+  if not same_block(b1, b2):
+    log("# not same block %s %s" % (blurb(v), blurb(w)))
+    return False
+  rel = get_matched(v)
+  if rel.record != w:
+    log("# not matched %s %s" % (blurb(v), blurb(w), blurb(rel.record)))
+    return False
+  return True
+
+# plantain, pretzels
 
 # -----------------------------------------------------------------------------
 # ONLY USED WITHIN THIS FILE
 
-# reflection (in AB) satisfies: 
+# reflection of v (in AB) = w (in AB) satisfies: 
 #   1. if y = reflection(x) then x ~<= y  ?
 #   2. if furthermore x' = reflection(y), then
 #      (a) if x' <= x then x ≅ y, 
@@ -230,10 +224,10 @@ def equivalent(v, w):
 # Needed for equivalent and cosuperior calculations
 
 def compute_reflections(AB):
-  def crosses(AB):
-    def traverse(x):            # arg in A, result = in_B(something)
-      z = AB.in_left(x)         # in AB
-      probe = get_tipward(z, None)       # in AB
+  def do_reflections(AB):
+    def traverse(x):            # arg in A, result in B
+      v = AB.in_left(x)         # in AB
+      probe = get_tipward(v, None)       # in AB
       if probe:
         m = get_outject(probe.record)  # in B
       else:
@@ -248,14 +242,23 @@ def compute_reflections(AB):
         if (nm and
             get_block(nm.record, BOTTOM_BLOCK) == get_block(m, BOTTOM_BLOCK) and
             m != nm.record):
-          log("# matching %s to same-block ancestor %s" % blurb(m), blurb(nm))
+          log("# matching %s to same-block ancestor %s" % (blurb(m), blurb(nm)))
           m = nm.record
-        set_reflection(z, AB.in_right(m))
-        return m
-      return None
+      w = BOTTOM if m == BOTTOM else AB.in_right(m)
+      # Prefer among same-block nodes one with same name
+      mat = get_matched(v)
+      if mat:
+        z = mat.record
+        if (get_block(w, None) == get_block(z, None) and
+            simple_lt(m, get_outject(z))):
+          log("# promoting %s -> %s (for %s)" % (blurb(w), blurb(z), blurb(v)))
+          w = z
+      log("## reflection %s := %s" % (blurb(v), blurb(w)))
+      set_reflection(v, w)
+      return m
     traverse(AB.A.top)
-  crosses(AB)
-  crosses(swap(AB))
+  do_reflections(AB)
+  do_reflections(swap(AB))
 
 def swap(AB):
   BA = AB.swap()
@@ -287,19 +290,20 @@ def find_tipwards(A, in_left):
     for c in get_synonyms(x, ()):
       seen2 = traverse(c) or seen2
     if not seen and not is_top(x):
+      # not seen means that some ancestor is tipward
       z = in_left(x)            # z is tipward...
       rel = get_matched(z)  # rel is a Relative...
       if monitor(x): log("tipwards %s %s" % (blurb(x), blurb(rel)))
       if rel:
         # z is tipward and has a match, not necessarily tipward ...
         set_tipward(z, rel)
+        log("# tipward: %s -> %s" % (blurb(z), blurb(rel)))
         seen = x
     return seen or seen2
   traverse(A.top)
 
-def get_specimen_id(z):
-  rel = get_tipward(z, None)
-  return min(z.id, rel.record.id) if rel else None
+def get_specimen_id(z, rel):
+  return min(z.id, rel.record.id)
 
 # -----------------------------------------------------------------------------
 # Precompute 'blocks' (tipe sets, implemented in one of various ways).
@@ -312,13 +316,14 @@ def analyze_blocks(AB):
     # x is in A or B
     if monitor(x): log("computing block for %s" % (blurb(x),))
     v = in_left(x)
-    e1 = BOTTOM_BLOCK
+    # initial e = specimens from descendants
+    e = BOTTOM_BLOCK
     for c in get_inferiors(x):  # inferiors in A/B
-      e1 = combine_blocks(e1, traverse(c, in_left))
-      if monitor(c): log("got subblock %s -> %s" % (blurb(c), len(e1),))
-    s = get_specimen_id(x)
-    e2 = {s} if s else BOTTOM_BLOCK
-    e = combine_blocks(e1, e2)
+      e = combine_blocks(e, traverse(c, in_left))
+      if monitor(c): log("got subblock %s -> %s" % (blurb(c), len(e),))
+    rel = get_tipward(v, None)
+    if rel:
+      e = combine_blocks(e, {get_specimen_id(v, rel)})
     if is_top(x):
       e = TOP_BLOCK
     if e != BOTTOM_BLOCK:
