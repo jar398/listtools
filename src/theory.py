@@ -180,14 +180,8 @@ def find_equivalents(AB):
 def find_equivalent(v):
   w = get_reflection(v, None)
   if w and equivalent(v, w):
-    log("## equivalent %s = %s" % (blurb(v), blurb(w)))
     return relation(EQ, w, "equivalent")
   else:
-    log("## inequivalent %s != %s" % (blurb(v), blurb(w)))
-    if w:
-      log("##  because not equivalent")
-    else:
-      log("##  because no reflection")
     return None
 
 def equivalent(v, w):
