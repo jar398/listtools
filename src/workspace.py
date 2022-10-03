@@ -56,7 +56,7 @@ def make_workspace(A, B, meta=None):
     return ensure_injected(y)
   def _case(z, when_left, when_right):
     w = get_outject(z, None)
-    assert w
+    assert w, blurb(z)
     if get_source(w) == A:
       return when_left(w)
     else:

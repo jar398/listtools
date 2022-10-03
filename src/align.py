@@ -10,7 +10,7 @@ from property import mep_get, mep_set
 from rcc5 import *
 from checklist import *
 from workspace import *
-from theory import is_accepted, get_accepted, get_tipward
+from theory import is_accepted, get_accepted, get_tipward, local_sup
 
 def align(A_iter, B_iter):
   A = rows_to_checklist(A_iter, {"name": "A"})  # meta
@@ -30,7 +30,7 @@ def generate_alignment(A, B):
   seen = {}
   report = []
   report.append(("kind", "A id", "rcc5", "B id",
-                 "action", "comment"))
+                 "action", "note", "comment"))
 
   def do_species(v, w, comment):
     # Three articulations of interest:
@@ -84,20 +84,25 @@ def generate_alignment(A, B):
     if v:
       action = 'deleted'
       x = get_outject(v)
+      note = '-'
     if w:
       action = 'new'
       y = get_outject(w)
+      note = '-'
     if v and w:
       rel = theory.cross_relation(AB, v, w)
       if rel.relationship == NOINFO:
         return
       action = verbalize(rel, get_rank(v, None) == get_rank(w, None))
       sym = rcc5_symbol(rel.relationship)
+      note = rel.note
+    assert note
     report.append((kind,
                    get_primary_key(x),
                    sym,
                    get_primary_key(y),
                    action,
+                   note,
                    comment))
 
   for z in checklist.preorder_records(AB):
@@ -105,7 +110,8 @@ def generate_alignment(A, B):
     # Only report on species
     if not is_acceptable(get_outject(z)):
       continue
-    w = partner(AB, z)
+    rel = partner(AB, z)
+    w = rel.record
     (w, comment) = get_acceptable(AB, w) # Acceptable and not a subspecies
     if z == AB.top or w == AB.top:
       pass
@@ -115,7 +121,7 @@ def generate_alignment(A, B):
       else:
         do_species(z, w, comment)        # z in A, w in B
     else:
-      do_species(w, z, rev_comment(comment))          # w in A, z in B
+      do_species(w, z, rev_comment(comment)) # w in A, z in B
 
   return report
 
@@ -131,32 +137,36 @@ def partner(AB, v):
   assert isinstance(v, prop.Record)
   equ = theory.get_equivalent(v, None)
   if equ:
-    w = equ.record
+    return equ
   else:
     xsup = theory.cross_superior(AB, v)
-    if not xsup:
-      return (None, "top")
-    w = xsup.record
-  return w
+    if xsup:
+      return xsup
+    return None
 
 # Result is accepted and not a species ... could be a genus
 
 def get_acceptable(AB, w):
   comment = ""
-  y = get_outject(w)
-  a = get_accepted(y)
-  if a != y:
-    y = a
+  a = get_outject(w)
+  b = get_accepted(a)
+  if b and b != a:
+    a = b
     comment = "via synonym"
   if get_rank(a, None) == 'subspecies':
     sup = get_superior(a, None)
-    y = sup.record
-    assert is_acceptable(y)
+    a = sup.record
     comment = "via subspecies"
+    b = get_accepted(sup.record)
+    if b and b != a:
+      # 'Canis indica' has rank subspecies and is in 'Canis'
+      log("# %s subspecies of %s synonym of %s" % (blurb(w), blurb(a), blurb(b)))
+      comment = "via subspecies of synonym"
+      a = b
   if theory.isinA(AB, w):
-    w = AB.in_left(y) if y else None
+    w = AB.in_left(a)
   else:
-    w = AB.in_right(y) if y else None
+    w = AB.in_right(a)
   return (w, comment)
 
 def is_acceptable(y):

@@ -85,7 +85,8 @@ def span(AB):
             sup = relation(p_rel.relationship, p,
                            "%s, choosing dominant (on left)" % blot)
           else:
-            log("incomparable parent candidates: %s" % blot)
+            # Happens a lot:
+            # log("incomparable parent candidates: %s" % blot)
             # q is parent of w
             if theory.isinA(AB, p):
               sup = theory.cross_superior(AB, p)

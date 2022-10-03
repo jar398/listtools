@@ -39,7 +39,7 @@ def cross_superior(AB, v):
   q = get_reflection(v1, BOTTOM)     # candidate in AB
   assert q
   assert isinB(AB, q)
-  if monitor(v): log("xsup 2 %s %s" % (blurb(x), blurb(q),))
+  if monitor(v): log("xsup 2 %s %s" % (blurb(v), blurb(q),))
   while True:
     ship = cross_relation(AB, v1, q).relationship
     if ship == LT or ship == LE:
@@ -91,60 +91,79 @@ def increase_until_overlap(AB, v):
 
 # TBD: set status to "accepted" or "synonym" as appropriate
 
+def local_sup(AB, v):
+  loc = get_superior(get_outject(v), None)
+  if not loc: return (None, False)
+  if isinA(AB, v):
+    return (AB.in_left(loc.record), loc.relationship == SYNONYM)
+  elif isinB(AB, v):
+    return (AB.in_left(loc.record), loc.relationship == SYNONYM)
+  else:
+    assert False
+
 def cross_relation(AB, v, w):
+  answer = None
+
   if isinA(AB, v) == isinA(AB, w):
     rel = simple_relationship(get_outject(v), get_outject(w))
-    return relation(rel.relationship, w, rel.status, rel.note)
+    answer = (rel.relationship, rel.note)
 
-  b1 = get_block(v, BOTTOM_BLOCK)
-  b2 = get_block(w, BOTTOM_BLOCK)
-  ship = block_relationship(b1, b2)
-  if ship != EQ:
-    # TBD: handle synonyms.  sib syns overlap, syn is <= accepted
-    # Status/relationship could be synonym sometimes ??
-    return relation(ship, w, None, "specimen set comparison")
+  if not answer:
+    (p,  vsyn) = local_sup(AB, v)
+    (q,  wsyn) = local_sup(AB, v)
+    if (p and vsyn and q and wsyn and equivalent(p, q)):
+      answer = (OVERLAP, "co-synonyms")
+    elif (p and vsyn and p == w):
+      if monitor(v) or monitor(w):
+        log("# %s %s synonym of %s %s" % (blurb(v), blurb(p), blurb(w), blurb(ysup)))
+      answer = (SYNONYM, "synonym of")
+    elif (q and wsyn and v == q):
+      answer = (SYNONYM, "has synonym")
 
-  # Look for a record match for v or w, and punt to simple case
-  rel1 = rel2 = None
+  if not answer:
+      b1 = get_block(v, BOTTOM_BLOCK)
+      b2 = get_block(w, BOTTOM_BLOCK)
+      ship = block_relationship(b1, b2)
+      if ship != EQ:
+        answer = (ship, "specimen set comparison")
+      else:
+        # Look for a record match for v or w, and punt to simple case
+        rel1 = rel2 = None
+        v_eq = get_equivalent(v, None)  # v, v_eq, v_eq.record in AB (from B)
+        if v_eq:
+          # v = m ? w
+          rel1 = simple_relationship(get_outject(v_eq.record), get_outject(w))
+        w_eq = get_equivalent(w, None)   # w, w_eq, w_eq.record in AB
+        if w_eq:
+          # v ? n = w
+          rel2 = simple_relationship(get_outject(v), get_outject(w_eq.record))
+        # See whether the v/v_eq/w_eq/w diagram commutes
+        if w_eq and v_eq:
+          ship = rel1.relationship & rel2.relationship
+          if ship != 0:
+            answer = (ship, rel1.note)
+          else:
+            log("shouldn't happen 1 %s %s %s / %s %s %s" %
+                (blurb(v),
+                 rcc5_symbol(rel1.relationship), 
+                 blurb(w_eq.record),
+                 blurb(v_eq.record),
+                 rcc5_symbol(rel2.relationship), 
+                 blurb(w)))
+            answer = (OVERLAP, "shouldn't happen 1")
 
-  m = get_equivalent(w, None)   # w, m, m.record in AB
-  if m:
-    # v ? m = w
-    rel1 = simple_relationship(get_outject(v), get_outject(m.record))
+        if not answer:
+          if v_eq: answer = (rel1.relationship, rel1.note)
+          elif w_eq: answer = (rel2.relationship, rel2.note)
+          elif b1 == BOTTOM_BLOCK:
+            answer = (DISJOINT, "no specimens")
+          else:
+            # Neither v nor w has an equivalent, but they're in same block,
+            # so OVERLAP. 
+            answer = (OVERLAP, "same block but no record match")
+  (ship, note) = answer
+  return relation(ship, w, "articulation", note)
 
-  n = get_equivalent(v, None)  # v, n, n.record in AB (from B)
-  if n:
-    # v = n ? w
-    rel2 = simple_relationship(get_outject(n.record), get_outject(w))
-
-  # There's valuable information in the note... keep it?
-
-  # See whether the diagram commutes
-  # v ? m = w
-  # v = n ? w
-  if m and n:
-    ship = rel1.relationship & rel2.relationship
-    if ship != 0:
-      return relation(ship, w, rel1.status, rel1.note)
-    else:
-      log("shouldn't happen 1 %s %s %s / %s %s %s" %
-          (blurb(v),
-           rcc5_symbol(rel1.relationship), 
-           blurb(m.record),
-           blurb(n.record),
-           rcc5_symbol(rel2.relationship), 
-           blurb(w)))
-      return relation(OVERLAP, w, None, "shouldn't happen 1")
-
-  if m:
-    return relation(rel1.relationship, w, rel1.status, rel1.note)
-
-  if n:
-    return relation(rel2.relationship, w, rel2.status, rel2.note)
-
-  # Neither v nor w has an equivalent, but they're in same block, so OVERLAP.
-  # TBD: If no child or parent of either v or w is in same block, then EQ.
-  return relation(OVERLAP, w, None, "same block but no record match")
 
 # RCC-5 relationship across the two checklists
 # x and y are in AB
@@ -172,8 +191,6 @@ def find_equivalents(AB):
 
 (get_equivalent, set_equivalent) = prop.get_set(prop.declare_property("equivalent"))
 
-# -----------------------------------------------------------------------------
-
 # Given x, returns y such that x = y.  x and y are in AB, not A or B.
 # TBD: should cache this.
 
@@ -185,6 +202,13 @@ def find_equivalent(v):
     return None
 
 def equivalent(v, w):
+  e = really_equivalent(v, w)
+  f = really_equivalent(w, v)
+  assert e == f, \
+    (blurb(v), blurb(w), blurb(get_matched(v)), blurb(get_matched(w)))
+  return e
+
+def really_equivalent(v, w):
   # Same blocks, and
   # same name
   # (that's it for now)
@@ -192,13 +216,17 @@ def equivalent(v, w):
   b2 = get_block(w, BOTTOM_BLOCK)
   # Is this right???
   if not same_block(b1, b2):
-    log("# not same block %s %s" % (blurb(v), blurb(w)))
+    # Happens all the time
+    # log("# not same block %s %s" % (blurb(v), blurb(w)))
     return False
   rel = get_matched(v)
-  if rel.record != w:
-    log("# not matched %s %s" % (blurb(v), blurb(w), blurb(rel.record)))
+  if rel and rel.record == w:
+    return True
+  else:
+    # Happens all the time
+    # log("# not matched %s !=%s, %s" % (blurb(v), blurb(w), blurb(rel.record)))
     return False
-  return True
+
 
 # plantain, pretzels
 
@@ -245,9 +273,10 @@ def compute_reflections(AB):
         z = mat.record
         if (get_block(w, None) == get_block(z, None) and
             simple_lt(m, get_outject(z))):
-          log("# promoting %s -> %s (for %s)" % (blurb(w), blurb(z), blurb(v)))
+          # Happens all the time
+          # log("# promoting %s -> %s (for %s)" %
+          #     (blurb(w), blurb(z), blurb(v)))
           w = z
-      log("## reflection %s := %s" % (blurb(v), blurb(w)))
       set_reflection(v, w)
       return m
     traverse(AB.A.top)
@@ -291,7 +320,6 @@ def find_tipwards(A, in_left):
       if rel:
         # z is tipward and has a match, not necessarily tipward ...
         set_tipward(z, rel)
-        log("# tipward: %s -> %s" % (blurb(z), blurb(rel)))
         seen = x
     return seen or seen2
   traverse(A.top)

@@ -164,11 +164,14 @@ def resolve_superior_link(S, record):
   assert not get_superior(record, None)
   sup = None
 
+  # If it nontrivially has an accepted record, then it's a synonym
   accepted_key = get_accepted_key(record, None)
-  if accepted_key and accepted_key != get_primary_key(record):
+  taxonID = get_primary_key(record)
+  assert taxonID
+  if accepted_key and accepted_key != taxonID:
     accepted = look_up_record(S, accepted_key, record)
     if accepted:
-      status = get_taxonomic_status(record, "synonym")
+      status = get_taxonomic_status(record, "synonym")    # default = synonym?
       if status == "equivalent":
         rel = relation(EQ, record, "equivalent")
         set_equated(accepted, rel)
@@ -177,12 +180,16 @@ def resolve_superior_link(S, record):
               (blurb(accepted), blurb(rel)))
         sup = relation(EQ, accepted, status)
       else:
+        if monitor(record):
+          log("# %s %s %s %s" %
+              (blurb(record), taxonID, accepted_key, blurb(accepted)))
         sup = relation(SYNONYM, accepted, status)
     else:
       log("# Synonym %s with unresolvable accepted: %s -> %s" %
           (S.meta['name'], blurb(record), accepted_key))
-      sup = relation(SYNONYM, S.top, "root", "unresolved accepted id")
+      sup = relation(ACCEPTED, S.top, "root", "synonym with unresolved accepted id")
   else:
+    # Accepted
     parent_key = get_parent_key(record, None)
     if parent_key:
       parent = look_up_record(S, parent_key, record)
@@ -413,11 +420,13 @@ def recover_accepted_key(x, default=MISSING):
 
 def get_accepted(x):
   rp = get_superior(x, None)
-  if rp and rp.relationship != ACCEPTED:
+  if not rp: return x
+  if rp.relationship == SYNONYM:
     if monitor(x):
       log("> snap link %s %s" % (blurb(x), blurb(rp)))
     return get_accepted(rp.record) # Eeeek!
     # return rp.record
+  assert rp.relationship == ACCEPTED, blurb(rp)
   return x
 
 def recover_status(x, default=MISSING): # taxonomicStatus
@@ -561,7 +570,7 @@ def blurb(r):
 def monitor(x):
   if not x: return False
   name = get_canonical(x, '')
-  return (name == "Adapis parisiensis"
+  return (name == "Homo sapiens"
           )
 
 # -----------------------------------------------------------------------------
@@ -642,7 +651,7 @@ articulation 2015-2014 Prum-Jarvis
 # TBD: ensure name is unique (deal with multiple taxa with same canonical)
 
 def get_eulerx_name(x):
-  string = get_canonical(x) or get_scientific(x) or get_primary_key(x)
+  string = blurb(x)
   return string.replace(' ', '_')
 
 def get_eulerx_qualified_name(x):

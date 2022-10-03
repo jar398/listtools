@@ -25,14 +25,16 @@ def demo(A_iter, B_iter):
 def generate_report(A, B, al):
   yield ("kind",
          "A id", "A name", "rcc5", "B name", "B id",
-         "action", "comment")
-  for (kind, A_id, rcc5, B_id, action, comment) in al:
+         "action", "note", "comment")
+  firstp = True
+  for (kind, A_id, rcc5, B_id, action, note, comment) in al:
+    if firstp: firstp = False; continue
     r = look_up_record(A, A_id)
     s = look_up_record(B, B_id)
     if r and s:
       yield (kind,
-             A_id, get_canonical(r), rcc5, get_canonical(s), B_id,
-             action, comment)
+             A_id, blurb(r), rcc5, blurb(s), B_id,
+             action, note, comment)
 
 # Returns generator of lines (strings)
 
@@ -45,19 +47,21 @@ def eulerx_alignment(A, B, al):
   yield ("alignment %s-%s %s-%s" %
          (checklist_tag(A), checklist_tag(B),
           checklist_description(A), checklist_description(B)))
-  for (kind, A_id, rcc5, B_id, action, comment) in al:
+  for (kind, A_id, rcc5, B_id, action, note, comment) in al:
+    assert note
     r = look_up_record(A, A_id)
     s = look_up_record(B, B_id)
     if r and s:
-      yield eulerx_articulation(r, rcc5, s)
+      yield eulerx_articulation(r, rcc5, s, note)
 
-def eulerx_articulation(r, rcc5, s):
+def eulerx_articulation(r, rcc5, s, note):
   re = eulerx_relationship(rcc5)
   if re:
     return "[%s %s %s]" % (get_eulerx_qualified_name(r), re, get_eulerx_qualified_name(s))
   else:
-    return "#[%s %s %s]" % (get_eulerx_qualified_name(r), rcc5, get_eulerx_qualified_name(s))
-
+    return ("#[%s %s %s] %s" %
+            (get_eulerx_qualified_name(r), rcc5, get_eulerx_qualified_name(s),
+             note or ''))
 
 def eulerx_relationship(rcc5):
   if rcc5 == '=': return 'equals'
