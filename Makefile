@@ -5,6 +5,7 @@
 
 all:
 	@echo "Please specify a target:"
+	@echo "  demo       align and generate Euler/X form of alignment"
 	@echo "  diff       show new/removed/changed records"
 	@echo "  round      demo diff/patch round trip"
 	@echo "  report     report on NCBI extensions differences 2015-2020"
@@ -121,12 +122,13 @@ ALIGNED=work/$(shell basename $A)-$(shell basename $B)-aligned.csv
 MATCHES=work/$(shell basename $A)-$(shell basename $B)-matches.csv
 ROUND=work/$(shell basename $A)-$(shell basename $B)-round.csv
 DELTA=work/$(shell basename $A)-$(shell basename $B)-delta.csv
+
 DEMO=work/$(shell basename $A)-$(shell basename $B)-demo.csv
 EULERX=work/$(shell basename $A)-$(shell basename $B)-eulerx.txt
 
 demo: $(DEMO)
 
-$(DEMO): $P/demo.py $P/checklist.py $P/align.py $A.csv $B.csv
+$(DEMO): $P/demo.py $P/checklist.py $P/align.py $P/theory.py $A.csv $B.csv
 	@echo
 	@echo "--- PREPARING DEMO ---"
 	$P/demo.py --A $A.csv --B $B.csv --eulerx $(EULERX).new > $@.new

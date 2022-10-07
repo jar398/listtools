@@ -11,7 +11,7 @@
 import argparse, sys
 import theory
 from checklist import rows_to_checklist, checklist_to_rows, get_superior, \
-  set_superior, relation, get_children, set_children, get_synonyms, set_synonyms, \
+  relation, get_children, set_children, get_synonyms, set_synonyms, \
   get_source, get_outject, blurb
 import newick
 import checklist, match_records, workspace

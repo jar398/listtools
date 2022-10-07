@@ -45,9 +45,9 @@ def generate_alignment(A, B):
         # Topology- and name-inspired articulation
         # If block is empty then name only, not topo+name
         if get_tipward(v, None):
-          do_row('name', v, w, comment)
+          do_row('tipward', v, w, comment)
         else:
-          do_row('topo+name', v, w, comment)
+          do_row('match', v, w, comment)
       else:
         # Topology-inspired articulation
         do_row('topo', v, w, comment)
@@ -56,18 +56,33 @@ def generate_alignment(A, B):
         # Compose a nice comment explaining what's going on.
         # Three cases: v -> w2 -> v, v -> w2 -> v3, v -> w2 -> ---
 
-        m_back = get_match(w2, None)
+        m_back = get_match(w2, None) # reciprocal name match
+        tag = None
         if m_back:
-          if m_back.record == v:
-            if theory.get_equivalent(v, None) == w2:
-              comment = "reciprocal name match and equivalent"
+          if m_back.relationship != NOINFO:
+            if m_back.record == v:
+              # v -> w2 -> v
+              tag = "reciprocal name match"
+              pass
             else:
-              comment = "reciprocal name match but inequivalent"
+              # v -> w2 -> v'
+              # Should not happen; EQ implies it's reciprocal.
+              tag = "nonreciprocal name match (%s)" % (blurb(m_back.record),)
           else:
-            # this case can't happen, actually
-            comment = "one of several matches to target??"
+            if m_back.record:
+              # v -> w2 -> v'
+              tag = "matches record that matches ambiguously (1)"
+            else:
+              # Doesn't happen?
+              tag = "matches record that matches ambiguously (2)"
         else:
-          comment = "one of several matches to target"
+          # v -> w2 -> nothing
+          # Doesn't happen?
+          tag = "matches record that matches ambiguously (3)"
+        if comment:
+          if tag: comment = "%s; %s" % (comment, tag)
+        else:
+          comment = tag
         do_row('name', v, m.record, comment)
     else:
       # Topology-inspired articulation only

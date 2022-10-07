@@ -16,6 +16,7 @@ def isinB(AB, z):
   return AB.case(z, lambda x: False, lambda x: True)
 
 def theorize(AB):
+  AB.specimen_ids = {}
   analyze_blocks(AB)                  # sets of 'tipes'
   compute_reflections(AB)
   find_equivalents(AB)
@@ -27,61 +28,35 @@ def theorize(AB):
 # AB.B could be priority, or not
 
 def cross_superior(AB, v):
-  if isinB(AB, v): AB = swap(AB)
   # v = in_A(x)
-  if monitor(v): log("cross_superior %s" % blurb(v))
-  v1 = increase_until_overlap(AB, v)
-  if not v1:
+  if monitor(v): log("# cross_superior %s:" % blurb(v))
+  v_up = increase_until_overlap(AB, v)
+  if not v_up:
     log("no overlap of %s with B" % blurb(v))
     return None
 
-  # increase q until v1 is less (< or <=) than it
-  q = get_reflection(v1, BOTTOM)     # candidate in AB
-  assert q
-  assert isinB(AB, q)
-  if monitor(v): log("xsup 2 %s %s" % (blurb(v), blurb(q),))
+  if monitor(v): log("# xsup loop v = %s <= %s = v_up" % (blurb(v), blurb(v_up)))
+  # increase w until v_up is less (< or <=) than it
+  w = get_reflection(v_up, BOTTOM)     # candidate in AB
+  assert w
   while True:
-    ship = cross_relation(AB, v1, q).relationship
+    if monitor(v): log("#  xsup iter w = %s" % (blurb(w), ))
+    ship = cross_relation(AB, v_up, w).relationship
     if ship == LT or ship == LE:
       break
-    if ship == EQ and v1 != v:
+    if ship == EQ and v_up != v:
       break
-    q_in_B = get_outject(q)
-    if monitor(v): log("xsup 3 %s %s" % (blurb(q), blurb(q_in_B)))
-    rel = get_superior(q_in_B, None)
-    if not rel:
-      log("no node in B is bigger than %s" % blurb(v))
+    (q, wsyn) = local_sup(AB, w)
+    if not q:
+      log("#  no node in B is bigger than %s" % blurb(v))
       return None
-    q = AB.in_right(rel.record)
+    w = q
 
-  assert isinB(AB, q)
-  rel = cross_relation(AB, v, q)
+  rel = cross_relation(AB, v, w)
   ship = rel.relationship
-  assert ship == LT or ship == LE, (blurb(v), rcc5_symbol(ship), blurb(q))
+  assert ship == LT or ship == LE, (blurb(v), rcc5_symbol(ship), blurb(w))
 
-  return relation(ship, q, rel.note)
-
-# Find an ancestor of v (in A tree) that overlaps the B tree
-
-def increase_until_overlap(AB, v):
-  v0 = v
-  if is_empty_block(get_block(v, BOTTOM_BLOCK)):
-    x = get_outject(v)
-    while True:
-      if is_top(x): return None
-      rel = get_superior(x, None)
-      if not rel: return None   # Trees have no overlap !
-      x = rel.record
-      v = AB.in_left(x)        # x's parent in A
-      if not is_empty_block(get_block(v, BOTTOM_BLOCK)):
-        # v0 < v = overlaps with B 
-        break
-      else:
-        # v0 < v < ... overlaps with B ...
-        if monitor(v0): log("cross_superior None empty %s" % blurb(v))
-    q = get_reflection(v, BOTTOM) # v in AB
-    if monitor(v0): log("cross_superior q %s" % blurb(q))
-  return v
+  return relation(ship, w, rel.note)
 
 #-----------------------------------------------------------------------------
 # cross_relation: The implementation of the RCC-5 theory of AB (A+B).
@@ -90,16 +65,6 @@ def increase_until_overlap(AB, v):
 # Returns a Relative to w
 
 # TBD: set status to "accepted" or "synonym" as appropriate
-
-def local_sup(AB, v):
-  loc = get_superior(get_outject(v), None)
-  if not loc: return (None, False)
-  if isinA(AB, v):
-    return (AB.in_left(loc.record), loc.relationship == SYNONYM)
-  elif isinB(AB, v):
-    return (AB.in_left(loc.record), loc.relationship == SYNONYM)
-  else:
-    assert False
 
 def cross_relation(AB, v, w):
   answer = None
@@ -121,12 +86,24 @@ def cross_relation(AB, v, w):
       answer = (SYNONYM, "has synonym")
 
   if not answer:
-      b1 = get_block(v, BOTTOM_BLOCK)
-      b2 = get_block(w, BOTTOM_BLOCK)
-      ship = block_relationship(b1, b2)
-      if ship != EQ:
-        answer = (ship, "specimen set comparison")
-      else:
+    v_up = increase_until_overlap(AB, v)
+    w_up = increase_until_overlap(AB, w)
+
+    b1 = get_block(v_up, BOTTOM_BLOCK)
+    b2 = get_block(w_up, BOTTOM_BLOCK)
+    ship = block_relationship(b1, b2)
+
+    if ship != EQ:
+      answer = (ship, "specimen set comparison")
+
+    # ship is EQ but must be adjusted for the _ups
+    elif v_up != v and w_up != w:
+      answer = (DISJOINT, "peripherals")
+    elif v_up != v:
+      answer = (LT, "left peripheral")
+    elif w_up != w:
+      answer = (GT, "left peripheral")
+    elif True:
         # Look for a record match for v or w, and punt to simple case
         rel1 = rel2 = None
         v_eq = get_equivalent(v, None)  # v, v_eq, v_eq.record in AB (from B)
@@ -162,7 +139,20 @@ def cross_relation(AB, v, w):
             # so OVERLAP. 
             answer = (OVERLAP, "same block but no record match")
   (ship, note) = answer
+  if monitor(v) or monitor(w):
+    log("# %s %s %s / %s" % (blurb(v), rcc5_symbol(ship), blurb(w), note))
+
   return relation(ship, w, "articulation", note)
+
+def local_sup(AB, v):
+  loc = get_superior(get_outject(v), None)
+  if not loc: return (None, False)
+  if isinA(AB, v):
+    return (AB.in_left(loc.record), loc.relationship == SYNONYM)
+  elif isinB(AB, v):
+    return (AB.in_right(loc.record), loc.relationship == SYNONYM)
+  else:
+    assert False
 
 
 # RCC-5 relationship across the two checklists
@@ -170,6 +160,31 @@ def cross_relation(AB, v, w):
 
 def cross_lt(AB, v, w):
   return cross_relation(AB, v, w).relationship == LT
+
+# Find an ancestor of v (in A tree) that overlaps the B tree
+
+def increase_until_overlap(AB, v):
+  v0 = v
+  if is_empty_block(get_block(v, BOTTOM_BLOCK)):
+    x = get_outject(v)
+    while True:
+      if is_top(x): return None
+      rel = get_superior(x, None)
+      if not rel: return None   # Trees have no overlap !
+      x = rel.record
+      if isinA(AB, v):
+        v = AB.in_left(x)
+      else:
+        v = AB.in_right(x)
+      if not is_empty_block(get_block(v, BOTTOM_BLOCK)):
+        # v0 < v = overlaps with B 
+        break
+      else:
+        # v0 < v < ... overlaps with B ...
+        if monitor(v0): log("cross_superior None empty %s" % blurb(v))
+    q = get_reflection(v, BOTTOM) # v in AB
+    if monitor(v0): log("cross_superior q %s" % blurb(q))
+  return v
 
 #-----------------------------------------------------------------------------
 # Store equivalents on nodes of AB...
@@ -324,9 +339,6 @@ def find_tipwards(A, in_left):
     return seen or seen2
   traverse(A.top)
 
-def get_specimen_id(z, rel):
-  return min(z.id, rel.record.id)
-
 # -----------------------------------------------------------------------------
 # Precompute 'blocks' (tipe sets, implemented in one of various ways).
 # A block is represented as either a set or TOP_BLOCK.
@@ -345,7 +357,7 @@ def analyze_blocks(AB):
       if monitor(c): log("got subblock %s -> %s" % (blurb(c), len(e),))
     rel = get_tipward(v, None)
     if rel:
-      e = combine_blocks(e, {get_specimen_id(v, rel)})
+      e = combine_blocks(e, {get_specimen_id(AB, v, rel)})
     if is_top(x):
       e = TOP_BLOCK
     if e != BOTTOM_BLOCK:
@@ -354,6 +366,17 @@ def analyze_blocks(AB):
     return e
   traverse(AB.A.top, AB.in_left)
   traverse(AB.B.top, AB.in_right)
+
+def get_specimen_id(AB, z, rel):
+  if z.id < rel.record.id:
+    x = z
+    y = rel.record
+  else:
+    x = rel.record
+    y = z
+  id = x.id
+  AB.specimen_ids[id] = (x, y)
+  return id
 
 # -----------------------------------------------------------------------------
 # Implementation of blocks as Python sets of 'tipes.'

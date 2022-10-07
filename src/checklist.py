@@ -251,7 +251,7 @@ def link_superior(w, sup):      # w is inferior Record, sup is Relative
       ch.append(w)
     else:
       set_children(sup.record, [w]) # w is a Record
-  else   : # sup.relationship == SYNONYM or sup.relationship == EQ
+  else:        # sup.relationship == SYNONYM or sup.relationship == EQ
     ch = get_synonyms(sup.record, None)
     if ch != None:
       ch.append(w)
@@ -543,6 +543,8 @@ def clog(x, *records):
 
 def blurb(r):
   if isinstance(r, prop.Record):
+    x = get_outject(r, None)
+    if x: r = x
     name = (get_canonical(r, None) or     # string
             get_scientific(r, None) or
             get_managed_id(r, None) or
@@ -570,7 +572,7 @@ def blurb(r):
 def monitor(x):
   if not x: return False
   name = get_canonical(x, '')
-  return (name == "Homo sapiens"
+  return (name == "Eligmodontia"
           )
 
 # -----------------------------------------------------------------------------

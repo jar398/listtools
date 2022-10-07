@@ -12,9 +12,9 @@ from checklist import *
 from workspace import *
 from theory import is_accepted, get_accepted
 
-def demo(A_iter, B_iter):
-  A = rows_to_checklist(A_iter, {"name": "A"})  # meta
-  B = rows_to_checklist(B_iter, {"name": "B"})  # meta
+def demo(A_iter, A_name, B_iter, B_name):
+  A = rows_to_checklist(A_iter, {"name": A_name or "A"})  # meta
+  B = rows_to_checklist(B_iter, {"name": B_name or "B"})  # meta
 
   al = list(align.generate_alignment(A, B))
   return (generate_report(A, B, al),
@@ -64,11 +64,11 @@ def eulerx_articulation(r, rcc5, s, note):
              note or ''))
 
 def eulerx_relationship(rcc5):
-  if rcc5 == '=': return 'equals'
-  elif rcc5 == '<': return 'is_included_in'
-  elif rcc5 == '>': return 'includes'
-  elif rcc5 == '><': return 'overlaps'
-  elif rcc5 == '!': return 'disjoint'
+  if rcc5 == '=': return '='
+  elif rcc5 == '<': return '<'
+  elif rcc5 == '>': return '>'
+  elif rcc5 == '><': return '><'
+  elif rcc5 == '!': return '!'
   else: return False
 
 # -----------------------------------------------------------------------------
@@ -76,8 +76,8 @@ def eulerx_relationship(rcc5):
 def test():
   def testit(m, n):
     log("\n-- Test: %s + %s --" % (m, n))
-    (report, eulerx) = demo(newick.parse_newick(n),
-                            newick.parse_newick(m))
+    (report, eulerx) = demo(newick.parse_newick(n), "A",
+                            newick.parse_newick(m), "B")
     util.write_rows(report, sys.stdout)
     for line in eulerx:
       print(line, file=sys.stdout)
@@ -92,8 +92,12 @@ if __name__ == '__main__':
     """)
   parser.add_argument('--A', help="the A checklist, as path name or -",
                       default='-')
+  parser.add_argument('--Aname', help="short name of the A checklist",
+                      default=None)
   parser.add_argument('--B', help="the B checklist, as path name or -",
                       default='-')
+  parser.add_argument('--Bname', help="short name of the B checklist",
+                      default=None)
   parser.add_argument('--eulerx', help="where to put the Euler/X version of the alignment",
                       default=None)
   parser.add_argument('--test', action='store_true', help="run smoke tests")
@@ -101,6 +105,8 @@ if __name__ == '__main__':
   if args.test:
     test()
   else:
+    aname = args.Aname
+    bname = args.Bname
     a_path = args.A
     b_path = args.B
     e_path = args.eulerx
@@ -108,7 +114,9 @@ if __name__ == '__main__':
     with util.stdopen(a_path) as a_file:
       with util.stdopen(b_path) as b_file:
         (report, eulerx) = demo(csv.reader(a_file),
-                                csv.reader(b_file))
+                                aname,
+                                csv.reader(b_file),
+                                bname)
         util.write_rows(report, sys.stdout)
         if e_path:
           with open(e_path, "w") as e_file:
