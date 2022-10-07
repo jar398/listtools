@@ -16,7 +16,7 @@ def isinB(AB, z):
   return AB.case(z, lambda x: False, lambda x: True)
 
 def theorize(AB):
-  AB.specimen_ids = {}
+  AB.specimen_taxa = {}
   analyze_blocks(AB)                  # sets of 'tipes'
   compute_reflections(AB)
   find_equivalents(AB)
@@ -95,6 +95,9 @@ def cross_relation(AB, v, w):
 
     if ship != EQ:
       answer = (ship, "specimen set comparison")
+      if monitor(v) or monitor(w):
+        show_specimens(v, "v", AB)
+        show_specimens(w, "w", AB)
 
     # ship is EQ but must be adjusted for the _ups
     elif v_up != v and w_up != w:
@@ -154,6 +157,11 @@ def local_sup(AB, v):
   else:
     assert False
 
+def show_specimens(z, tag, AB):
+  def foo(id):
+    (v, w) = AB.specimen_taxa[id]
+    return blurb(v)
+  log("# %s: {%s}" % (tag, ", ".join(map(foo, get_block(z)))))
 
 # RCC-5 relationship across the two checklists
 # x and y are in AB
@@ -302,6 +310,7 @@ def swap(AB):
   BA = AB.swap()
   BA.A = AB.B
   BA.B = AB.A
+  BA.specimen_taxa = AB.specimen_taxa
   return BA
 
 (get_reflection, set_reflection) = \
@@ -355,11 +364,12 @@ def analyze_blocks(AB):
     for c in get_inferiors(x):  # inferiors in A/B
       e = combine_blocks(e, traverse(c, in_left))
       if monitor(c): log("got subblock %s -> %s" % (blurb(c), len(e),))
-    rel = get_tipward(v, None)
-    if rel:
-      e = combine_blocks(e, {get_specimen_id(AB, v, rel)})
     if is_top(x):
       e = TOP_BLOCK
+    else:
+      specimen_id = get_specimen_id(AB, v)
+      if specimen_id:
+        e = combine_blocks(e, {specimen_id})
     if e != BOTTOM_BLOCK:
       set_block(v, e)
     #log("# block(%s) = %s" % (blurb(x), e))
@@ -367,16 +377,19 @@ def analyze_blocks(AB):
   traverse(AB.A.top, AB.in_left)
   traverse(AB.B.top, AB.in_right)
 
-def get_specimen_id(AB, z, rel):
-  if z.id < rel.record.id:
-    x = z
-    y = rel.record
-  else:
-    x = rel.record
-    y = z
-  id = x.id
-  AB.specimen_ids[id] = (x, y)
-  return id
+def get_specimen_id(AB, z):
+  rel = get_tipward(z, None)
+  if rel:
+    if isinB(AB, z):
+      x = z
+      y = rel.record
+    else:
+      x = rel.record
+      y = z
+    id = get_primary_key(x)
+    AB.specimen_taxa[id] = (x, y)
+    return id
+  else: return None
 
 # -----------------------------------------------------------------------------
 # Implementation of blocks as Python sets of 'tipes.'

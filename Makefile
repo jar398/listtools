@@ -125,15 +125,18 @@ DELTA=work/$(shell basename $A)-$(shell basename $B)-delta.csv
 
 DEMO=work/$(shell basename $A)-$(shell basename $B)-demo.csv
 EULERX=work/$(shell basename $A)-$(shell basename $B)-eulerx.txt
+TIPWARDS=work/$(shell basename $A)-$(shell basename $B)-tipwards.txt
 
 demo: $(DEMO)
 
 $(DEMO): $P/demo.py $P/checklist.py $P/align.py $P/theory.py $A.csv $B.csv
 	@echo
 	@echo "--- PREPARING DEMO ---"
-	$P/demo.py --A $A.csv --B $B.csv --eulerx $(EULERX).new > $@.new
+	$P/demo.py --A $A.csv --B $B.csv \
+	  --eulerx $(EULERX).new --tipwards $(TIPWARDS).new > $@.new
 	@mv -f $@.new $@
 	@mv -f $(EULERX).new $(EULERX)
+	@mv -f $(TIPWARDS).new $(TIPWARDS)
 
 report: $(REPORT)
 REPORT_OPTIONS?=

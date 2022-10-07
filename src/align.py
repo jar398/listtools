@@ -130,15 +130,50 @@ def generate_alignment(A, B):
     (w, comment) = get_acceptable(AB, w) # Acceptable and not a subspecies
     if z == AB.top or w == AB.top:
       pass
-    elif theory.isinA(AB, z):
-      if theory.get_equivalent(z, None):
-        pass
-      else:
-        do_species(z, w, comment)        # z in A, w in B
-    else:
+    elif theory.isinB(AB, z):
       do_species(w, z, rev_comment(comment)) # w in A, z in B
+    elif theory.get_equivalent(z, None):
+      # Redundant, generated on previous pass
+      pass
+    else:
+      # In A but not in B
+      do_species(z, w, comment)        # z in A, w in B
+  return (report, specimens_table(AB))
 
-  return report
+# Requires spanning tree
+
+def specimens_table(AB):
+  yield("checklist", "species_id", "species_canonical", "specimen_id", "specimen_canonical")
+
+  def traverse(z, species):
+    if not theory.get_equivalent(z, None) or theory.isinA(AB, z):
+      if get_rank(z, None) == 'species': species = z
+      specimen_id = theory.get_specimen_id(AB, z)
+      if specimen_id:
+        # Specimen in some species.  Prefer info from B
+        (t0, t) = AB.specimen_taxa[specimen_id]
+
+        # The species that the specimen belongs to
+        tag = "A" if theory.isinA(AB, z) else "B"
+        x = get_outject(species) if species else None
+
+        yield(tag,
+              get_primary_key(x) if x else None,
+              blurb(x) if x else None,
+              specimen_id,
+              blurb(t))
+    for c in get_inferiors(z):
+      yield from traverse(c, species)
+  yield from traverse(AB.top, None)
+
+def get_species(x):
+  sup = get_superior(x, None)
+  if sup == None:
+    return None
+  elif sup.relationship == ACCEPTED and get_rank(x, None) == 'species':
+    return x
+  else:
+    return get_species(sup.record)
 
 def rev_comment(comment):
   if comment:
