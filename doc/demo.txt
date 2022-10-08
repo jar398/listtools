@@ -1,3 +1,41 @@
+Underlying synonyms
+
+
+A,13000644,Eligmodontia moreni,1002705,TYPE(Eligmodontia moreni)
+
+A,13000647,Eligmodontia typus,1067419,TYPE(Eligmodontia hypogaeus*)
+A,13000647,Eligmodontia typus,1043909,TYPE(Eligmodontia elegans*)
+A,13000647,Eligmodontia typus,1043910,TYPE(Eligmodontia pamparum*)
+A,13000647,Eligmodontia typus,1002708,TYPE(Eligmodontia typus)
+
+A,13000646,Eligmodontia puerulus,1043911,TYPE(Eligmodontia marica*)
+A,13000646,Eligmodontia puerulus,1043908,TYPE(Eligmodontia jacunda*)
+A,13000646,Eligmodontia puerulus,1002707,TYPE(Eligmodontia puerulus)
+A,13000646,Eligmodontia puerulus,1002704,TYPE(Eligmodontia hirtipes)
+A,13000646,Eligmodontia puerulus,1043906,TYPE(Eligmodontia tarapacensis*)
+
+A,1014845,Eligmodontia hirtipes*,1002704,TYPE(Eligmodontia hirtipes)
+
+
+
+B,1002705,Eligmodontia moreni,1002705,TYPE(Eligmodontia moreni)
+B,1002705,Eligmodontia moreni,1067419,TYPE(Eligmodontia hypogaeus*)
+
+B,1002708,Eligmodontia typus,1043909,TYPE(Eligmodontia elegans*)
+B,1002708,Eligmodontia typus,1043910,TYPE(Eligmodontia pamparum*)
+B,1002708,Eligmodontia typus,1002708,TYPE(Eligmodontia typus)
+B,1002708,Eligmodontia typus,1043911,TYPE(Eligmodontia marica*)
+
+B,1002707,Eligmodontia puerulus,1043908,TYPE(Eligmodontia jacunda*)
+B,1002707,Eligmodontia puerulus,1002707,TYPE(Eligmodontia puerulus)
+
+B,1002704,Eligmodontia hirtipes,1043906,TYPE(Eligmodontia tarapacensis*)
+B,1002704,Eligmodontia hirtipes,1002704,TYPE(Eligmodontia hirtipes)
+
+B,1002706,Eligmodontia morgani,1002706,TYPE(Eligmodontia morgani)
+
+-----------------------------------------------------------------------------
+
 Tipward matches, by species:
 
 checklist,species_id,species_canonical,specimen_id,specimen_canonical
