@@ -145,26 +145,22 @@ def generate_alignment(A, B):
 def specimens_table(AB):
   yield("checklist", "species_id", "species_canonical", "specimen_id", "specimen_canonical")
 
-  def traverse(z, species):
-    if not theory.get_equivalent(z, None) or theory.isinA(AB, z):
-      if get_rank(z, None) == 'species': species = z
-      specimen_id = theory.get_specimen_id(AB, z)
-      if specimen_id:
-        # Specimen in some species.  Prefer info from B
-        (t0, t) = AB.specimen_taxa[specimen_id]
+  def traverse(z):
+    sup = get_superior(z, None)
+    if get_rank(z, None) == 'species' and sup and sup.relationship == ACCEPTED:
+      # The species that the specimen belongs to
+      tag = "A" if theory.isinA(AB, z) else "B"
+      x = get_outject(z)
 
-        # The species that the specimen belongs to
-        tag = "A" if theory.isinA(AB, z) else "B"
-        x = get_outject(species) if species else None
-
+      for r in theory.specimen_B_records(AB, z):
         yield(tag,
               get_primary_key(x) if x else None,
               blurb(x) if x else None,
-              specimen_id,
-              blurb(t))
+              get_primary_key(get_outject(r)),
+              "TYPE(%s)" % blurb(r))
     for c in get_inferiors(z):
-      yield from traverse(c, species)
-  yield from traverse(AB.top, None)
+      yield from traverse(c)
+  yield from traverse(AB.top)
 
 def get_species(x):
   sup = get_superior(x, None)

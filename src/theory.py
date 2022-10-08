@@ -158,10 +158,13 @@ def local_sup(AB, v):
     assert False
 
 def show_specimens(z, tag, AB):
+  log("# %s: {%s}" % (tag, ", ".join(map(blurb, specimen_B_records(AB, z)))))
+
+def specimen_B_records(AB, z):
   def foo(id):
     (v, w) = AB.specimen_taxa[id]
-    return blurb(v)
-  log("# %s: {%s}" % (tag, ", ".join(map(foo, get_block(z)))))
+    return w
+  return map(foo, get_block(z, BOTTOM_BLOCK))
 
 # RCC-5 relationship across the two checklists
 # x and y are in AB
@@ -381,11 +384,11 @@ def get_specimen_id(AB, z):
   rel = get_tipward(z, None)
   if rel:
     if isinB(AB, z):
-      x = z
-      y = rel.record
-    else:
       x = rel.record
       y = z
+    else:
+      x = z
+      y = rel.record
     id = get_primary_key(x)
     AB.specimen_taxa[id] = (x, y)
     return id
