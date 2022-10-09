@@ -13,29 +13,15 @@ from workspace import *
 from theory import is_accepted, get_accepted
 
 def demo(A_iter, A_name, B_iter, B_name):
-  A = rows_to_checklist(A_iter, {"name": A_name or "A"})  # meta
-  B = rows_to_checklist(B_iter, {"name": B_name or "B"})  # meta
-
-  (al, tipwards) = list(align.generate_alignment(A, B))
-  return (generate_report(A, B, al),
+  A = rows_to_checklist(A_iter, {'tag': A_name or "A"})  # meta
+  B = rows_to_checklist(B_iter, {'tag': B_name or "B"})  # meta
+  AB = workspace.make_workspace(A, B, {'tag': "AB"})
+  al = list(align.make_alignment(AB))
+  return (align.generate_alignment_report(al),
           generate_eulerx(A, B, al),
-          tipwards)
+          align.specimens_table(AB))
 
-# Returns an Iterable
-
-def generate_report(A, B, al):
-  yield ("kind",
-         "A id", "A name", "rcc5", "B name", "B id",
-         "action", "note", "comment")
-  firstp = True
-  for (kind, A_id, rcc5, B_id, action, note, comment) in al:
-    if firstp: firstp = False; continue
-    r = look_up_record(A, A_id)
-    s = look_up_record(B, B_id)
-    if r and s:
-      yield (kind,
-             A_id, blurb(r), rcc5, blurb(s), B_id,
-             action, note, comment)
+# Returns an Iterable of rows
 
 # Returns generator of lines (strings)
 
@@ -46,30 +32,32 @@ def generate_eulerx(A, B, al):
 
 def eulerx_alignment(A, B, al):
   yield ("alignment %s-%s %s-%s" %
-         (checklist_tag(A), checklist_tag(B),
+         (get_tag(A), get_tag(B),
           checklist_description(A), checklist_description(B)))
-  for (kind, A_id, rcc5, B_id, action, note, comment) in al:
+  for (v, ship, w, note, comment) in al:
     assert note
-    r = look_up_record(A, A_id)
-    s = look_up_record(B, B_id)
-    if r and s:
-      yield eulerx_articulation(r, rcc5, s, note)
+    yield eulerx_articulation(v, ship, w, note)
 
-def eulerx_articulation(r, rcc5, s, note):
-  re = eulerx_relationship(rcc5)
-  if re:
-    return "[%s %s %s]" % (get_eulerx_qualified_name(r), re, get_eulerx_qualified_name(s))
+def eulerx_articulation(r, ship, s, note):
+  sym = rcc5_symbol(ship)
+  x = get_outject(r); y = get_outject(s)
+  if ok_for_eulerx(ship):
+    return "[%s %s %s]" % (get_eulerx_qualified_name(x),
+                           sym,
+                           get_eulerx_qualified_name(y))
   else:
     return ("#[%s %s %s] %s" %
-            (get_eulerx_qualified_name(r), rcc5, get_eulerx_qualified_name(s),
+            (get_eulerx_qualified_name(x),
+             sym,
+             get_eulerx_qualified_name(y),
              note or ''))
 
-def eulerx_relationship(rcc5):
-  if rcc5 == '=': return '='
-  elif rcc5 == '<': return '<'
-  elif rcc5 == '>': return '>'
-  elif rcc5 == '><': return '><'
-  elif rcc5 == '!': return '!'
+def ok_for_eulerx(ship):
+  if ship == EQ: return '='
+  elif ship == LT: return '<'
+  elif ship == GT: return '>'
+  elif ship == CONFLICT: return '><'
+  elif ship == DISJOINT: return '!'
   else: return False
 
 # -----------------------------------------------------------------------------

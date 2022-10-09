@@ -47,6 +47,6 @@ def reverse_relationship(rel):
   l = (rel & LT)
   g = (rel & GT)
   strip = (rel - (l|g))
-  if l > 0: strip |= g
-  if g > 0: strip |= l
+  if l > 0: strip |= GT
+  if g > 0: strip |= LT
   return strip

@@ -10,166 +10,124 @@ from property import mep_get, mep_set
 from rcc5 import *
 from checklist import *
 from workspace import *
-from theory import is_accepted, get_accepted, get_tipward, local_sup
+from theory import get_tipward, local_sup
 
 def align(A_iter, B_iter):
-  A = rows_to_checklist(A_iter, {"name": "A"})  # meta
-  B = rows_to_checklist(B_iter, {"name": "B"})  # meta
-  return generate_alignment(A, B)
+  A = rows_to_checklist(A_iter, {'tag': "A"})  # meta
+  B = rows_to_checklist(B_iter, {'tag': "B"})  # meta
+  AB = workspace.make_workspace(A, B, {'tag': "AB"})
+  al = make_alignment(AB)
+  return generate_alignment_report(al)
 
-# Returns an Iterable
+# Returns a row generator
 
-def generate_alignment(A, B):
-  AB = workspace.make_workspace(A, B, {"name": "AB"})
-  matches_iter = match_records.match_records(checklist_to_rows(A),
-                                             checklist_to_rows(B))
+def generate_alignment_report(al):
+  yield ("A id", "A name", "rcc5", "B name", "B id",
+         "action", "note", "comment")
+  for art in al:
+    (v, ship, w, note, comment) = art
+    assert note
+    x = get_outject(v)
+    y = get_outject(w)
+    yield  (get_primary_key(x),
+            blurb(x),
+            rcc5_symbol(ship),
+            blurb(y),
+            get_primary_key(y),
+            describe(v, ship, w),
+            note,
+            comment)
+
+def describe(v, ship, w):
+  mat = (get_matched(v) == w)
+  if ship == GT:
+    action = 'split' if mat else 'add'
+  elif ship == EQ:
+    action = '' if mat else 'equivalent'
+  elif ship == LT:
+    action = 'lump' if mat else 'remove'
+  elif ship == DISJOINT:
+    action = 'move' if mat else 'disjoint'
+  elif ship == CONFLICT:        # Euler/X calls it 'overlaps'
+    action = 'reorganize' if mat else 'overlaps'
+  # Non-RCC5
+  elif ship == OVERLAP:
+    action = 'intersect in some way'
+  elif ship == NOINFO:
+    action = 'no information'
+  elif ship == SYNONYM:
+    action = 'synonym of'
+  else:
+    action = rcc5_symbol(ship)
+  return action
+
+# -----------------------------------------------------------------------------
+# An alignment is a generator (an Iterable) of articulations.
+# An articulation is a tuple (v, ship, w, note, comment).
+
+def make_alignment(AB):
+  matches_iter = match_records.match_records(checklist_to_rows(AB.A),
+                                             checklist_to_rows(AB.B))
   theory.load_matches(matches_iter, AB)
   theory.theorize(AB)
   span.span(AB)
 
   seen = {}
-  report = []
-  report.append(("kind", "A id", "rcc5", "B id",
-                 "action", "note", "comment"))
 
-  def do_species(v, w, comment):
-    # Three articulations of interest:
-    #    w (the cross_relation)
-    #    m (the name match)
-    # Show the *distinct* articulations among these.
-
-    m = get_match(v, None)      # name match
-    if m and m.record:
-      w2 = m.record
-      if w2 == w:
-        # Topology- and name-inspired articulation
-        # If block is empty then name only, not topo+name
-        if get_tipward(v, None):
-          do_row('tipward', v, w, comment)
-        else:
-          do_row('match', v, w, comment)
+  # Preorder
+  def traverse(z, infra):
+    for art in taxon_articulations(AB, z, infra):
+      (v, ship, w, note, comment) = art
+      if theory.isinA(AB, v):
+        key = (get_primary_key(v), get_primary_key(w))
       else:
-        # Topology-inspired articulation
-        do_row('topo', v, w, comment)
-
-        # Name-inspired articulation
-        # Compose a nice comment explaining what's going on.
-        # Three cases: v -> w2 -> v, v -> w2 -> v3, v -> w2 -> ---
-
-        m_back = get_match(w2, None) # reciprocal name match
-        tag = None
-        if m_back:
-          if m_back.relationship != NOINFO:
-            if m_back.record == v:
-              # v -> w2 -> v
-              tag = "reciprocal name match"
-              pass
-            else:
-              # v -> w2 -> v'
-              # Should not happen; EQ implies it's reciprocal.
-              tag = "nonreciprocal name match (%s)" % (blurb(m_back.record),)
-          else:
-            if m_back.record:
-              # v -> w2 -> v'
-              tag = "matches record that matches ambiguously (1)"
-            else:
-              # Doesn't happen?
-              tag = "matches record that matches ambiguously (2)"
-        else:
-          # v -> w2 -> nothing
-          # Doesn't happen?
-          tag = "matches record that matches ambiguously (3)"
-        if comment:
-          if tag: comment = "%s; %s" % (comment, tag)
-        else:
-          comment = tag
-        do_row('name', v, m.record, comment)
-    else:
-      # Topology-inspired articulation only
-      do_row('topo', v, w, comment)
-
-  def do_row(kind, v, w, comment):
-    key = (get_primary_key(v), get_primary_key(w))
-    if key in seen: return
-    seen[key] = True
-
-    x_info = ('', '')
-    y_info = ('', '')
-    sym = ''
-    if v:
-      action = 'deleted'
-      x = get_outject(v)
-      note = '-'
-    if w:
-      action = 'new'
-      y = get_outject(w)
-      note = '-'
-    if v and w:
-      rel = theory.cross_relation(AB, v, w)
-      if rel.relationship == NOINFO:
-        return
-      action = verbalize(rel, get_rank(v, None) == get_rank(w, None))
-      sym = rcc5_symbol(rel.relationship)
-      note = rel.note
-    assert note
-    report.append((kind,
-                   get_primary_key(x),
-                   sym,
-                   get_primary_key(y),
-                   action,
-                   note,
-                   comment))
-
-  for z in checklist.preorder_records(AB):
-    assert isinstance(z, prop.Record), blurb(z)
-    # Only report on species
-    if not is_acceptable(get_outject(z)):
-      continue
-    rel = partner(AB, z)
-    w = rel.record
-    (w, comment) = get_acceptable(AB, w) # Acceptable and not a subspecies
-    if z == AB.top or w == AB.top:
-      pass
-    elif theory.isinB(AB, z):
-      do_species(w, z, rev_comment(comment)) # w in A, z in B
-    elif theory.get_equivalent(z, None):
-      # Redundant, generated on previous pass
-      pass
-    else:
-      # In A but not in B
-      do_species(z, w, comment)        # z in A, w in B
-  return (report, specimens_table(AB))
-
-# Requires spanning tree
-
-def specimens_table(AB):
-  yield("checklist", "species_id", "species_canonical", "specimen_id", "specimen_canonical")
-
-  def traverse(z):
-    sup = get_superior(z, None)
-    if get_rank(z, None) == 'species' and sup and sup.relationship == ACCEPTED:
-      # The species that the specimen belongs to
-      tag = "A" if theory.isinA(AB, z) else "B"
-      x = get_outject(z)
-
-      for r in theory.specimen_B_records(AB, z):
-        yield(tag,
-              get_primary_key(x) if x else None,
-              blurb(x) if x else None,
-              get_primary_key(get_outject(r)),
-              "TYPE(%s)" % blurb(r))
+        key = (get_primary_key(w), get_primary_key(v))
+      if key in seen or (v == AB.top or w == AB.top):
+        pass
+      else:
+        yield art
+        seen[key] = True
+    if get_rank(z, None) == 'species': infra = z
     for c in get_inferiors(z):
-      yield from traverse(c)
-  yield from traverse(AB.top)
+      yield from traverse(c, infra)
+  yield from traverse(AB.top, False)
 
-def get_species(x):
-  sup = get_superior(x, None)
-  if sup == None:
-    return None
-  elif sup.relationship == ACCEPTED and get_rank(x, None) == 'species':
-    return x
-  else:
-    return get_species(sup.record)
+# *** METHOD 1 ***
+# Articulations of interest:
+#    w (the cross_relation)
+#    m (the name match)
+
+def taxon_articulations(AB, z, infra):
+  if not is_species(z): return
+
+  if theory.isinA(AB, z) and theory.get_equivalent(z, None):
+    # Redundant, generated previously
+    return
+
+  # Topology-based partner
+  rel = partner(AB, z)
+  w = rel.record
+  (w, comment) = get_acceptable(AB, w) # Accepted and not infraspecific
+  yield articulate(AB, z, w, comment)
+
+  # Match-based partner
+  m = get_match(z, None)      # name match
+
+  if m and m.record:
+    yield articulate(AB, z, m.record, comment)
+
+# Is this the place to filter out redundancies and unwanteds?
+
+def articulate(AB, v, w, comment):
+  (v, comment1) = get_acceptable(AB, v)
+  (w, comment2) = get_acceptable(AB, w)
+  if NORMALIZE and theory.isinB(AB, v):   # Normalize order?
+    (v, w) = (w, v)
+    comment = rev_comment(comment)
+  rel = theory.cross_relation(AB, v, w)
+  return (v, rel.relationship, w, rel.note, comment)
+
+NORMALIZE = True
 
 def rev_comment(comment):
   if comment:
@@ -190,7 +148,30 @@ def partner(AB, v):
       return xsup
     return None
 
-# Result is accepted and not a species ... could be a genus
+def is_species(x):
+  return get_rank(x, None) == 'species' and is_accepted(x)
+
+# Not used !?  Ascend the hierarchy until species is found
+
+def get_species(AB, x):
+  if is_species(x):
+    return x
+  sup = local_sup(AB, x, None)
+  if sup == None:
+    return None
+  else:
+    return get_species(AB, sup.record)
+
+# Acceptable = accepted and not infraspecific.
+# Approximation!
+
+def is_acceptable(y):
+  a = get_outject(y)
+  if (is_accepted(a) and
+      get_rank(a, None) != 'subspecies'):
+    return True
+  else:
+    return False
 
 def get_acceptable(AB, w):
   comment = ""
@@ -203,48 +184,39 @@ def get_acceptable(AB, w):
     sup = get_superior(a, None)
     a = sup.record
     comment = "via subspecies"
-    b = get_accepted(sup.record)
-    if b and b != a:
-      # 'Canis indica' has rank subspecies and is in 'Canis'
-      log("# %s subspecies of %s synonym of %s" % (blurb(w), blurb(a), blurb(b)))
-      comment = "via subspecies of synonym"
-      a = b
   if theory.isinA(AB, w):
-    w = AB.in_left(a)
+    z = AB.in_left(a)
   else:
-    w = AB.in_right(a)
-  return (w, comment)
-
-def is_acceptable(y):
-  if get_accepted(y) != y:
-    return False
-  if (get_rank(y, None) == 'species' or
-      get_rank(y, None) == None):
-    return True
-  else:
-    return False
+    z = AB.in_right(a)
+  return (z, comment)
 
 def sort_key(c):
   return (get_canonical(c, ''),
           get_scientific(c, ''),
           get_primary_key(c, ''))
 
-def verbalize(rel, same_rank):
-  if rel.relationship == GT:
-    action = 'split' if same_rank else 'added'
-  elif rel.relationship == EQ:
-    action = ''
-  elif rel.relationship == LT:
-    action = 'lump' if same_rank else 'removed'
-  elif rel.relationship == DISJOINT:
-    action = 'move'
-  elif rel.relationship == CONFLICT:
-    action = 'reorganize'
-  elif rel.relationship == OVERLAP:
-    action = 'overlap'
-  else:
-    action = rcc5_symbol(rel.relationship)
-  return action
+# -----------------------------------------------------------------------------
+# Requires spanning tree
+
+def specimens_table(AB):
+  yield("checklist", "species_id", "species_canonical", "specimen_id", "specimen_canonical")
+
+  def traverse(z):
+    if is_species(z):
+      # The species that the specimen belongs to
+      tag = get_tag(AB.A) if theory.isinA(AB, z) else get_tag(AB.B)
+      x = get_outject(z)
+
+      for r in theory.specimen_B_records(AB, z):
+        y = get_outject(r)
+        yield(tag,
+              get_primary_key(x),
+              blurb(x),
+              get_primary_key(y),
+              "^%s" % blurb(y))
+    for c in get_inferiors(z):
+      yield from traverse(c)
+  yield from traverse(AB.top)
 
 # -----------------------------------------------------------------------------
 

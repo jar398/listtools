@@ -43,16 +43,16 @@ def make_workspace(A, B, meta=None):
 
       have_key = get_primary_key(z)
       # and not get_record(primary_key_prop, None)
-      key = "%s!%s" % (get_source_name(x), have_key)
+      key = "%s!%s" % (get_source_tag(x), have_key)
       set_primary_key(z, key)
       register(z)
     return z
 
   def _in_left(x):
-    assert get_source(x) == A, get_source_name(x)
+    assert get_source(x) == A, get_source_tag(x)
     return ensure_injected(x)
   def _in_right(y):
-    assert get_source(y) == B, get_source_name(y)
+    assert get_source(y) == B, get_source_tag(y)
     return ensure_injected(y)
   def _case(z, when_left, when_right):
     w = get_outject(z, None)
@@ -140,10 +140,10 @@ import newick
 
 def workspace_from_newicks(m, n):
   B = rows_to_checklist(newick.parse_newick(n),
-                        {"name": "B"})  # meta
+                        {'tag': "B"})  # meta
   A = rows_to_checklist(newick.parse_newick(m),
-                        {"name": "A"})  # meta
-  AB = make_workspace(A, B, {"name": "AB"})
+                        {'tag': "A"})  # meta
+  AB = make_workspace(A, B, {'tag': "AB"})
   if False:
     for record in all_records(AB): # No merge
       if record != AB.top:

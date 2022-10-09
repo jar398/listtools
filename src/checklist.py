@@ -186,7 +186,7 @@ def resolve_superior_link(S, record):
         sup = relation(SYNONYM, accepted, status)
     else:
       log("# Synonym %s with unresolvable accepted: %s -> %s" %
-          (S.meta['name'], blurb(record), accepted_key))
+          (get_tag(S), blurb(record), accepted_key))
       sup = relation(ACCEPTED, S.top, "root", "synonym with unresolved accepted id")
   else:
     # Accepted
@@ -199,7 +199,7 @@ def resolve_superior_link(S, record):
         sup = relation(ACCEPTED, parent, status)
       else:
         log("# Accepted %s with unresolvable parent: %s -> %s" %
-            (S.meta['name'], blurb(record), parent_key))
+            (get_tag(S), blurb(record), parent_key))
         sup = relation(ACCEPTED, S.top, "unresolved parent id")
     else:
       # This is a root.  Hang on to it so that preorder can see it.
@@ -347,10 +347,15 @@ def ensure_inferiors_indexed(C):
 
 def assert_local(x, y):
   assert get_source(x) == get_source(y), \
-    (blurb(x), get_source_name(x), blurb(y), get_source_name(y))
+    (blurb(x), get_source_tag(x), blurb(y), get_source_tag(y))
 
-def get_source_name(x):
-  return get_source(x).meta['name']
+def get_source_tag(x):          # applied to a record
+  assert len(x) >= 0  # record
+  src = get_source(x)
+  return get_tag(src)
+
+def get_tag(check):          # applied to a Source checklist
+  return check.meta['tag']
 
 def make_top(C):
   top = make_record(TOP_NAME, C)     # key is TOP_NAME, source is C
@@ -418,16 +423,19 @@ def recover_accepted_key(x, default=MISSING):
       return get_primary_key(y)
   return default
 
+def is_accepted(x):             # exported
+  sup = get_superior(x, None)
+  return (not sup) or sup.relationship == ACCEPTED
+
 def get_accepted(x):
   rp = get_superior(x, None)
-  if not rp: return x
-  if rp.relationship == SYNONYM:
+  if (not rp or rp.relationship == ACCEPTED):
+    return x
+  else:
     if monitor(x):
       log("> snap link %s %s" % (blurb(x), blurb(rp)))
     return get_accepted(rp.record) # Eeeek!
     # return rp.record
-  assert rp.relationship == ACCEPTED, blurb(rp)
-  return x
 
 def recover_status(x, default=MISSING): # taxonomicStatus
   sup = get_superior(x, None)
@@ -656,12 +664,14 @@ def get_eulerx_name(x):
   string = blurb(x)
   return string.replace(' ', '_')
 
+# x is a record (list)
+
 def get_eulerx_qualified_name(x):
-  src = get_source_name(x)
+  src = get_source_tag(x)       # e.g. "A"
   return "%s.%s" % (src, get_eulerx_name(x))
 
 def generate_eulerx_checklist(C):
-  tag = checklist_tag(C)
+  tag = get_tag(C)
   descr = checklist_description(C)
   yield ("taxonomy %s %s" % (tag, descr))
   for rec in preorder_records(C):
@@ -672,11 +682,8 @@ def generate_eulerx_checklist(C):
         yield ("(%s %s)" % (sup_name, ' '.join(map(get_eulerx_name, children))))
   yield ''
 
-def checklist_tag(C):
-  return C.meta['name']
-
 def checklist_description(C):
-  return checklist_tag(C) + "_checklist"
+  return get_tag(C) + "_checklist"
 
 # -----------------------------------------------------------------------------
 
@@ -685,7 +692,7 @@ if __name__ == '__main__':
 
   def testit(n):
     src = rows_to_checklist(newick.parse_newick(n),
-                            {"name": "A"})  # meta
+                            {'tag': 'A'})  # meta
     writer = csv.writer(sys.stdout)
     if False:  # Test this if second fails
       rows = list(checklist_to_rows(src))

@@ -168,6 +168,7 @@ def specimen_B_records(AB, z):
 
 # RCC-5 relationship across the two checklists
 # x and y are in AB
+# Could be made more efficient by skipping unused calculations
 
 def cross_lt(AB, v, w):
   return cross_relation(AB, v, w).relationship == LT
@@ -361,12 +362,12 @@ def analyze_blocks(AB):
   def traverse(x, in_left):
     # x is in A or B
     if monitor(x): log("computing block for %s" % (blurb(x),))
-    v = in_left(x)
     # initial e = specimens from descendants
     e = BOTTOM_BLOCK
     for c in get_inferiors(x):  # inferiors in A/B
       e = combine_blocks(e, traverse(c, in_left))
       if monitor(c): log("got subblock %s -> %s" % (blurb(c), len(e),))
+    v = in_left(x)
     if is_top(x):
       e = TOP_BLOCK
     else:
@@ -565,11 +566,3 @@ def ensure_levels(S):
       # This isn't right -- get_level works better
       cache(c, n+1)
   cache(S.top, 1)
-
-# -----------------------------------------------------------------------------
-
-# x should be in A or B ... ?
-
-def is_accepted(x):             # exported
-  sup = get_superior(x, None)
-  return (not sup) or sup.relationship != SYNONYM

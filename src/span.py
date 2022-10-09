@@ -127,11 +127,11 @@ def test():
   def testit(m, n):
     log("\n-- Test: %s + %s --" % (m, n))
     B = rows_to_checklist(newick.parse_newick(n),
-                          {"name": "B"})  # meta
+                          {'tag': "B"})  # meta
     A = rows_to_checklist(newick.parse_newick(m),
-                          {"name": "A"})  # meta
+                          {'tag': "A"})  # meta
     matches_iter = match_records.match_records(checklist_to_rows(A), checklist_to_rows(B))
-    AB = workspace.make_workspace(A, B, {"name": "AB"})
+    AB = workspace.make_workspace(A, B, {'tag': "AB"})
     theory.load_matches(matches_iter, AB)
     theory.theorize(AB)
     S = span(AB)
