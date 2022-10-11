@@ -16,7 +16,7 @@ def isinB(AB, z):
   return AB.case(z, lambda x: False, lambda x: True)
 
 def theorize(AB):
-  AB.specimen_taxa = {}
+  AB.specimen_records = {}
   analyze_blocks(AB)                  # sets of 'tipes'
   compute_reflections(AB)
   find_equivalents(AB)
@@ -95,7 +95,7 @@ def cross_relation(AB, v, w):
 
     if ship != EQ:
       answer = (ship, "specimen set comparison")
-      if monitor(v) or monitor(w):
+      if False and (monitor(v) or monitor(w)):
         show_specimens(v, "v", AB)
         show_specimens(w, "w", AB)
 
@@ -156,15 +156,6 @@ def local_sup(AB, v):
     return (AB.in_right(loc.record), loc.relationship == SYNONYM)
   else:
     assert False
-
-def show_specimens(z, tag, AB):
-  log("# %s: {%s}" % (tag, ", ".join(map(blurb, specimen_B_records(AB, z)))))
-
-def specimen_B_records(AB, z):
-  def foo(id):
-    (v, w) = AB.specimen_taxa[id]
-    return w
-  return map(foo, get_block(z, BOTTOM_BLOCK))
 
 # RCC-5 relationship across the two checklists
 # x and y are in AB
@@ -314,7 +305,7 @@ def swap(AB):
   BA = AB.swap()
   BA.A = AB.B
   BA.B = AB.A
-  BA.specimen_taxa = AB.specimen_taxa
+  BA.specimen_records = AB.specimen_records
   return BA
 
 (get_reflection, set_reflection) = \
@@ -391,9 +382,24 @@ def get_specimen_id(AB, z):
       x = z
       y = rel.record
     id = get_primary_key(x)
-    AB.specimen_taxa[id] = (x, y)
+    AB.specimen_records[id] = (x, y)
     return id
   else: return None
+
+# For debugging
+
+def show_specimens(z, tag, AB):
+  def foo(vw):
+    (v, w) = vw
+    return blurb(w)
+  log("# %s: {%s}" % (tag, ", ".join(map(foo, specimen_records(AB, z)))))
+
+# The records in the B checklist corresponding to the type specimens
+# in the block for z.
+
+def specimen_records(AB, z):
+  return map(lambda id: AB.specimen_records[id],
+             get_block(z, BOTTOM_BLOCK))
 
 # -----------------------------------------------------------------------------
 # Implementation of blocks as Python sets of 'tipes.'

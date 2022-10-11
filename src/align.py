@@ -17,16 +17,20 @@ def align(A_iter, B_iter):
   B = rows_to_checklist(B_iter, {'tag': "B"})  # meta
   AB = workspace.make_workspace(A, B, {'tag': "AB"})
   al = make_alignment(AB)
-  return generate_alignment_report(al)
+  return generate_alignment_report(AB, al)
 
 # Returns a row generator
 
-def generate_alignment_report(al):
+def generate_alignment_report(AB, al):
   yield ("A id", "A name", "rcc5", "B name", "B id",
          "action", "note", "comment")
   for art in al:
     (v, ship, w, note, comment) = art
     assert note
+    if theory.isinB(AB, v):   # Normalize order?
+      (v, w) = (w, v)
+      comment = rev_comment(comment)
+      ship = reverse_relationship(ship)
     x = get_outject(v)
     y = get_outject(w)
     yield  (get_primary_key(x),
@@ -39,17 +43,22 @@ def generate_alignment_report(al):
             comment)
 
 def describe(v, ship, w):
-  mat = (get_matched(v) == w)
+  rel = get_matched(v)
+  mat = rel and (rel.record == w)
+  stay = (get_rank(get_accepted(get_outject(v)), None) ==
+          get_rank(get_accepted(get_outject(w)), None))
   if ship == GT:
-    action = 'split' if mat else 'add'
+    if stay: action = ('shrink' if mat else 'split')
+    else: action = 'add'
   elif ship == EQ:
-    action = '' if mat else 'equivalent'
+    action = ('' if mat else 'equivalent')
   elif ship == LT:
-    action = 'lump' if mat else 'remove'
+    if stay: action = ('expand' if mat else 'lump')
+    else: action = 'remove'
   elif ship == DISJOINT:
-    action = 'move' if mat else 'disjoint'
+    action = ('false match' if mat else 'disjoint')
   elif ship == CONFLICT:        # Euler/X calls it 'overlaps'
-    action = 'reorganize' if mat else 'overlaps'
+    action = ('reorganize' if mat else 'overlaps')
   # Non-RCC5
   elif ship == OVERLAP:
     action = 'intersect in some way'
@@ -76,18 +85,19 @@ def make_alignment(AB):
 
   # Preorder
   def traverse(z, infra):
-    for art in taxon_articulations(AB, z, infra):
-      (v, ship, w, note, comment) = art
-      if theory.isinA(AB, v):
-        key = (get_primary_key(v), get_primary_key(w))
-      else:
-        key = (get_primary_key(w), get_primary_key(v))
-      if key in seen or (v == AB.top or w == AB.top):
-        pass
-      else:
-        yield art
-        seen[key] = True
-    if get_rank(z, None) == 'species': infra = z
+    if is_species(z):       # Policy
+      for art in taxon_articulations(AB, z, infra):
+        (v, ship, w, note, comment) = art
+        if theory.isinA(AB, v):
+          key = (get_primary_key(v), get_primary_key(w))
+        else:
+          key = (get_primary_key(w), get_primary_key(v))
+        if key in seen or (v == AB.top or w == AB.top):
+          pass
+        else:
+          yield art
+          seen[key] = True
+      infra = z
     for c in get_inferiors(z):
       yield from traverse(c, infra)
   yield from traverse(AB.top, False)
@@ -97,24 +107,33 @@ def make_alignment(AB):
 #    w (the cross_relation)
 #    m (the name match)
 
+OLD_METHOD = False
+
 def taxon_articulations(AB, z, infra):
-  if not is_species(z): return
+  if OLD_METHOD:
+    # Topology-based partner
+    rel = partner(AB, z)
+    w = rel.record
+    (w, comment) = get_acceptable(AB, w) # Accepted and not infraspecific
+    yield articulate(AB, z, w, comment)
 
-  if theory.isinA(AB, z) and theory.get_equivalent(z, None):
-    # Redundant, generated previously
-    return
-
-  # Topology-based partner
-  rel = partner(AB, z)
-  w = rel.record
-  (w, comment) = get_acceptable(AB, w) # Accepted and not infraspecific
-  yield articulate(AB, z, w, comment)
-
-  # Match-based partner
-  m = get_match(z, None)      # name match
-
-  if m and m.record:
-    yield articulate(AB, z, m.record, comment)
+    # Match-based partner
+    m = get_match(z, None)      # name match
+    if m and m.record:
+      yield articulate(AB, z, m.record, 'name match')
+  else:
+    rr = list(theory.specimen_records(AB, z))
+    if len(rr) > 0:
+      for (a, b) in rr:
+        (s, comment) = get_acceptable(AB, a if theory.isinB(AB, z) else b)
+        if b != z and b != s:
+          comment = '%s; via %s' % (comment, blurb(b),)
+        yield articulate(AB, z, s, comment)
+    else:
+      rel = partner(AB, z)
+      w = rel.record
+      (w, comment) = get_acceptable(AB, w) # Accepted and not infraspecific
+      yield articulate(AB, z, w, comment)
 
 # Is this the place to filter out redundancies and unwanteds?
 
@@ -127,7 +146,7 @@ def articulate(AB, v, w, comment):
   rel = theory.cross_relation(AB, v, w)
   return (v, rel.relationship, w, rel.note, comment)
 
-NORMALIZE = True
+NORMALIZE = False
 
 def rev_comment(comment):
   if comment:
@@ -207,8 +226,8 @@ def specimens_table(AB):
       tag = get_tag(AB.A) if theory.isinA(AB, z) else get_tag(AB.B)
       x = get_outject(z)
 
-      for r in theory.specimen_B_records(AB, z):
-        y = get_outject(r)
+      for (r, s) in theory.specimen_records(AB, z):
+        y = get_outject(s)
         yield(tag,
               get_primary_key(x),
               blurb(x),

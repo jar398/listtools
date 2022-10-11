@@ -21,13 +21,13 @@ from rcc5 import rcc5_symbol
 # umm, that's pretty much it??
 
 def merge(a_iter, b_iter, A_name='A', B_name='B', matches=None):
-  A = rows_to_checklist(a_iter, {"name": A_name})  # meta
-  B = rows_to_checklist(b_iter, {"name": B_name})  # meta
+  A = rows_to_checklist(a_iter, {'tag': A_name})  # meta
+  B = rows_to_checklist(b_iter, {'tag': B_name})  # meta
   AB = analyze(A, B, matches)
   return merge_preorder_rows(AB)
 
 def analyze(A, B, m_iter=None):
-  AB = make_workspace(A, B, {"name": "AB"})
+  AB = make_workspace(A, B, {'tag': "AB"})
   if not m_iter:
     m_iter = match_records(checklist_to_rows(AB.A), checklist_to_rows(AB.B))
   theory.load_matches(m_iter, AB)
@@ -492,9 +492,9 @@ def test():
     log("\n-- Test: %s + %s --" % (m, n))
 
     B = rows_to_checklist(newick.parse_newick(n),
-                          {"name": "B"})  # meta
+                          {'tag': "B"})  # meta
     A = rows_to_checklist(newick.parse_newick(m),
-                          {"name": "A"})  # meta
+                          {'tag': "A"})  # meta
 
     AB = analyze(A, B)
     workspace.show_workspace(AB, props=usual_merge_props(AB))

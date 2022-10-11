@@ -118,12 +118,12 @@ RAKE?=cd ../plotter && rake
 SUMMARY=work/$(shell basename $A)-$(shell basename $B)-summary.csv
 REPORT=work/$(shell basename $A)-$(shell basename $B)-report.csv
 MERGED=work/$(shell basename $A)-$(shell basename $B)-merged.csv
-ALIGNED=work/$(shell basename $A)-$(shell basename $B)-aligned.csv
+ALIGNEDX=work/$(shell basename $A)-$(shell basename $B)-alignedx.csv
 MATCHES=work/$(shell basename $A)-$(shell basename $B)-matches.csv
 ROUND=work/$(shell basename $A)-$(shell basename $B)-round.csv
 DELTA=work/$(shell basename $A)-$(shell basename $B)-delta.csv
 
-DEMO=work/$(shell basename $A)-$(shell basename $B)-demo.csv
+DEMO=work/$(shell basename $A)-$(shell basename $B)-aligned.csv
 EULERX=work/$(shell basename $A)-$(shell basename $B)-eulerx.txt
 TIPWARDS=work/$(shell basename $A)-$(shell basename $B)-tipwards.txt
 

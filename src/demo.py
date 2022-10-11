@@ -17,7 +17,7 @@ def demo(A_iter, A_name, B_iter, B_name):
   B = rows_to_checklist(B_iter, {'tag': B_name or "B"})  # meta
   AB = workspace.make_workspace(A, B, {'tag': "AB"})
   al = list(align.make_alignment(AB))
-  return (align.generate_alignment_report(al),
+  return (align.generate_alignment_report(AB, al),
           generate_eulerx(A, B, al),
           align.specimens_table(AB))
 

@@ -14,11 +14,11 @@ from util import log, MISSING
 from match_records import match_records
 
 def align(a_iter, b_iter, A_name='A', B_name='B', matches_iter=None):
-  A = rows_to_checklist(a_iter, {"name": A_name})  # meta
-  B = rows_to_checklist(b_iter, {"name": B_name})  # meta
+  A = rows_to_checklist(a_iter, {'tag': A_name})  # meta
+  B = rows_to_checklist(b_iter, {'tag': B_name})  # meta
   if not matches_iter:
     matches_iter = match_records(checklist_to_rows(A), checklist_to_rows(B))
-  AB = workspace.make_workspace(A, B, {"name": "AB"})
+  AB = workspace.make_workspace(A, B, {'tag': "AB"})
   theory.load_matches(matches_iter, AB)
   return align_checklists(AB)
 
