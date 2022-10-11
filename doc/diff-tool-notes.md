@@ -125,6 +125,8 @@ and consider also the reverse comparison (B compared to A).
   6. x R y  where x and y are record matches, and R is one of the RCC-5
      relations other than =
 
+[This documentation is not current]
+
 
 # 'Diff' file format
 

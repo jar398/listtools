@@ -1,6 +1,9 @@
 
 # Model theory
 
+WORK IN PROGRESS.
+
+
 Understanding a system requires observation and reasoning;
 collaborative understanding involves collaborative observation and
 reasoning, and collaboration requires communication.  When

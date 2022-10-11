@@ -31,6 +31,7 @@ def analyze(A, B, m_iter=None):
   if not m_iter:
     m_iter = match_records(checklist_to_rows(AB.A), checklist_to_rows(AB.B))
   theory.load_matches(m_iter, AB)
+  theory.theorize(AB)
   spanning_tree(AB)
   return AB
 
