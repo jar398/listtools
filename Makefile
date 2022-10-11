@@ -5,6 +5,7 @@
 
 all:
 	@echo "Please specify a target:"
+	@echo "  demo       align and generate Euler/X form of alignment"
 	@echo "  diff       show new/removed/changed records"
 	@echo "  round      demo diff/patch round trip"
 	@echo "  report     report on NCBI extensions differences 2015-2020"
@@ -83,6 +84,11 @@ col-report:
 # make A=work/col2021-mammals B=work/mdd1.7 report
 # and so on.
 
+# ----- 6. GBIF/MSW/MDD:
+
+msw-demo:
+	$(MAKE) A=nate/msw3-$(taxon) B=nate/mdd1.9-$(taxon) demo
+
 # ----- General parameters
 
 SHELL?=/usr/bin/bash
@@ -113,9 +119,25 @@ RAKE?=cd ../plotter && rake
 SUMMARY=work/$(shell basename $A)-$(shell basename $B)-summary.csv
 REPORT=work/$(shell basename $A)-$(shell basename $B)-report.csv
 MERGED=work/$(shell basename $A)-$(shell basename $B)-merged.csv
+ALIGNEDX=work/$(shell basename $A)-$(shell basename $B)-alignedx.csv
 MATCHES=work/$(shell basename $A)-$(shell basename $B)-matches.csv
 ROUND=work/$(shell basename $A)-$(shell basename $B)-round.csv
 DELTA=work/$(shell basename $A)-$(shell basename $B)-delta.csv
+
+DEMO=work/$(shell basename $A)-$(shell basename $B)-aligned.csv
+EULERX=work/$(shell basename $A)-$(shell basename $B)-eulerx.txt
+TIPWARDS=work/$(shell basename $A)-$(shell basename $B)-tipwards.txt
+
+demo: $(DEMO)
+
+$(DEMO): $P/demo.py $P/checklist.py $P/align.py $P/theory.py $A.csv $B.csv
+	@echo
+	@echo "--- PREPARING DEMO ---"
+	$P/demo.py --A $A.csv --B $B.csv \
+	  --eulerx $(EULERX).new --tipwards $(TIPWARDS).new > $@.new
+	@mv -f $@.new $@
+	@mv -f $(EULERX).new $(EULERX)
+	@mv -f $(TIPWARDS).new $(TIPWARDS)
 
 report: $(REPORT)
 REPORT_OPTIONS?=
@@ -134,6 +156,17 @@ $(MERGED): $(MATCHES) $P/merge.py $P/theory.py $P/workspace.py $P/checklist.py $
 	@echo
 	@echo "--- MERGING ---"
 	$P/merge.py --A $A.csv --B $B.csv --matches $(MATCHES) \
+		    > $@.new
+	@mv -f $@.new $@
+
+# Alignment of two checklists:
+
+aligned: $(ALIGNED)
+
+$(ALIGNED): $(MATCHES) $P/align.py $P/theory.py $P/workspace.py $P/checklist.py $P/property.py
+	@echo
+	@echo "--- ALIGNING ---"
+	$P/align.py --A $A.csv --B $B.csv --matches $(MATCHES) \
 		    > $@.new
 	@mv -f $@.new $@
 
@@ -245,6 +278,13 @@ work/col2021-primates-raw.csv: work/col2021-raw.csv $P/subset.py
 .PRECIOUS: %-$(taxon)-raw.csv
 
 work/mdd1.7-$(taxon)-raw.csv: work/mdd1.7-raw.csv $P/subset.py
+	$P/subset.py --hierarchy $< --root $(TAXON) < $< > $@.new
+	@mv -f $@.new $@
+work/mdd1.6-$(taxon)-raw.csv: work/mdd1.6-raw.csv $P/subset.py
+	$P/subset.py --hierarchy $< --root $(TAXON) < $< > $@.new
+	@mv -f $@.new $@
+# Don't know why this doesn't work
+work/mdd1.0-$(taxon)-raw.csv: work/mdd1.0-raw.csv $P/subset.py
 	$P/subset.py --hierarchy $< --root $(TAXON) < $< > $@.new
 	@mv -f $@.new $@
 
@@ -433,6 +473,13 @@ col%-raw.csv: col%/dump $P/start.py
 	@mv -f $@.new $@
 .PRECIOUS: col%-raw.csv
 
+# ----- 6. ITIS
+
+work/itis2022-mammals-raw.csv: work/itis2022-mammals/dump/meta.xml
+	$P/start.py --pk $(PRIMARY_KEY) --input `dirname $<`/taxa_*.txt \
+	  >$@.new
+	@mv -f $@.new $@
+
 # -----
 
 tags:
@@ -442,7 +489,7 @@ test:
 	$P/property.py
 	$P/checklist.py
 	$P/workspace.py
-	$P/merge.py --test
+	$P/align.py --test
 	$(MAKE) A=work/test1 B=work/test2 report
 
 test-report: 

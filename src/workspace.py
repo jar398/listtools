@@ -34,28 +34,29 @@ def make_workspace(A, B, meta=None):
       set_inject(x, z)          # contextual
       set_outject(z, x)
       set_source(z, AB)
+      if get_superior(z, None) != None:
+        set_superior(z, None)
+      if get_children(z, None) != None:
+        set_children(z, None)
+      if get_synonyms(z, None) != None:
+        set_synonyms(z, None)
+
       have_key = get_primary_key(z)
-      if REUSE_KEYS and have_key:
-        if '!' in have_key:
-          key = have_key
-        else:
-          key = "%s!%s" % (get_source_name(x), have_key)
-        set_primary_key(z, key)
-      else:
-        pk_counter[0] += 1
-        set_primary_key(z, str(pk_counter[0]))
+      # and not get_record(primary_key_prop, None)
+      key = "%s!%s" % (get_source_tag(x), have_key)
+      set_primary_key(z, key)
       register(z)
     return z
 
   def _in_left(x):
-    assert get_source(x) == A
+    assert get_source(x) == A, get_source_tag(x)
     return ensure_injected(x)
   def _in_right(y):
-    assert get_source(y) == B
+    assert get_source(y) == B, get_source_tag(y)
     return ensure_injected(y)
   def _case(z, when_left, when_right):
     w = get_outject(z, None)
-    assert w
+    assert w, blurb(z)
     if get_source(w) == A:
       return when_left(w)
     else:
@@ -64,15 +65,6 @@ def make_workspace(A, B, meta=None):
   AB = Coproduct(_in_left, _in_right, _case)
   AB.context = Q
 
-  atop = AB.in_left(A.top)
-  btop = AB.in_right(B.top)
-
-  # cf. propose_equation
-  set_superior(atop, relation(EQ, btop, "top"))
-  set_equated(btop, relation(EQ, atop, "top"))
-  AB.top = btop
-
-  AB.indexed = False
   AB.meta = meta
 
   AB.A = A           # need ??
@@ -81,9 +73,23 @@ def make_workspace(A, B, meta=None):
   # Force local copies of all source records
   for y in all_records(B): AB.in_right(y) # not including top
   for x in all_records(A): AB.in_left(x)  # not including top
+  # AB.top is not set at this point.  Needs to be determined independently
   #log("# taxonID counter: %s" % pk_counter[0])
 
   return AB
+
+# NOT INVOKED
+
+def some_stuff_to_do(AB):
+  atop = AB.in_left(AB.A.top)
+  btop = AB.in_right(AB.B.top)
+
+  # cf. propose_equation
+  set_superior(atop, relation(EQ, btop, "top"))
+  set_equated(btop, relation(EQ, atop, "top"))
+  AB.top = btop
+
+  AB.indexed = False
 
 # Is given synonym usage a senior synonym of its accepted usage?
 # In the case of splitting, we expect the synonym to be a senior
@@ -134,13 +140,14 @@ import newick
 
 def workspace_from_newicks(m, n):
   B = rows_to_checklist(newick.parse_newick(n),
-                        {"name": "B"})  # meta
+                        {'tag': "B"})  # meta
   A = rows_to_checklist(newick.parse_newick(m),
-                        {"name": "A"})  # meta
-  AB = make_workspace(A, B, {"name": "AB"})
-  for record in all_records(AB): # No merge
-    if record != AB.top:
-      set_superior(record, relation(SYNONYM, AB.top, "testing"))
+                        {'tag': "A"})  # meta
+  AB = make_workspace(A, B, {'tag': "AB"})
+  if False:
+    for record in all_records(AB): # No merge
+      if record != AB.top:
+        set_superior(record, relation(SYNONYM, AB.top, "testing"))
   return AB
 
 def show_workspace(AB, props=None):

@@ -26,12 +26,12 @@ source_prop = prop.declare_property("source", inherit=False)    # which checklis
 parent_key_prop = prop.declare_property("parentNameUsageID", inherit=False)    # LT
 accepted_key_prop = prop.declare_property("acceptedNameUsageID", inherit=False) # LE
 superior_note_prop = prop.declare_property("superior_note", inherit=False)
-superior_prop = prop.declare_property("superior", inherit=False)    # value is a Related
+superior_prop = prop.declare_property("superior", inherit=False)    # value is a Relative
 
 # For A/B identifications
-equated_key_prop = prop.declare_property("equated_id", inherit=False)    # value is a Related
-equated_note_prop = prop.declare_property("equated_note", inherit=False)    # value is a Related
-equated_prop = prop.declare_property("equated", inherit=False)    # value is a Related
+equated_key_prop = prop.declare_property("equated_id", inherit=False)    # value is a Relative
+equated_note_prop = prop.declare_property("equated_note", inherit=False)    # value is a Relative
+equated_prop = prop.declare_property("equated", inherit=False)    # value is a Relative
 
 # For record matches made by name(s)
 match_key_prop = prop.declare_property("match_id", inherit=False)
@@ -81,9 +81,9 @@ class Relative(NamedTuple):
   note : str = ''   # further comments justifying this relationship
 
 def relation(ship, record, status, note=''):
+  assert isinstance(ship, int), ship
   assert ((ship == NOINFO and not record) or \
-          isinstance(record, prop.Record))
-  assert isinstance(ship, int)
+          isinstance(record, prop.Record)), blurb(record)
   return Relative(ship, record, status, note)
 
 # -----------------------------------------------------------------------------
@@ -94,17 +94,28 @@ class Source:
     self.context = prop.make_context()  # for lookup by primary key
     self.meta = meta
     self.indexed = False    # get_children, get_synonyms set?
+    self.top = None
 
-def all_records(C):             # not including top
+def all_records(C):
   col = prop.get_column(primary_key_prop, C.context)
   return prop.get_records(col)
 
-def preorder_records(C):
-  ensure_inferiors_indexed(C)
+def preorder_records(C):        # starting from top
+  assert C.top
   def traverse(x):
+    assert isinstance(x, prop.Record)
     yield x
     for c in get_inferiors(x):
+      assert isinstance(c, prop.Record)
       yield from traverse(c)
+  yield from traverse(C.top)
+
+def postorder_records(C):       # ending with top
+  assert C.top
+  def traverse(x):
+    for c in get_inferiors(x):
+      yield from traverse(c)
+    yield x
   yield from traverse(C.top)
 
 # -----------------------------------------------------------------------------
@@ -149,15 +160,18 @@ make_record = prop.constructor(primary_key_prop, source_prop)
 
 def resolve_superior_link(S, record):
   if record == S.top: return None
-
+  assert isinstance(record, prop.Record)
   assert not get_superior(record, None)
   sup = None
 
+  # If it nontrivially has an accepted record, then it's a synonym
   accepted_key = get_accepted_key(record, None)
-  if accepted_key and accepted_key != get_primary_key(record):
+  taxonID = get_primary_key(record)
+  assert taxonID
+  if accepted_key and accepted_key != taxonID:
     accepted = look_up_record(S, accepted_key, record)
     if accepted:
-      status = get_taxonomic_status(record, "synonym")
+      status = get_taxonomic_status(record, "synonym")    # default = synonym?
       if status == "equivalent":
         rel = relation(EQ, record, "equivalent")
         set_equated(accepted, rel)
@@ -166,12 +180,16 @@ def resolve_superior_link(S, record):
               (blurb(accepted), blurb(rel)))
         sup = relation(EQ, accepted, status)
       else:
+        if monitor(record):
+          log("# %s %s %s %s" %
+              (blurb(record), taxonID, accepted_key, blurb(accepted)))
         sup = relation(SYNONYM, accepted, status)
     else:
-      log("# Dangling accepted reference in %s: %s -> %s" %
-          (S.meta['name'], blurb(record), accepted_key))
-      sup = relation(SYNONYM, S.top, "root", "unresolved accepted id")
+      log("# Synonym %s with unresolvable accepted: %s -> %s" %
+          (get_tag(S), blurb(record), accepted_key))
+      sup = relation(ACCEPTED, S.top, "root", "synonym with unresolved accepted id")
   else:
+    # Accepted
     parent_key = get_parent_key(record, None)
     if parent_key:
       parent = look_up_record(S, parent_key, record)
@@ -180,12 +198,11 @@ def resolve_superior_link(S, record):
         # If it's not accepted or valid or something darn close, we're confused
         sup = relation(ACCEPTED, parent, status)
       else:
-        log("# Dangling parent reference in %s: %s -> %s" %
-            (S.meta['name'], blurb(record), parent_key))
+        log("# Accepted %s with unresolvable parent: %s -> %s" %
+            (get_tag(S), blurb(record), parent_key))
         sup = relation(ACCEPTED, S.top, "unresolved parent id")
     else:
       # This is a root.  Hang on to it so that preorder can see it.
-      assert isinstance(record, prop.Record)
       #log("# No accepted, no parent: %s '%s' '%s'" %
        #   (blurb(record), parent_key, accepted_key))
       sup = relation(ACCEPTED, S.top, "root", "no parent")
@@ -194,6 +211,8 @@ def resolve_superior_link(S, record):
   set_superior_carefully(record, sup)
 
 def set_superior_carefully(x, sup):
+  assert isinstance(x, prop.Record)
+  assert isinstance(sup, Relative)
   have = get_superior(x, None)
   if have:
     if False:                   # GBIF fails if we insist
@@ -213,10 +232,32 @@ def set_superior_carefully(x, sup):
       assert False
 
   # OK go for it
-  set_superior(x, sup)
+  link_superior(x, sup)
   if False:
     if (monitor(x) or monitor(sup.record)):  #False and 
       log("> superior of %s is %s" % (blurb(x), blurb(sup)))
+
+# Establish a link of the form w -> p
+# sup is a Relative with record p
+
+def link_superior(w, sup):      # w is inferior Record, sup is Relative
+  assert isinstance(w, prop.Record)
+  assert isinstance(sup, Relative)
+  assert get_superior(w, None) == None
+  set_superior(w, sup)
+  if sup.relationship == ACCEPTED:
+    ch = get_children(sup.record, None) # list of records
+    if ch != None:
+      ch.append(w)
+    else:
+      set_children(sup.record, [w]) # w is a Record
+  else:        # sup.relationship == SYNONYM or sup.relationship == EQ
+    ch = get_synonyms(sup.record, None)
+    if ch != None:
+      ch.append(w)
+    else:
+      set_synonyms(sup.record, [w])
+  #else: assert False
 
 def look_up_record(C, key, comes_from=None):
   if not key: return None
@@ -260,8 +301,9 @@ def validate(C):
 # E.g. Glossophaga bakeri (in 1.7) split from Glossophaga commissarisi (in 1.6)
 
 def ensure_inferiors_indexed(C):
-  if C.indexed: return
-  #log("# --indexing inferiors")
+  if get_children(C.top, None) == None: return
+
+  assert False, "top has no children"
 
   count = 0
 
@@ -299,45 +341,49 @@ def ensure_inferiors_indexed(C):
       # but the target may be a ghost.
       count += 1
 
-  C.indexed = True
   #log("# %s inferiors indexed.  Top has %s child(ren)" %
   #   (count, len(get_children(C.top, ()))))
   validate(C)
 
 def assert_local(x, y):
   assert get_source(x) == get_source(y), \
-    (blurb(x), get_source_name(x), blurb(y), get_source_name(y))
+    (blurb(x), get_source_tag(x), blurb(y), get_source_tag(y))
 
-def get_source_name(x):
-  return get_source(x).meta['name']
+def get_source_tag(x):          # applied to a record
+  assert len(x) >= 0  # record
+  src = get_source(x)
+  return get_tag(src)
+
+def get_tag(check):          # applied to a Source checklist
+  return check.meta['tag']
 
 def make_top(C):
-  top = make_record(TOP, C)     # key is TOP, source is C
+  top = make_record(TOP_NAME, C)     # key is TOP_NAME, source is C
   # registrar(primary_key_prop)(top)  # Hmmph
-  set_canonical(top, TOP)
+  set_canonical(top, TOP_NAME)
   return top
 
-TOP = "⊤"
+TOP_NAME = "⊤"
 
 def is_top(x):
   return x == get_source(x).top
 
 def is_toplike(x):
-  return get_canonical(x, None) == TOP
+  return get_canonical(x, None) == TOP_NAME
 
 # Not used I think
-def add_inferior(r, status="accepted"):
-  if r.relationship == LT:
+def add_inferior(rel, status="accepted"):
+  if rel.relationship == ACCEPTED:
     ch = get_children(x, None)
-    s = set_children
+    set_inferiors = set_children
   else:
     ch = get_synoyms(x, None)
-    s = set_synonyms
+    set_inferiors = set_synonyms
   if ch != None:
-    ch.append(r.record)
+    ch.append(rel)
   else:
-    s(x, [r.record])
-  set_superior_carefully(c, r)
+    set_inferiors(x, [rel])
+  set_superior_carefully(c, rel)
 
 def get_inferiors(x):
   yield from get_children(x, ())
@@ -377,14 +423,19 @@ def recover_accepted_key(x, default=MISSING):
       return get_primary_key(y)
   return default
 
+def is_accepted(x):             # exported
+  sup = get_superior(x, None)
+  return (not sup) or sup.relationship == ACCEPTED
+
 def get_accepted(x):
   rp = get_superior(x, None)
-  if rp and rp.relationship != ACCEPTED:
+  if (not rp or rp.relationship == ACCEPTED):
+    return x
+  else:
     if monitor(x):
       log("> snap link %s %s" % (blurb(x), blurb(rp)))
     return get_accepted(rp.record) # Eeeek!
     # return rp.record
-  return x
 
 def recover_status(x, default=MISSING): # taxonomicStatus
   sup = get_superior(x, None)
@@ -411,8 +462,8 @@ def recover_equated_note(x, default=MISSING):
   return m.note if m else default
 
 def recover_match_key(x, default=MISSING):
-  m = get_matched(x)
-  if m: return get_primary_key(m)
+  rel = get_matched(x)
+  if rel: return get_primary_key(rel.record)
   else: return default
 
 def recover_basis_of_match(x, default=MISSING):
@@ -423,7 +474,7 @@ def get_matched(x):
   if x:
     rel = get_match(x, None)
     if rel and rel.relationship == EQ:
-      return rel.record
+      return rel
   return None
 
 # -----------------------------------------------------------------------------
@@ -453,11 +504,12 @@ def checklist_to_rows(C, props=None):
 def preorder_rows(C, props=None):
   return records_to_rows(C, preorder_records(C), props)
 
-def records_to_rows(C, records, props=None):
+def records_to_rows(C, records, props=None): # Excludes top
   (header, record_to_row) = begin_table(C, props)
   yield header
   for x in records:
-    if not is_toplike(x):       # ?
+    if not x == C.top:
+      assert isinstance(x, prop.Record)
       yield record_to_row(x)
 
 # Filter out unnecessary equivalent A records!
@@ -470,8 +522,8 @@ def keep_record_notused(x):
 
   # Hmm.  we're an A node that's EQ to some B node.
   # Are they also a record match?
-  m = get_matched(x)
-  if not m or m.record != sup.record:
+  rel = get_matched(x)
+  if (not rel) or rel.record != sup.record:
     # If record is unmatched, or matches something not equivalent,
     # then keep it
     return True
@@ -499,6 +551,8 @@ def clog(x, *records):
 
 def blurb(r):
   if isinstance(r, prop.Record):
+    x = get_outject(r, None)
+    if x: r = x
     name = (get_canonical(r, None) or     # string
             get_scientific(r, None) or
             get_managed_id(r, None) or
@@ -526,9 +580,110 @@ def blurb(r):
 def monitor(x):
   if not x: return False
   name = get_canonical(x, '')
-  return ((x and len(name) == 1)
-          or name.startswith("Muri")
+  return (name == "Eligmodontia moreni"
           )
+
+# -----------------------------------------------------------------------------
+# Load/dump a set of provisional matches (could be either record match
+# or taxonomic matches... but basically, record matches).  The matches are stored 
+# as Relations under the 'match' property of nodes in AB.
+
+# x and y are in AB
+
+def load_matches(row_iterator, AB):
+  log("# Loading matches")
+
+  # match_id,relationship,taxonID,basis_of_match
+  header = next(row_iterator)
+  plan = prop.make_plan_from_header(header)
+  match_count = 0
+  miss_count = 0
+  for row in row_iterator:
+    # row = [matchID (x id), rel, taxonID (y id), remark]
+    match = prop.construct(plan, row)
+    x = y = None
+    xkey = get_match_key(match, None)
+    if xkey:
+      x_in_A = look_up_record(AB.A, xkey)
+      if x_in_A:
+        x = AB.in_left(x_in_A)
+    ykey = get_primary_key(match, None)
+    if ykey:
+      y_in_B = look_up_record(AB.B, ykey)
+      if y_in_B:
+        y = AB.in_right(y_in_B) 
+
+    # The columns of the csv file
+
+    ship = rcc5_relationship(get_match_relationship(match)) # EQ, NOINFO
+    note = get_basis_of_match(match, MISSING)
+    # x or y might be None with ship=NOINFO ... hope this is OK
+    if y and (ship == EQ or not get_match(y, None)):
+      set_match(y, relation(reverse_relationship(ship), x, None,
+                            reverse_note(note)))
+    if x and (ship == EQ or not get_match(x, None)):
+      set_match(x, relation(ship, y, None, note))
+    if x and y: match_count += 1
+    else: miss_count += 1
+
+  log("# loaded %s matches, %s misses" % (match_count, miss_count))
+
+def reverse_note(note):
+  if ' ' in note:
+    return "↔ " + note            # tbd: deal with 'coambiguous'
+  else:
+    return note
+
+def record_match(x):
+  rel = get_matched(x)
+  if rel:
+    return rel.record
+  return None
+
+"""
+taxonomy 2015 Prum
+(Aves Gall_Neoa_Clade Palaeognathae)
+(Gall_Neoa_Clade Galloanserae Neoaves)
+
+taxonomy 2014 Jarvis
+(Aves Neognathae Paleognathae)
+(Paleognathae Struthioniformes Tinamiformes)
+
+articulation 2015-2014 Prum-Jarvis
+[2015.Aves is_included_in 2014.Aves]
+[2015.Gall_Neoa_Clade equals 2014.Neognathae]
+[2015.Palaeognathae is_included_in 2014.Paleognathae]
+[2015.Galloanserae equals 2014.Struthioniformes]
+[2015.Neoaves equals 2014.Tinamiformes]
+"""
+
+# Unique name of the sort Euler/X likes
+# TBD: ensure name is unique (deal with multiple taxa with same canonical)
+
+def get_eulerx_name(x):
+  string = blurb(x)
+  return string.replace(' ', '_')
+
+# x is a record (list)
+
+def get_eulerx_qualified_name(x):
+  src = get_source_tag(x)       # e.g. "A"
+  return "%s.%s" % (src, get_eulerx_name(x))
+
+def generate_eulerx_checklist(C):
+  tag = get_tag(C)
+  descr = checklist_description(C)
+  yield ("taxonomy %s %s" % (tag, descr))
+  for rec in preorder_records(C):
+    if rec != C.top:
+      children = get_children(rec, None) # not the synonyms
+      if children:
+        sup_name = get_eulerx_name(rec)
+        yield ("(%s %s)" % (sup_name, ' '.join(map(get_eulerx_name, children))))
+  yield ''
+
+def checklist_description(C):
+  return get_tag(C) + "_checklist"
 
 # -----------------------------------------------------------------------------
 
@@ -537,7 +692,7 @@ if __name__ == '__main__':
 
   def testit(n):
     src = rows_to_checklist(newick.parse_newick(n),
-                            {"name": "A"})  # meta
+                            {'tag': 'A'})  # meta
     writer = csv.writer(sys.stdout)
     if False:  # Test this if second fails
       rows = list(checklist_to_rows(src))

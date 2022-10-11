@@ -3,11 +3,12 @@
 import types, argparse, os
 import property as prop, checklist, workspace, theory
 
-from util import log
+from util import log, stdopen
 from checklist import *
 from workspace import *
 from theory import *
 from match_records import match_records
+from rcc5 import rcc5_symbol
 
 # So how does this work.
 # We determine an alignment heuristically.
@@ -20,17 +21,17 @@ from match_records import match_records
 # umm, that's pretty much it??
 
 def merge(a_iter, b_iter, A_name='A', B_name='B', matches=None):
-  A = rows_to_checklist(a_iter, {"name": A_name})  # meta
-  B = rows_to_checklist(b_iter, {"name": B_name})  # meta
+  A = rows_to_checklist(a_iter, {'tag': A_name})  # meta
+  B = rows_to_checklist(b_iter, {'tag': B_name})  # meta
   AB = analyze(A, B, matches)
   return merge_preorder_rows(AB)
 
 def analyze(A, B, m_iter=None):
-  AB = make_workspace(A, B, {"name": "AB"})
+  AB = make_workspace(A, B, {'tag': "AB"})
   if not m_iter:
     m_iter = match_records(checklist_to_rows(AB.A), checklist_to_rows(AB.B))
-  load_matches(m_iter, AB)
-  AB.get_cross_mrca = mrca_crosser(AB)
+  theory.load_matches(m_iter, AB)
+  theory.theorize(AB)
   spanning_tree(AB)
   return AB
 
@@ -56,8 +57,7 @@ difference_prop = prop.declare_property("difference")
 # Spanning tree computation.
 
 def spanning_tree(AB):
-  analyze_tipwards(AB)                # also find tipes
-  compute_blocks(AB)
+  analyze_blocks(AB)
   ensure_levels(AB.A)           # N.b. NOT levels in AB
   ensure_levels(AB.B)
   # Do this bottom up.  We'll sometimes hit nodes we've already processed.
@@ -73,7 +73,7 @@ def spanning_tree(AB):
   traverse(AB.B.top, AB.in_right)
   log("-- merge: start A pass")
   traverse(AB.A.top, AB.in_left)
-  ensure_inferiors_indexed(AB)
+  ensure_inferiors_indexed(AB)  # children and synonyms properties
 
 # x in A, y in B
 
@@ -168,6 +168,38 @@ def relationship_per_heuristics(AB, x, y):
 
   return ans
 
+# relationship_per_blocks(AB, get_superior(x).record, get_cosuperior(x)) ...
+
+def relationship_per_blocks(AB, x, y):
+  ship = block_relationship(get_block(x, BOTTOM_BLOCK),
+                            get_block(y, BOTTOM_BLOCK))
+  if ship == EQ and get_matched(x) == y:
+    return ship
+  elif ship == EQ:
+    return COMPARABLE
+  else:
+    return ship
+
+"""
+# What on earth is going on here !!??
+
+def mtrm_block(x, y):
+  v1 = get_tipe(x, None)
+  if v1 and v1 == get_tipe(y, None): return {v1}
+  v1 = get_scientific(x, None)
+  if v1 and v1 == get_scientific(y, None): return {v1}
+  v1 = get_canonical(x, None)
+  if v1 and v1 == get_canonical(y, None): return {v1}
+  v1 = get_stemmed(x, None)     # 'Balaenoptera omurai and' in DH 1.1
+  if v1 and v1 == get_stemmed(y, None): return {v1}
+  v1 = get_managed_id(x, None)
+  if v1 and v1 == get_managed_id(y, None): return {v1}
+  # Phyllostoma bilabiatum / Phyllostomus bilabiatum  ... hmph
+  # Why do these match? Dermanura anderseni, Artibeus anderseni*  ????
+  # log("# Why do these match? %s, %s" % (blurb(x), blurb(y)))
+  return {min(x.id, y.id)}
+"""
+
 # Tweak relationship to preserve accepted/unaccepted distinction.
 # use this when set the superior of z.  not relevant for the x/y
 # parent choice.  This is a policy decision.
@@ -195,87 +227,6 @@ def consider_unaccepted(AB, z):
   else:
     assert False
 
-
-# -----------------------------------------------------------------------------
-# Find mutual tipward matches
-
-def analyze_tipwards(AB):
-  find_cotipes(AB.A, AB.in_left, lambda x,y:None)
-  counter = [1]
-  def finish(z, m):             # z in B
-    # z is tipward.  If m is too, we have a MTRM.
-    if get_cotipe(m, None) == z:
-      #if monitor(z): log("# MTRM: %s :=: %s" % (blurb(z), blurb(m)))
-      propose_equation(AB, m, z, "MTRM")
-  find_cotipes(AB.B, AB.in_right, finish)    # of AB.flip()
-
-def find_cotipes(A, in_left, finish):
-  ensure_inferiors_indexed(A)
-  def traverse(x):
-    seen = False
-    for c in get_inferiors(x):
-      seen = traverse(c) or seen
-    if not seen and not is_top(x):
-      z = in_left(x)
-      m = get_matched(z)
-      if m:
-        #if monitor(z): log("# cotipe: %s = %s" % (blurb(z), blurb(m)))
-        finish(z, m)
-        set_cotipe(z, m)
-        set_cotipe(m, z)
-        seen = z
-    return seen
-  traverse(A.top)
-
-# -----------------------------------------------------------------------------
-# Load/dump a set of provisional matches (could be either nominal match
-# or taxonomic matches... but basically, nominal matches)
-
-def load_matches(row_iterator, AB):
-  log("# Loading matches")
-
-  header = next(row_iterator)
-  plan = prop.make_plan_from_header(header)
-  match_count = 0
-  miss_count = 0
-  for row in row_iterator:
-    # row = [matchID, rel, taxonID, remark]
-    match = prop.construct(plan, row)
-    x = y = None
-    xkey = get_match_key(match, None)
-    if xkey:
-      x_in_A = look_up_record(AB.A, xkey)
-      if x_in_A:
-        x = AB.in_left(x_in_A)
-    ykey = get_primary_key(match, None)
-    if ykey:
-      y_in_B = look_up_record(AB.B, ykey)
-      if y_in_B:
-        y = AB.in_right(y_in_B) 
-
-    # The columns of the csv file
-
-    rel = rcc5_relationship(get_match_relationship(match)) # EQ, NOINFO
-    note = get_basis_of_match(match, MISSING)
-    # x or y might be None with rel=NOINFO ... hope this is OK
-    if y:
-      set_match(y, relation(reverse_relationship(rel), x, "nominal match",
-                            reverse_note(note)))
-    if x:
-      set_match(x, relation(rel, y, "nominal match", note))
-    if x and y: match_count += 1
-    else: miss_count += 1
-
-  #log("# %s matches, %s misses" % (match_count, miss_count))
-
-def reverse_note(note):
-  if ' ' in note:
-    return "↔ " + note            # tbd: deal with 'coambiguous'
-  else:
-    return note
-
-def record_match(x):
-  return get_matched(x)
 
 # -----------------------------------------------------------------------------
 
@@ -411,30 +362,146 @@ def post_hoc_relationship(AB, x, y):
 
 # -----------------------------------------------------------------------------
 
+# This (?) is run pre-merge so should not chase A->B synonym links.
+# If the parent is a synonym, that's a problem - shouldn't happen.
+
+def get_left_superior(AB, z):
+  x = get_left_persona(AB, z)
+  if not x: return None
+  rel_in_A = get_superior(x, None)
+  # Return relation that's same as rel_in_A except in AB instead of A
+  if rel_in_A:
+    p = AB.in_left(rel_in_A.record)
+    return relation(rel_in_A.relationship, p, rel_in_A.status, rel_in_A.note)
+  return None
+
+def get_right_superior(AB, z):
+  y = get_right_persona(AB, z)
+  if not y: return None
+  rq = get_superior(y, None)
+  if rq:
+    q = AB.in_right(rq.record)
+    return relation(rq.relationship, q, rq.status, rq.note)
+  return None
+
+def equated(x, y):              # Are x and y equated?
+  if x == y: return True
+  z = get_equated(y, None)
+  return z and z.record == x
+
+# -----------------------------------------------------------------------------
+# Match building...
+
+# Propose that rs.record should be the parent (superior) of z
+
+def propose_superior(AB, z, rs, ship, status, note):
+  assert rs
+  assert isinstance(z, prop.Record), blurb(z)
+  assert isinstance(rs, Relative)
+  assert ship == ACCEPTED or ship == SYNONYM
+  # I don't feel good about these
+  s = get_accepted(rs.record)
+  rel = relation(ship,
+                 s,
+                 status or rs.status,    # accepted, etc
+                 note)
+  set_superior_carefully(z, rel)  # explanation of why < or <=
+
+# Propose that x (in A) = y (in B).  x becomes an EQ synonym of y.
+
+def propose_equation(AB, x, y, why_equiv):
+  # Polarize
+  assert isinA(AB, x) and isinB(AB, y)
+  (x, y) = AB.case(x, lambda xx: (x, y), lambda yy: (y, x))
+
+  # Treat the A record like a synonym of the B record
+  set_superior_carefully(x, relation(EQ, y, "equivalent", why_equiv))
+  # Set uppointer from B to A
+  set_equated(y, relation(EQ, x, "equivalent", why_equiv))
+  sci = get_scientific(x, None)
+  if not get_scientific(y, None) and sci:
+    if sci.startswith(get_canonical(y, None)):
+      set_scientific(y, sci)
+      #log("# transferring '%s' from A to B" % sci)
+
+# x and y are candidate parents for node z, and they conflict with one
+# another.  y has priority.
+
+def propose_deprecation(AB, z, x, y):
+  assert isinA(AB, x) and isinB(AB, y)
+  # set_alt_parent(z, x) ...
+  set_conflict(x, y)
+  if False:
+    log("# Deprecating %s because it conflicts with %s" %
+        (blurb(x), blurb(y)))
+    log("#  ... %s is now the 'accepted name' of %s" %
+        (blurb(yy), blurb(x)))
+
+(get_conflict, set_conflict) = prop.get_set(prop.declare_property("conflict"))
+
+# -----------------------------------------------------------------------------
+
+# ---- tools for working with sum taxonomy A+B
+
+# This is run pre-merge so should not chase A->B synonym links.
+# If the parent is a synonym, that's a problem - shouldn't happen.
+
+def get_left_superior(AB, z):
+  x = get_left_persona(AB, z)
+  if not x: return None
+  rel_in_A = get_superior(x, None)
+  # Return relation that's same as rel_in_A except in AB instead of A
+  if rel_in_A:
+    p = AB.in_left(rel_in_A.record)
+    return relation(rel_in_A.relationship, p, rel_in_A.status, rel_in_A.note)
+  return None
+
+def get_right_superior(AB, z):
+  y = get_right_persona(AB, z)
+  if not y: return None
+  rq = get_superior(y, None)
+  if rq:
+    q = AB.in_right(rq.record)
+    return relation(rq.relationship, q, rq.status, rq.note)
+  return None
+
+# Returns a record in the left checklist, or None
+
+def get_left_persona(AB, z):    # left = A = nonpriority
+  assert isinstance(z, prop.Record)
+  assert get_outject(z, None)
+  return AB.case(z,
+                 lambda x:x,       # if z in A, then z
+                 lambda y:equal_persona(get_equated(z, None)))
+
+# Returns a record in the right checklist, or None
+
+def get_right_persona(AB, z):   # right = B = priority
+  return AB.case(z,
+                 lambda x:equal_persona(get_superior(z, None)),
+                 lambda y:y)    # if z in B, then z
+
+def equal_persona(rel):
+  return (get_outject(rel.record)
+          if rel and rel.relationship == EQ
+          else None)
+
+# -----------------------------------------------------------------------------
+
 def test():
   def testit(m, n):
     log("\n-- Test: %s + %s --" % (m, n))
 
     B = rows_to_checklist(newick.parse_newick(n),
-                          {"name": "B"})  # meta
+                          {'tag': "B"})  # meta
     A = rows_to_checklist(newick.parse_newick(m),
-                          {"name": "A"})  # meta
+                          {'tag': "A"})  # meta
 
     AB = analyze(A, B)
     workspace.show_workspace(AB, props=usual_merge_props(AB))
   testit("a", "a")              # A + B
   testit("(c,d)a", "(c,e)b")
   testit("((a,b)e,c)d", "(a,(b,c)f)D")
-
-class Stdin:
-  def __enter__(self): return sys.stdin
-  def __exit__(self, exc_type, exc_val, exc_tb): return
-
-def stdopen(x):
-  if x == '-':
-    return Stdin()
-  else:
-    return open(x)
 
 
 if __name__ == '__main__':

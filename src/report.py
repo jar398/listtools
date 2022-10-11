@@ -18,7 +18,7 @@ get_difference = prop.getter(merge.difference_prop)
 #
 
 def reports(merged_iter, mode):
-  AB = rows_to_merged(merged_iter, {'name': 'AB'})
+  AB = rows_to_merged(merged_iter, {'tag': 'AB'})
   resolve_merge_links(AB)
   for r in all_records(AB): assert get_superior(r)  # sanity
   ensure_inferiors_indexed(AB)

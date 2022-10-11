@@ -27,6 +27,8 @@ def ingest_csv(reader, pk_col=None, key=None):
     keyfun = lambda row: row[pk_pos]
   return (header, read_rows(reader, key=keyfun))
 
+# Read rows and index by specified primary key
+
 def read_rows(reader, key=lambda row: row[0]):
   all_rows = {}
   for row in reader:

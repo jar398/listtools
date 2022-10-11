@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 import sys, re, csv, argparse
-from util import MISSING, windex
+from util import MISSING, windex, log
 
 tokenize = re.compile("[^,()]+")
 
