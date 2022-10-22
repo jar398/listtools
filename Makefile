@@ -11,7 +11,7 @@ all:
 	@echo "  report     report on NCBI extensions differences 2015-2020"
 	@echo "  mdd-report report on MDD extensions differences 1.6-1.7"
 	@echo "Use make parameter syntax to specify the two checklists, e.g."
-	@echo "  make A=work/ncbi201505-mammals B=work/ncbi202008-mammals report"
+	@echo "  make A=ncbi201505-mammals B=ncbi202008-mammals report"
 	@echo "(when the .csv file for work/foo is in work/foo.csv etc)"
 
 # Default example:
@@ -24,9 +24,9 @@ B?=work/ncbi202008-$(taxon)
 ANAME?=A
 BNAME?=B
 
-# make A=work/ncbi201505-mammals B=work/ncbi202008-mammals demo
-# time make A=work/ncbi201505 B=work/ncbi202008 demo
-# time make A=work/ncbi201505 B=work/ncbi202008 demo
+# make A=ncbi201505-mammals B=ncbi202008-mammals demo
+# time make A=ncbi201505 B=ncbi202008 demo
+# time make A=ncbi201505 B=ncbi202008 demo
 #  etc. etc.
 
 # N.b. managed_id has a specific meaning in this system; it's an id in
@@ -37,9 +37,9 @@ BNAME?=B
 # ----- 1. NCBI example:
 
 ncbi-report:
-	$(MAKE) A=work/ncbi201505-$(taxon) B=work/ncbi202008-$(taxon) report
+	$(MAKE) A=ncbi201505-$(taxon) B=ncbi202008-$(taxon) report
 
-# make A=work/ncbi201505 B=work/ncbi202008 report  # big, will take forever
+# make A=ncbi201505 B=ncbi202008 report  # big, will take forever
 
 # ----- 2. GBIF examples:
 
@@ -52,43 +52,45 @@ gbif-report:
 # ----- 3. BioKIC/ATCR examples:
 
 mdd-report:
-	$(MAKE) A=work/mdd1.6 B=work/mdd1.7 report
+	$(MAKE) A=mdd1.6 B=mdd1.7 report
 
 # make A=work/mdd1.2-mammals B=work/mdd1.3 report
 # make A=work/mdd1.2 B=work/mdd1.3 report
 # make A=work/gbif20210303-mammals B=work/mdd1.0-mammals report
+# Prashant's request, see slack on 5/2/2022:
+# make A=work/mdd1.7 B=work/gbif20220317-mammals report
 
 # ----- 4. EOL examples:
 
 # Requires clone of 'plotter' repo:
 
 eol-report:
-	$(MAKE) A=work/dh11-$(taxon) B=work/dh12-$(taxon) report
+	$(MAKE) A=dh11-$(taxon) B=dh12-$(taxon) report
 
-# time make A=work/dh11-mammals B=work/dh12-mammals round
-# time make A=work/dh09-mammals B=work/dh11-mammals round
-# time make A=work/dh11 B=work/dh12 round
-# time make A=work/dh09 B=work/dh11 round
+# time make A=dh11-mammals B=dh12-mammals round
+# time make A=dh09-mammals B=dh11-mammals round
+# time make A=dh11 B=dh12 round
+# time make A=dh09 B=dh11 round
 
 # Hierarchies - columns are those that neo4j needs to know
 # DELTA_KEY=EOLid MANAGE=EOLid,parentEOLid,taxonID,landmark_status \
-#   time make A=work/dh09-hier B=work/dh11-hier report
+#   time make A=dh09-hier B=dh11-hier report
 
 # DELTA_KEY=EOLid MANAGE=EOLid,parentEOLid,taxonID,landmark_status \
-#   time make A=work/dh11-hier B=work/dh12-hier report
+#   time make A=dh11-hier B=dh12-hier report
 
 # ----- 5. CoL examples:
 
 col-report:
-	$(MAKE) A=work/col2019-$(taxon) B=work/col2021-$(taxon) report
+	$(MAKE) A=col2019-$(taxon) B=col2021-$(taxon) report
 
-# make A=work/col2021-mammals B=work/mdd1.7 report
+# make A=col2021-mammals B=mdd1.7 report
 # and so on.
 
 # ----- 6. GBIF/MSW/MDD:
 
 msw-demo:
-	$(MAKE) A=nate/msw3-$(taxon) B=nate/mdd1.9-$(taxon) demo
+	$(MAKE) A=msw3-$(taxon) B=mdd1.9-$(taxon) demo
 
 # ----- General parameters
 
@@ -127,11 +129,11 @@ DELTA=work/$(shell basename $A)-$(shell basename $B)-delta.csv
 
 DEMO=work/$(shell basename $A)-$(shell basename $B)-aligned.csv
 EULERX=work/$(shell basename $A)-$(shell basename $B)-eulerx.txt
-TIPWARDS=work/$(shell basename $A)-$(shell basename $B)-tipwards.txt
+TIPWARDS=work/$(shell basename $A)-$(shell basename $B)-tipwards.csv
 
 demo: $(DEMO)
 
-$(DEMO): $P/demo.py $P/checklist.py $P/align.py $P/theory.py $A.csv $B.csv
+$(DEMO): $P/demo.py $P/checklist.py $P/align.py $P/theory.py work/$A.csv work/$B.csv
 	@echo
 	@echo "--- PREPARING DEMO ---"
 	$P/demo.py --A $A.csv --B $B.csv --Aname $(ANAME) --Bname $(BNAME) \
@@ -156,7 +158,7 @@ merged: $(MERGED)
 $(MERGED): $(MATCHES) $P/merge.py $P/theory.py $P/workspace.py $P/checklist.py $P/property.py
 	@echo
 	@echo "--- MERGING ---"
-	$P/merge.py --A $A.csv --B $B.csv --matches $(MATCHES) \
+	$P/merge.py --A work/$A.csv --B work/$B.csv --matches $(MATCHES) \
 		    > $@.new
 	@mv -f $@.new $@
 
@@ -167,7 +169,7 @@ aligned: $(ALIGNED)
 $(ALIGNED): $(MATCHES) $P/align.py $P/theory.py $P/workspace.py $P/checklist.py $P/property.py
 	@echo
 	@echo "--- ALIGNING ---"
-	$P/align.py --A $A.csv --B $B.csv --matches $(MATCHES) \
+	$P/align.py --A work/$A.csv --B work/$B.csv --matches $(MATCHES) \
 		    > $@.new
 	@mv -f $@.new $@
 
@@ -175,10 +177,10 @@ $(ALIGNED): $(MATCHES) $P/align.py $P/theory.py $P/workspace.py $P/checklist.py 
 
 matches: $(MATCHES)
 
-$(MATCHES): $A.csv $B.csv $P/match_records.py
+$(MATCHES): work/$A.csv work/$B.csv $P/match_records.py
 	@echo
 	@echo "--- COMPUTING RECORD MATCHES ---"
-	$P/match_records.py --A $A.csv --B $B.csv --pk $(DELTA_KEY) --index $(INDEX) \
+	$P/match_records.py --A work/$A.csv --B work/$B.csv --pk $(DELTA_KEY) --index $(INDEX) \
 		    	    > $@.new
 	@mv -f $@.new $@
 
@@ -223,7 +225,7 @@ $(DELTA): $A.csv $B.csv $P/delta.py $P/match_records.py $P/property.py
 	@echo
 	@echo "--- COMPUTING DELTA ---"
 	set -o pipefail; \
-	$P/delta.py --A $A.csv --B $B.csv --pk $(DELTA_KEY) \
+	$P/delta.py --A work/$A.csv --B work/$B.csv --pk $(DELTA_KEY) \
 		    --index $(INDEX) --manage $(KEEP)
 	| $P/sortcsv.py --key $(DELTA_KEY) \
 	> $@.new
@@ -247,36 +249,36 @@ $(DELTA): $A.csv $B.csv $P/delta.py $P/match_records.py $P/property.py
 # ncbi 40674, gbif 359, dh1 EOL-000000627548, dh0.9 -168130, page 1642
 # Most of these rules may be redundant now.  Cull at some point.
 
-ncbi%-$(taxon)-raw.csv: ncbi%-raw.csv $P/subset.py
+work/ncbi%-$(taxon)-raw.csv: in/ncbi%-raw.csv $P/subset.py
 	$P/subset.py --hierarchy $< --root $(TAXON) < $< > $@.new
 	@mv -f $@.new $@
 .PRECIOUS: ncbi%-$(taxon)-raw.csv
 
-gbif%-$(taxon)-raw.csv: gbif%-raw.csv $P/subset.py
+work/gbif%-$(taxon)-raw.csv: in/gbif%-raw.csv $P/subset.py
 	$P/subset.py --hierarchy $< --root $(TAXON) < $< > $@.new
 	@mv -f $@.new $@
 .PRECIOUS: gbif%-$(taxon)-raw.csv
 
-dh1%-$(taxon)-raw.csv: dh1%-raw.csv $P/subset.py
+work/dh1%-$(taxon)-raw.csv: in/dh1%-raw.csv $P/subset.py
 	$P/subset.py --hierarchy $< --root $(TAXON) < $< > $@.new
 	@mv -f $@.new $@
 .PRECIOUS: dh1%-$(taxon)-raw.csv
 
-dh0%-$(taxon)-raw.csv: dh0%-raw.csv $P/subset.py
+work/dh0%-$(taxon)-raw.csv: in/dh0%-raw.csv $P/subset.py
 	$P/subset.py --hierarchy $< --root $(TAXON) < $< > $@.new
 	@mv -f $@.new $@
 .PRECIOUS: dh0%-$(taxon)-raw.csv
 
-work/col2021-mammals-raw.csv: work/col2021-raw.csv $P/subset.py
+work/col2021-mammals-raw.csv: in/col2021-raw.csv $P/subset.py
 	$P/subset.py --hierarchy $< --root 6224G < $< > $@.new
 	@mv -f $@.new $@
-work/col2021-primates-raw.csv: work/col2021-raw.csv $P/subset.py
+work/col2021-primates-raw.csv: in/col2021-raw.csv $P/subset.py
 	$P/subset.py --hierarchy $< --root 3W7 < $< > $@.new
 	@mv -f $@.new $@
-%-$(taxon)-raw.csv: %-raw.csv $P/subset.py
+work/%-$(taxon)-raw.csv: in/%-raw.csv $P/subset.py
 	$P/subset.py --hierarchy $< --root $(TAXON) < $< > $@.new
 	@mv -f $@.new $@
-.PRECIOUS: %-$(taxon)-raw.csv
+.PRECIOUS: work/%-$(taxon)-raw.csv
 
 work/mdd1.7-$(taxon)-raw.csv: work/mdd1.7-raw.csv $P/subset.py
 	$P/subset.py --hierarchy $< --root $(TAXON) < $< > $@.new
@@ -314,6 +316,17 @@ ncbi%-raw.csv: work/ncbi%/dump/names.dmp src/ncbi_to_dwc.py $P/start.py
 	| $P/sortcsv.py --key $(PRIMARY_KEY) > $@.new
 	@mv -f $@.new $@
 .PRECIOUS: ncbi%-raw.csv
+
+# Markus's use case from checklistbank
+work/dyntaxa%-raw.csv: in/dyntaxa%.tsv $P/start.py
+	$P/start.py --pk $(PRIMARY_KEY) --input $< \
+	> $@.new
+	@mv -f $@.new $@
+
+work/arts%-raw.csv: in/arts%.tsv $P/start.py
+	$P/start.py --pk $(PRIMARY_KEY) --input $< \
+	> $@.new
+	@mv -f $@.new $@
 
 # Adjoin 'type' and 'year' columns.  To skip this change the rule to
 # simply copy %-raw.csv to %.csv above. 
@@ -493,10 +506,10 @@ test:
 	$P/checklist.py
 	$P/workspace.py
 	$P/align.py --test
-	$(MAKE) A=work/test1 B=work/test2 report
+	$(MAKE) A=test1 B=test2 report
 
 test-report: 
-	$(MAKE) A=work/test1 B=work/test2 report
+	$(MAKE) A=test1 B=test2 report
 	@echo 'A: $(TEST1)'
 	@echo 'B: $(TEST2)'
 	$P/newick.py < work/test1-test2-merged.csv

@@ -100,14 +100,11 @@ def use_parse(gn_iter, check_iter):
     if canon_full:
       have = MISSING if add_canon else checklist_row[canonical_pos]
       if have == MISSING:
-        quality = int(gn_row[quality_pos])
-        verb = gn_row[verbatim_pos]
+        if canon_count < CANON_SAMPLE_LIMIT:
+          print("# canonical := '%s' bc '%s'" % (canon_full, gn_row[verbatim_pos]),
+                file=sys.stderr)
         out_row[canonical_pos] = canon_full
         canon_count += 1
-        if quality <= 2:
-          if canon_count < CANON_SAMPLE_LIMIT:
-            print("# canonical := '%s' bc '%s'" % (canon_full, verb),
-                  file=sys.stderr)
 
     # Add extra columns to the original input
     out_row = out_row + [stemmed, year, tipe]
@@ -117,7 +114,7 @@ def use_parse(gn_iter, check_iter):
       assert False
     yield out_row
 
-  print("# use_gnparse: of %s rows, got epithet for %s, got year for %s, fixed canonical for %s" %
+  print("# use_gnparse: of %s rows, got epithet for %s, got year for %s, added canonical for %s" %
         (row_count, trim_count, year_count, canon_count),
         file=sys.stderr)
 
