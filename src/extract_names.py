@@ -8,7 +8,7 @@ header = next(reader)
 sci_col = windex(header, "scientificName")
 can_col = windex(header, "canonicalName")
 status_col = windex(header, "nomenclaturalStatus")
-print("# %s %s %s" % (sci_col, can_col, status_col), file=sys.stderr)
+print("# extract_names: %s %s %s" % (sci_col, can_col, status_col), file=sys.stderr)
 sci_count = 0
 for row in reader:
   assert len(row) == len(header), (len(row), len(header), row, header)

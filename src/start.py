@@ -229,7 +229,7 @@ def clean_name(row, can_pos, sci_pos):
     if s == MISSING:
       if is_scientific(c):
         row[sci_pos] = c
-        row[can_pos] = MISSING
+        row[can_pos] = MISSING    # ?
         mod = True
     elif is_scientific(s):
       pass
