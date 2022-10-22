@@ -19,15 +19,10 @@ all:
 
 TAXON?=Mammalia
 taxon?=mammals
-<<<<<<< HEAD
 A?=ncbi201505-$(taxon)
 B?=ncbi202008-$(taxon)
-=======
-A?=work/ncbi201505-$(taxon)
-B?=work/ncbi202008-$(taxon)
 ANAME?=A
 BNAME?=B
->>>>>>> 0995259 (some changes for Nico)
 
 # make A=ncbi201505-mammals B=ncbi202008-mammals demo
 # time make A=ncbi201505 B=ncbi202008 demo
@@ -49,9 +44,9 @@ ncbi-report:
 # ----- 2. GBIF examples:
 
 gbif-report:
-	$(MAKE) A=gbif20180620-$(taxon) B=gbif20220317-$(taxon) report
+	$(MAKE) A=gbif20190916-$(taxon) B=gbif20210303-$(taxon) report
 
-# make A=ncbi202008-mammals B=gbif20220317-mammals report
+# make A=ncbi202008-mammals B=gbif20210303-mammals report
 # and so on.
 
 # ----- 3. BioKIC/ATCR examples:
@@ -59,8 +54,9 @@ gbif-report:
 mdd-report:
 	$(MAKE) A=mdd1.6 B=mdd1.7 report
 
+# make A=mdd1.2-mammals B=mdd1.3 report
 # make A=mdd1.2 B=mdd1.3 report
-# make A=gbif20220317-mammals B=mdd1.0-mammals report
+# make A=gbif20210303-mammals B=mdd1.0-mammals report
 # Prashant's request, see slack on 5/2/2022:
 # make A=mdd1.7 B=gbif20220317-mammals report
 
@@ -140,11 +136,7 @@ demo: $(DEMO)
 $(DEMO): $P/demo.py $P/checklist.py $P/align.py $P/theory.py work/$A.csv work/$B.csv
 	@echo
 	@echo "--- PREPARING DEMO ---"
-<<<<<<< HEAD
-	$P/demo.py --A work/$A.csv --B work/$B.csv \
-=======
-	$P/demo.py --A $A.csv --B $B.csv --Aname $(ANAME) --Bname $(BNAME) \
->>>>>>> 0995259 (some changes for Nico)
+	$P/demo.py --A work/$A.csv --B work/$B.csv --Aname $(ANAME) --Bname $(BNAME) \
 	  --eulerx $(EULERX).new --tipwards $(TIPWARDS).new > $@.new
 	@mv -f $@.new $@
 	@mv -f $(EULERX).new $(EULERX)
@@ -245,12 +237,12 @@ $(DELTA): $A.csv $B.csv $P/delta.py $P/match_records.py $P/property.py
 
 # Any Darwin Core archive (DwCA):
 
-%/dump: %.dwca-url
+%/dump/meta.xml: %.dwca-url
 	mkdir -p `dirname $@`/dump
 	wget -O `dirname $@`.zip $$(cat $<)
 	unzip -d `dirname $@` `dirname $@`.zip
 	touch `dirname $@`/*
-.PRECIOUS: %/dump
+.PRECIOUS: %/dump/meta.xml
 
 # ----- Mammals rules
 
@@ -346,14 +338,14 @@ work/arts%-raw.csv: in/arts%.tsv $P/start.py
 
 # ----- 2. GBIF-specific rules
 
-work/gbif20180620.dwca-url:
+work/gbif20190916.dwca-url:
 	echo https://rs.gbif.org/datasets/backbone/2019-09-06/backbone.zip >$@
 
-work/gbif20220317.dwca-url:
+work/gbif20210303.dwca-url:
 	echo https://rs.gbif.org/datasets/backbone/2021-03-03/backbone.zip >$@
 
 # Ingest GBIF dump, convert TSV to CSV, add managed_id column
-gbif%-raw.csv: gbif%/dump $P/start.py
+gbif%-raw.csv: gbif%/dump/meta.xml $P/start.py
 	$P/start.py --pk $(PRIMARY_KEY) --input `src/find_taxa.py $<` \
 	  --managed gbif:taxonID >$@.new
 	@mv -f $@.new $@
@@ -491,7 +483,7 @@ work/col2019.dwca-url:
 
 # Ingest GBIF dump, convert TSV to CSV, add managed_id column
 # If CoL had record ids we could do --managed col:taxonID 
-col%-raw.csv: col%/dump $P/start.py
+col%-raw.csv: col%/dump/meta.xml $P/start.py
 	$P/start.py --pk $(PRIMARY_KEY) --input `src/find_taxa.py $<` \
 	  >$@.new
 	@mv -f $@.new $@
