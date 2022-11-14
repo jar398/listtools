@@ -37,6 +37,8 @@ def use_parse(gn_iter, check_iter):
   canonical_pos = windex(out_header, "canonicalName")
   out_header = out_header + ["canonicalStem", "year", "type"]
 
+  status_pos = windex(checklist_header, "nomenclaturalStatus")
+
   row_count = 0
   trim_count = 0
   year_count = 0
@@ -58,7 +60,7 @@ def use_parse(gn_iter, check_iter):
     # If Authorship is present parse it into First + rest and discard
     # the rest.
     # If Year is absent try to get it from Verbatim, and if that fails
-    # get it use 9999 (so that the record sorts after those with years).
+    # use 9999 (so that the record sorts after those with years).
 
     # Figure out year part of tipe
     year = gn_row[year_pos]     # possibly missing
@@ -93,12 +95,18 @@ def use_parse(gn_iter, check_iter):
         if have == MISSING:
           quality = int(gn_row[quality_pos])
           verb = gn_row[verbatim_pos]
+          out_row[canonical_pos] = canon_full
+          canon_count += 1
           if quality <= 2:
             if canon_count < CANON_SAMPLE_LIMIT:
               print("# canonical := '%s' bc '%s'" % (canon_full, verb),
                     file=sys.stderr)
-            out_row[canonical_pos] = canon_full
-            canon_count += 1
+    else:
+      status = (checklist_row[status_pos] if status_pos != None else '')
+      if status == 'accepted' or status == 'valid' or status == '':
+        print("# Poor quality name: '%s' quality %s" %
+              (gn_row[verbatim_pos], quality),
+              file=sys.stderr)
 
     # Add extra columns to the original input
     out_row = out_row + [stemmed, year, tipe]

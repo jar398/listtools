@@ -21,6 +21,8 @@ TAXON?=Mammalia
 taxon?=mammals
 A?=work/ncbi201505-$(taxon)
 B?=work/ncbi202008-$(taxon)
+ANAME?=A
+BNAME?=B
 
 # make A=work/ncbi201505-mammals B=work/ncbi202008-mammals demo
 # time make A=work/ncbi201505 B=work/ncbi202008 demo
@@ -132,7 +134,7 @@ demo: $(DEMO)
 $(DEMO): $P/demo.py $P/checklist.py $P/align.py $P/theory.py $A.csv $B.csv
 	@echo
 	@echo "--- PREPARING DEMO ---"
-	$P/demo.py --A $A.csv --B $B.csv \
+	$P/demo.py --A $A.csv --B $B.csv --Aname $(ANAME) --Bname $(BNAME) \
 	  --eulerx $(EULERX).new --tipwards $(TIPWARDS).new > $@.new
 	@mv -f $@.new $@
 	@mv -f $(EULERX).new $(EULERX)
@@ -340,11 +342,12 @@ gbif%-raw.csv: gbif%/dump/meta.xml $P/start.py
 
 # MDD
 
-MDDSOURCE?=$(HOME)/Downloads/MDD_DwC_versions
-#MDDSOURCE?=$(HOME)/Downloads/MDD_DwC_versions.20211222
+# Need to clone the pgasu/MDD-DwC-mapping repo and put the clone sister to this repo
+MDDSOURCE?=../MDD-DwC-mapping/data
+CONVERTMDD=python3 ../MDD-DwC-mapping/src/explore_data.py
 
-work/mdd1.0-source.csv: $(MDDSOURCE)/MDD_v1_6495species_JMamm_inDwC.csv
-	cp -p $< $@
+work/mdd1.0-source.csv: $(MDDSOURCE)/MDD_v1_6495species_JMamm.csv
+	$(CONVERTMDD) --input $< --output $@
 work/mdd1.1-source.csv: $(MDDSOURCE)/MDD_v1.1_6526species_inDwC.csv
 	cp -p $< $@
 work/mdd1.2-source.csv: $(MDDSOURCE)/MDD_v1.2_6485species_inDwC.csv
