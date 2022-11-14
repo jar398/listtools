@@ -661,8 +661,10 @@ articulation 2015-2014 Prum-Jarvis
 # TBD: ensure name is unique (deal with multiple taxa with same canonical)
 
 def get_eulerx_name(x):
-  string = blurb(x)
-  return string.replace(' ', '_')
+  e = blurb(x)
+  e = e.replace(' ', '_')
+  e = e.replace('.', '_')
+  return e
 
 # x is a record (list)
 

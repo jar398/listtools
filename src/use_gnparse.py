@@ -37,6 +37,8 @@ def use_parse(gn_iter, check_iter):
   canonical_pos = windex(out_header, "canonicalName")
   out_header = out_header + ["canonicalStem", "year", "type"]
 
+  status_pos = windex(checklist_header, "nomenclaturalStatus")
+
   row_count = 0
   trim_count = 0
   year_count = 0
@@ -85,6 +87,13 @@ def use_parse(gn_iter, check_iter):
         trim_count += 1
         # Put them together
         tipe = "TS|%s|%s|%s" % (year, epithet, auth)
+
+    else:
+      status = (checklist_row[status_pos] if status_pos != None else '')
+      if status == 'accepted' or status == 'valid' or status == '':
+        print("# Poor quality name: '%s' quality %s" %
+              (gn_row[verbatim_pos], quality),
+              file=sys.stderr)
 
     # Extra benefit: fill in canonical if it's missing from source (checklist_row)
     canon_full = gn_row[canonical_full_pos]
