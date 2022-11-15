@@ -198,7 +198,7 @@ def resolve_superior_link(S, record):
         # If it's not accepted or valid or something darn close, we're confused
         sup = relation(ACCEPTED, parent, status)
       else:
-        log("# Accepted %s with unresolvable parent: %s -> %s" %
+        log("# %s is accepted but has unresolvable parent: %s -> %s" %
             (get_tag(S), blurb(record), parent_key))
         sup = relation(ACCEPTED, S.top, "unresolved parent id")
     else:
@@ -660,7 +660,31 @@ articulation 2015-2014 Prum-Jarvis
 # Unique name of the sort Euler/X likes
 # TBD: ensure name is unique (deal with multiple taxa with same canonical)
 
-def get_eulerx_name(x):
+def get_eulerx_name(x, C=None):
+  if not C: C = get_source(x)
+  (e, i, cell) = C.eulerx_which[get_primary_key(x)]
+  if cell[0] <= 1:
+    return e
+  else:
+    print("# Discriminating: %s %s" % (e, i),
+          file=sys.stderr)
+    return "%s_%s" % (e, i)
+
+def assign_eulerx_names(C):
+  spin = {}    # maps eulerx base name to integer
+  eulerx_which = {}
+  C.eulerx_which = eulerx_which
+  for x in preorder_records(C):
+    e = get_eulerx_base_name(x)
+    cell = spin.get(e, 0)
+    if not cell:
+      cell = [0]
+      spin[e] = cell
+    cell[0] += 1
+    key = get_primary_key(x)
+    eulerx_which[key] = (e, cell[0], cell)
+
+def get_eulerx_base_name(x):
   e = blurb(x)
   e = e.replace(' ', '_')
   e = e.replace('.', '_')
@@ -673,6 +697,7 @@ def get_eulerx_qualified_name(x):
   return "%s.%s" % (src, get_eulerx_name(x))
 
 def generate_eulerx_checklist(C):
+  assign_eulerx_names(C)
   tag = get_tag(C)
   descr = checklist_description(C)
   yield ("taxonomy %s %s" % (tag, descr))
@@ -680,8 +705,9 @@ def generate_eulerx_checklist(C):
     if rec != C.top:
       children = get_children(rec, None) # not the synonyms
       if children:
-        sup_name = get_eulerx_name(rec)
-        yield ("(%s %s)" % (sup_name, ' '.join(map(get_eulerx_name, children))))
+        sup_name = get_eulerx_name(rec, C)
+        yield ("(%s %s)" %
+               (sup_name, ' '.join(map(lambda x:get_eulerx_name(x,C), children))))
   yield ''
 
 def checklist_description(C):

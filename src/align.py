@@ -99,6 +99,7 @@ def make_alignment(AB):
           seen[key] = True
       infra = z
     for c in get_inferiors(z):
+      # sort ??
       yield from traverse(c, infra)
   yield from traverse(AB.top, False)
 
