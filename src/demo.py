@@ -55,12 +55,14 @@ def eulerx_articulation(r, ship, s, note):
              note or ''))
 
 def ok_for_eulerx(ship):
-  if ship == EQ: return '='
-  elif ship == LT: return '<'
-  elif ship == GT: return '>'
-  elif ship == CONFLICT: return '><'
-  elif ship == DISJOINT: return '!'
-  else: return False
+  if False:
+    if ship == EQ: return '='
+    elif ship == LT: return '<'
+    elif ship == GT: return '>'
+    elif ship == CONFLICT: return '><'
+    elif ship == DISJOINT: return '!'
+    else: return False
+  return True
 
 # -----------------------------------------------------------------------------
 

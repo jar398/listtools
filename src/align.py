@@ -80,6 +80,7 @@ def make_alignment(AB):
   theory.load_matches(matches_iter, AB)
   theory.theorize(AB)
   span.span(AB)
+  find_acceptables(AB)
 
   seen = {}
 
@@ -126,7 +127,9 @@ def taxon_articulations(AB, z, infra):
     rr = list(theory.specimen_records(AB, z))
     if len(rr) > 0:
       for (a, b) in rr:
+        assert theory.separated(a, b)
         (s, comment) = get_acceptable(AB, a if theory.isinB(AB, z) else b)
+        assert theory.separated(z, s)
         if b != z and b != s:
           comment = '%s; via %s' % (comment, blurb(b),)
         yield articulate(AB, z, s, comment)
@@ -168,47 +171,40 @@ def partner(AB, v):
       return xsup
     return None
 
-def is_species(x):
-  return get_rank(x, None) == 'species' and is_accepted(x)
-
-# Not used !?  Ascend the hierarchy until species is found
-
-def get_species(AB, x):
-  if is_species(x):
-    return x
-  sup = local_sup(AB, x, None)
-  if sup == None:
-    return None
-  else:
-    return get_species(AB, sup.record)
+def is_species(z):              # x in AB
+  return get_rank(z, None) == 'species' and is_accepted(get_outject(z))
 
 # Acceptable = accepted and not infraspecific.
 # Approximation!
 
-def is_acceptable(y):
-  a = get_outject(y)
-  if (is_accepted(a) and
-      get_rank(a, None) != 'subspecies'):
-    return True
-  else:
-    return False
+(see_acceptable, set_acceptable) = prop.get_set(prop.declare_property('acceptable'))
 
-def get_acceptable(AB, w):
-  comment = ""
-  a = get_outject(w)
-  b = get_accepted(a)
-  if b and b != a:
-    a = b
-    comment = "via synonym"
-  if get_rank(a, None) == 'subspecies':
-    sup = get_superior(a, None)
-    a = sup.record
-    comment = "via subspecies"
-  if theory.isinA(AB, w):
-    z = AB.in_left(a)
-  else:
-    z = AB.in_right(a)
-  return (z, comment)
+def is_acceptable(y):           # in AB
+  return not see_acceptable(y, None)
+
+def get_acceptable(AB, y):
+  return see_acceptable(y, None) or (y, 'acceptable')
+
+# Acceptable = accepted AND not infraspecific
+# A synonym could be a synonym of a genus, species, subspecies, etc.
+
+def find_acceptables(AB):
+  def find(C, in_lr):
+    def traverse(x, a):
+      if is_accepted(x):
+        # Infraspecific if a is a species
+        if a and get_rank(a, None) == 'species':
+          # assert get_rank(x, None) != 'variety', 1
+          set_acceptable(in_lr(x), (in_lr(a), 'infraspecific'))
+        else:
+          a = x
+      else:
+        set_acceptable(in_lr(x), (in_lr(a), 'synonym'))
+      for c in get_inferiors(x):
+        traverse(c, a)
+    traverse(C.top, None)
+  find(AB.A, lambda x: AB.in_left(x))
+  find(AB.B, lambda y: AB.in_right(y))
 
 def sort_key(c):
   return (get_canonical(c, ''),

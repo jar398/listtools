@@ -365,28 +365,29 @@ gbif%-raw.csv: gbif%/dump $P/start.py
 
 # Need to clone the pgasu/MDD-DwC-mapping repo and put the clone sister to this repo
 MDDSOURCE?=../MDD-DwC-mapping/data
-CONVERTMDD=python3 ../MDD-DwC-mapping/src/explore_data.py
+CONVERTMDD=mkdir -p work/mdd && python3 ../MDD-DwC-mapping/src/explore_data.py
 
-work/mdd1.0-source.csv: $(MDDSOURCE)/MDD_v1_6495species_JMamm.csv
+work/mdd/mdd1.0.csv: $(MDDSOURCE)/MDD_v1_6495species_JMamm.csv
 	$(CONVERTMDD) --input $< --output $@
-work/mdd1.1-source.csv: $(MDDSOURCE)/MDD_v1.1_6526species_inDwC.csv
-	cp -p $< $@
-work/mdd1.2-source.csv: $(MDDSOURCE)/MDD_v1.2_6485species_inDwC.csv
-	cp -p $< $@
-work/mdd1.3-source.csv: $(MDDSOURCE)/MDD_v1.3_6513species_inDwC.csv
-	cp -p $< $@
-work/mdd1.31-source.csv: $(MDDSOURCE)/MDD_v1.31_6513species_inDwC.csv
-	cp -p $< $@
-work/mdd1.4-source.csv: $(MDDSOURCE)/MDD_v1.4_6533species_inDwC.csv
-	cp -p $< $@
-work/mdd1.5-source.csv: $(MDDSOURCE)/MDD_v1.5_6554species_inDwC.csv
-	cp -p $< $@
-work/mdd1.6-source.csv: $(MDDSOURCE)/MDD_v1.6_6557species_inDwC.csv
-	cp -p $< $@
-work/mdd1.7-source.csv: $(MDDSOURCE)/MDD_v1.7_6567species_inDwC.csv
-	cp -p $< $@
 
-work/mdd%-raw.csv: work/mdd%-source.csv $P/start.py
+work/mdd/mdd1.1.csv: $(MDDSOURCE)/MDD_v1.1_6526species.csv
+	$(CONVERTMDD) --input $< --output $@
+work/mdd/mdd1.2.csv: $(MDDSOURCE)/MDD_v1.2_6485species.csv
+	$(CONVERTMDD) --input $< --output $@
+work/mdd/mdd1.3.csv: $(MDDSOURCE)/MDD_v1.3_6513species.csv
+	$(CONVERTMDD) --input $< --output $@
+work/mdd/mdd1.31.csv: $(MDDSOURCE)/MDD_v1.31_6513species.csv
+	$(CONVERTMDD) --input $< --output $@
+work/mdd/mdd1.4.csv: $(MDDSOURCE)/MDD_v1.4_6533species.csv
+	$(CONVERTMDD) --input $< --output $@
+work/mdd/mdd1.5.csv: $(MDDSOURCE)/MDD_v1.5_6554species.csv
+	$(CONVERTMDD) --input $< --output $@
+work/mdd/mdd1.6.csv: $(MDDSOURCE)/MDD_v1.6_6557species.csv
+	$(CONVERTMDD) --input $< --output $@
+work/mdd/mdd1.7.csv: $(MDDSOURCE)/MDD_v1.7_6567species.csv
+	$(CONVERTMDD) --input $< --output $@
+
+work/mdd%-raw.csv: work/mdd/mdd%.csv $P/start.py
 	$P/start.py < $< --pk taxonID --managed mdd:taxonID > $@.new
 	@mv -f $@.new $@
 .PRECIOUS: mdd%-raw.csv

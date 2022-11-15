@@ -15,6 +15,10 @@ def isinA(AB, z):
 def isinB(AB, z):
   return AB.case(z, lambda x: False, lambda x: True)
 
+def separated(x, y):
+  AB = get_source(x)
+  return isinA(AB, x) != isinA(AB, y)
+
 def theorize(AB):
   AB.specimen_records = {}
   analyze_blocks(AB)                  # sets of 'tipes'
@@ -42,7 +46,7 @@ def cross_superior(AB, v):
   while True:
     if monitor(v): log("#  xsup iter w = %s" % (blurb(w), ))
     ship = cross_relation(AB, v_up, w).relationship
-    if ship == LT or ship == LE:
+    if ship == LT or ship == LE or ship == PERI:
       break
     if ship == EQ and v_up != v:
       break
@@ -54,7 +58,8 @@ def cross_superior(AB, v):
 
   rel = cross_relation(AB, v, w)
   ship = rel.relationship
-  assert ship == LT or ship == LE, (blurb(v), rcc5_symbol(ship), blurb(w))
+  assert ship == LT or ship == LE or ship == PERI, \
+    (blurb(v), rcc5_symbol(ship), blurb(w))
 
   return relation(ship, w, rel.note)
 
@@ -103,9 +108,9 @@ def cross_relation(AB, v, w):
     elif v_up != v and w_up != w:
       answer = (DISJOINT, "peripherals")
     elif v_up != v:
-      answer = (LT, "left peripheral")
+      answer = (PERI, "left peripheral")
     elif w_up != w:
-      answer = (GT, "left peripheral")
+      answer = (IREP, "left peripheral")
     elif True:
         # Look for a record match for v or w, and punt to simple case
         rel1 = rel2 = None
@@ -337,6 +342,7 @@ def find_tipwards(A, in_left):
       rel = get_matched(z)  # rel is a Relative...
       if monitor(x): log("tipwards %s %s" % (blurb(x), blurb(rel)))
       if rel:
+        assert separated(z, rel.record)
         # z is tipward and has a match, not necessarily tipward ...
         set_tipward(z, rel)
         seen = x
@@ -381,6 +387,7 @@ def get_specimen_id(AB, z):
     else:
       x = z
       y = rel.record
+    assert separated(x, y)
     id = get_primary_key(x)
     AB.specimen_records[id] = (x, y)
     return id

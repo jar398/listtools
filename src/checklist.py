@@ -198,7 +198,7 @@ def resolve_superior_link(S, record):
         # If it's not accepted or valid or something darn close, we're confused
         sup = relation(ACCEPTED, parent, status)
       else:
-        log("# %s is accepted but has unresolvable parent: %s -> %s" %
+        log("# accepted in %s but has unresolvable parent: %s -> %s" %
             (get_tag(S), blurb(record), parent_key))
         sup = relation(ACCEPTED, S.top, "unresolved parent id")
     else:
@@ -662,7 +662,9 @@ articulation 2015-2014 Prum-Jarvis
 
 def get_eulerx_name(x, C=None):
   if not C: C = get_source(x)
-  (e, i, cell) = C.eulerx_which[get_primary_key(x)]
+  which = C.eulerx_which.get(get_primary_key(x))
+  if not which: return None
+  (e, i, cell) = which
   if cell[0] <= 1:
     return e
   else:
@@ -674,7 +676,7 @@ def assign_eulerx_names(C):
   spin = {}    # maps eulerx base name to integer
   eulerx_which = {}
   C.eulerx_which = eulerx_which
-  for x in preorder_records(C):
+  def traverse(x):
     e = get_eulerx_base_name(x)
     cell = spin.get(e, 0)
     if not cell:
@@ -683,11 +685,17 @@ def assign_eulerx_names(C):
     cell[0] += 1
     key = get_primary_key(x)
     eulerx_which[key] = (e, cell[0], cell)
+    if get_rank(x, None) != 'species':
+      for c in get_children(x, ()):
+        traverse(c)
+  traverse(C.top)
 
 def get_eulerx_base_name(x):
   e = blurb(x)
   e = e.replace(' ', '_')
   e = e.replace('.', '_')
+  # Nico's cosmetic preference
+  e = e.replace('__', '_')
   return e
 
 # x is a record (list)
@@ -706,8 +714,9 @@ def generate_eulerx_checklist(C):
       children = get_children(rec, None) # not the synonyms
       if children:
         sup_name = get_eulerx_name(rec, C)
-        yield ("(%s %s)" %
-               (sup_name, ' '.join(map(lambda x:get_eulerx_name(x,C), children))))
+        if sup_name and get_rank(rec, None) != 'species':
+          yield ("(%s %s)" %
+                 (sup_name, ' '.join(map(lambda x:get_eulerx_name(x,C), children))))
   yield ''
 
 def checklist_description(C):

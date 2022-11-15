@@ -262,7 +262,7 @@ def is_scientific(name):
 
 def clean_rank(row, rank_pos, can_pos):
   if rank_pos != None and row[rank_pos] == MISSING and binomial_re.match(row[can_pos]):
-    row[rank_pos] = "species"
+    row[rank_pos] = 'species'
     return True
   return False
 
