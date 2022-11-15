@@ -88,25 +88,26 @@ def use_parse(gn_iter, check_iter):
         # Put them together
         tipe = "TS|%s|%s|%s" % (year, epithet, auth)
 
-      # Extra benefit: fill in canonical if it's missing from source (checklist_row)
-      canon_full = gn_row[canonical_full_pos]
-      if canon_full:
-        have = MISSING if add_canon else checklist_row[canonical_pos]
-        if have == MISSING:
-          quality = int(gn_row[quality_pos])
-          verb = gn_row[verbatim_pos]
-          out_row[canonical_pos] = canon_full
-          canon_count += 1
-          if quality <= 2:
-            if canon_count < CANON_SAMPLE_LIMIT:
-              print("# canonical := '%s' bc '%s'" % (canon_full, verb),
-                    file=sys.stderr)
     else:
       status = (checklist_row[status_pos] if status_pos != None else '')
       if status == 'accepted' or status == 'valid' or status == '':
         print("# Poor quality name: '%s' quality %s" %
               (gn_row[verbatim_pos], quality),
               file=sys.stderr)
+
+    # Extra benefit: fill in canonical if it's missing from source (checklist_row)
+    canon_full = gn_row[canonical_full_pos]
+    if canon_full:
+      have = MISSING if add_canon else checklist_row[canonical_pos]
+      if have == MISSING:
+        quality = int(gn_row[quality_pos])
+        verb = gn_row[verbatim_pos]
+        out_row[canonical_pos] = canon_full
+        canon_count += 1
+        if quality <= 2:
+          if canon_count < CANON_SAMPLE_LIMIT:
+            print("# canonical := '%s' bc '%s'" % (canon_full, verb),
+                  file=sys.stderr)
 
     # Add extra columns to the original input
     out_row = out_row + [stemmed, year, tipe]
