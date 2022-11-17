@@ -19,8 +19,8 @@ all:
 
 TAXON?=Mammalia
 taxon?=mammals
-A?=work/ncbi201505-$(taxon)
-B?=work/ncbi202008-$(taxon)
+A?=ncbi201505-$(taxon)
+B?=ncbi202008-$(taxon)
 ANAME?=A
 BNAME?=B
 
@@ -44,9 +44,9 @@ ncbi-report:
 # ----- 2. GBIF examples:
 
 gbif-report:
-	$(MAKE) A=work/gbif20190916-$(taxon) B=work/gbif20210303-$(taxon) report
+	$(MAKE) A=gbif20190916-$(taxon) B=gbif20210303-$(taxon) report
 
-# make A=work/ncbi202008-mammals B=work/gbif20210303-mammals report
+# make A=ncbi202008-mammals B=gbif20210303-mammals report
 # and so on.
 
 # ----- 3. BioKIC/ATCR examples:
@@ -54,11 +54,11 @@ gbif-report:
 mdd-report:
 	$(MAKE) A=mdd1.6 B=mdd1.7 report
 
-# make A=work/mdd1.2-mammals B=work/mdd1.3 report
-# make A=work/mdd1.2 B=work/mdd1.3 report
-# make A=work/gbif20210303-mammals B=work/mdd1.0-mammals report
+# make A=mdd1.2-mammals B=mdd1.3 report
+# make A=mdd1.2 B=mdd1.3 report
+# make A=gbif20210303-mammals B=mdd1.0-mammals report
 # Prashant's request, see slack on 5/2/2022:
-# make A=work/mdd1.7 B=work/gbif20220317-mammals report
+# make A=mdd1.7 B=gbif20220317-mammals report
 
 # ----- 4. EOL examples:
 
@@ -136,7 +136,7 @@ demo: $(DEMO)
 $(DEMO): $P/demo.py $P/checklist.py $P/align.py $P/theory.py work/$A.csv work/$B.csv
 	@echo
 	@echo "--- PREPARING DEMO ---"
-	$P/demo.py --A $A.csv --B $B.csv --Aname $(ANAME) --Bname $(BNAME) \
+	$P/demo.py --A work/$A.csv --B work/$B.csv --Aname $(ANAME) --Bname $(BNAME) \
 	  --eulerx $(EULERX).new --tipwards $(TIPWARDS).new > $@.new
 	@mv -f $@.new $@
 	@mv -f $(EULERX).new $(EULERX)
