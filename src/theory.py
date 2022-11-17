@@ -77,41 +77,38 @@ def cross_relation(AB, v, w):
   if isinA(AB, v) == isinA(AB, w):
     rel = simple_relationship(get_outject(v), get_outject(w))
     answer = (rel.relationship, rel.note)
-
-  if not answer:
-    (p,  vsyn) = local_sup(AB, v)
-    (q,  wsyn) = local_sup(AB, v)
-    if (p and vsyn and q and wsyn and equivalent(p, q)):
+  elif equivalent(v, w):
+    answer = (EQ, "equivalent")
+  else:
+    (p,  vsyn) = local_sup(AB, v) # vsyn iff v is a synonym of p
+    (q,  wsyn) = local_sup(AB, w)
+    if vsyn and wsyn and equivalent(p, q):
       answer = (OVERLAP, "co-synonyms")
-    elif (p and vsyn and p == w):
+    elif vsyn and equivalent(p, w):
       if monitor(v) or monitor(w):
         log("# %s %s synonym of %s %s" % (blurb(v), blurb(p), blurb(w), blurb(ysup)))
-      answer = (SYNONYM, "synonym of")
-    elif (q and wsyn and v == q):
+      answer = (SYNONYM, "is a synonym of")
+    elif wsyn and equivalent(v, q):
       answer = (SYNONYM, "has synonym")
 
-  if not answer:
+    b1 = get_block(v, BOTTOM_BLOCK)
+    b2 = get_block(w, BOTTOM_BLOCK)
+
+    # Deal with peripheral nodes (empty block)
     v_up = increase_until_overlap(AB, v)
     w_up = increase_until_overlap(AB, w)
-
-    b1 = get_block(v_up, BOTTOM_BLOCK)
-    b2 = get_block(w_up, BOTTOM_BLOCK)
-    ship = block_relationship(b1, b2)
-
-    if ship != EQ:
-      answer = (ship, "specimen set comparison")
-      if False and (monitor(v) or monitor(w)):
-        show_specimens(v, "v", AB)
-        show_specimens(w, "w", AB)
-
-    # ship is EQ but must be adjusted for the _ups
-    elif v_up != v and w_up != w:
+    if v_up != v and w_up != w:
       answer = (DISJOINT, "peripherals")
     elif v_up != v:
       answer = (PERI, "left peripheral")
     elif w_up != w:
-      answer = (IREP, "left peripheral")
-    elif True:
+      answer = (IREP, "right peripheral")
+
+    else:
+      # v and w have nonempty blocks.
+      ship = block_relationship(b1, b2)
+      if ship == EQ:
+
         # Look for a record match for v or w, and punt to simple case
         rel1 = rel2 = None
         v_eq = get_equivalent(v, None)  # v, v_eq, v_eq.record in AB (from B)
@@ -124,6 +121,7 @@ def cross_relation(AB, v, w):
           rel2 = simple_relationship(get_outject(v), get_outject(w_eq.record))
         # See whether the v/v_eq/w_eq/w diagram commutes
         if w_eq and v_eq:
+          assert rel1.relationship == rel2.relationship
           ship = rel1.relationship & rel2.relationship
           if ship != 0:
             answer = (ship, rel1.note)
@@ -136,21 +134,33 @@ def cross_relation(AB, v, w):
                  rcc5_symbol(rel2.relationship), 
                  blurb(w)))
             answer = (OVERLAP, "shouldn't happen 1")
+        elif v_eq:
+          answer = (rel1.relationship, rel1.note)
+          # log("# v %s %s %s" % (blurb(v), blurb(rel1), blurb(w)))
+        elif w_eq:
+          answer = (rel2.relationship, rel2.note)
+          # log("# w %s %s %s" % (blurb(v), blurb(rel2), blurb(w)))
 
-        if not answer:
-          if v_eq: answer = (rel1.relationship, rel1.note)
-          elif w_eq: answer = (rel2.relationship, rel2.note)
-          elif b1 == BOTTOM_BLOCK:
-            answer = (DISJOINT, "no specimens")
-          else:
-            # Neither v nor w has an equivalent, but they're in same block,
-            # so OVERLAP. 
-            answer = (OVERLAP, "same block but no record match")
+        else:
+          assert b1 != BOTTOM_BLOCK
+          # Neither v nor w has an equivalent, but they're in same block,
+          # so OVERLAP.   (pathological monotype chain.)
+          answer = (OVERLAP, "in parallel monotypic chains")
+
+        assert answer[0] != EQ
+
+      else:
+        # ship is not EQ (i.e. specimen sets are different)
+        answer = (ship, "via specimen set comparison")
+
   (ship, note) = answer
   if monitor(v) or monitor(w):
     log("# %s %s %s / %s" % (blurb(v), rcc5_symbol(ship), blurb(w), note))
 
   return relation(ship, w, "articulation", note)
+
+# Returns <p, syn> where p in AB is superior in A (or B) of v,
+#  and syn is true iff p is a synonym
 
 def local_sup(AB, v):
   loc = get_superior(get_outject(v), None)
@@ -169,7 +179,8 @@ def local_sup(AB, v):
 def cross_lt(AB, v, w):
   return cross_relation(AB, v, w).relationship == LT
 
-# Find an ancestor of v (in A tree) that overlaps the B tree
+# Find an ancestor of v (in A tree) that overlaps the B tree, i.e.
+# has a nonempty block
 
 def increase_until_overlap(AB, v):
   v0 = v
@@ -187,11 +198,6 @@ def increase_until_overlap(AB, v):
       if not is_empty_block(get_block(v, BOTTOM_BLOCK)):
         # v0 < v = overlaps with B 
         break
-      else:
-        # v0 < v < ... overlaps with B ...
-        if monitor(v0): log("cross_superior None empty %s" % blurb(v))
-    q = get_reflection(v, BOTTOM) # v in AB
-    if monitor(v0): log("cross_superior q %s" % blurb(q))
   return v
 
 #-----------------------------------------------------------------------------
@@ -224,17 +230,19 @@ def find_equivalent(v):
   else:
     return None
 
+# Are v and w equivalent?
+
 def equivalent(v, w):
   e = really_equivalent(v, w)
-  f = really_equivalent(w, v)
-  assert e == f, \
+  assert e == really_equivalent(w, v), \
     (blurb(v), blurb(w), blurb(get_matched(v)), blurb(get_matched(w)))
   return e
 
+# This gets cached
+
 def really_equivalent(v, w):
   # Same blocks, and
-  # same name
-  # (that's it for now)
+  # {same name or both at tops of monotype chains}
   b1 = get_block(v, BOTTOM_BLOCK)
   b2 = get_block(w, BOTTOM_BLOCK)
   # Is this right???
@@ -242,13 +250,32 @@ def really_equivalent(v, w):
     # Happens all the time
     # log("# not same block %s %s" % (blurb(v), blurb(w)))
     return False
-  rel = get_matched(v)
-  if rel and rel.record == w:
-    return True
-  else:
-    # Happens all the time
-    # log("# not matched %s !=%s, %s" % (blurb(v), blurb(w), blurb(rel.record)))
+  rel1 = get_matched(v)
+  if rel1:
+    return rel1.record == w
+  rel2 = get_matched(w)
+  if rel2:
     return False
+
+  if not is_empty_block(b1):
+    # Neither is matched.
+    # Propose equality if parents' blocks are both bigger.
+    p_rel = get_superior(v, None)
+    q_rel = get_superior(w, None)
+    if not p_rel and not q_rel:
+      log("# matched at top: %s = %s" % (blurb(v), blurb(w)))
+      return True
+    if not p_rel or not q_rel:
+      return False
+
+    if (get_block(p_rel.record, BOTTOM_BLOCK) != b1 and
+        get_block(q_rel.record, BOTTOM_BLOCK) != b2):
+      log("# matched: %s = %s" % (blurb(v), blurb(w)))
+      return True
+
+  # Happens all the time
+  log("# not matched: %s != %s, %s" % (blurb(v), blurb(w), blurb(rel1.record)))
+  return False
 
 
 # plantain, pretzels
@@ -281,27 +308,24 @@ def compute_reflections(AB):
         q = traverse(c)       # in B
         if q:
           m = mrca(q, m)      # in B
-      if m != BOTTOM:
-        # Elevate m to a name match if there is one
-        nm = get_matched(x)     # returns relation
-        if (nm and
-            get_block(nm.record, BOTTOM_BLOCK) == get_block(m, BOTTOM_BLOCK) and
-            m != nm.record):
-          log("# matching %s to same-block ancestor %s" % (blurb(m), blurb(nm)))
-          m = nm.record
-      w = BOTTOM if m == BOTTOM else AB.in_right(m)
-      # Prefer among same-block nodes one with same name
-      mat = get_matched(v)
-      if mat:
-        z = mat.record
-        if (get_block(w, None) == get_block(z, None) and
-            simple_lt(m, get_outject(z))):
-          # Happens all the time
-          # log("# promoting %s -> %s (for %s)" %
-          #     (blurb(w), blurb(z), blurb(v)))
-          w = z
+      if m == BOTTOM:
+        w = BOTTOM
+      else:
+        w = AB.in_right(m)
+        # Elevate m to a name match, if there is one
+        # Happens all the time - do not bother logging
+        #  log("# promoting %s -> %s (for %s)" %
+        #      (blurb(w), blurb(z), blurb(v)))
+        nm = get_matched(x)     # returns relation in AB
+        if nm:
+          z = nm.record         # in AB
+          n = get_outject(z)
+          if (get_block(w, BOTTOM_BLOCK) == get_block(z, BOTTOM_BLOCK) and
+              simple_lt(m, n)):
+            w = z               # Override!
+            m = n               # in B
       set_reflection(v, w)
-      return m
+      return m                  # m == get_outject(w)
     traverse(AB.A.top)
   do_reflections(AB)
   do_reflections(swap(AB))

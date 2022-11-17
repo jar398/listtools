@@ -668,7 +668,7 @@ def get_eulerx_name(x, C=None):
   if cell[0] <= 1:
     return e
   else:
-    print("# Discriminating: %s %s" % (e, i),
+    print("# Discriminating: %s %s/%s" % (e, i, cell[0]),
           file=sys.stderr)
     return "%s_%s" % (e, i)
 
@@ -677,6 +677,7 @@ def assign_eulerx_names(C):
   eulerx_which = {}
   C.eulerx_which = eulerx_which
   def traverse(x):
+    # x is accepted
     e = get_eulerx_base_name(x)
     cell = spin.get(e, 0)
     if not cell:
