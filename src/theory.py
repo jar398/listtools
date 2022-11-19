@@ -25,43 +25,56 @@ def theorize(AB):
   compute_reflections(AB)
   find_equivalents(AB)
 
-# -----------------------------------------------------------------------------
-# Given a record v in the A checklist, return the least node in B
-# that's definitely greater than v.
+# Taxon's partner (equivalent or best approximation) in opposite checklist.
+# Returns a relation.
 
-# AB.B could be priority, or not
+def partner(AB, v):
+  assert isinstance(v, prop.Record)
+  equ = get_equivalent(v, None)
+  if equ:
+    return equ
+  else:
+    v = increase_until_overlap(AB, v)  # if peripheral
+    w = get_reflection(v)
+    return cross_relation(AB, v, w)
 
-def cross_superior(AB, v):
-  # v = in_A(x)
-  if monitor(v): log("# cross_superior %s:" % blurb(v))
-  v_up = increase_until_overlap(AB, v)
-  if not v_up:
-    log("no overlap of %s with B" % blurb(v))
+# Least node in opposite checklist that's > v
+# Returns a relation
+
+def alt_superior(AB, v):
+  w = get_reflection(v, BOTTOM)     # candidate in AB
+  if w == BOTTOM:
     return None
+  ship = cross_relation(AB, v, w)
+  if ship == EQ:
+    return get_superior(w, None)
+  else:
+    assert cross_lt(v, w)
+    sup = get_superior(v, None)
+    return relation(ship, w, sup.status if sup else "accepted", "alt_superior")
 
-  if monitor(v): log("# xsup loop v = %s <= %s = v_up" % (blurb(v), blurb(v_up)))
-  # increase w until v_up is less (< or <=) than it
-  w = get_reflection(v_up, BOTTOM)     # candidate in AB
-  assert w
-  while True:
-    if monitor(v): log("#  xsup iter w = %s" % (blurb(w), ))
-    ship = cross_relation(AB, v_up, w).relationship
-    if ship == LT or ship == LE or ship == PERI:
-      break
-    if ship == EQ and v_up != v:
-      break
-    (q, wsyn) = local_sup(AB, w)
-    if not q:
-      log("#  no node in B is bigger than %s" % blurb(v))
-      return None
-    w = q
+# Find an ancestor of v (in A tree) that overlaps the B tree, i.e.
+# has a nonempty block
+# TBD: Simplify this
 
-  rel = cross_relation(AB, v, w)
-  ship = rel.relationship
-  assert ship == LT or ship == LE or ship == PERI, \
-    (blurb(v), rcc5_symbol(ship), blurb(w))
+def increase_until_overlap(AB, v):
+  v0 = v
+  if is_empty_block(get_block(v, BOTTOM_BLOCK)):
+    x = get_outject(v)
+    while True:
+      if is_top(x): return None
+      rel = get_superior(x, None)
+      if not rel: return None   # Trees have no overlap !
+      x = rel.record
+      if isinA(AB, v):
+        v = AB.in_left(x)
+      else:
+        v = AB.in_right(x)
+      if not is_empty_block(get_block(v, BOTTOM_BLOCK)):
+        # v0 < v = overlaps with B 
+        break
+  return v
 
-  return relation(ship, w, rel.note)
 
 #-----------------------------------------------------------------------------
 # cross_relation: The implementation of the RCC-5 theory of AB (A+B).
@@ -80,16 +93,18 @@ def cross_relation(AB, v, w):
   elif equivalent(v, w):
     answer = (EQ, "equivalent")
   else:
-    (p,  vsyn) = local_sup(AB, v) # vsyn iff v is a synonym of p
-    (q,  wsyn) = local_sup(AB, w)
-    if vsyn and wsyn and equivalent(p, q):
-      answer = (OVERLAP, "co-synonyms")
-    elif vsyn and equivalent(p, w):
-      if monitor(v) or monitor(w):
-        log("# %s %s synonym of %s %s" % (blurb(v), blurb(p), blurb(w), blurb(ysup)))
-      answer = (SYNONYM, "is a synonym of")
-    elif wsyn and equivalent(v, q):
-      answer = (SYNONYM, "has synonym")
+    psup = local_sup(AB, v)
+    qsup = local_sup(AB, w)
+    if psup and psup.relationship == SYNONYM:
+      if qsup and qsup.relationship == SYNONYM:
+        if equivalent(psup.record, qsup.record):
+          answer = (OVERLAP, "co-synonyms")
+      else:
+        if equivalent(psup.record, w):
+          answer = (SYNONYM, "is a synonym of")
+    else:
+      if qsup and qsup.relationship == SYNONYM:
+        answer = (SYNONYM, "has synonym")
 
     b1 = get_block(v, BOTTOM_BLOCK)
     b2 = get_block(w, BOTTOM_BLOCK)
@@ -164,41 +179,24 @@ def cross_relation(AB, v, w):
 
 def local_sup(AB, v):
   loc = get_superior(get_outject(v), None)
-  if not loc: return (None, False)
+  if not loc:
+    return None
   if isinA(AB, v):
-    return (AB.in_left(loc.record), loc.relationship == SYNONYM)
-  elif isinB(AB, v):
-    return (AB.in_right(loc.record), loc.relationship == SYNONYM)
+    return relation(loc.relationship, AB.in_left(loc.record), loc.status)
   else:
-    assert False
+    return relation(loc.relationship, AB.in_right(loc.record), loc.status)
 
 # RCC-5 relationship across the two checklists
 # x and y are in AB
 # Could be made more efficient by skipping unused calculations
 
 def cross_lt(AB, v, w):
-  return cross_relation(AB, v, w).relationship == LT
+  ship = cross_relation(AB, v, w).relationship
+  return ship == LT or ship == LE or ship == PERI
 
-# Find an ancestor of v (in A tree) that overlaps the B tree, i.e.
-# has a nonempty block
-
-def increase_until_overlap(AB, v):
-  v0 = v
-  if is_empty_block(get_block(v, BOTTOM_BLOCK)):
-    x = get_outject(v)
-    while True:
-      if is_top(x): return None
-      rel = get_superior(x, None)
-      if not rel: return None   # Trees have no overlap !
-      x = rel.record
-      if isinA(AB, v):
-        v = AB.in_left(x)
-      else:
-        v = AB.in_right(x)
-      if not is_empty_block(get_block(v, BOTTOM_BLOCK)):
-        # v0 < v = overlaps with B 
-        break
-  return v
+def cross_le(AB, v, w):
+  ship = cross_relation(AB, v, w).relationship
+  return ship == LT or ship == LE or ship == PERI or ship == EQ
 
 #-----------------------------------------------------------------------------
 # Store equivalents on nodes of AB...
@@ -221,18 +219,32 @@ def find_equivalents(AB):
 (get_equivalent, set_equivalent) = prop.get_set(prop.declare_property("equivalent"))
 
 # Given x, returns y such that x = y.  x and y are in AB, not A or B.
+# Returns a Relation or None.
 # TBD: should cache this.
 
 def find_equivalent(v):
+  w_rel = get_matched(v)
+  if w_rel:
+    w = w_rel.record
+    if equivalent(v, w):
+      return relation(EQ, w, "equivalent", "name match")
+  b = get_block(v, BOTTOM_BLOCK)
   w = get_reflection(v, None)
+  if not w: return None
+  # Move w as high as possible without changing block
+  while True:
+    sup = get_superior(w, None)
+    if not sup or get_block(sup.record) != b: break
+    w = sup.record
   if w and equivalent(v, w):
-    return relation(EQ, w, "equivalent")
+    return relation(EQ, w, "equivalent", "block match")
   else:
     return None
 
 # Are v and w equivalent?
 
 def equivalent(v, w):
+  # return v == get_equivalent(w, None)
   e = really_equivalent(v, w)
   assert e == really_equivalent(w, v), \
     (blurb(v), blurb(w), blurb(get_matched(v)), blurb(get_matched(w)))

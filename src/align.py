@@ -112,32 +112,20 @@ def make_alignment(AB):
 OLD_METHOD = False
 
 def taxon_articulations(AB, z, infra):
-  if OLD_METHOD:
-    # Topology-based partner
-    rel = partner(AB, z)
+  rr = list(theory.specimen_records(AB, z))
+  if len(rr) > 0:
+    for (a, b) in rr:
+      assert theory.separated(a, b)
+      (s, comment) = get_acceptable(AB, a if theory.isinB(AB, z) else b)
+      assert theory.separated(z, s)
+      if b != z and b != s:
+        comment = '%s; via %s' % (comment, blurb(b),)
+      yield articulate(AB, z, s, comment)
+  else:
+    rel = theory.partner(AB, z)
     w = rel.record
     (w, comment) = get_acceptable(AB, w) # Accepted and not infraspecific
     yield articulate(AB, z, w, comment)
-
-    # Match-based partner
-    m = get_match(z, None)      # name match
-    if m and m.record:
-      yield articulate(AB, z, m.record, 'name match')
-  else:
-    rr = list(theory.specimen_records(AB, z))
-    if len(rr) > 0:
-      for (a, b) in rr:
-        assert theory.separated(a, b)
-        (s, comment) = get_acceptable(AB, a if theory.isinB(AB, z) else b)
-        assert theory.separated(z, s)
-        if b != z and b != s:
-          comment = '%s; via %s' % (comment, blurb(b),)
-        yield articulate(AB, z, s, comment)
-    else:
-      rel = partner(AB, z)
-      w = rel.record
-      (w, comment) = get_acceptable(AB, w) # Accepted and not infraspecific
-      yield articulate(AB, z, w, comment)
 
 # Is this the place to filter out redundancies and unwanteds?
 
@@ -157,19 +145,6 @@ def rev_comment(comment):
     return "rev(%s)" % comment
   else:
     return comment
-
-# Partner species.  Returns (record, comment)
-
-def partner(AB, v):
-  assert isinstance(v, prop.Record)
-  equ = theory.get_equivalent(v, None)
-  if equ:
-    return equ
-  else:
-    xsup = theory.cross_superior(AB, v)
-    if xsup:
-      return xsup
-    return None
 
 def is_species(z):              # x in AB
   return get_rank(z, None) == 'species' and is_accepted(get_outject(z))

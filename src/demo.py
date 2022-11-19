@@ -18,32 +18,32 @@ def demo(A_iter, A_name, B_iter, B_name):
   AB = workspace.make_workspace(A, B, {'tag': "AB"})
   al = list(align.make_alignment(AB))
   return (align.generate_alignment_report(AB, al),
-          generate_eulerx(A, B, al),
+          generate_eulerx(AB, al),
           align.specimens_table(AB))
 
 # Returns an Iterable of rows
 
 # Returns generator of lines (strings)
 
-def generate_eulerx(A, B, al):
-  yield from generate_eulerx_checklist(A)
-  yield from generate_eulerx_checklist(B)
-  yield from eulerx_alignment(A, B, al)
+def generate_eulerx(AB, al):
+  yield from generate_eulerx_checklist(AB.A)
+  yield from generate_eulerx_checklist(AB.B)
+  yield from eulerx_alignment(AB, al)
 
-def eulerx_alignment(A, B, al):
+def eulerx_alignment(AB, al):
+  A = AB.A; B = AB.B
   yield ("articulation %s-%s %s-%s" %
          (get_tag(A), get_tag(B),
           checklist_description(A), checklist_description(B)))
   for (v, ship, w, note, comment) in al:
     assert note
-    yield eulerx_articulation(v, ship, w, note)
+    x = get_outject(v); y = get_outject(w)
+    if not is_top(x) and not is_top(y):
+      yield eulerx_articulation(x, ship, y, note)
 
-def eulerx_articulation(r, ship, s, note):
+def eulerx_articulation(x, ship, y, note):
   sym = rcc5_symbol(ship)
-  x = get_outject(r); y = get_outject(s)
-  if (ok_for_eulerx(ship) and
-      not is_top(x) and
-      not is_top(y)):
+  if ok_for_eulerx(ship):
     return "[%s %s %s]" % (get_eulerx_qualified_name(x),
                            sym,
                            get_eulerx_qualified_name(y))

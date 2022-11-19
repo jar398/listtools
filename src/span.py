@@ -15,6 +15,7 @@ from checklist import rows_to_checklist, checklist_to_rows, get_superior, \
   get_source, get_outject, blurb
 import newick
 import checklist, match_records, workspace
+from checklist import monitor
 from rcc5 import *
 from util import log
 
@@ -60,7 +61,7 @@ def span(AB):
                          "treat equivalent as synonym")
       if not sup:
         # p is one possible parent of w
-        p_rel = theory.cross_superior(C, w)
+        p_rel = cross_superior(C, w)
 
         # q is another possible parent of w
         qy_rel = get_superior(y, None)
@@ -89,9 +90,9 @@ def span(AB):
             # log("incomparable parent candidates: %s" % blot)
             # q is parent of w
             if theory.isinA(AB, p):
-              sup = theory.cross_superior(AB, p)
+              sup = cross_superior(AB, p)
             else:
-              sup = theory.cross_superior(AB, q)
+              sup = cross_superior(AB, q)
         elif qy_rel:
           sup = relation(qy_rel.relationship,
                          C.in_right(qy_rel.record),
@@ -120,6 +121,40 @@ def span(AB):
   assert AB.top
   AB.indexed = True
   return AB
+
+
+# -----------------------------------------------------------------------------
+# Given a record v in the A checklist, return the least node in B
+# that's definitely greater than v.
+
+# AB.B could be priority, or not
+
+def cross_superior(AB, v0):
+  v = theory.increase_until_overlap(AB, v0)
+  if not v:
+    log("no overlap of %s with B" % blurb(v))
+    return None
+  if monitor(v): log("# xsup loop v0 = %s <= %s = v" % (blurb(v0), blurb(v)))
+  # increase w until v0 < w
+  w = theory.get_reflection(v, None)     # candidate in AB
+  assert w
+  while True:
+    if monitor(v): log("#  xsup iter w = %s" % (blurb(w), ))
+    rel = theory.cross_relation(AB, v0, w)
+    ship = rel.relationship
+    if ship == LT or ship == LE or ship == PERI:
+      break
+    wsup = theory.local_sup(AB, w)
+    q = wsup.record
+    if not q:
+      log("#  no node in B is bigger than %s" % blurb(v))
+      return None
+    w = q
+
+  assert ship == LT or ship == LE or ship == PERI, \
+    (blurb(v), rcc5_symbol(ship), blurb(w))
+
+  return relation(ship, w, rel.status, rel.note)
 
 # -----------------------------------------------------------------------------
 
