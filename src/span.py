@@ -18,6 +18,7 @@ import checklist, match_records, workspace
 from checklist import monitor
 from rcc5 import *
 from util import log
+from theory import block_size
 
 # Assign a parent to every node of AB except for the top.
 
@@ -70,8 +71,7 @@ def span(AB):
         if qy_rel and p_rel:
           p = p_rel.record
           q = C.in_right(qy_rel.record)
-          pq_rel = theory.cross_relation(C, p, q)
-          ship = pq_rel.relationship
+          ship = theory.cross_relation(C, p, q).relationship
           blot = "%s %s %s" % (blurb(p), rcc5_symbol(ship), blurb(q))
           if ship == GT or ship == GE:
             sup = relation(qy_rel.relationship, q,
@@ -136,8 +136,9 @@ def cross_superior(AB, v0):
     return None
   if monitor(v): log("# xsup loop v0 = %s <= %s = v" % (blurb(v0), blurb(v)))
   # increase w until v0 < w
-  w = theory.get_reflection(v, None)     # candidate in AB
-  assert w
+  rel = theory.get_reflection(AB, v)     # candidate in AB
+  assert rel
+  w = rel.record
   while True:
     if monitor(v): log("#  xsup iter w = %s" % (blurb(w), ))
     rel = theory.cross_relation(AB, v0, w)

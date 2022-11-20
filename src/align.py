@@ -122,9 +122,8 @@ def taxon_articulations(AB, z, infra):
         comment = '%s; via %s' % (comment, blurb(b),)
       yield articulate(AB, z, s, comment)
   else:
-    rel = theory.partner(AB, z)
-    w = rel.record
-    (w, comment) = get_acceptable(AB, w) # Accepted and not infraspecific
+    rel = theory.get_reflection(AB, z)
+    (w, comment) = get_acceptable(AB, rel.record) # Accepted and not infraspecific
     yield articulate(AB, z, w, comment)
 
 # Is this the place to filter out redundancies and unwanteds?
