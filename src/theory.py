@@ -219,8 +219,7 @@ def get_reflection(AB, v):
 
   # 3. Detect < when mismatched blocks
   b2 = get_block(w, BOTTOM_BLOCK)
-  if b1 != TOP_BLOCK:
-    assert block_le(b1, b2), (len(b1), len(b2), b1, b2)
+  assert block_le(b1, b2), (len(b1), len(b2), b1, b2)
   if not same_block(b2, b1):
     status = "accepted"   # could also be a synonym? look at v's sup rel
     return relation(LT, w, status, "smaller block")
@@ -228,8 +227,8 @@ def get_reflection(AB, v):
   # 4. If v and w are both at top of their chains, equate them.
   p_rel = get_superior(v, None)
   q_rel = get_superior(w, None)
-  b3 = get_block(p_rel.record, BOTTOM_BLOCK) if p_rel else TOP_BLOCK
-  b4 = get_block(q_rel.record, BOTTOM_BLOCK) if q_rel else TOP_BLOCK
+  b3 = get_block(p_rel.record, BOTTOM_BLOCK) if p_rel else True
+  b4 = get_block(q_rel.record, BOTTOM_BLOCK) if q_rel else True
   if not same_block(b3, b1) and not same_block(b4, b2):
     nm = get_matched(w)
     if nm and same_block(get_block(nm.record, BOTTOM_BLOCK), b2):
@@ -462,8 +461,6 @@ def local_sup(AB, v):
 
 def block_relationship(e1, e2):   # can assume overlap
   if e1 == e2: return EQ          # same block
-  #elif e1 == TOP_BLOCK: return GT
-  #elif e2 == TOP_BLOCK: return LT
   elif e1.issubset(e2): return LT
   elif e2.issubset(e1): return GT
   elif e1.isdisjoint(e2): return DISJOINT
@@ -473,16 +470,13 @@ def same_block(e1, e2):
   return e1 == e2
 
 def block_ge(e1, e2):
-  if e1 == TOP_BLOCK: return True    # top >= everything
-  if e2 == TOP_BLOCK: return False   # everything else < top
   return e1 >= e2
 
 def block_le(e1, e2):
   return block_ge(e2, e1)
 
 def block_size(e):
-  if e == TOP_BLOCK: return 10000000
-  else: return len(e)
+  return len(e)
 
 def adjoin_exemplar(exemplar_id, e):
   return combine_blocks(e, {exemplar_id})
@@ -490,12 +484,9 @@ def adjoin_exemplar(exemplar_id, e):
 # Lattice join (union) of two blocks
 
 BOTTOM_BLOCK = set()
-TOP_BLOCK = True
 def combine_blocks(e1, e2):
   if e1 == BOTTOM_BLOCK: return e2
   if e2 == BOTTOM_BLOCK: return e1
-  if e1 == TOP_BLOCK: return e1
-  if e2 == TOP_BLOCK: return e2
   return e1 | e2
 def same_block(e1, e2): return e1 == e2
 def is_empty_block(e): return e == BOTTOM_BLOCK
