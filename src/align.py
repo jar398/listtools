@@ -114,7 +114,7 @@ OLD_METHOD = False
 def taxon_articulations(AB, z, infra):
   rr = list(theory.exemplar_records(AB, z))
   if len(rr) > 0:
-    for (a, b) in rr:
+    for (_, a, b) in rr:
       assert theory.separated(a, b)
       (s, comment) = get_acceptable(AB, a if theory.isinB(AB, z) else b)
       assert theory.separated(z, s)
@@ -197,7 +197,7 @@ def exemplars_table(AB):
       tag = get_tag(AB.A) if theory.isinA(AB, z) else get_tag(AB.B)
       x = get_outject(z)
 
-      for (r, s) in theory.exemplar_records(AB, z):
+      for (id, r, s) in theory.exemplar_records(AB, z):
         y = get_outject(s)
         yield(tag,
               get_primary_key(x),

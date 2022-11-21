@@ -11,7 +11,7 @@ from match_records import match_records
 from rcc5 import rcc5_relationship, reverse_relationship
 
 def theorize(AB):
-  AB.exemplar_records = {}
+  AB.exemplar_records = []
   analyze_blocks(AB)                  # sets of examplars
   compute_cross_mrcas(AB)
   find_equivalents(AB)
@@ -294,7 +294,7 @@ def compute_cross_mrcas(AB):
 
         b2 = get_block(w, BOTTOM_BLOCK)
         assert not is_empty_block(b2)
-        assert block_le(b1, b2), (block_size(b1), block_size(b2))
+        assert block_le(b1, b2), (list(b1), list(b2))
 
         set_cross_mrca(v, w)
       return m
@@ -312,39 +312,56 @@ def compute_cross_mrcas(AB):
 
 def analyze_blocks(AB):
   analyze_tipwards(AB)
-  def traverse(x, in_left):
-    # x is in A or B
+  def traverse(x, in_left, inB):
+    # x is in A (or B if inB)
     if monitor(x): log("computing block for %s" % (blurb(x),))
     # initial e = exemplars from descendants
     e = BOTTOM_BLOCK
     for c in get_inferiors(x):  # inferiors in A/B
-      e = combine_blocks(e, traverse(c, in_left))
+      e = combine_blocks(e, traverse(c, in_left, inB))
       if monitor(c): log("got subblock %s -> %s" % (blurb(c), len(e),))
-    v = in_left(x)
-    exemplar_id = get_exemplar_id(AB, v)
-    if exemplar_id:
+    v = in_left(x)              # in A (or B if in B)
+    exemplar_id = assign_exemplar(AB, v, inB)
+    if exemplar_id != None:
       e = adjoin_exemplar(exemplar_id, e)
     if e != BOTTOM_BLOCK:
       set_block(v, e)
     #log("# block(%s) = %s" % (blurb(x), e))
     return e
-  traverse(AB.A.top, AB.in_left)
-  traverse(AB.B.top, AB.in_right)
+  traverse(AB.A.top, AB.in_left, False)
+  traverse(AB.B.top, AB.in_right, True)
 
-def get_exemplar_id(AB, z):
-  rel = get_tipward(z, None)
+# We're assuming each taxon has at most one exemplar.
+# If inB, then v is in the B checklist.
+# Returns id, not exemplar record.
+
+def assign_exemplar(AB, v, inB):
+  assert isinB(AB, v) == inB
+  probe = get_exemplar(v, None) # (id, v, w)
+  if probe: return probe[0]
+  rel = get_tipward(v, None)
   if rel:
-    if isinB(AB, z):
-      x = rel.record
-      y = z
+    if inB:
+      w = v
+      v = rel.record
     else:
-      x = z
-      y = rel.record
-    assert separated(x, y)
-    id = get_primary_key(x)
-    AB.exemplar_records[id] = (x, y)
-    return id
+      w = rel.record
+    assert separated(v, w)
+
+    probe = get_exemplar(w, None)
+    assert not probe, "Fix me somehow"
+      
+    id = len(AB.exemplar_records)
+    ex = (id, v, w)
+    AB.exemplar_records.append(ex)
+    set_exemplar(v, ex)
+    set_exemplar(w, ex)
+    return id                   # might be 0
   else: return None
+
+def exemplar_id(ex): return ex[0]
+
+(get_exemplar, set_exemplar) = prop.get_set(prop.declare_property("exemplar"))
 
 # For debugging
 
@@ -352,14 +369,16 @@ def show_exemplars(z, tag, AB):
   def foo(vw):
     (v, w) = vw
     return blurb(w)
-  log("# %s: {%s}" % (tag, ", ".join(map(foo, exemplar_records(AB, z)))))
+  log("# %s: {%s}" % (tag, ", ".join(map(foo, block_exemplar_records(AB, z)))))
 
 # The records in the B checklist corresponding to the exemplars
 # in the block for z.
 
+def exemplar_ids(AB, z):
+  return list(get_block(z, BOTTOM_BLOCK))
+
 def exemplar_records(AB, z):
-  return map(lambda id: AB.exemplar_records[id],
-             get_block(z, BOTTOM_BLOCK))
+  return (AB.exemplar_records[id] for id in exemplar_ids(AB, z))
 
 (get_block, set_block) = prop.get_set(prop.declare_property("block"))
 
