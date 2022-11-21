@@ -14,7 +14,7 @@ def theorize(AB):
   AB.exemplar_records = []
   analyze_blocks(AB)                  # sets of examplars
   compute_cross_mrcas(AB)
-  find_equivalents(AB)
+  find_reflections(AB)
 
 #-----------------------------------------------------------------------------
 # cross_relation: The implementation of the RCC-5 theory of AB (A+B).
@@ -120,7 +120,7 @@ def compare_within_block(v, w):
 # Returns a relation
 
 def alt_superior(AB, v):
-  w = get_reflection(AB, v)     # candidate in AB, w >= v
+  w = get_reflection(v)     # candidate in AB, w >= v
   if w == BOTTOM:
     return None
   ship = cross_relation(AB, v, w).relationship
@@ -143,35 +143,6 @@ def cross_le(AB, v, w):
   ship = cross_relation(AB, v, w).relationship
   return ship == LT or ship == LE or ship == PERI or ship == EQ
 
-#-----------------------------------------------------------------------------
-# Store equivalents on nodes of AB...
-
-def find_equivalents(AB):
-  v = AB.in_left(AB.A.top)
-  w = AB.in_right(AB.B.top)
-  set_equivalent(v, relation(EQ, w, "top"))
-  set_equivalent(w, relation(EQ, v, "top"))
-  count = 1
-  for x in checklist.postorder_records(AB.A):
-    v = AB.in_left(x)
-    rel = find_equivalent(AB, v)    # -> a Relation
-    if rel:
-      set_equivalent(v, rel)
-      set_equivalent(rel.record, relation(EQ, v, rel.status))
-      count += 1
-  log("# found %s B nodes with A equivalents" % count)
-
-(get_equivalent, set_equivalent) = prop.get_set(prop.declare_property("equivalent"))
-
-# Given x, returns y such that x = y.  x and y are in AB, not A or B.
-# Returns a Relation or None.
-# MUST BE CONSISTENT WITH equivalent() !
-# TBD: should cache this.
-
-def find_equivalent(AB, v):
-  ref = get_reflection(AB, v)
-  return ref if ref.relationship == EQ else None
-
 # -----------------------------------------------------------------------------
 # Are v and w equivalent?
 
@@ -187,8 +158,24 @@ def equivalent(v, w):
 # This gets cached, but shouldn't be
 
 def really_equivalent(AB, v, w):
-  ref = get_reflection(AB, v)
+  ref = get_reflection(v)
   return ref.relationship == EQ and ref.record == w
+
+#-----------------------------------------------------------------------------
+# Store equivalents on nodes of AB...
+
+# Given x, returns y such that x = y.  x and y are in AB, not A or B.
+# Returns a Relation or None.
+# MUST BE CONSISTENT WITH equivalent() !
+# TBD: should cache this.
+
+def get_equivalent(v, default=None):
+  AB = get_source(v)
+  return find_equivalent(AB, v, default)
+
+def find_equivalent(AB, v, default=None):
+  ref = get_reflection(v)
+  return ref if ref.relationship == EQ else default
 
 # -----------------------------------------------------------------------------
 # Find least w in B such that w >= v (in A).
@@ -196,7 +183,18 @@ def really_equivalent(AB, v, w):
 # TBD: Cache this  (and do not cache equivalents)
 # def find_reflections(AB): ...
 
-def get_reflection(AB, v):
+(get_reflection, set_reflection) = prop.get_set(prop.declare_property("reflection"))
+
+def find_reflections(AB):
+  count = 1
+  def findem(AB):
+    for x in checklist.postorder_records(AB.A):
+      v = AB.in_left(x)
+      set_reflection(v, find_reflection(AB, v))
+  findem(AB)
+  findem(swap(AB))
+
+def find_reflection(AB, v):
   if is_toplike(v):
     if isinA(AB, v):
       return relation(EQ, AB.in_right(AB.B.top), "top")
@@ -395,12 +393,12 @@ def analyze_tipwards(AB):
 # exemplar.
 
 def find_tipwards(AB):
-  def traverse(x):
+  def traverse(AB, x):
     seen = seen2 = 0
     for c in get_children(x, ()):
-      seen += traverse(c)
+      seen += traverse(AB, c)
     for c in get_synonyms(x, ()):
-      seen2 += traverse(c)
+      seen2 += traverse(AB, c)
     if seen == 0:
       # not seen means that this node could be tipward
       v = AB.in_left(x)            # v is tipward...
@@ -418,39 +416,8 @@ def find_tipwards(AB):
           set_tipward(w, rel2)
         seen = 1
     return seen + seen2
-  traverse(AB.A.top)
-
-# -----------------------------------------------------------------------------
-# General utilities
-
-def isinA(AB, z):
-  return AB.case(z, lambda x: True, lambda x: False)
-
-def isinB(AB, z):
-  return AB.case(z, lambda x: False, lambda x: True)
-
-def swap(AB):
-  BA = AB.swap()
-  BA.A = AB.B
-  BA.B = AB.A
-  BA.exemplar_records = AB.exemplar_records
-  return BA
-
-def separated(x, y):
-  AB = get_source(x)
-  return isinA(AB, x) != isinA(AB, y)
-
-# Returns <p, syn> where p in AB is superior in A (or B) of v,
-#  and syn is true iff p is a synonym
-
-def local_sup(AB, v):
-  loc = get_superior(get_outject(v), None)
-  if not loc:
-    return None
-  if isinA(AB, v):
-    return relation(loc.relationship, AB.in_left(loc.record), loc.status, loc.note)
-  else:
-    return relation(loc.relationship, AB.in_right(loc.record), loc.status, loc.note)
+  traverse(AB, AB.A.top)
+  traverse(swap(AB), AB.B.top)
 
 # -----------------------------------------------------------------------------
 # Implementation of blocks as Python sets of 'exemplars'.
@@ -490,3 +457,36 @@ def combine_blocks(e1, e2):
   return e1 | e2
 def same_block(e1, e2): return e1 == e2
 def is_empty_block(e): return e == BOTTOM_BLOCK
+
+# -----------------------------------------------------------------------------
+# General workspace utilities (maybe move to workspace.py ?)
+
+def isinA(AB, z):
+  return AB.case(z, lambda x: True, lambda x: False)
+
+def isinB(AB, z):
+  return AB.case(z, lambda x: False, lambda x: True)
+
+def swap(AB):
+  BA = AB.swap()
+  BA.A = AB.B
+  BA.B = AB.A
+  BA.exemplar_records = AB.exemplar_records
+  return BA
+
+def separated(x, y):
+  AB = get_source(x)
+  return isinA(AB, x) != isinA(AB, y)
+
+# Returns <p, syn> where p in AB is superior in A (or B) of v,
+#  and syn is true iff p is a synonym
+
+def local_sup(AB, v):
+  loc = get_superior(get_outject(v), None)
+  if not loc:
+    return None
+  if isinA(AB, v):
+    return relation(loc.relationship, AB.in_left(loc.record), loc.status, loc.note)
+  else:
+    return relation(loc.relationship, AB.in_right(loc.record), loc.status, loc.note)
+

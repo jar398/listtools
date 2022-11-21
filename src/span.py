@@ -136,7 +136,7 @@ def cross_superior(AB, v0):
     return None
   if monitor(v): log("# xsup loop v0 = %s <= %s = v" % (blurb(v0), blurb(v)))
   # increase w until v0 < w
-  rel = theory.get_reflection(AB, v)     # candidate in AB
+  rel = theory.get_reflection(v)     # candidate in AB
   assert rel
   w = rel.record
   while True:

@@ -122,7 +122,7 @@ def taxon_articulations(AB, z, infra):
         comment = '%s; via %s' % (comment, blurb(b),)
       yield articulate(AB, z, s, comment)
   else:
-    rel = theory.get_reflection(AB, z)
+    rel = theory.get_reflection(z)
     (w, comment) = get_acceptable(AB, rel.record) # Accepted and not infraspecific
     yield articulate(AB, z, w, comment)
 
