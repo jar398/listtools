@@ -112,7 +112,7 @@ def make_alignment(AB):
 OLD_METHOD = False
 
 def taxon_articulations(AB, z, infra):
-  rr = list(theory.specimen_records(AB, z))
+  rr = list(theory.exemplar_records(AB, z))
   if len(rr) > 0:
     for (a, b) in rr:
       assert theory.separated(a, b)
@@ -188,16 +188,16 @@ def sort_key(c):
 # -----------------------------------------------------------------------------
 # Requires spanning tree
 
-def specimens_table(AB):
-  yield("checklist", "species_id", "species_canonical", "specimen_id", "specimen_canonical")
+def exemplars_table(AB):
+  yield("checklist", "species_id", "species_canonical", "exemplar_id", "exemplar_canonical")
 
   def traverse(z):
     if is_species(z):
-      # The species that the specimen belongs to
+      # The species that the exemplar belongs to
       tag = get_tag(AB.A) if theory.isinA(AB, z) else get_tag(AB.B)
       x = get_outject(z)
 
-      for (r, s) in theory.specimen_records(AB, z):
+      for (r, s) in theory.exemplar_records(AB, z):
         y = get_outject(s)
         yield(tag,
               get_primary_key(x),

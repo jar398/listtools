@@ -11,8 +11,8 @@ from match_records import match_records
 from rcc5 import rcc5_relationship, reverse_relationship
 
 def theorize(AB):
-  AB.specimen_records = {}
-  analyze_blocks(AB)                  # sets of 'tipes'
+  AB.exemplar_records = {}
+  analyze_blocks(AB)                  # sets of examplars
   compute_cross_mrcas(AB)
   find_equivalents(AB)
 
@@ -63,8 +63,8 @@ def cross_relation(AB, v, w):
       if ship == EQ:
         answer = compare_within_block(v, w)
       else:
-        # ship is not EQ (i.e. specimen sets are different)
-        answer = (ship, "via specimen set comparison")
+        # ship is not EQ (i.e. exemplar sets are different)
+        answer = (ship, "via exemplar set comparison")
 
     if answer[0] == EQ:
       # Bug in get_reflection
@@ -81,7 +81,7 @@ def cross_relation(AB, v, w):
 # (in parallel chains)
 
 def compare_within_block(v, w):
-  assert not is_empty_blck(get_block(v, BOTTOM_BLOCK))
+  assert not is_empty_block(get_block(v, BOTTOM_BLOCK))
   # Look for a record match for v or w, and punt to simple case
   rel1 = rel2 = None
   v_eq = get_equivalent(v, None)  # v, v_eq, v_eq.record in AB (from B)
@@ -110,9 +110,9 @@ def compare_within_block(v, w):
     answer = (rel2.relationship, rel2.note)
     # log("# w %s %s %s" % (blurb(v), blurb(rel2), blurb(w)))
   else:
-    # Neither v nor w has an equivalent, but they're in same block,
-    # so OVERLAP.   (pathological monotype chain.)
-    answer = (OVERLAP, "in parallel monotypic chains")
+    # Neither v nor w has a suitable equivalent, but they're in same block,
+    # so COMPARABLE.   (assume existence of total interleaved chain.)
+    answer = (COMPARABLE, "in parallel monotypic chains")
   return answer
 
 
@@ -306,6 +306,64 @@ def compute_cross_mrcas(AB):
   prop.get_set(prop.declare_property("cross_mrca"))
 
 # -----------------------------------------------------------------------------
+# Precompute 'blocks' (exemplar sets, implemented in one of various ways).
+# A block is represented as either a set or TOP_BLOCK.
+# Blocks are stored on nodes in AB.
+
+def analyze_blocks(AB):
+  analyze_tipwards(AB)
+  def traverse(x, in_left):
+    # x is in A or B
+    if monitor(x): log("computing block for %s" % (blurb(x),))
+    # initial e = exemplars from descendants
+    e = BOTTOM_BLOCK
+    for c in get_inferiors(x):  # inferiors in A/B
+      e = combine_blocks(e, traverse(c, in_left))
+      if monitor(c): log("got subblock %s -> %s" % (blurb(c), len(e),))
+    v = in_left(x)
+    exemplar_id = get_exemplar_id(AB, v)
+    if exemplar_id:
+      e = adjoin_exemplar(exemplar_id, e)
+    if e != BOTTOM_BLOCK:
+      set_block(v, e)
+    #log("# block(%s) = %s" % (blurb(x), e))
+    return e
+  traverse(AB.A.top, AB.in_left)
+  traverse(AB.B.top, AB.in_right)
+
+def get_exemplar_id(AB, z):
+  rel = get_tipward(z, None)
+  if rel:
+    if isinB(AB, z):
+      x = rel.record
+      y = z
+    else:
+      x = z
+      y = rel.record
+    assert separated(x, y)
+    id = get_primary_key(x)
+    AB.exemplar_records[id] = (x, y)
+    return id
+  else: return None
+
+# For debugging
+
+def show_exemplars(z, tag, AB):
+  def foo(vw):
+    (v, w) = vw
+    return blurb(w)
+  log("# %s: {%s}" % (tag, ", ".join(map(foo, exemplar_records(AB, z)))))
+
+# The records in the B checklist corresponding to the exemplars
+# in the block for z.
+
+def exemplar_records(AB, z):
+  return map(lambda id: AB.exemplar_records[id],
+             get_block(z, BOTTOM_BLOCK))
+
+(get_block, set_block) = prop.get_set(prop.declare_property("block"))
+
+# -----------------------------------------------------------------------------
 # Find tipward record matches (TRMs)
 
 (get_tipward, set_tipward) = prop.get_set(prop.declare_property("tipward"))
@@ -316,7 +374,7 @@ def analyze_tipwards(AB):
 
 # Postorder iteration over one of the two summands.
 # Sets the 'tipward' property meaning we want to use the node to represent its
-# quasi-type specimen.
+# exemplar.
 
 def find_tipwards(AB):
   def traverse(x):
@@ -345,64 +403,6 @@ def find_tipwards(AB):
   traverse(AB.A.top)
 
 # -----------------------------------------------------------------------------
-# Precompute 'blocks' (tipe sets, implemented in one of various ways).
-# A block is represented as either a set or TOP_BLOCK.
-# Blocks are stored on nodes in AB.
-
-def analyze_blocks(AB):
-  analyze_tipwards(AB)
-  def traverse(x, in_left):
-    # x is in A or B
-    if monitor(x): log("computing block for %s" % (blurb(x),))
-    # initial e = specimens from descendants
-    e = BOTTOM_BLOCK
-    for c in get_inferiors(x):  # inferiors in A/B
-      e = combine_blocks(e, traverse(c, in_left))
-      if monitor(c): log("got subblock %s -> %s" % (blurb(c), len(e),))
-    v = in_left(x)
-    specimen_id = get_specimen_id(AB, v)
-    if specimen_id:
-      e = adjoin_specimen(specimen_id, e)
-    if e != BOTTOM_BLOCK:
-      set_block(v, e)
-    #log("# block(%s) = %s" % (blurb(x), e))
-    return e
-  traverse(AB.A.top, AB.in_left)
-  traverse(AB.B.top, AB.in_right)
-
-def get_specimen_id(AB, z):
-  rel = get_tipward(z, None)
-  if rel:
-    if isinB(AB, z):
-      x = rel.record
-      y = z
-    else:
-      x = z
-      y = rel.record
-    assert separated(x, y)
-    id = get_primary_key(x)
-    AB.specimen_records[id] = (x, y)
-    return id
-  else: return None
-
-# For debugging
-
-def show_specimens(z, tag, AB):
-  def foo(vw):
-    (v, w) = vw
-    return blurb(w)
-  log("# %s: {%s}" % (tag, ", ".join(map(foo, specimen_records(AB, z)))))
-
-# The records in the B checklist corresponding to the type specimens
-# in the block for z.
-
-def specimen_records(AB, z):
-  return map(lambda id: AB.specimen_records[id],
-             get_block(z, BOTTOM_BLOCK))
-
-(get_block, set_block) = prop.get_set(prop.declare_property("block"))
-
-# -----------------------------------------------------------------------------
 # General utilities
 
 def isinA(AB, z):
@@ -415,7 +415,7 @@ def swap(AB):
   BA = AB.swap()
   BA.A = AB.B
   BA.B = AB.A
-  BA.specimen_records = AB.specimen_records
+  BA.exemplar_records = AB.exemplar_records
   return BA
 
 def separated(x, y):
@@ -435,7 +435,7 @@ def local_sup(AB, v):
     return relation(loc.relationship, AB.in_right(loc.record), loc.status, loc.note)
 
 # -----------------------------------------------------------------------------
-# Implementation of blocks as Python sets of 'specimens'.
+# Implementation of blocks as Python sets of 'exemplars'.
 
 # RCC-5 relationship between two blocks
 
@@ -463,8 +463,8 @@ def block_size(e):
   if e == TOP_BLOCK: return 10000000
   else: return len(e)
 
-def adjoin_specimen(specimen_id, e):
-  return combine_blocks(e, {specimen_id})
+def adjoin_exemplar(exemplar_id, e):
+  return combine_blocks(e, {exemplar_id})
 
 # Lattice join (union) of two blocks
 

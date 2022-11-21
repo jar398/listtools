@@ -83,6 +83,7 @@ def use_parse(gn_iter, check_iter):
 
       if stemmed and year and auth and card > 1:
         # Figure out epithet part of type
+        # e.g. 'speciosus' in 'Hygrophorus lucorum var. speciosus'
         epithet = stemmed.split(' ')[-1]
         trim_count += 1
         # Put them together

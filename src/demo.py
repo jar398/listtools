@@ -1,16 +1,13 @@
 #!/usr/bin/env python3
 
 import sys, csv, argparse
-import util, property as prop
-import checklist, workspace, match_records
-import theory, span, align
+import util
+import workspace
+import align
 
-from util import windex, MISSING
-from property import mep_get, mep_set
 from rcc5 import *
 from checklist import *
 from workspace import *
-from theory import is_accepted, get_accepted
 
 def demo(A_iter, A_name, B_iter, B_name):
   A = rows_to_checklist(A_iter, {'tag': A_name or "A"})  # meta
@@ -19,7 +16,7 @@ def demo(A_iter, A_name, B_iter, B_name):
   al = list(align.make_alignment(AB))
   return (align.generate_alignment_report(AB, al),
           generate_eulerx(AB, al),
-          align.specimens_table(AB))
+          align.exemplars_table(AB))
 
 # Returns an Iterable of rows
 
