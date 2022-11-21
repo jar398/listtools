@@ -307,7 +307,7 @@ def compute_cross_mrcas(AB):
 
 # -----------------------------------------------------------------------------
 # Precompute 'blocks' (exemplar sets, implemented in one of various ways).
-# A block is represented as either a set or TOP_BLOCK.
+# A block is represented as a set of exemplar ids.
 # Blocks are stored on nodes in AB.
 
 def analyze_blocks(AB):
@@ -455,13 +455,15 @@ def local_sup(AB, v):
 
 # -----------------------------------------------------------------------------
 # Implementation of blocks as Python sets of 'exemplars'.
+# A 'block' is just a set of exemplars, implemented as ... a python set.
+# The term 'block' comes from the mathematical treatment of partitions.
 
 # RCC-5 relationship between two blocks
 
 def block_relationship(e1, e2):   # can assume overlap
   if e1 == e2: return EQ          # same block
-  elif e1 == TOP_BLOCK: return GT
-  elif e2 == TOP_BLOCK: return LT
+  #elif e1 == TOP_BLOCK: return GT
+  #elif e2 == TOP_BLOCK: return LT
   elif e1.issubset(e2): return LT
   elif e2.issubset(e1): return GT
   elif e1.isdisjoint(e2): return DISJOINT
