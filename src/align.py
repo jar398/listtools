@@ -10,7 +10,7 @@ from property import mep_get, mep_set
 from rcc5 import *
 from checklist import *
 from workspace import *
-from theory import get_tipward, local_sup
+from theory import local_sup
 
 def align(A_iter, B_iter):
   A = rows_to_checklist(A_iter, {'tag': "A"})  # meta

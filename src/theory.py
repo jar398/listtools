@@ -3,6 +3,8 @@
 import types, functools
 import property as prop, checklist, workspace, simple
 
+import exemplar
+
 from util import log
 from simple import BOTTOM
 from checklist import *
@@ -11,7 +13,7 @@ from match_records import match_records
 from rcc5 import rcc5_relationship, reverse_relationship
 
 def theorize(AB):
-  AB.exemplar_records = []
+  exemplar.choose_exemplars(AB)
   analyze_blocks(AB)                  # sets of examplars
   compute_cross_mrcas(AB)
   find_reflections(AB)
@@ -306,9 +308,9 @@ def compute_cross_mrcas(AB):
 # Precompute 'blocks' (exemplar sets, implemented in one of various ways).
 # A block is represented as a set of exemplar ids.
 # Blocks are stored on nodes in AB.
+# Assumes exemplars have already been chosen and are available via `get_exemplar`.
 
 def analyze_blocks(AB):
-  analyze_tipwards(AB)
   def traverse(x, in_left, inB):
     # x is in A (or B if inB)
     if monitor(x): log("computing block for %s" % (blurb(x),))
@@ -318,9 +320,7 @@ def analyze_blocks(AB):
       e = combine_blocks(e, traverse(c, in_left, inB))
       if monitor(c): log("got subblock %s -> %s" % (blurb(c), len(e),))
     v = in_left(x)              # in A (or B if in B)
-    exemplar_id = assign_exemplar(AB, v, inB)
-    if exemplar_id != None:
-      e = adjoin_exemplar(exemplar_id, e)
+    exemplar = get_exemplar(AB, v, inB)
     if e != BOTTOM_BLOCK:
       set_block(v, e)
     #log("# block(%s) = %s" % (blurb(x), e))
@@ -328,37 +328,7 @@ def analyze_blocks(AB):
   traverse(AB.A.top, AB.in_left, False)
   traverse(AB.B.top, AB.in_right, True)
 
-# We're assuming each taxon has at most one exemplar.
-# If inB, then v is in the B checklist.
-# Returns id, not exemplar record.
-
-def assign_exemplar(AB, v, inB):
-  assert isinB(AB, v) == inB
-  probe = get_exemplar(v, None) # (id, v, w)
-  if probe: return probe[0]
-  rel = get_tipward(v, None)
-  if rel:
-    if inB:
-      w = v
-      v = rel.record
-    else:
-      w = rel.record
-    assert separated(v, w)
-
-    probe = get_exemplar(w, None)
-    assert not probe, "Fix me somehow"
-      
-    id = len(AB.exemplar_records)
-    ex = (id, v, w)
-    AB.exemplar_records.append(ex)
-    set_exemplar(v, ex)
-    set_exemplar(w, ex)
-    return id                   # might be 0
-  else: return None
-
 def exemplar_id(ex): return ex[0]
-
-(get_exemplar, set_exemplar) = prop.get_set(prop.declare_property("exemplar"))
 
 # For debugging
 
@@ -378,46 +348,6 @@ def exemplar_records(AB, z):
   return (AB.exemplar_records[id] for id in exemplar_ids(AB, z))
 
 (get_block, set_block) = prop.get_set(prop.declare_property("block"))
-
-# -----------------------------------------------------------------------------
-# Find tipward record matches (TRMs)
-
-(get_tipward, set_tipward) = prop.get_set(prop.declare_property("tipward"))
-
-def analyze_tipwards(AB):
-  find_tipwards(AB)
-  find_tipwards(swap(AB))
-
-# Postorder iteration over one of the two summands.
-# Sets the 'tipward' property meaning we want to use the node to represent its
-# exemplar.
-
-def find_tipwards(AB):
-  def traverse(AB, x):
-    seen = seen2 = 0
-    for c in get_children(x, ()):
-      seen += traverse(AB, c)
-    for c in get_synonyms(x, ()):
-      seen2 += traverse(AB, c)
-    if seen == 0:
-      # not seen means that this node could be tipward
-      v = AB.in_left(x)            # v is tipward...
-      rel = get_matched(v)  # rel is a Relative...
-      if monitor(x): log("tipwards %s %s" % (blurb(x), blurb(rel)))
-      if rel:
-        assert separated(v, rel.record)
-        # v is tipward and has a match, not necessarily tipward ...
-        set_tipward(v, rel)
-        if True:
-          w = rel.record
-          rel2 = get_matched(w)
-          assert rel2           # symmetric
-          assert rel2.record == v
-          set_tipward(w, rel2)
-        seen = 1
-    return seen + seen2
-  traverse(AB, AB.A.top)
-  traverse(swap(AB), AB.B.top)
 
 # -----------------------------------------------------------------------------
 # Implementation of blocks as Python sets of 'exemplars'.
@@ -461,32 +391,10 @@ def is_empty_block(e): return e == BOTTOM_BLOCK
 # -----------------------------------------------------------------------------
 # General workspace utilities (maybe move to workspace.py ?)
 
-def isinA(AB, z):
-  return AB.case(z, lambda x: True, lambda x: False)
-
-def isinB(AB, z):
-  return AB.case(z, lambda x: False, lambda x: True)
-
 def swap(AB):
   BA = AB.swap()
   BA.A = AB.B
   BA.B = AB.A
   BA.exemplar_records = AB.exemplar_records
   return BA
-
-def separated(x, y):
-  AB = get_source(x)
-  return isinA(AB, x) != isinA(AB, y)
-
-# Returns <p, syn> where p in AB is superior in A (or B) of v,
-#  and syn is true iff p is a synonym
-
-def local_sup(AB, v):
-  loc = get_superior(get_outject(v), None)
-  if not loc:
-    return None
-  if isinA(AB, v):
-    return relation(loc.relationship, AB.in_left(loc.record), loc.status, loc.note)
-  else:
-    return relation(loc.relationship, AB.in_right(loc.record), loc.status, loc.note)
 

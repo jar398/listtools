@@ -122,6 +122,38 @@ def is_senior(synonym_item, accepted_item):
 
 # -----------------------------------------------------------------------------
 
+# Utilities for use in other modules
+
+def isinA(AB, z):
+  return AB.case(z, lambda x: True, lambda x: False)
+
+def isinB(AB, z):
+  return AB.case(z, lambda x: False, lambda x: True)
+
+def separated(x, y):
+  AB = get_source(x)
+  return isinA(AB, x) != isinA(AB, y)
+
+# Returns <p, syn> where p in AB is superior in A (or B) of v,
+#  and syn is true iff p is a synonym
+
+def local_sup(AB, v):
+  loc = get_superior(get_outject(v), None)
+  if not loc:
+    return None
+  if isinA(AB, v):
+    return relation(loc.relationship, AB.in_left(loc.record), loc.status, loc.note)
+  else:
+    return relation(loc.relationship, AB.in_right(loc.record), loc.status, loc.note)
+
+def swap(AB):
+  BA = AB.swap()
+  BA.A = AB.B
+  BA.B = AB.A
+  return BA
+
+# -----------------------------------------------------------------------------
+
 # Output with additional columns needed by report.py
 
 def workspace_preorder_rows(AB, props=None):

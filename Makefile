@@ -133,7 +133,8 @@ TIPWARDS=work/$(shell basename $A)-$(shell basename $B)-tipwards.csv
 
 demo: $(DEMO)
 
-$(DEMO): $P/demo.py $P/checklist.py $P/align.py $P/theory.py work/$A.csv work/$B.csv
+$(DEMO): $P/demo.py $P/checklist.py $P/align.py $P/theory.py $P/workspace.py \
+	   work/$A.csv work/$B.csv
 	@echo
 	@echo "--- PREPARING DEMO ---"
 	$P/demo.py --A work/$A.csv --B work/$B.csv --Aname $(ANAME) --Bname $(BNAME) \
