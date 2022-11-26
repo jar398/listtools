@@ -38,7 +38,7 @@ def choose_exemplars(AB):
     traverse(AB.A.top)
   do_exemplars(AB, False)
   do_exemplars(swap(AB), True)
-  AB.exemplar_records = exemplar_records
+  return exemplar_records
 
 def exemplar_id(ex): return ex[0]
 

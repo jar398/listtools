@@ -9,11 +9,9 @@ from util import log
 from simple import BOTTOM
 from checklist import *
 from workspace import *
-from match_records import match_records
-from rcc5 import rcc5_relationship, reverse_relationship
 
 def theorize(AB):
-  exemplar.choose_exemplars(AB)
+  AB.exemplar_records = exemplar.choose_exemplars(AB)
   analyze_blocks(AB)                  # sets of examplars
   compute_cross_mrcas(AB)
   find_reflections(AB)
@@ -32,8 +30,7 @@ def cross_relation(AB, v, w):
     rel = simple.simple_relationship(get_outject(v), get_outject(w))
     answer = (rel.relationship, rel.note)
   #! Equivalent (should actually check reflection)
-  #  Compare find_equivalent
-  elif equivalent(v, w):
+  elif equivalent(v, w):        # special case of get_reflection
     answer = (EQ, "equivalent")
   else:                         # inequivalent somehow
     #! Synonym situations
@@ -117,7 +114,6 @@ def compare_within_block(v, w):
     answer = (COMPARABLE, "in parallel monotypic chains")
   return answer
 
-
 # Least node in opposite checklist that's > v
 # Returns a relation
 
@@ -146,36 +142,27 @@ def cross_le(AB, v, w):
   return ship == LT or ship == LE or ship == PERI or ship == EQ
 
 # -----------------------------------------------------------------------------
-# Are v and w equivalent?
+# Equivalence - a special case of reflection
 
 def equivalent(v, w):
   AB = get_source(v)            # BIG KLUDGE
-  # return v == get_equivalent(w, None)
-  # Check symmetry
-  e = really_equivalent(AB, v, w)
-  assert e == really_equivalent(AB, w, v), \
+  # Easier: return v == get_equivalent(w, None)
+  # But, let's check symmetry here
+  e = really_equivalent(v, w)
+  assert e == really_equivalent(w, v), \
     (blurb(v), blurb(w), blurb(get_matched(v)), blurb(get_matched(w)))
   return e
 
 # This gets cached, but shouldn't be
 
-def really_equivalent(AB, v, w):
-  ref = get_reflection(v)
-  return ref.relationship == EQ and ref.record == w
-
-#-----------------------------------------------------------------------------
-# Store equivalents on nodes of AB...
+def really_equivalent(v, w):
+  ref = get_equivalent(v)
+  return ref and ref.record == w
 
 # Given x, returns y such that x = y.  x and y are in AB, not A or B.
 # Returns a Relation or None.
-# MUST BE CONSISTENT WITH equivalent() !
-# TBD: should cache this.
 
 def get_equivalent(v, default=None):
-  AB = get_source(v)
-  return find_equivalent(AB, v, default)
-
-def find_equivalent(AB, v, default=None):
   ref = get_reflection(v)
   return ref if ref.relationship == EQ else default
 

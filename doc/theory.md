@@ -10,35 +10,38 @@ files.
 When I speak of a Darwin core (DwC) file I take this to mean (for
 purposes of these tools) a CSV file where each record (row) has
 information connected to a taxon.  More precisely, I take a record to
-refer to what I'd call an _extension_ (of a taxon description).  An
+refer to what I'd call an _extension_ (of some taxon description).  An
 extension is simply the set of organisms/specimens/observations as
 described or circumscribed or referenced somewhere, perhaps in a
 database.  Each record is itself a little taxon description, and may
 contain references to outside sources to help constrain an extension.
 
-I tend to use 'taxon' and 'extension' interchangeably but they are
-slightly different; a taxon is something subject to taxonomy
-(classification) while an extension is specifically a set of organisms,
-and may or may not be a taxon.
+I tend to use 'taxon' and 'extension' interchangeably but they have
+different connotations; a taxon is something subject to taxonomy
+(classification) while an extension (of a description or
+circumscription) is specifically a set of organisms, with the emphasis
+on determination i.e. deciding whether an organism belongs to an
+extension.
 
 If the description or reference is vague or incomplete that can be
 unfortunate but it is not necessarily a problem.  The names can still
 be used for searching outside sources.  Different people might
 comprehend the circumscription differently, but they should try to
-remain open minded pending further information about what was meant,
-and the differences can be ironed out with research if necessary.
-([Model theory](https://en.wikipedia.org/wiki/Model_theory) is how I
-understand this approach: We do not say exactly which extension we
-mean, but we talk about an extension in terms that constrain meaning
-adequately for the task at hand.)
+remain open minded pending further information on what was meant, and
+the differences can be ironed out with research if necessary.  ([Model
+theory](https://en.wikipedia.org/wiki/Model_theory) is how I
+understand this approach: We can never say exactly which extensions we
+mean, but we talk about an extension in terms that constrain its
+membership adequately for the task at hand.)
 
 Call the extension associated with a record the _interpretation_ of
 the record.  The record is to be interpreted in the context of all the
 other records in the file in which it occurs, and what they say about
 one another, and in the context of whatever we know about the origin
-of the file itself.  In the same way we can speak of an interpretation
-of a table (set of Darwin Core records) as the harmonious simultaneous
-interpretation of all of its records.
+of the file itself and what sources were consulted in its creation.
+In the same way we can speak of an interpretation of a table (set of
+Darwin Core records) as the harmonious simultaneous interpretation of
+all of its records.
 
 Each record contains one or more names, 'identifiers', or name- or
 identifier-like strings.  In some files a single name might be used
@@ -108,7 +111,7 @@ authors or articles can use a taxon name for various different taxa,
 but by the priority all these taxa contain the name's type specimen.
 These two conventions are helpful computationally.
 
-In taxonomy it is very helpful to be able to relate taxa to one
+In taxonomy it is helpful to be able to relate taxa to one
 another, given their names or records.  Important relations include
 the RCC-5 relationships: two records x and y designating taxa u and v
 such that either u = v (equivalence), u < v (proper inclusion, also
@@ -119,6 +122,8 @@ these relationships is very easy just by reading them off from the
 tree, because a child/parent edge is interpreted as set inclusion of
 the child's extension in the parent's extension.  In particular,
 conflict cannot occur inside a single tree.
+
+[merge operation is deprecated in the code but may be revived later.]
 
 The merge operation is more complicated.  Here we start with _two_
 trees and want to be able to decide statements of relationships
