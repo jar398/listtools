@@ -1,7 +1,9 @@
+#!/usr/bin/env python3
 
 from util import log
 from checklist import * 
 from workspace import * 
+import property as prop
 
 # Exemplars (representing individual specimens or occurrences with
 # known classification in BOTH checklists) are chosen heuristically
@@ -14,35 +16,37 @@ from workspace import *
 def choose_exemplars(AB):
   analyze_tipwards(AB)
   exemplar_records = []
+  seen = prop.mep()
+  j = [0]
   def do_exemplars(AB, inB):
     def traverse(x):
+      for c in get_inferiors(x):
+        traverse(c)
       v = AB.in_left(x)
-      for c in get_inferiors(v):
-        traverse(c, inB)
-      probe = get_exemplar(v, None) # (id, v, w)
-      if probe: return
       rel = get_tipward(v, None)
+      j[0] += 1
       if rel:
         if inB:
           w = v
           v = rel.record
         else:
           w = rel.record
+        if prop.mep_get(seen, v, False): return
+        prop.mep_set(seen, v, True)
+        prop.mep_set(seen, w, True)
         assert separated(v, w)
         id = len(exemplar_records)
+        # Should save reason (in rel)??
         ex = (id, v, w)
         exemplar_records.append(ex)
-        set_exemplar(v, ex)
-        set_exemplar(w, ex)
-        return id                   # might be 0
     traverse(AB.A.top)
   do_exemplars(AB, False)
   do_exemplars(swap(AB), True)
+  log("# visited %s records" % j[0])
+  log("# %s exemplar records" % len(exemplar_records))
   return exemplar_records
 
 def exemplar_id(ex): return ex[0]
-
-(get_exemplar, set_exemplar) = prop.get_set(prop.declare_property("exemplar"))
 
 
 # Find tipward record matches (TRMs)

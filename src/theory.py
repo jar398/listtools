@@ -12,9 +12,15 @@ from workspace import *
 
 def theorize(AB):
   AB.exemplar_records = exemplar.choose_exemplars(AB)
+  for ex in AB.exemplar_records:
+    (_, v, w) = ex
+    set_exemplar(v, ex)
+    set_exemplar(w, ex)
   analyze_blocks(AB)                  # sets of examplars
   compute_cross_mrcas(AB)
   find_reflections(AB)
+
+(get_exemplar, set_exemplar) = prop.get_set(prop.declare_property("exemplar"))
 
 #-----------------------------------------------------------------------------
 # cross_relation: The implementation of the RCC-5 theory of AB (A+B).
@@ -93,8 +99,9 @@ def compare_within_block(v, w):
     rel2 = simple.simple_relationship(get_outject(v), get_outject(w_eq.record))
   # See whether the v/v_eq/w_eq/w diagram commutes
   if w_eq and v_eq:
-    ship = rel1.relationship
-    assert rel2.relationship == ship, \
+    ship = rel1.relationship & rel2.relationship
+    # Take intersection of relationships (both are true)??
+    assert ship, \
       (blurb(v),
        rcc5_symbol(rel1.relationship), 
        blurb(w_eq.record),
@@ -123,10 +130,10 @@ def alt_superior(AB, v):
     return None
   ship = cross_relation(AB, v, w).relationship
   if ship == EQ:
-    return get_superior(w, None)
+    return local_sup(AB, w)
   else:
     assert cross_lt(v, w)
-    sup = get_superior(v, None)
+    sup = local_sup(AB, v)
     return relation(ship, w, sup.status if sup else "accepted", "alt_superior")
 
 # RCC-5 relationship across the two checklists
@@ -148,16 +155,17 @@ def equivalent(v, w):
   AB = get_source(v)            # BIG KLUDGE
   # Easier: return v == get_equivalent(w, None)
   # But, let's check symmetry here
-  e = really_equivalent(v, w)
-  assert e == really_equivalent(w, v), \
-    (blurb(v), blurb(w), blurb(get_matched(v)), blurb(get_matched(w)))
-  return e
 
-# This gets cached, but shouldn't be
+  ref1 = get_equivalent(v)
+  e1 = True if (ref1 and ref1.record == w) else False
 
-def really_equivalent(v, w):
-  ref = get_equivalent(v)
-  return ref and ref.record == w
+  ref2 = get_equivalent(w)
+  e2 = True if (ref2 and ref2.record == v) else False
+
+  assert e1 == e2, \
+    (e1, blurb(v), blurb(ref1),
+     e2, blurb(w), blurb(ref2))
+  return e1
 
 # Given x, returns y such that x = y.  x and y are in AB, not A or B.
 # Returns a Relation or None.
@@ -183,6 +191,8 @@ def find_reflections(AB):
   findem(AB)
   findem(swap(AB))
 
+# We conclude that v = w iff we would conclude that w = v
+
 def find_reflection(AB, v):
   if is_toplike(v):
     if isinA(AB, v):
@@ -190,43 +200,48 @@ def find_reflection(AB, v):
     else:
       return relation(EQ, AB.in_left(AB.A.top), "top")
 
-  # 1. Look for match by name
-  b1 = get_block(v, BOTTOM_BLOCK)    # Necessarily nonempty
-  nm = get_matched(v)     # returns relation in AB
-  if nm and same_block(get_block(nm.record, BOTTOM_BLOCK), b1):
-    return nm                 # They're EQ
-
-  # 2. Peripherals don't match
-  v1 = increase_until_overlap(AB, v)
-  b1 = get_block(v1, BOTTOM_BLOCK)
-  assert not is_empty_block(b1)
-  w = get_cross_mrca(v1, None)
-  if v1 != v:
+  # 1. Peripherals don't match, period
+  vo = increase_until_overlap(AB, v)
+  w = get_cross_mrca(vo, None)
+  if vo != v:
+    assert not is_empty_block(get_block(vo, BOTTOM_BLOCK))
     return relation(LT, w, "reflection", "peripheral")
 
-  # 3. Detect < when mismatched blocks
-  b2 = get_block(w, BOTTOM_BLOCK)
-  assert block_le(b1, b2), (len(b1), len(b2), b1, b2)
-  if not same_block(b2, b1):
-    status = "accepted"   # could also be a synonym? look at v's sup rel
-    return relation(LT, w, status, "smaller block")
+  # 2. Detect < when mismatched blocks
+  b = get_block(v)    # Necessarily nonempty
+  b2 = get_block(w)
+  assert block_le(b, b2), (len(b), len(b2), b, b2)
+  if not same_block(b2, b):
+    return relation(LT, w, "reflection", "smaller block")
 
-  # 4. If v and w are both at top of their chains, equate them.
-  p_rel = get_superior(v, None)
-  q_rel = get_superior(w, None)
-  b3 = get_block(p_rel.record, BOTTOM_BLOCK) if p_rel else True
-  b4 = get_block(q_rel.record, BOTTOM_BLOCK) if q_rel else True
-  if not same_block(b3, b1) and not same_block(b4, b2):
-    nm = get_matched(w)
-    if nm and same_block(get_block(nm.record, BOTTOM_BLOCK), b2):
-      # w matches in v's chain but not vice versa.  Need symmetry
-      pass
-    else:
-      log("# matched chain tops: %s = %s" % (blurb(v), blurb(w)))
-      return relation(EQ, w, "equivalent", "at tops of chains")
+  # 3. Blocks match.  Look for match within block by name.
+  nm = get_matched(v)     # returns relation in AB
+  if nm and same_block(get_block(nm.record, BOTTOM_BLOCK), b):
+    return nm                 # They're EQ
+
+  # 4. If v and w are both at top of their chains, and neither has
+  # a match inside the block, equate them.
+  p_rel = local_sup(AB, v)
+  b3 = get_block(p_rel.record) if p_rel else True
+  if not same_block(b3, b):     # v is at top of its chain
+    while True:
+      q_rel = local_sup(AB, w)
+      b4 = get_block(q_rel.record) if q_rel else True
+      if not same_block(b4, b): # w is at top of its chain
+        # v and w are proper children (not monotypes) of their parents
+        nm = get_matched(w)
+        if nm and same_block(get_block(nm.record, BOTTOM_BLOCK), b):
+          # w matches in v's chain but not vice versa.  Asymmetric
+          # log("# unmatched goes to matched: %s ? %s" % (blurb(v), blurb(w)))
+          return relation(OVERLAP, w, "reflection", "w at top of chain has a match")
+        else:
+          # Both unmatched and both at top of their chains
+          assert get_block(w) == b
+          return relation(EQ, w, "equivalent", "tops of chains, names unmatched")
+      w = q_rel.record
 
   # 5. Hmph
-  return relation(OVERLAP, w, "reflection", "chains not interleaved")
+  return relation(OVERLAP, w, "reflection", "v not at top of chain")
 
 # Find an ancestor of v (in A tree) that overlaps the B tree, i.e.
 # has a nonempty block
@@ -261,12 +276,16 @@ def compute_cross_mrcas(AB):
   def do_cross_mrcas(AB):
     def traverse(x):            # arg in A, result in B
       v = AB.in_left(x)         # in AB
-      probe = get_tipward(v, None)       # in AB
+      probe = get_exemplar(v, None)       # in AB
       if probe:
-        m = get_outject(probe.record)  # in B
+        (_, v1, w1) = probe
+        if v == v1: w = w1
+        elif v == w1: w = v1
+        else: assert False
+        m = get_outject(w)
       else:
         m = BOTTOM                # identity for mrca
-      for c in get_inferiors(x):
+      for c in get_inferiors(x):  # c in A
         q = traverse(c)       # in B
         m = simple.mrca(m, q)      # in B
 
@@ -279,7 +298,7 @@ def compute_cross_mrcas(AB):
         w = AB.in_right(m)
 
         b2 = get_block(w, BOTTOM_BLOCK)
-        assert not is_empty_block(b2)
+        # AssertionError: ([122, 123, 124], [124])
         assert block_le(b1, b2), (list(b1), list(b2))
 
         set_cross_mrca(v, w)
@@ -307,7 +326,8 @@ def analyze_blocks(AB):
       e = combine_blocks(e, traverse(c, in_left, inB))
       if monitor(c): log("got subblock %s -> %s" % (blurb(c), len(e),))
     v = in_left(x)              # in A (or B if in B)
-    exemplar = get_exemplar(AB, v, inB)
+    exem = get_exemplar(v, None) # (id, v, w)
+    if exem: e = adjoin_exemplar(exem[0], e)
     if e != BOTTOM_BLOCK:
       set_block(v, e)
     #log("# block(%s) = %s" % (blurb(x), e))

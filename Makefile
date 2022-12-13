@@ -11,22 +11,21 @@ all:
 	@echo "  report     report on NCBI extensions differences 2015-2020"
 	@echo "  mdd-report report on MDD extensions differences 1.6-1.7"
 	@echo "Use make parameter syntax to specify the two checklists, e.g."
-	@echo "  make A=ncbi201505-mammals B=ncbi202008-mammals report"
-	@echo "(when the .csv file for work/foo is in work/foo.csv etc)"
+	@echo "  make A=work/ncbi201505-mammals B=work/ncbi202008-mammals report"
 
 # Default example:
 # Compare two versions of NCBI mammals
 
 TAXON?=Mammalia
 taxon?=mammals
-A?=ncbi201505-$(taxon)
-B?=ncbi202008-$(taxon)
+A?=work/ncbi201505-$(taxon)
+B?=work/ncbi202008-$(taxon)
 ANAME?=A
 BNAME?=B
 
 # make A=ncbi201505-mammals B=ncbi202008-mammals demo
-# time make A=ncbi201505 B=ncbi202008 demo
-# time make A=ncbi201505 B=ncbi202008 demo
+# time make A=work/ncbi201505 B=work/ncbi202008 demo
+# time make A=work/ncbi201505 B=work/ncbi202008 demo
 #  etc. etc.
 
 # N.b. managed_id has a specific meaning in this system; it's an id in
@@ -37,14 +36,14 @@ BNAME?=B
 # ----- 1. NCBI example:
 
 ncbi-report:
-	$(MAKE) A=ncbi201505-$(taxon) B=ncbi202008-$(taxon) report
+	$(MAKE) A=work/ncbi201505-$(taxon) B=work/ncbi202008-$(taxon) report
 
 # make A=ncbi201505 B=ncbi202008 report  # big, will take forever
 
 # ----- 2. GBIF examples:
 
 gbif-report:
-	$(MAKE) A=gbif20190916-$(taxon) B=gbif20210303-$(taxon) report
+	$(MAKE) A=work/gbif20190916-$(taxon) B=work/gbif20210303-$(taxon) report
 
 # make A=ncbi202008-mammals B=gbif20210303-mammals report
 # and so on.
@@ -52,7 +51,7 @@ gbif-report:
 # ----- 3. BioKIC/ATCR examples:
 
 mdd-report:
-	$(MAKE) A=mdd1.6 B=mdd1.7 report
+	$(MAKE) A=work/mdd1.6 B=work/mdd1.7 report
 
 # make A=mdd1.2-mammals B=mdd1.3 report
 # make A=mdd1.2 B=mdd1.3 report
@@ -134,10 +133,10 @@ TIPWARDS=work/$(shell basename $A)-$(shell basename $B)-tipwards.csv
 demo: $(DEMO)
 
 $(DEMO): $P/demo.py $P/checklist.py $P/align.py $P/theory.py $P/workspace.py \
-	   work/$A.csv work/$B.csv
+	   $A.csv $B.csv
 	@echo
 	@echo "--- PREPARING DEMO ---"
-	$P/demo.py --A work/$A.csv --B work/$B.csv --Aname $(ANAME) --Bname $(BNAME) \
+	$P/demo.py --A $A.csv --B $B.csv --Aname $(ANAME) --Bname $(BNAME) \
 	  --eulerx $(EULERX).new --tipwards $(TIPWARDS).new > $@.new
 	@mv -f $@.new $@
 	@mv -f $(EULERX).new $(EULERX)
@@ -159,7 +158,7 @@ merged: $(MERGED)
 $(MERGED): $(MATCHES) $P/merge.py $P/theory.py $P/workspace.py $P/checklist.py $P/property.py
 	@echo
 	@echo "--- MERGING ---"
-	$P/merge.py --A work/$A.csv --B work/$B.csv --matches $(MATCHES) \
+	$P/merge.py --A $A.csv --B $B.csv --matches $(MATCHES) \
 		    > $@.new
 	@mv -f $@.new $@
 
@@ -170,7 +169,7 @@ aligned: $(ALIGNED)
 $(ALIGNED): $(MATCHES) $P/align.py $P/theory.py $P/workspace.py $P/checklist.py $P/property.py
 	@echo
 	@echo "--- ALIGNING ---"
-	$P/align.py --A work/$A.csv --B work/$B.csv --matches $(MATCHES) \
+	$P/align.py --A $A.csv --B $B.csv --matches $(MATCHES) \
 		    > $@.new
 	@mv -f $@.new $@
 
@@ -178,10 +177,10 @@ $(ALIGNED): $(MATCHES) $P/align.py $P/theory.py $P/workspace.py $P/checklist.py 
 
 matches: $(MATCHES)
 
-$(MATCHES): work/$A.csv work/$B.csv $P/match_records.py
+$(MATCHES): $A.csv $B.csv $P/match_records.py
 	@echo
 	@echo "--- COMPUTING RECORD MATCHES ---"
-	$P/match_records.py --A work/$A.csv --B work/$B.csv --pk $(DELTA_KEY) --index $(INDEX) \
+	$P/match_records.py --A $A.csv --B $B.csv --pk $(DELTA_KEY) --index $(INDEX) \
 		    	    > $@.new
 	@mv -f $@.new $@
 
@@ -226,7 +225,7 @@ $(DELTA): $A.csv $B.csv $P/delta.py $P/match_records.py $P/property.py
 	@echo
 	@echo "--- COMPUTING DELTA ---"
 	set -o pipefail; \
-	$P/delta.py --A work/$A.csv --B work/$B.csv --pk $(DELTA_KEY) \
+	$P/delta.py --A $A.csv --B $B.csv --pk $(DELTA_KEY) \
 		    --index $(INDEX) --manage $(KEEP)
 	| $P/sortcsv.py --key $(DELTA_KEY) \
 	> $@.new

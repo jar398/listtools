@@ -91,7 +91,8 @@ def use_parse(gn_iter, check_iter):
 
     else:
       status = (checklist_row[status_pos] if status_pos != None else '')
-      if status == 'accepted' or status == 'valid' or status == '':
+      if False and (status == 'accepted' or status == 'valid' or status == ''):
+        # Happens very frequenctly with NCBI
         print("# Poor quality name: '%s' quality %s" %
               (gn_row[verbatim_pos], quality),
               file=sys.stderr)
