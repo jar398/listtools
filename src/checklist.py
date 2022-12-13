@@ -668,8 +668,9 @@ def get_eulerx_name(x, C=None):
   if cell[0] <= 1:
     return e
   else:
-    print("# Discriminating: %s %s/%s" % (e, i, cell[0]),
-          file=sys.stderr)
+    if False:                   # lots of these in ncbi mammals
+      print("# Discriminating: %s %s/%s" % (e, i, cell[0]),
+            file=sys.stderr)
     return "%s_%s" % (e, i)
 
 def assign_eulerx_names(C):
