@@ -15,8 +15,7 @@ def demo(A_iter, A_name, B_iter, B_name):
   AB = workspace.make_workspace(A, B, {'tag': "AB"})
   al = list(align.make_alignment(AB))
   return (align.generate_alignment_report(AB, al),
-          generate_eulerx(AB, al),
-          align.exemplars_table(AB))
+          generate_eulerx(AB, al))
 
 # Returns an Iterable of rows
 
@@ -90,8 +89,6 @@ if __name__ == '__main__':
                       default=None)
   parser.add_argument('--eulerx', help="where to put the Euler/X version of the alignment",
                       default=None)
-  parser.add_argument('--tipwards', help="where to put the tipwards node list",
-                      default=None)
   parser.add_argument('--test', action='store_true', help="run smoke tests")
   args=parser.parse_args()
   if args.test:
@@ -102,22 +99,16 @@ if __name__ == '__main__':
     a_path = args.A
     b_path = args.B
     e_path = args.eulerx
-    t_path = args.tipwards
     assert a_path != b_path
     with util.stdopen(a_path) as a_file:
       with util.stdopen(b_path) as b_file:
-        (report, eulerx, tipwards) = demo(csv.reader(a_file),
-                                          aname,
-                                          csv.reader(b_file),
-                                          bname)
+        (report, eulerx) = demo(csv.reader(a_file),
+                                aname,
+                                csv.reader(b_file),
+                                bname)
         util.write_rows(report, sys.stdout)
         if e_path:
           with open(e_path, "w") as e_file:
             for line in eulerx:
               print(line, file=e_file)
-        if t_path:
-          with open(t_path, "w") as t_file:
-            writer = csv.writer(t_file)
-            for row in tipwards:
-              writer.writerow(row)
 

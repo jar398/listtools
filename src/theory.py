@@ -11,6 +11,7 @@ from checklist import *
 from workspace import *
 
 def theorize(AB):
+  # ... exemplar.exemplars(A_iter, B_iter, m_iter) ...
   AB.exemplar_records = exemplar.choose_exemplars(AB)
   for ex in AB.exemplar_records:
     (_, v, w) = ex

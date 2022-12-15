@@ -137,10 +137,9 @@ $(DEMO): $P/demo.py $P/checklist.py $P/align.py $P/theory.py $P/workspace.py \
 	@echo
 	@echo "--- PREPARING DEMO ---"
 	$P/demo.py --A $A.csv --B $B.csv --Aname $(ANAME) --Bname $(BNAME) \
-	  --eulerx $(EULERX).new --tipwards $(TIPWARDS).new > $@.new
+	  --eulerx $(EULERX).new > $@.new
 	@mv -f $@.new $@
 	@mv -f $(EULERX).new $(EULERX)
-	@mv -f $(TIPWARDS).new $(TIPWARDS)
 
 report: $(REPORT)
 REPORT_OPTIONS?=
