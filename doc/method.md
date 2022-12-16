@@ -176,17 +176,18 @@ The cases for determining the relationship are roughly as follows:
 1. If the nodes are in different blocks, we use the result of the
 exemplar set comparison into an RCC-5 relationship.
 1. For comparisons within a block, the reflections are consulted.
-x is compared to y's reflection, and y to x's reflection, and the relation is the conjunction of these two resulting within-checklist relationships.
+x is compared to y's reflection, and x's reflection is compared to y, and the relationship is the conjunction of these two resulting within-checklist relationships.
 
 ## Applications
 
-1. Euler/X alignment
+1. Euler/X alignment - a set of 'articulations' (x - relationship - y) 
+characterizing how the checklists compare toplogically
 1. Merge - create a new checklist combining the taxa of the two inputs
 1. Diff - show what changes would need to be made to the first in order to obtain the second
 
 # Previous work
 
-I learned a lot of these ideas by working on Smasher, the Open Tree of Life taxonomy synthesizer, but the current approach to alignment is much more careful and principled.  Smasher was too aggressive in its collapsing of synonyms, and it was limited in that it only cared about merging taxonomies.
+I learned a lot of these ideas by working on Smasher, the Open Tree of Life taxonomy synthesizer - by doing so many things wrong.  The current approach to alignment is much more careful and principled.  Smasher was too aggressive in its collapsing of synonyms, and it was limited in that it only cared about merging taxonomies, and it relied too heavily on names of higher taxa.
 Rees JA, Cranston K. Automated assembly of a reference taxonomy for phylogenetic data synthesis. Biodiversity Data Journal 2017;(5):e12581. Published 2017 May 22. https://doi.org/10.3897/BDJ.5.e12581
 
 # Acknowledgment
