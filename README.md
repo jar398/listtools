@@ -5,6 +5,7 @@ names (i.e. 'checklists'), which are sometimes organized hierachically.
 
 * [Installation](doc/guide.md#installation)
 * [User guide](doc/guide.md)
+* [Method](doc/method.md)
 
 <strong>Warning:</strong> The code is in transition from one method to
 another.  You will see redundancy in functionality as the older code
