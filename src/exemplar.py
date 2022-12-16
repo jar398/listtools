@@ -20,7 +20,7 @@ def exemplars(A_iter, B_iter, m_iter):
   B = rows_to_checklist(B_iter, {'tag': "B"})
   AB = workspace.make_workspace(A, B, {'tag': "AB"})
   if not m_iter:
-    m_iter = match_records(checklist_to_rows(AB.A), checklist_to_rows(AB.B))
+    m_iter = match_records(checklist_to_rows(A), checklist_to_rows(B))
   checklist.load_matches(m_iter, AB)
   yield ("exemplar", "A_taxonID", "B_taxonID")
   for (id, v, w) in choose_exemplars(AB):

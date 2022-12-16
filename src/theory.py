@@ -46,7 +46,7 @@ def cross_relation(AB, v, w):
     if psup and psup.relationship == SYNONYM:
       if qsup and qsup.relationship == SYNONYM:
         if equivalent(psup.record, qsup.record):
-          answer = (OVERLAP, "co-synonyms")
+          answer = (NOINFO, "co-synonyms")
       else:
         if equivalent(psup.record, w):
           answer = (SYNONYM, "is a synonym of")
@@ -229,17 +229,18 @@ def find_reflection(AB, v):
       q_rel = local_sup(AB, w)
       b4 = get_block(q_rel.record) if q_rel else True
       if not same_block(b4, b): # w is at top of its chain
-        # v and w are proper children (not monotypes) of their parents
-        nm = get_matched(w)
-        if nm and same_block(get_block(nm.record, BOTTOM_BLOCK), b):
-          # w matches in v's chain but not vice versa.  Asymmetric
-          # log("# unmatched goes to matched: %s ? %s" % (blurb(v), blurb(w)))
-          return relation(OVERLAP, w, "reflection", "w at top of chain has a match")
-        else:
-          # Both unmatched and both at top of their chains
-          assert get_block(w) == b
-          return relation(EQ, w, "equivalent", "tops of chains, names unmatched")
+        break
       w = q_rel.record
+    # v and w are proper children (not monotypes) of their parents
+    nm = get_matched(w)
+    if nm and same_block(get_block(nm.record, BOTTOM_BLOCK), b):
+      # w matches in v's chain but not vice versa.  Asymmetric
+      # log("# unmatched goes to matched: %s ? %s" % (blurb(v), blurb(w)))
+      return relation(OVERLAP, w, "reflection", "w at top of chain has a match")
+    else:
+      # Both unmatched and both at top of their chains
+      assert get_block(w) == b
+      return relation(EQ, w, "equivalent", "tops of chains, names unmatched")
 
   # 5. Hmph
   return relation(OVERLAP, w, "reflection", "v not at top of chain")
