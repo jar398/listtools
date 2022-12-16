@@ -186,10 +186,10 @@ x is compared to y's reflection, and y to x's reflection, and the relation is th
 
 # Previous work
 
-I learned a lot of these ideas by working on Smasher, but the current approach to alignment is much more careful and principled.  Smasher was too aggressive in its collapsing of synonyms, and it was limited in that it only cared about merging taxonomies.
-Rees JA, Cranston K. Automated assembly of a reference taxonomy for phylogenetic data synthesis. Biodiversity Data Joutnal 2017;(5):e12581. Published 2017 May 22. https://doi.org/10.3897/BDJ.5.e12581
+I learned a lot of these ideas by working on Smasher, the Open Tree of Life taxonomy synthesizer, but the current approach to alignment is much more careful and principled.  Smasher was too aggressive in its collapsing of synonyms, and it was limited in that it only cared about merging taxonomies.
+Rees JA, Cranston K. Automated assembly of a reference taxonomy for phylogenetic data synthesis. Biodiversity Data Journal 2017;(5):e12581. Published 2017 May 22. https://doi.org/10.3897/BDJ.5.e12581
 
 # Acknowledgment
 
-Mark Holder taught me that is was practical to use sets for these calculation, in spite of the large sizes of some of these sets.  His implementation uses bit sets, while mine uses python3 sets (whose details I do not know).
+Mark Holder taught me that it was practical to use sets for these calculations, in spite of the large sizes of some of these sets.  His implementation uses bit sets, while mine uses python3 sets (whose details I do not know).
 https://doi.org/10.7717/peerj.3058  (I think that would be the one?)
