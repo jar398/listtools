@@ -31,13 +31,18 @@ def use_parse(gn_iter, check_iter):
   checklist_header = next(check_iter)
   # May need to consult the source record too
   add_canon = not "canonicalName" in checklist_header
+  add_year = not "namePublishedInYear" in checklist_header
+  status_pos = windex(checklist_header, "nomenclaturalStatus")
+
   out_header = checklist_header
   if add_canon:
     out_header = out_header + ["canonicalName"]
-  canonical_pos = windex(out_header, "canonicalName")
-  out_header = out_header + ["canonicalStem", "year", "type"]
+  if add_year:
+    out_header = out_header + ["namePublishedInYear"]
+  out_header = out_header + ["canonicalStem", "type"]
 
-  status_pos = windex(checklist_header, "nomenclaturalStatus")
+  out_canonical_pos = windex(out_header, "canonicalName")
+  out_year_pos = windex(out_header, "namePublishedInYear")
 
   row_count = 0
   trim_count = 0
@@ -50,8 +55,27 @@ def use_parse(gn_iter, check_iter):
     row_count += 1
     gn_row = next(gn_iter)
     out_row = checklist_row
-    if add_canon:
-      out_row = out_row + [MISSING]
+    if add_canon: out_row = out_row + [MISSING]
+    if add_year:  out_row = out_row + [MISSING]
+
+    # Fill in year if it's missing from source
+    year = out_row[out_year_pos]
+    if year == MISSING:
+      year = gn_row[year_pos]     # possibly missing
+      if year:     # MISSING is falsish
+        out_row[out_year_pos] = year
+        year_count += 1
+
+    # Fill in canonical if it's missing from source (checklist_row)
+    canon = out_row[out_canonical_pos]
+    if canon == MISSING:
+      canon = gn_row[canonical_full_pos]
+      if canon:
+        out_row[out_canonical_pos] = canon
+        if canon_count < CANON_SAMPLE_LIMIT:
+          print("# canonical := '%s' bc '%s'" % (canon_full, gn_row[verbatim_pos]),
+                file=sys.stderr)
+        canon_count += 1
 
     # gnparser tries to parse Verbatim into CanonicalFull [+ Authorship] [+ Year].
     # The original may have junk after the CanonicalFull.
@@ -61,11 +85,6 @@ def use_parse(gn_iter, check_iter):
     # the rest.
     # If Year is absent try to get it from Verbatim, and if that fails
     # use 9999 (so that the record sorts after those with years).
-
-    # Figure out year part of tipe
-    year = gn_row[year_pos]     # possibly missing
-    if year:     # MISSING is falsish
-      year_count += 1
 
     stemmed = MISSING
     tipe = MISSING   # default, overridden if possible
@@ -97,19 +116,8 @@ def use_parse(gn_iter, check_iter):
               (gn_row[verbatim_pos], quality),
               file=sys.stderr)
 
-    # Extra benefit: fill in canonical if it's missing from source (checklist_row)
-    canon_full = gn_row[canonical_full_pos]
-    if canon_full:
-      have = MISSING if add_canon else checklist_row[canonical_pos]
-      if have == MISSING:
-        if canon_count < CANON_SAMPLE_LIMIT:
-          print("# canonical := '%s' bc '%s'" % (canon_full, gn_row[verbatim_pos]),
-                file=sys.stderr)
-        out_row[canonical_pos] = canon_full
-        canon_count += 1
-
     # Add extra columns to the original input
-    out_row = out_row + [stemmed, year, tipe]
+    out_row = out_row + [stemmed, tipe]
     if len(out_row) != len(out_header):
       print("! %s %s" % (len(out_header), out_header,), file=sys.stderr)
       print("! %s %s" % (len(out_row), out_row,), file=sys.stderr)

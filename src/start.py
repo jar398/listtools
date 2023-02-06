@@ -10,7 +10,6 @@ from util import csv_parameters, windex, stable_hash
 MISSING = ''
 
 def start_csv(inport, params, outport, args):
-  pk_col = args.pk or 'taxonID'
   cleanp = args.clean
 
   (d, q, g) = params
@@ -23,11 +22,13 @@ def start_csv(inport, params, outport, args):
       print("** start: in_header is %s" % (in_header,), file=sys.stderr)
 
   def fix(h):
-    if h == '\ufefftaxonID': return 'taxonID'  # CoL 2019
-    if h.startswith('dwc:'): return h[4:] # CoL 2021
+    if h[0] == '\ufeff': h = h[1:]
+    if h.startswith('dwc:'): h = h[4:]    # CoL 2021
+    if h == 'taxonId': return 'taxonID'   # artsdatabanken 2023
     else: return h
   in_header = [fix(h) for h in in_header]
 
+  pk_col = args.pk or 'taxonID'
   pk_pos_in = windex(in_header, pk_col)
 
   can_pos = windex(in_header, "canonicalName")
@@ -261,7 +262,8 @@ def is_scientific(name):
   return sci_re.search(name)
 
 def clean_rank(row, rank_pos, can_pos):
-  if rank_pos != None and row[rank_pos] == MISSING and binomial_re.match(row[can_pos]):
+  if rank_pos != None and row[rank_pos] == MISSING and \
+     can_pos and binomial_re.match(row[can_pos]):
     row[rank_pos] = 'species'
     return True
   return False

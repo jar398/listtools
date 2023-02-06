@@ -99,7 +99,7 @@ class Stdin:
   def __exit__(self, exc_type, exc_val, exc_tb): return
 
 def stdopen(x):
-  if x == '-':
+  if x == '-' or not x:
     return Stdin()
   else:
     return open(x)

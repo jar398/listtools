@@ -14,11 +14,12 @@
 debug = False
 
 import sys, os, csv, argparse
+import util
 
 from util import MISSING, windex, csv_parameters
 
-def extract_subset(infile, hier_path, root_id, outfile):
-  (topo, root_tid) = read_topology(hier_path, root_id)
+def extract_subset(infile, hier_file, root_id, outfile):
+  (topo, root_tid) = read_topology(hier_file, root_id)
   assert root_tid
   all = closure(topo, root_tid)
   write_subset(infile, root_tid, all, topo, outfile)
@@ -60,57 +61,56 @@ def closure(topo, root_id):
   print("-- subset: %s items in transitive closure" % len(all), file=sys.stderr)
   return all
 
-def read_topology(hier_path, root_id):
+def read_topology(hier_file, root_id):
   # Keyed by taxon id
   topo = {}
-  (delimiter, quotechar, mode) = csv_parameters(hier_path)
+  # (delimiter, quotechar, mode) = csv_parameters(hier_path)
   counter = 0
   root_tid = None
-  with open(hier_path, "r") as infile:
-    print("# subset: scanning %s to obtain hierarchy" % hier_path,
-          flush=True,
-          file=sys.stderr)
-    reader = csv.reader(infile, delimiter=delimiter, quotechar=quotechar, quoting=mode)
-    head = next(reader)
+  print("# subset: scanning to obtain hierarchy",
+        flush=True,
+        file=sys.stderr)
+  reader = csv.reader(hier_file)  #, delimiter=delimiter, quotechar=quotechar, quoting=mode
+  head = next(reader)
 
-    tid_column = windex(head, "taxonID") 
-    pid_column = windex(head, "parentNameUsageID")
-    aid_column = windex(head, "acceptedNameUsageID")
-    sid_column = windex(head, "taxonomicStatus")
-    name_column = windex(head, "canonicalName")
-    sci_column = windex(head, "scientificName")
+  tid_column = windex(head, "taxonID") 
+  pid_column = windex(head, "parentNameUsageID")
+  aid_column = windex(head, "acceptedNameUsageID")
+  sid_column = windex(head, "taxonomicStatus")
+  name_column = windex(head, "canonicalName")
+  sci_column = windex(head, "scientificName")
 
-    if tid_column == None:      # usually 0
-      print("** No taxonID column found", file=sys.stderr)
-    if pid_column == None:
-      print("** No taxonID column found", file=sys.stderr)
-    if aid_column == None:
-      print("** No acceptedNameUsageID column found", file=sys.stderr)
-    if sid_column == None:
-      print("** No taxonomicStatus column found", file=sys.stderr)
+  if tid_column == None:      # usually 0
+    print("** No taxonID column found", file=sys.stderr)
+  if pid_column == None:
+    print("** No taxonID column found", file=sys.stderr)
+  if aid_column == None:
+    print("** No acceptedNameUsageID column found", file=sys.stderr)
+  if sid_column == None:
+    print("** No taxonomicStatus column found", file=sys.stderr)
 
-    for row in reader:
-      counter += 1
-      tid = row[tid_column]
-      parent_id = row[pid_column]
-      accepted_id = row[aid_column]
-      status = row[sid_column]
-      # Not clear which part of the record is authoritative when there
-      # is a conflict.
-      # (accepted_id and not accepted_id == tid))
-      if accepted_id != MISSING and accepted_id != tid:
-        (_, syns) = get_topo_record(accepted_id, topo)
-        syns.append(tid)
-      if parent_id != MISSING and parent_id != tid:
-        (children, _) = get_topo_record(parent_id, topo)
-        children.append(tid)
-      if (tid == root_id or
-          (name_column != None and row[name_column] == root_id) or
-          (sci_column != None and row[sci_column] == root_id)):
-        root_tid = tid
-        
-    print("-- subset: %s hierarchy items of which %s have children and/or synonyms" %
-          (counter, len(topo)), file=sys.stderr)
+  for row in reader:
+    counter += 1
+    tid = row[tid_column]
+    parent_id = row[pid_column]
+    accepted_id = row[aid_column]
+    status = row[sid_column]
+    # Not clear which part of the record is authoritative when there
+    # is a conflict.
+    # (accepted_id and not accepted_id == tid))
+    if accepted_id != MISSING and accepted_id != tid:
+      (_, syns) = get_topo_record(accepted_id, topo)
+      syns.append(tid)
+    if parent_id != MISSING and parent_id != tid:
+      (children, _) = get_topo_record(parent_id, topo)
+      children.append(tid)
+    if (tid == root_id or
+        (name_column != None and row[name_column] == root_id) or
+        (sci_column != None and row[sci_column] == root_id)):
+      root_tid = tid
+
+  print("-- subset: %s hierarchy items of which %s have children and/or synonyms" %
+        (counter, len(topo)), file=sys.stderr)
 
   if root_tid == None:
     print("*** Did not find root taxonID or canonicalName %s" % root_id)
@@ -132,4 +132,5 @@ if __name__ == '__main__':
   parser.add_argument('--root',
                       help="taxonID or name of root of subtree to be extracted")
   args = parser.parse_args()
-  extract_subset(sys.stdin, args.hierarchy, args.root, sys.stdout)
+  with open(args.hierarchy, 'r') as hier_file:
+    extract_subset(sys.stdin, hier_file, args.root, sys.stdout)

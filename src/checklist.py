@@ -13,7 +13,7 @@ from rcc5 import *
 primary_key_prop = prop.declare_property("taxonID")
 canonical_prop = prop.declare_property("canonicalName")
 scientific_prop = prop.declare_property("scientificName")
-year_prop = prop.declare_property("year")  # http://rs.tdwg.org/dwc/terms/year
+year_prop = prop.declare_property("namePublishedInYear")  # http://rs.tdwg.org/dwc/terms/
 rank_prop = prop.declare_property("taxonRank")
 managed_id_prop = prop.declare_property("managed_id")
 tipe_prop = prop.declare_property("type") # a.k.a. 'tipe'
