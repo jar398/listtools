@@ -98,6 +98,7 @@ class Source:
 
 def all_records(C):
   col = prop.get_column(primary_key_prop, C.context)
+  # wait, this includes records that should get discarded. careful.
   return prop.get_records(col)
 
 def preorder_records(C):        # starting from top
@@ -187,7 +188,7 @@ def resolve_superior_link(S, record):
     else:
       log("# Synonym %s with unresolvable accepted: %s -> %s" %
           (get_tag(S), blurb(record), accepted_key))
-      sup = relation(ACCEPTED, S.top, "root", "synonym with unresolved accepted id")
+      #sup = relation(ACCEPTED, S.top, "root", "synonym with unresolved accepted id")
   else:
     # Accepted
     parent_key = get_parent_key(record, None)
@@ -207,17 +208,15 @@ def resolve_superior_link(S, record):
        #   (blurb(record), parent_key, accepted_key))
       sup = relation(ACCEPTED, S.top, "root", "no parent")
 
-  assert sup.record != record
-  set_superior_carefully(record, sup)
+  if sup:
+    assert sup.record != record
+    set_superior_carefully(record, sup)
 
 def set_superior_carefully(x, sup):
   assert isinstance(x, prop.Record)
   assert isinstance(sup, Relative)
   have = get_superior(x, None)
   if have:
-    if False:                   # GBIF fails if we insist
-      assert have.record == sup.record, \
-        (blurb(x), blurb(get_superior(x)), blurb(sup)) # record
     if have.relationship != sup.relationship:
       log("**** Changing sup of %s from %a to %s" %
           (blurb(x), blurb(have), blurb(sup)))
@@ -669,7 +668,8 @@ def get_eulerx_name(x, C=None):
     return e
   else:
     if False:                   # lots of these in ncbi mammals
-      print("# Discriminating: %s %s/%s" % (e, i, cell[0]),
+      tag = get_source_tag(x)
+      print("# Discriminating: %s %s/%s, %s in %s" % (e, i, cell[0], get_primary_key(x), tag),
             file=sys.stderr)
     return "%s_%s" % (e, i)
 
@@ -711,14 +711,16 @@ def generate_eulerx_checklist(C):
   tag = get_tag(C)
   descr = checklist_description(C)
   yield ("taxonomy %s %s" % (tag, descr))
+  names = []
   for rec in preorder_records(C):
     if rec != C.top:
       children = get_children(rec, None) # not the synonyms
       if children:
         sup_name = get_eulerx_name(rec, C)
         if sup_name and get_rank(rec, None) != 'species':
-          yield ("(%s %s)" %
-                 (sup_name, ' '.join(map(lambda x:get_eulerx_name(x,C), children))))
+          names = list(map(lambda x:get_eulerx_name(x, C), children))
+          names.sort()
+          yield ("(%s %s)" % (sup_name, ' '.join(names)))
   yield ''
 
 def checklist_description(C):
