@@ -69,6 +69,8 @@ def use_parse(gn_iter, check_iter):
     # Fill in canonical if it's missing from source (checklist_row)
     canon = out_row[out_canonical_pos]
     if canon == MISSING:
+      # Use quality metric to rule out bad results from gnparse?  E.g.
+      #   Hygrophorus limacinus, s.auct., non (Scop.) Fr.  -> Hygrophorus
       canon = gn_row[canonical_full_pos]
       if canon:
         out_row[out_canonical_pos] = canon

@@ -114,7 +114,7 @@ OLD_METHOD = False
 def taxon_articulations(AB, z, infra):
   rr = list(theory.exemplar_records(AB, z))
   if len(rr) > 0:
-    for (_, a, b) in rr:
+    for (_, a, b) in rr:        # a in A, b in B
       assert theory.separated(a, b)
       (s, comment) = get_acceptable(AB, a if theory.isinB(AB, z) else b)
       assert theory.separated(z, s)
@@ -137,7 +137,7 @@ def articulate(AB, v, w, comment):
   rel = theory.cross_relation(AB, v, w)
   return (v, rel.relationship, w, rel.note, comment)
 
-NORMALIZE = False
+NORMALIZE = True
 
 def rev_comment(comment):
   if comment:
