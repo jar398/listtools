@@ -2,27 +2,30 @@
 # RCC-5 decision method
 
 The central technical problem is figuring out which RCC-5 relationship
-holds between a taxon in one checklist and a taxon in another checklist.
+(equivalent, includes, is included in, disjoint, overlap without
+inclusion) holds between a taxon in one checklist and a taxon in
+another checklist.
 
-So we might ask for the RCC-5 relationship between taxa x and y, where
-x is the taxon in checklist A that some record r1 stands for, and y is
-the taxon in checklist B that some record r2 stands for.
+We might ask which RCC-5 relationship holds between taxa x and y,
+where x is the taxon in checklist A described by some record r1,
+and y is the taxon in checklist B described by some record r2.
 
 We may not know much about these taxa, and we may even have to
-speculate on their properties.  But we do know what the checklists say.
+speculate on their properties and relationships.  But we do know what
+the checklists say, and the rules of nomenclature are sometimes
+helpful.
 
 Of course we don't have enough information to discern the checklist
 authors' intent, so the result is heuristic.  Even if two checklists
-are identical in every way, it is still possible for record (taxon)
-comparison to be underdetermined, because of some unknown context
-bearing on the checklists.  The approach is based on the given
-hierarchies in the checklists together with judicious use of names
-that are common between the two checklists.
+are identical in every way, it is still possible for identical records
+to refer to different taxa, because of some unknown context bearing on
+the checklists.  The present approach is based on the given
+hierarchies in the checklists together, judicious use of names
+that are common between the two checklists, and heuristics.
 
 ## Overview
 
 1. Checklist preparation including scientific name parsing
-1. A 'workspace' holds two checklists
 1. Record matches by name (hierarchy insensitive)
 1. Heuristic exemplar choice
 1. Exemplar set calculation
@@ -33,8 +36,8 @@ that are common between the two checklists.
 ## Checklist preparation
 
 start.py - normalize a checklist file (change to CSV if TSV; check
-ids; check consistency of acceptedNameUsageID with taxonomicStatus;
-sanity checking on canonicalName and scientificName)
+ids; check consistency of `acceptedNameUsageID` with `taxonomicStatus`;
+sanity checking on canonicalName and `scientificName`)
 
 extract_names.py - prepare list of scientific names, to be fed to gnparser
 
@@ -46,33 +49,38 @@ use_gnparse.py - move columns from the gnparser output into the checklist
 From checklists A and B, form a table of mutually unique matches
 between records of A and records of B, capturing the most likely
 correspondences between records in the absence of any consideration of
-the checklists' hierarchies (parentNameUsageID and
-acceptedNameUsageID).  The important thing is the contract, not the
+the checklists' hierarchies (`parentNameUsageID` and
+`acceptedNameUsageID`).  The important thing is the contract, not the
 details.  One could easily replace the matcher with another matcher,
 in the quite likely event another is better.
 
-Ambiguities are treated the same as non-matches.
+(In the long run, hierarchy ought to bear on naming, especially when
+dealing with difficult or noisy data sources, very large trees, or trees without species or without `scientificNames`.)
+
+Ambiguities are treated the same as non-matches.  (There is room for
+improvement here.)
 
 A match is sought based on a sequence of columns taken one at a time
 in order: 
 
     scientificName, type, canonicalName, canonicalStem, managed_id
 
-So, if exactly one record x in A has scientificName S, and exactly one
-record y in B has scientificName S, then we have a record match.  If
+So, if exactly one record x in A has `scientificName` S, and exactly one
+record y in B has `scientificName` S, then we have a record match.  If
 not, then we do the same check but with the values in the `type`
 column, then `canonicalName`, and so on.
 
-The purpose of the `type` column (a poor choice of name) is
-to allow species name matches where there is a genus change, meaning
-there is no exact match between the scientificName or canonicalName.
-The `type` is synthesized from information extracted by gnparse: the
-year (of publication), the epithet (could be specific or
-infraspecific) as stemmed by gnparse, and the last name of the first
-author.
+The purpose of the `type` column (a poor choice of name) is to allow
+species name matches where there is a genus change, meaning there is
+no exact match between the `scientificNames` or even between the
+`canonicalNames`.  The `type` is synthesized from information extracted
+by gnparse: the year (of publication), the epithet (could be specific
+or infraspecific) as stemmed by gnparse, and the last name of the
+first author.
 
 In theory, two records could match uniquely based on their `type` yet
-be completely unrelated, but in practice this hasn't yet happened yet.
+be completely unrelated, but in practice this hasn't yet happened yet
+because usually spurious `type` matches are also ambiguous.
 And of course this would be a risk for any column.
 
 `managed_id` allows records from checklists using a common managed
@@ -84,9 +92,7 @@ by taxonID when all else fails.
 An "exemplar" is intended to be (or intended to 'represent', if you
 are uncomfortable with realism) a single specimen, such as a type
 specimen or something by an occurrence or sequence record, whose
-classification in both of the two source checklists is known.  Our
-RCC-5 comparison between taxa in different checklists will rely, in
-part, on set comparisons of exemplar sets.
+classification in both of the two source checklists is known.
 
 For each exemplar there are two taxa, one in each checklist, each of which is
 the smallest taxon in the checklist known to contain that exemplar.
@@ -98,6 +104,10 @@ descendant records that have exemplars.  The purpose of the descendant
 check is to exclude higher taxa from examplar assignment so as to
 force them to be compared according to their descendant exemplars.
 
+Synonym records are treated as descendants.  A species record is
+treated as having itself as a synonym/descendant with respect to this
+calculation.
+
 Exemplars are chosen as follows.  If (x, y) is a name-matched pair
 (see above), and either 
 no descendant of x belongs to a name-matched pair OR
@@ -105,6 +115,9 @@ no descendant of y belongs to a name-matched pair, then we hypothesize an
 exemplar, with x and y as its minimal taxa.
 
 ## Exemplar set calculation
+
+Our RCC-5 comparison between taxa in different checklists will rely,
+in part, on set comparisons of exemplar sets.
 
 For each taxon in each checklist, we cache (in the workspace) the set
 of exemplars that occur in that taxon (i.e. at or below it in the
@@ -170,7 +183,7 @@ up much in practice.
 While RCC-5 is in principle a matrix keyed by taxa from the two
 checklists, it makes no sense to ramify it as an actual stored matrix.
 Checklists can be quite large, so this is not practical.  Fortunately
-it isn't necessary either.  Instead we have a 'virtual matrix'
+it isn't necessary.  Instead we have a 'virtual matrix'
 consisting of a two-argument function that can compute which RCC-5
 relationship holds between a given record in one checklist and a given
 record in the other.
