@@ -215,8 +215,15 @@ characterizing how the checklists compare toplogically
 
 # Previous work
 
-I learned a lot of these ideas by working on Smasher, the Open Tree of Life taxonomy synthesizer - by doing so many things wrong.  The current approach to alignment is much more careful and principled.  Smasher was too aggressive in its collapsing of synonyms, it was limited in that it only cared about merging taxonomies, and its top-down method relied too heavily on names of higher taxa.
-Rees JA, Cranston K. Automated assembly of a reference taxonomy for phylogenetic data synthesis. Biodiversity Data Journal 2017;(5):e12581. Published 2017 May 22. https://doi.org/10.3897/BDJ.5.e12581
+I learned a lot of these ideas by working on Smasher, the Open Tree of
+Life taxonomy synthesizer - by doing so many things wrong.  The
+current approach to alignment is more careful and principled.  Smasher
+was too aggressive in its collapsing of synonyms, it was limited in
+that it only cared about merging taxonomies, and its top-down method
+relied too heavily on names of higher taxa.  Rees JA, Cranston
+K. Automated assembly of a reference taxonomy for phylogenetic data
+synthesis. Biodiversity Data Journal 2017;(5):e12581. Published 2017
+May 22. https://doi.org/10.3897/BDJ.5.e12581
 
 Mark Holder's implementation uses bit sets, while this one uses
 python3 sets (whose details I do not know).  The present
@@ -224,7 +231,26 @@ implementation is a prototype developed for exploration and much
 slower than the either Holder's method for phylogenetic tree synthesis
 or Smasher which was used for taxonomy synthesis.
 
+Phyloreferences
+(https://journals.publishing.umich.edu/ptpbio/article/id/2101/) bear a
+superficial resemblance to what we're doing here.  A phyloreference
+has two sets of specimens, which I'll call the "in set" and an "out
+set", and is intended to refer to some monophyletic taxon (or taxon
+concept) that contains all members of the in set and no members of the
+out set.  This looks a bit like an exemplar set (as in set) and the
+set of exemplars under analysis that are not in the exemplar set (as
+out set).  However, many taxa found in checklists are not monophyletic
+(nonmonophyly is very common for species in particular), even
+legitimately so, so it is not sound apply the phyloreference concept
+to this method.
+
+After working this out (Apr 2022) and implementing it (fall 2023) I
+learned that Rich Pyle, Nicolas Bailly, and David Remsen had come up
+with a very similar method.  They presented it at TDWG 2022.  An
+abstract for that presentation is here:
+https://biss.pensoft.net/article/93927/ .
+
 # Acknowledgment
 
 Mark Holder convinced me that it was practical to use sets for these calculations, in spite of the large sizes of some of these sets in Open Tree of Life.
-https://doi.org/10.7717/peerj.3058  (I think that would be the one?)
+https://doi.org/10.7717/peerj.3058  [I think that is the right reference?]
