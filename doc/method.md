@@ -244,7 +244,7 @@ out set).  However, many taxa found in checklists are not monophyletic
 legitimately so, so it is not sound apply the phyloreference concept
 to this method.
 
-After working this out (Apr 2022) and implementing it (fall 2023) I
+After working this out (fall 2021?) and implementing it (fall 2022) I
 learned that Rich Pyle, Nicolas Bailly, and David Remsen had come up
 with a very similar method.  They presented it at TDWG 2022.  An
 abstract for that presentation is here:
