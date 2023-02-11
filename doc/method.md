@@ -15,13 +15,17 @@ speculate on their properties and relationships.  But we do know what
 the checklists say, and the rules of nomenclature are sometimes
 helpful.
 
+Each record in each checklist is assumed to have a corresponding
+taxon, and the only taxa we're concerned with here are those for which
+at least one of the checklists has at least one record.
+
 Of course we don't have enough information to discern the checklist
 authors' intent, so the result is heuristic.  Even if two checklists
 are identical in every way, it is still possible for identical records
 to refer to different taxa, because of some unknown context bearing on
 the checklists.  The present approach is based on the given
-hierarchies in the checklists together, judicious use of names
-that are common between the two checklists, and heuristics.
+hierarchies in the checklists, judicious use of names to find taxa common
+to the two checklists, and heuristics.
 
 ## Overview
 
@@ -119,25 +123,26 @@ exemplar, with x and y as its minimal taxa.
 Our RCC-5 comparison between taxa in different checklists will rely,
 in part, on set comparisons of exemplar sets.
 
-For each taxon in each checklist, we cache (in the workspace) the set
-of exemplars that occur in that taxon (i.e. at or below it in the
-checklist's hierarchy).  This is a simple postorder union computation.
-These sets are called "blocks" because it is sometimes the case that
-multiple taxa (even within a single checklist) have the same exemplar
-set, so they must be distinguished in some other way.
+For each record in each checklist, we cache (in the workspace) the set
+of exemplars that occur in the record's taxon (i.e. at or below it in
+the checklist's hierarchy).  This is a simple postorder union
+computation.  These sets are called "blocks" because it is sometimes
+the case that multiple taxa (even within a single checklist) have the
+same exemplar set, so they must be distinguished in some other way.
 
 The word "block" is short for "block of a partition" where the
 partition is one whose equivalence relation is exemplar set equality.
 
-A taxon whose exemplar set is empty is called "peripheral".
+A record whose exemplar set is empty is called "peripheral".
 
 ## Cross-MRCA calculation
 
-For each taxon (record) in each checklist, we cache the smallest
-(fewest members, most 'tipward' in the hierarchy) taxon whose exemplar
-set is equal to or larger than that of the given taxon.  This is
-computed as a simple postorder MRCA computation grounding out with the
-exemplars found on their minimal taxa.
+For each record in each checklist, we cache the smallest
+(fewest members, most 'tipward' in the hierarchy) record in the
+opposite checklist whose exemplar set is equal to or larger than that
+of the given record.  This is computed as a simple postorder MRCA
+computation grounding out with the exemplars found on their minimal
+taxa.
 
 ## "Reflection" calculation
 
@@ -147,9 +152,9 @@ that difference gives the RCC-5 comparison.  However it is possible to
 have taxa with identical exemplar sets that, according to the
 checklists, very likely denote distinct taxa.
 
-The most important case is to try to identify the taxa within a single
-block (records all having the same nonempty exemplar set).  The
-records involved that come from the A checklist will be a
+The most important case is to try to identify and compare the taxa
+within a single block (records all having the same nonempty exemplar
+set).  The records involved that come from the A checklist will be a
 descendant/ancestor sequence or 'lineage' and similarly for the ones
 from B.  Interleaving these sequences is tricky.
 
@@ -157,7 +162,8 @@ The calculation of the reflection of a record x has four cases,
 checked in sequence:
 
 1. If x is peripheral (has an empty exemplar set), x's
-reflection is the reflection of the smallest ancestor taxon of x that has a
+reflection is the reflection of the smallest ancestor taxon of x in the checklist
+that has a
 nonempty exemplar set.
 1. Let y = x's cross-MRCA.  If y has a larger exemplar set than that
 of x, we take y to be x's reflection.
@@ -225,32 +231,35 @@ K. Automated assembly of a reference taxonomy for phylogenetic data
 synthesis. Biodiversity Data Journal 2017;(5):e12581. Published 2017
 May 22. https://doi.org/10.3897/BDJ.5.e12581
 
-Mark Holder's implementation uses bit sets, while this one uses
-python3 sets (whose details I do not know).  The present
-implementation is a prototype developed for exploration and much
-slower than the either Holder's method for phylogenetic tree synthesis
-or Smasher which was used for taxonomy synthesis.
+For the implementation of exemplar sets, Mark Holder's implementation
+uses bit sets, while this one uses python3 sets (whose details I do
+not know).  The present implementation is a prototype developed for
+exploration and much slower than the either Holder's method for
+phylogenetic tree synthesis or Smasher which was used for taxonomy
+synthesis.
 
 Phyloreferences
 (https://journals.publishing.umich.edu/ptpbio/article/id/2101/) bear a
-superficial resemblance to what we're doing here.  A phyloreference
-has two sets of specimens, which I'll call the "in set" and an "out
-set", and is intended to refer to some monophyletic taxon (or taxon
-concept) that contains all members of the in set and no members of the
-out set.  This looks a bit like an exemplar set (as in set) and the
-set of exemplars under analysis that are not in the exemplar set (as
-out set).  However, many taxa found in checklists are not monophyletic
-(nonmonophyly is very common for species in particular), even
-legitimately so, so it is not sound apply the phyloreference concept
-to this method.
+superficial resemblance to what we're doing here with exemplar sets.
+A phyloreference has two sets of specimens, which I'll call the "in
+set" and an "out set", and is intended to refer to some monophyletic
+taxon (or taxon concept) that contains all members of the in set and
+no members of the out set.  This looks a bit like an exemplar set (as
+in set) and the set of exemplars under analysis that are not in the
+exemplar set (as out set).  However, many taxa found in checklists are
+not monophyletic (nonmonophyly is very common for species in
+particular), even legitimately so, so it is not sound apply the
+phyloreference concept to this method.
 
-After working this out (fall 2021?) and implementing it (fall 2022) I
+After working out and implementing the idea of exemplar sets in 2021 I
 learned that Rich Pyle, Nicolas Bailly, and David Remsen had come up
-with a very similar method.  They presented it at TDWG 2022.  An
-abstract for that presentation is here:
+with a very similar idea.  They presented it at the TDWG 2022
+conference.  An abstract for that presentation is here:
 https://biss.pensoft.net/article/93927/ .
 
 # Acknowledgment
 
-Mark Holder convinced me that it was practical to use sets for these calculations, in spite of the large sizes of some of these sets in Open Tree of Life.
-https://doi.org/10.7717/peerj.3058  [I think that is the right reference?]
+Mark Holder convinced me that it was practical to use bit sets for
+these calculations, in spite of the large sizes of some of these sets
+in Open Tree of Life.  https://doi.org/10.7717/peerj.3058 [I think
+that is the right reference?]
