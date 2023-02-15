@@ -12,35 +12,41 @@ from checklist import *
 from workspace import *
 from theory import local_sup
 
-def align(A_iter, B_iter):
-  A = rows_to_checklist(A_iter, {'tag': "A"})  # meta
-  B = rows_to_checklist(B_iter, {'tag': "B"})  # meta
+def ingest(A_iter, A_name, B_iter, B_name):
+  A = rows_to_checklist(A_iter, {'tag': A_name or "A"})  # meta
+  B = rows_to_checklist(B_iter, {'tag': B_name or "B"})  # meta
   AB = workspace.make_workspace(A, B, {'tag': "AB"})
   al = make_alignment(AB)
-  return generate_alignment_report(AB, al)
+  return (al, AB)
 
 # Returns a row generator
 
-def generate_alignment_report(AB, al):
+def generate_alignment_report(al):
   yield ("A id", "A name", "rcc5", "B name", "B id",
          "action", "note", "comment")
   for art in al:
-    (v, ship, w, note, comment) = art
+    (v, ship, w, note, comment, forwardp) = art
     assert note
-    if theory.isinB(AB, v):   # Normalize order?
-      (v, w) = (w, v)
-      comment = rev_comment(comment)
-      ship = reverse_relationship(ship)
     x = get_outject(v)
     y = get_outject(w)
+    d = describe(v, ship, w)
     yield  (get_primary_key(x),
             blurb(x),
             rcc5_symbol(ship),
             blurb(y),
             get_primary_key(y),
-            describe(v, ship, w),
-            note,
-            comment)
+            d, note, comment)
+
+def generate_short_report(al):
+  yield ("A name", "rcc5", "B name", "action")
+  for art in al:
+    (v, ship, w, note, comment, forwardp) = art
+    d = describe(v, ship, w)
+    if d:
+      yield  (blurb(get_outject(v)),
+              rcc5_symbol(ship),
+              blurb(get_outject(w)),
+              d)
 
 def describe(v, ship, w):
   rel = get_matched(v)
@@ -48,12 +54,17 @@ def describe(v, ship, w):
   stay = (get_rank(get_accepted(get_outject(v)), None) ==
           get_rank(get_accepted(get_outject(w)), None))
   if ship == GT:
-    if stay: action = ('shrink' if mat else 'split')
+    if stay: action = (('shrink' and '') if mat else 'split')
     else: action = 'add'
   elif ship == EQ:
-    action = ('' if mat else 'equivalent')
+    # No match - ambiguous match - unique match
+    # Different names - same name
+    if get_canonical(v) != get_canonical(w):
+      action = 'rename'
+    else:
+      action = ('' if mat else 'equivalent') # Ambiguous ?
   elif ship == LT:
-    if stay: action = ('expand' if mat else 'lump')
+    if stay: action = (('expand' and '') if mat else 'lump')
     else: action = 'remove'
   elif ship == DISJOINT:
     action = ('false match' if mat else 'disjoint')
@@ -66,15 +77,30 @@ def describe(v, ship, w):
     action = 'no information'
   elif ship == SYNONYM:
     action = 'synonym of'
+  elif ship == IREP:
+    action = 'add'
+  elif ship == PERI:
+    action = 'remove'
   else:
     action = rcc5_symbol(ship)
   return action
 
 # -----------------------------------------------------------------------------
 # An alignment is a generator (an Iterable) of articulations.
-# An articulation is a tuple (v, ship, w, note, comment).
+# An articulation is a tuple (v, ship, w, note, comment, forwardp).
 
 def make_alignment(AB):
+  return sorted(list(alignment_iter(AB)), key=articulation_order)
+
+# B has priority.  v in A part of AB, w in B part
+def articulation_order(art):
+  (v, ship, w, note, comment, forwardp) = art
+  if is_species(w) or not is_species(v):
+    return (get_canonical(w) or get_scientific(w), ship)
+  else:
+    return (get_canonical(v) or get_scientific(v), ship)
+
+def alignment_iter(AB):
   matches_iter = match_records.match_records(checklist_to_rows(AB.A),
                                              checklist_to_rows(AB.B))
   theory.load_matches(matches_iter, AB)
@@ -84,15 +110,12 @@ def make_alignment(AB):
 
   seen = {}
 
-  # Preorder
+  # Preorder... 
   def traverse(z, infra):
     if is_species(z):       # Policy
-      for art in taxon_articulations(AB, z, infra):
-        (v, ship, w, note, comment) = art
-        if theory.isinA(AB, v):
-          key = (get_primary_key(v), get_primary_key(w))
-        else:
-          key = (get_primary_key(w), get_primary_key(v))
+      for art in taxon_articulations(AB, z, infra): # Normalized
+        (v, ship, w, note, comment, forwardp) = art
+        key = (get_primary_key(v), get_primary_key(w))
         if key in seen or (v == AB.top or w == AB.top):
           pass
         else:
@@ -100,16 +123,9 @@ def make_alignment(AB):
           seen[key] = True
       infra = z
     for c in get_inferiors(z):
-      # sort ??
       yield from traverse(c, infra)
-  yield from traverse(AB.top, False)
-
-# *** METHOD 1 ***
-# Articulations of interest:
-#    w (the cross_relation)
-#    m (the name match)
-
-OLD_METHOD = False
+  yield from traverse(AB.in_right(AB.B.top), False) # B priority
+  yield from traverse(AB.in_left(AB.A.top), False)
 
 def taxon_articulations(AB, z, infra):
   rr = list(theory.exemplar_records(AB, z))
@@ -124,20 +140,21 @@ def taxon_articulations(AB, z, infra):
   else:
     rel = theory.get_reflection(z)
     (w, comment) = get_acceptable(AB, rel.record) # Accepted and not infraspecific
-    yield articulate(AB, z, w, comment)
+    yield articulate(AB, z, w, comment)           # Normalized
 
 # Is this the place to filter out redundancies and unwanteds?
+# B (w) has priority
 
 def articulate(AB, v, w, comment):
   (v, comment1) = get_acceptable(AB, v)
   (w, comment2) = get_acceptable(AB, w)
-  if NORMALIZE and theory.isinB(AB, v):   # Normalize order?
+  forwardp = True
+  if theory.isinB(AB, v):   # Normalize order to put priority second
     (v, w) = (w, v)
     comment = rev_comment(comment)
+    forwardp = False
   rel = theory.cross_relation(AB, v, w)
-  return (v, rel.relationship, w, rel.note, comment)
-
-NORMALIZE = True
+  return (v, rel.relationship, w, rel.note, comment, forwardp)
 
 def rev_comment(comment):
   if comment:
@@ -210,11 +227,15 @@ def exemplars_table(AB):
 
 # -----------------------------------------------------------------------------
 
+def align(A_iter, A_name, B_iter, B_name):
+  (al, AB) = ingest(A_iter, A_name, B_iter, B_name)
+  return generate_alignment_report(al)
+
 def test():
   def testit(m, n):
     log("\n-- Test: %s + %s --" % (m, n))
-    report = align(newick.parse_newick(n),
-                   newick.parse_newick(m))
+    report = align(newick.parse_newick(n), "A",
+                   newick.parse_newick(m), "B")
     util.write_rows(report, sys.stdout)
   testit("a", "a")              # A + B
   testit("(c,d)a", "(c,e)b")
@@ -237,6 +258,7 @@ if __name__ == '__main__':
     assert a_path != b_path
     with util.stdopen(a_path) as a_file:
       with util.stdopen(b_path) as b_file:
-        report = align(csv.reader(a_file),
-                       csv.reader(b_file))
+        (al, AB) = ingest(csv.reader(a_file), "A",
+                          csv.reader(b_file), "B")
+        generate_report
         util.write_rows(report, sys.stdout)

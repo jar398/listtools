@@ -579,7 +579,7 @@ def blurb(r):
 def monitor(x):
   if not x: return False
   name = get_canonical(x, '')
-  return (name == "Eligmodontia moreni"
+  return (name == "Dasyprocta variegata"
           )
 
 # -----------------------------------------------------------------------------

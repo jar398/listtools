@@ -50,8 +50,8 @@ gbif-report:
 
 # ----- 3. BioKIC/ATCR examples:
 
-mdd-report:
-	$(MAKE) A=work/mdd1.6 B=work/mdd1.7 report
+mdd-demo:
+	$(MAKE) A=work/mdd1.6 B=work/mdd1.7 ANAME=MDD1_6 BNAME=MDD1_7 demo
 
 # make A=mdd1.2-mammals B=mdd1.3 report
 # make A=mdd1.2 B=mdd1.3 report
@@ -128,6 +128,7 @@ DELTA=work/$(shell basename $A)-$(shell basename $B)-delta.csv
 
 DEMO=work/$(shell basename $A)-$(shell basename $B)-aligned.csv
 EULERX=work/$(shell basename $A)-$(shell basename $B)-eulerx.txt
+SHORT=work/$(shell basename $A)-$(shell basename $B)-short.txt
 TIPWARDS=work/$(shell basename $A)-$(shell basename $B)-tipwards.csv
 
 demo: $(DEMO)
@@ -137,9 +138,10 @@ $(DEMO): $P/demo.py $P/checklist.py $P/align.py $P/theory.py $P/workspace.py \
 	@echo
 	@echo "--- PREPARING DEMO ---"
 	$P/demo.py --A $A.csv --B $B.csv --Aname $(ANAME) --Bname $(BNAME) \
-	  --eulerx $(EULERX).new > $@.new
+	  --eulerx $(EULERX).new --short $(SHORT).new > $@.new
 	@mv -f $@.new $@
 	@mv -f $(EULERX).new $(EULERX)
+	@mv -f $(SHORT).new $(SHORT)
 
 report: $(REPORT)
 REPORT_OPTIONS?=
@@ -355,6 +357,7 @@ gbif%-raw.csv: gbif%/dump/meta.xml $P/start.py
 # MDD
 
 # Need to clone the pgasu/MDD-DwC-mapping repo and put the clone sister to this repo
+# Get later versions at https://zenodo.org/record/7394529#.Y-z1dOLMI1I
 MDDSOURCE?=../MDD-DwC-mapping/data
 CONVERTMDD=mkdir -p work/mdd && python3 ../MDD-DwC-mapping/src/explore_data.py
 
@@ -376,6 +379,12 @@ work/mdd/mdd1.5.csv: $(MDDSOURCE)/MDD_v1.5_6554species.csv
 work/mdd/mdd1.6.csv: $(MDDSOURCE)/MDD_v1.6_6557species.csv
 	$(CONVERTMDD) --input $< --output $@
 work/mdd/mdd1.7.csv: $(MDDSOURCE)/MDD_v1.7_6567species.csv
+	$(CONVERTMDD) --input $< --output $@
+work/mdd/mdd1.8.csv: $(MDDSOURCE)/MDD_v1.8_6591species.csv
+	$(CONVERTMDD) --input $< --output $@
+work/mdd/mdd1.9.csv: $(MDDSOURCE)/MDD_v1.9_6596species.csv
+	$(CONVERTMDD) --input $< --output $@
+work/mdd/mdd1.10.csv: $(MDDSOURCE)/MDD_v1.10_6615species.csv
 	$(CONVERTMDD) --input $< --output $@
 
 work/mdd%-raw.csv: work/mdd/mdd%.csv $P/start.py

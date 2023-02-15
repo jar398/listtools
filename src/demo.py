@@ -9,14 +9,6 @@ from rcc5 import *
 from checklist import *
 from workspace import *
 
-def demo(A_iter, A_name, B_iter, B_name):
-  A = rows_to_checklist(A_iter, {'tag': A_name or "A"})  # meta
-  B = rows_to_checklist(B_iter, {'tag': B_name or "B"})  # meta
-  AB = workspace.make_workspace(A, B, {'tag': "AB"})
-  al = list(align.make_alignment(AB))
-  return (align.generate_alignment_report(AB, al),
-          generate_eulerx(AB, al))
-
 # Returns an Iterable of rows
 
 # Returns generator of lines (strings)
@@ -31,7 +23,7 @@ def eulerx_alignment(AB, al):
   yield ("articulation %s-%s %s-%s" %
          (get_tag(A), get_tag(B),
           checklist_description(A), checklist_description(B)))
-  for (v, ship, w, note, comment) in al:
+  for (v, ship, w, note, comment, forwardp) in al:
     assert note
     x = get_outject(v); y = get_outject(w)
     if not is_top(x) and not is_top(y):
@@ -76,6 +68,12 @@ def test():
   #testit("(a,b*)c", "(a)c")
   testit("((b*)a)c", "(a,b)c")     # WRONG WRONG
 
+def demo(A_iter, A_name, B_iter, B_name):
+  (al, AB) = align.ingest(A_iter, A_name, B_iter, B_name)
+  return (align.generate_alignment_report(al),
+          align.generate_short_report(al),
+          generate_eulerx(AB, al))
+
 if __name__ == '__main__':
   parser = argparse.ArgumentParser(description="""
     """)
@@ -89,6 +87,8 @@ if __name__ == '__main__':
                       default=None)
   parser.add_argument('--eulerx', help="where to put the Euler/X version of the alignment",
                       default=None)
+  parser.add_argument('--short', help="where to put the diff report",
+                      default=None)
   parser.add_argument('--test', action='store_true', help="run smoke tests")
   args=parser.parse_args()
   if args.test:
@@ -99,15 +99,24 @@ if __name__ == '__main__':
     a_path = args.A
     b_path = args.B
     e_path = args.eulerx
+    d_path = args.short
     assert a_path != b_path
     with util.stdopen(a_path) as a_file:
       with util.stdopen(b_path) as b_file:
-        (report, eulerx) = demo(csv.reader(a_file),
+        (al, AB) = align.ingest(csv.reader(a_file),
                                 aname,
                                 csv.reader(b_file),
                                 bname)
+
+        al = list(al)
+        report = align.generate_alignment_report(al)
         util.write_rows(report, sys.stdout)
+        if d_path:
+          short = align.generate_short_report(al)
+          with open(d_path, "w") as d_file:
+            util.write_rows(short, d_file)
         if e_path:
+          eulerx = generate_eulerx(AB, al)
           with open(e_path, "w") as e_file:
             for line in eulerx:
               print(line, file=e_file)
