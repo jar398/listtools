@@ -12,7 +12,7 @@ from workspace import *
 
 def theorize(AB):
   # ... exemplar.exemplars(A_iter, B_iter, m_iter) ...
-  AB.exemplar_records = exemplar.choose_exemplars(AB)
+  AB.exemplar_records = exemplar.choose_exemplars(AB) #list of (id, v, w)
   for ex in AB.exemplar_records:
     (_, v, w) = ex
     set_exemplar(v, ex)
@@ -205,6 +205,7 @@ def find_reflection(AB, v):
   vo = increase_until_overlap(AB, v)
   w = get_cross_mrca(vo, None)
   if vo != v:
+    # v doesn't overlap the checklist v isn't in
     assert not is_empty_block(get_block(vo, BOTTOM_BLOCK))
     return relation(LT, w, "reflection", "peripheral")
 
@@ -342,19 +343,33 @@ def exemplar_id(ex): return ex[0]
 # For debugging
 
 def show_exemplars(z, tag, AB):
-  def foo(vw):
-    (v, w) = vw
-    return blurb(w)
-  log("# %s: {%s}" % (tag, ", ".join(map(foo, block_exemplar_records(AB, z)))))
+  def foo(id):
+    return blurb(exemplar_record(AB, id, z))
+  log("# %s: {%s}" % (tag, ", ".join(map(foo, get_block(z, BOTTOM_BLOCK)))))
 
-# The records in the B checklist corresponding to the exemplars
-# in the block for z.
+# id -> record
+
+def exemplar_record(AB, id, z):
+  (_, v, w) = AB.exemplar_records[id]
+  return v if isinA(AB, z) else w
+
+def opposite_exemplar_record(AB, id, z):
+  (_, v, w) = AB.exemplar_records[id]
+  return v if isinB(AB, z) else w
+
+# record -> list of ids
 
 def exemplar_ids(AB, z):
   return list(get_block(z, BOTTOM_BLOCK))
 
+# The records in the B checklist corresponding to the exemplars
+# in the block for z.
+
 def exemplar_records(AB, z):
-  return (AB.exemplar_records[id] for id in exemplar_ids(AB, z))
+  return (exemplar_record(AB, id, z) for id in exemplar_ids(AB, z))
+
+def opposite_exemplar_records(AB, z):
+  return (opposite_exemplar_record(AB, id, z) for id in exemplar_ids(AB, z))
 
 (get_block, set_block) = prop.get_set(prop.declare_property("block"))
 

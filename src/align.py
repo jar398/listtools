@@ -21,34 +21,39 @@ def ingest(A_iter, A_name, B_iter, B_name):
 
 # Returns a row generator
 
-def generate_alignment_report(al):
+def generate_alignment_report(al, AB):
   yield ("A id", "A name", "rcc5", "B name", "B id",
-         "action", "note", "comment")
+         "category", "note", "comment", "flush", "add")
   for art in al:
     (v, ship, w, note, comment, forwardp) = art
     assert note
-    x = get_outject(v)
-    y = get_outject(w)
-    d = describe(v, ship, w)
+    x = theory.get_outject(v)
+    y = theory.get_outject(w)
+    d = category(v, ship, w)
+    (flush, add) = witnesses(AB, v, w)
     yield  (get_primary_key(x),
             blurb(x),
             rcc5_symbol(ship),
             blurb(y),
             get_primary_key(y),
-            d, note, comment)
+            d, note, comment,
+            "; ".join([blurb(z) for z in flush]),
+            "; ".join([blurb(z) for z in add]))
 
-def generate_short_report(al):
+def generate_short_report(al, AB):
   yield ("A name", "rcc5", "B name", "action")
   for art in al:
     (v, ship, w, note, comment, forwardp) = art
-    d = describe(v, ship, w)
+    d = category(v, ship, w)
     if d:
       yield  (blurb(get_outject(v)),
               rcc5_symbol(ship),
               blurb(get_outject(w)),
               d)
 
-def describe(v, ship, w):
+# This column is called "category" because that's what MDD calls it.
+
+def category(v, ship, w):
   rel = get_matched(v)
   mat = rel and (rel.record == w)
   stay = (get_rank(get_accepted(get_outject(v)), None) ==
@@ -96,9 +101,9 @@ def make_alignment(AB):
 def articulation_order(art):
   (v, ship, w, note, comment, forwardp) = art
   if is_species(w) or not is_species(v):
-    return (get_canonical(w) or get_scientific(w), ship)
+    return (blurb(w), ship)
   else:
-    return (get_canonical(v) or get_scientific(v), ship)
+    return (blurb(v), ship)
 
 def alignment_iter(AB):
   matches_iter = match_records.match_records(checklist_to_rows(AB.A),
@@ -128,16 +133,15 @@ def alignment_iter(AB):
   yield from traverse(AB.in_left(AB.A.top), False)
 
 def taxon_articulations(AB, z, infra):
-  rr = list(theory.exemplar_records(AB, z))
+  rr = list(theory.opposite_exemplar_records(AB, z))
   if len(rr) > 0:
-    for (_, a, b) in rr:        # a in A, b in B
-      assert theory.separated(a, b)
-      (s, comment) = get_acceptable(AB, a if theory.isinB(AB, z) else b)
-      assert theory.separated(z, s)
-      if b != z and b != s:
-        comment = '%s; via %s' % (comment, blurb(b),)
+    for r in rr:        # in same checklist as z
+      (s, comment) = get_acceptable(AB, r)
+      if r != s:
+        comment = '%s; via %s' % (comment, blurb(r),)
       yield articulate(AB, z, s, comment)
   else:
+    # Peripheral
     rel = theory.get_reflection(z)
     (w, comment) = get_acceptable(AB, rel.record) # Accepted and not infraspecific
     yield articulate(AB, z, w, comment)           # Normalized
@@ -155,6 +159,16 @@ def articulate(AB, v, w, comment):
     forwardp = False
   rel = theory.cross_relation(AB, v, w)
   return (v, rel.relationship, w, rel.note, comment, forwardp)
+
+# Report on block(v) - block(w) (synonyms removed)
+# and block(w) - block(v) (synonyms added)
+
+def witnesses(AB, v, w):
+  b1 = theory.get_block(v, theory.BOTTOM_BLOCK)
+  b2 = theory.get_block(w, theory.BOTTOM_BLOCK)
+  flush = [theory.exemplar_record(AB, id, v) for id in b1.difference(b2)]
+  add   = [theory.exemplar_record(AB, id, w) for id in b2.difference(b1)]
+  return (flush, add)
 
 def rev_comment(comment):
   if comment:
@@ -203,33 +217,10 @@ def sort_key(c):
           get_primary_key(c, ''))
 
 # -----------------------------------------------------------------------------
-# Requires spanning tree
-
-def exemplars_table(AB):
-  yield("checklist", "species_id", "species_canonical", "exemplar_id", "exemplar_canonical")
-
-  def traverse(z):
-    if is_species(z):
-      # The species that the exemplar belongs to
-      tag = get_tag(AB.A) if theory.isinA(AB, z) else get_tag(AB.B)
-      x = get_outject(z)
-
-      for (id, r, s) in theory.exemplar_records(AB, z):
-        y = get_outject(s)
-        yield(tag,
-              get_primary_key(x),
-              blurb(x),
-              get_primary_key(y),
-              "^%s" % blurb(y))
-    for c in get_inferiors(z):
-      yield from traverse(c)
-  yield from traverse(AB.top)
-
-# -----------------------------------------------------------------------------
 
 def align(A_iter, A_name, B_iter, B_name):
   (al, AB) = ingest(A_iter, A_name, B_iter, B_name)
-  return generate_alignment_report(al)
+  return generate_alignment_report(al, AB)
 
 def test():
   def testit(m, n):

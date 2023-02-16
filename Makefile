@@ -509,6 +509,11 @@ work/itis2022-mammals-raw.csv: work/itis2022-mammals/dump/meta.xml
 tags:
 	etags $P/*.py
 
+test-demo: work/test1.csv work/test2.csv
+	$(MAKE) A=work/test1 B=work/test2 demo
+work/test1.csv: work/test1-raw.csv
+work/test2.csv: work/test2-raw.csv
+
 test:
 	$P/property.py
 	$P/checklist.py

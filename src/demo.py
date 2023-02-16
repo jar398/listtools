@@ -70,8 +70,8 @@ def test():
 
 def demo(A_iter, A_name, B_iter, B_name):
   (al, AB) = align.ingest(A_iter, A_name, B_iter, B_name)
-  return (align.generate_alignment_report(al),
-          align.generate_short_report(al),
+  return (align.generate_alignment_report(al, AB),
+          align.generate_short_report(al, AB),
           generate_eulerx(AB, al))
 
 if __name__ == '__main__':
@@ -109,10 +109,10 @@ if __name__ == '__main__':
                                 bname)
 
         al = list(al)
-        report = align.generate_alignment_report(al)
+        report = align.generate_alignment_report(al, AB)
         util.write_rows(report, sys.stdout)
         if d_path:
-          short = align.generate_short_report(al)
+          short = align.generate_short_report(al, AB)
           with open(d_path, "w") as d_file:
             util.write_rows(short, d_file)
         if e_path:

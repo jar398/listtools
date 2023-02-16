@@ -26,6 +26,8 @@ def exemplars(A_iter, B_iter, m_iter):
   for (id, v, w) in choose_exemplars(AB):
     yield (id, get_primary_key(get_outject(v)), get_primary_key(get_outject(w)))
 
+# Returns list of (id, v, w)
+
 def choose_exemplars(AB):
   analyze_tipwards(AB)
   exemplar_records = []
