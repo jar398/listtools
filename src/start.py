@@ -5,9 +5,7 @@
 #  - Makes sure all rows have the same number of fields
 
 import sys, csv, re, hashlib, argparse
-from util import csv_parameters, windex, stable_hash
-
-MISSING = ''
+from util import csv_parameters, windex, stable_hash, MISSING
 
 def start_csv(inport, params, outport, args):
   cleanp = args.clean
@@ -44,24 +42,25 @@ def start_csv(inport, params, outport, args):
   if taxon_id_pos == None:
     print("** No taxonID column. Header is %s" % (in_header,), file=sys.stderr)
 
+  out_header = in_header
+
   must_affix_pk = (pk_pos_in == None)
   if must_affix_pk:
     print("-- Appending a %s column" % pk_col, file=sys.stderr)
     out_header = in_header + [pk_col]
-  else:
-    out_header = in_header
 
   # --managed taxonID --prefix GBIF:   must always be used together
   if args.managed:
+    assert not must_affix_pk
     (prefix, managed_col) = args.managed.split(':')     # GBIF:taxonID
 
-    # Position of source id to be copied to managed_id column
+    # Position of source id (usually taxonID) to be copied to managed_id column
     managed_col_pos = windex(in_header, managed_col)
     assert managed_col_pos != None
     assert windex(in_header, "managed_id") == None
 
     print("-- Appending a managed_id column", file=sys.stderr)
-    out_header = in_header + ["managed_id"]
+    out_header = out_header + ["managed_id"]
 
   # print("# Output header: %s" % (out_header,), file=sys.stderr)
 
@@ -140,36 +139,40 @@ def start_csv(inport, params, outport, args):
     if source_pos != None and row[source_pos] != MISSING:
       row[source_pos] = row[source_pos].split(',', 1)[0]
 
-    # Mint a primary key if none provided
+    # Extend for new primary key column if necessary
     if must_affix_pk:
       out_row = row + [MISSING]
     else:
       out_row = row
     pk = out_row[pk_pos_out]
-    if pk in seen_pks:
-      print("** %s is not a good primary key column.  Two or more rows with %s = %s\n" %
-            (pk_col, pk_col, pk),
-            file=sys.stderr)
-      pk = fresh_pk(row)
-      out_row[pk_pos_out] = pk
-    elif pk == MISSING:
-      pk = fresh_pk(row)
-      minted += 1
-      out_row[pk_pos_out] = pk
-    assert pk != MISSING
-    seen_pks[pk] = True
 
     # Add managed_id if necessary
     if args.managed:
       if prefix == "mdd" and (('synonym' in stat) or
                               row[rank_pos] != 'species'):
-        # id added by Prashant
+        # id added by Prashant, flush
         managed_id = MISSING
-      else:
+      elif pk:
         id = row[managed_col_pos]
         managed_id = "%s:%s" % (prefix, id) if id else MISSING
         managed += 1
+      else:
+        managed_id = MISSING
       out_row = out_row + [managed_id]
+
+    # Set primary key if duplicate or mising
+    if pk in seen_pks:
+      print("** %s is not a good primary key column.  Two or more rows with %s = %s\n" %
+            (pk_col, pk_col, pk),
+            file=sys.stderr)
+      pk = fresh_pk(row, out_header)
+      out_row[pk_pos_out] = pk
+    elif pk == MISSING:
+      pk = fresh_pk(row, out_header)
+      minted += 1
+      out_row[pk_pos_out] = pk
+    assert pk != MISSING
+    seen_pks[pk] = True
 
     assert len(out_row) == len(out_header)
     writer.writerow(out_row)
@@ -194,8 +197,11 @@ def start_csv(inport, params, outport, args):
     print("-- start: trimmed extra values from %s rows" % (trimmed,),
           file=sys.stderr)
     
-def fresh_pk(row):
-  return stable_hash("^".join(row))
+def fresh_pk(row, out_header):
+  try:
+    return stable_hash("^".join(row))
+  except:
+    assert False, row
 
 """
 Let c = canonicalName from csv, s = scientificName from csv,
@@ -237,16 +243,16 @@ def clean_name(row, can_pos, sci_pos):
     # s is nonnull and not 'scientific'
     elif c == MISSING:
       # swap
-      row[sci_pos] = None
+      row[sci_pos] = MISSING
       row[can_pos] = s
       # print("start: c := s", file=sys.stderr) - frequent in DH 1.1
       mod = True
     elif c == s:
       if is_scientific(c):
         # should gnparse!
-        row[can_pos] = None
+        row[can_pos] = MISSING
       else:
-        row[sci_pos] = None
+        row[sci_pos] = MISSING
       # print("start: flush s", file=sys.stderr) - frequent in DH 1.1
       mod = True
   if sci_pos != None and row[sci_pos]:

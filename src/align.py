@@ -25,7 +25,7 @@ def generate_alignment_report(al, AB):
   yield ("A id", "A name", "rcc5", "B name", "B id",
          "category", "note", "comment", "flush", "add")
   for art in al:
-    (v, ship, w, note, comment, forwardp) = art
+    (v, ship, w, note, comment) = art
     assert note
     x = theory.get_outject(v)
     y = theory.get_outject(w)
@@ -43,7 +43,7 @@ def generate_alignment_report(al, AB):
 def generate_short_report(al, AB):
   yield ("A name", "rcc5", "B name", "action")
   for art in al:
-    (v, ship, w, note, comment, forwardp) = art
+    (v, ship, w, note, comment) = art
     d = category(v, ship, w)
     if d:
       yield  (blurb(get_outject(v)),
@@ -91,15 +91,15 @@ def category(v, ship, w):
   return action
 
 # -----------------------------------------------------------------------------
-# An alignment is a generator (an Iterable) of articulations.
-# An articulation is a tuple (v, ship, w, note, comment, forwardp).
+# An alignment is a generator (an Iterable) of species/species articulations.
+# An articulation is a tuple (v, ship, w, note, comment).
 
 def make_alignment(AB):
   return sorted(list(alignment_iter(AB)), key=articulation_order)
 
 # B has priority.  v in A part of AB, w in B part
 def articulation_order(art):
-  (v, ship, w, note, comment, forwardp) = art
+  (v, ship, w, note, comment) = art
   if is_species(w) or not is_species(v):
     return (blurb(w), ship)
   else:
@@ -119,7 +119,7 @@ def alignment_iter(AB):
   def traverse(z, infra):
     if is_species(z):       # Policy
       for art in taxon_articulations(AB, z, infra): # Normalized
-        (v, ship, w, note, comment, forwardp) = art
+        (v, ship, w, note, comment) = art
         key = (get_primary_key(v), get_primary_key(w))
         if key in seen or (v == AB.top or w == AB.top):
           pass
@@ -152,13 +152,11 @@ def taxon_articulations(AB, z, infra):
 def articulate(AB, v, w, comment):
   (v, comment1) = get_acceptable(AB, v)
   (w, comment2) = get_acceptable(AB, w)
-  forwardp = True
   if theory.isinB(AB, v):   # Normalize order to put priority second
     (v, w) = (w, v)
     comment = rev_comment(comment)
-    forwardp = False
   rel = theory.cross_relation(AB, v, w)
-  return (v, rel.relationship, w, rel.note, comment, forwardp)
+  return (v, rel.relationship, w, rel.note, comment)
 
 # Report on block(v) - block(w) (synonyms removed)
 # and block(w) - block(v) (synonyms added)

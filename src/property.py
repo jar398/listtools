@@ -196,7 +196,9 @@ def get_registrar(pk_prop, Q):
   assert isinstance(pk_col, Column)
   inverse_pk_dict = pk_col.value_to_record
   def register(inst):
-    inverse_pk_dict[get_pk(inst)] = inst  # ambient -> contextual
+    pk = get_pk(inst)
+    assert pk
+    inverse_pk_dict[pk] = inst  # ambient -> contextual
   return register
 
 class Context(NamedTuple):

@@ -13,6 +13,8 @@ all:
 	@echo "Use make parameter syntax to specify the two checklists, e.g."
 	@echo "  make A=work/ncbi201505-mammals B=work/ncbi202008-mammals report"
 
+.SECONDARY:
+
 # Default example:
 # Compare two versions of NCBI mammals
 
@@ -40,6 +42,8 @@ ncbi-report:
 
 # make A=ncbi201505 B=ncbi202008 report  # big, will take forever
 
+work/ncbi201505-$(taxon).csv: work/ncbi201505.csv
+
 # ----- 2. GBIF examples:
 
 gbif-report:
@@ -50,8 +54,18 @@ gbif-report:
 
 # ----- 3. BioKIC/ATCR examples:
 
-mdd-demo:
+# Nate: "For the next steps, this would be awesome:
+#    MSW3 vs. MDD 1.1
+#    MSW3 vs. MDD 1.10
+#    MDD 1.1 vs. 1.10"
+
+mdd-demo-67:
 	$(MAKE) A=work/mdd1.6 B=work/mdd1.7 ANAME=MDD1_6 BNAME=MDD1_7 demo
+
+mdd-demo:
+	$(MAKE) A=work/msw3 B=work/mdd1.1 ANAME=MSW3 BNAME=MDD1_1 demo
+	$(MAKE) A=work/msw3 B=work/mdd1.10 ANAME=MSW3 BNAME=MDD1_10 demo
+	$(MAKE) A=work/mdd1.1 B=work/mdd1.10 ANAME=MDD1 BNAME=MDD1_10 demo
 
 # make A=mdd1.2-mammals B=mdd1.3 report
 # make A=mdd1.2 B=mdd1.3 report
@@ -88,8 +102,10 @@ col-report:
 
 # ----- 6. GBIF/MSW/MDD:
 
+# ----- 7. MSW:
+
 msw-demo:
-	$(MAKE) A=msw3-$(taxon) B=mdd1.9-$(taxon) demo
+	$(MAKE) A=work/msw3 B=work/mdd1.1 demo
 
 # ----- General parameters
 
@@ -255,6 +271,8 @@ work/ncbi%-$(taxon)-raw.csv: in/ncbi%-raw.csv $P/subset.py
 	@mv -f $@.new $@
 .PRECIOUS: ncbi%-$(taxon)-raw.csv
 
+#work/ncbi%-$(taxon).csv: work/ncbi%-$(taxon)-raw.csv
+
 work/gbif%-$(taxon)-raw.csv: in/gbif%-raw.csv $P/subset.py
 	$P/subset.py --hierarchy $< --root $(TAXON) < $< > $@.new
 	@mv -f $@.new $@
@@ -296,45 +314,31 @@ work/mdd1.0-$(taxon)-raw.csv: work/mdd1.0-raw.csv $P/subset.py
 
 foo: work/ncbi201505.csv
 
-work/ncbi201505.ncbi-url:
+sources/ncbi201505.ncbi-url:
 	echo ftp://ftp.ncbi.nlm.nih.gov/pub/taxonomy/taxdump_archive/taxdmp_2015-05-01.zip \
 	  >$@
-work/ncbi202008.ncbi-url:
+sources/ncbi202008.ncbi-url:
 	echo ftp://ftp.ncbi.nlm.nih.gov/pub/taxonomy/taxdump_archive/taxdmp_2020-08-01.zip \
 	  >$@
 
-%/dump/names.dmp: %.ncbi-url
+# Download and unpack some version of NCBI Taxonomy
+# The theory of in/ is not well baked yet
+
+in/%.zip: sources/%.ncbi-url
+	wget -O $@.new $$(cat $<)
+	mv -f $@.new $@
+
+work/%.dump/names.dmp: in/%.zip
+	rm -rf `dirname $@`
 	mkdir -p `dirname $@`
-	wget -O `dirname $@`.zip $$(cat $<)
-	unzip -d `dirname $@` `dirname $@`.zip
+	unzip -d `dirname $@` $<
 	touch `dirname $@`/*
-.PRECIOUS: %/dump/names.dmp
 
 # Convert NCBI taxdump to DwC form
-ncbi%-raw.csv: work/ncbi%/dump/names.dmp src/ncbi_to_dwc.py $P/start.py
+work/ncbi%-raw.csv: work/ncbi%.dump/names.dmp src/ncbi_to_dwc.py $P/start.py
 	$P/ncbi_to_dwc.py `dirname $<` \
 	| $P/start.py --pk $(PRIMARY_KEY) \
 	| $P/sortcsv.py --key $(PRIMARY_KEY) > $@.new
-	@mv -f $@.new $@
-.PRECIOUS: ncbi%-raw.csv
-
-# Markus's use case from checklistbank
-work/dyntaxa%-raw.csv: in/dyntaxa%.tsv $P/start.py
-	$P/start.py --pk $(PRIMARY_KEY) --input $< \
-	> $@.new
-	@mv -f $@.new $@
-
-work/arts%-raw.csv: in/arts%.tsv $P/start.py
-	$P/start.py --pk $(PRIMARY_KEY) --input $< \
-	> $@.new
-	@mv -f $@.new $@
-
-# Adjoin 'type' and 'year' columns.  To skip this change the rule to
-# simply copy %-raw.csv to %.csv above. 
-%.csv: %-raw.csv $P/extract_names.py $P/use_gnparse.py
-	$P/extract_names.py < $< \
-	| gnparser -s \
-	| $P/use_gnparse.py --source $< > $@.new
 	@mv -f $@.new $@
 
 # ----- 2. GBIF-specific rules
@@ -354,12 +358,22 @@ gbif%-raw.csv: gbif%/dump/meta.xml $P/start.py
 
 # ----- 3. ASU/BioKIC example
 
+
+# Sources are in pgasu/MDD-DwC-mapping repo, based on original sources
+# on zenodo
+#  https://zenodo.org/record/7394529/files/MDD_v1.10_6615species.csv?download=1
+#  https://zenodo.org/record/4139723/files/MDD_v1_6495species_JMamm.csv?download=1
+
+in/m: sources/mdd1.10.url
+	wget -O m.csv $$(cat $<)
+
 # MDD
 
 # Need to clone the pgasu/MDD-DwC-mapping repo and put the clone sister to this repo
 # Get later versions at https://zenodo.org/record/7394529#.Y-z1dOLMI1I
-MDDSOURCE?=../MDD-DwC-mapping/data
-CONVERTMDD=mkdir -p work/mdd && python3 ../MDD-DwC-mapping/src/explore_data.py
+MAPPER?=../MDD-DwC-mapping
+MDDSOURCE?=$(MAPPER)/data
+CONVERTMDD=mkdir -p work/mdd && python3 $(MAPPER)/src/explore_data.py
 
 work/mdd/mdd1.0.csv: $(MDDSOURCE)/MDD_v1_6495species_JMamm.csv
 	$(CONVERTMDD) --input $< --output $@
@@ -504,7 +518,44 @@ work/itis2022-mammals-raw.csv: work/itis2022-mammals/dump/meta.xml
 	  >$@.new
 	@mv -f $@.new $@
 
+# ----- 7. MDD and other
+
+# Where did I get the file sources/msw3-raw.csv ?
+# How was it created?
+
+work/msw3.csv: sources/msw3-raw.csv
+	$P/start.py --pk $(PRIMARY_KEY) --input $< \
+	  > $@.new
+	@mv -f $@.new $@
+
+# Markus's use case from checklistbank
+
+# Sweden = dyntaxa = artdatabanken
+# https://www.checklistbank.org/dataset/2041/download
+# It would be better to get this from artdatabanken rather than GBIF
+
+work/dyntaxa%-raw.csv: in/dyntaxa%.tsv $P/start.py
+	$P/start.py --pk $(PRIMARY_KEY) --input $< \
+	> $@.new
+	@mv -f $@.new $@
+
+# Norway = artsnavebasen
+# https://www.checklistbank.org/dataset/2030/download
+
+work/arts%-raw.csv: in/arts%.tsv $P/start.py
+	$P/start.py --pk $(PRIMARY_KEY) --input $< \
+	> $@.new
+	@mv -f $@.new $@
+
 # -----
+
+# Adjoin 'type' and 'year' columns.  To skip this change the rule to
+# simply copy %-raw.csv to %.csv above. 
+%.csv: %-raw.csv $P/extract_names.py $P/use_gnparse.py
+	$P/extract_names.py < $< \
+	| gnparser -s \
+	| $P/use_gnparse.py --source $< > $@.new
+	@mv -f $@.new $@
 
 tags:
 	etags $P/*.py
