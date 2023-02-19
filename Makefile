@@ -55,17 +55,17 @@ gbif-report:
 # ----- 3. BioKIC/ATCR examples:
 
 # Nate: "For the next steps, this would be awesome:
-#    MSW3 vs. MDD 1.1
+#    MSW3 vs. MDD 1.0
 #    MSW3 vs. MDD 1.10
-#    MDD 1.1 vs. 1.10"
+#    MDD 1.0 vs. 1.10"
 
 mdd-demo-67:
 	$(MAKE) A=work/mdd1.6 B=work/mdd1.7 ANAME=MDD1_6 BNAME=MDD1_7 demo
 
 mdd-demo:
-	$(MAKE) A=work/msw3 B=work/mdd1.1 ANAME=MSW3 BNAME=MDD1_1 demo
+	$(MAKE) A=work/msw3 B=work/mdd1.0 ANAME=MSW3 BNAME=MDD1_1 demo
 	$(MAKE) A=work/msw3 B=work/mdd1.10 ANAME=MSW3 BNAME=MDD1_10 demo
-	$(MAKE) A=work/mdd1.1 B=work/mdd1.10 ANAME=MDD1 BNAME=MDD1_10 demo
+	$(MAKE) A=work/mdd1.0 B=work/mdd1.10 ANAME=MDD1 BNAME=MDD1_10 demo
 
 # make A=mdd1.2-mammals B=mdd1.3 report
 # make A=mdd1.2 B=mdd1.3 report
@@ -100,12 +100,9 @@ col-report:
 # make A=col2021-mammals B=mdd1.7 report
 # and so on.
 
-# ----- 6. GBIF/MSW/MDD:
+# ----- 6. GBIF:
 
-# ----- 7. MSW:
-
-msw-demo:
-	$(MAKE) A=work/msw3 B=work/mdd1.1 demo
+# ----- 7. MSW/MDD:
 
 # ----- General parameters
 
@@ -144,7 +141,7 @@ DELTA=work/$(shell basename $A)-$(shell basename $B)-delta.csv
 
 DEMO=work/$(shell basename $A)-$(shell basename $B)-aligned.csv
 EULERX=work/$(shell basename $A)-$(shell basename $B)-eulerx.txt
-SHORT=work/$(shell basename $A)-$(shell basename $B)-short.txt
+SHORT=work/$(shell basename $A)-$(shell basename $B)-short.csv
 TIPWARDS=work/$(shell basename $A)-$(shell basename $B)-tipwards.csv
 
 demo: $(DEMO)
@@ -401,6 +398,8 @@ work/mdd/mdd1.9.csv: $(MDDSOURCE)/MDD_v1.9_6596species.csv
 work/mdd/mdd1.10.csv: $(MDDSOURCE)/MDD_v1.10_6615species.csv
 	$(CONVERTMDD) --input $< --output $@
 
+# TBD: 1.0 and 1.1 don't use the later managed ids
+
 work/mdd%-raw.csv: work/mdd/mdd%.csv $P/start.py
 	$P/start.py < $< --pk taxonID --managed mdd:taxonID > $@.new
 	@mv -f $@.new $@
@@ -523,7 +522,9 @@ work/itis2022-mammals-raw.csv: work/itis2022-mammals/dump/meta.xml
 # Where did I get the file sources/msw3-raw.csv ?
 # How was it created?
 
-work/msw3.csv: sources/msw3-raw.csv
+work/msw3.csv: work/msw3-raw.csv
+
+work/msw3-raw.csv: sources/msw3-source.csv
 	$P/start.py --pk $(PRIMARY_KEY) --input $< \
 	  > $@.new
 	@mv -f $@.new $@

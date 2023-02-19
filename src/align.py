@@ -23,41 +23,46 @@ def ingest(A_iter, A_name, B_iter, B_name):
 
 def generate_alignment_report(al, AB):
   yield ("A id", "A name", "rcc5", "B name", "B id",
-         "category", "note", "comment", "flush", "add")
-  for art in al:
-    (v, ship, w, note, comment) = art
-    assert note
+         "category", "note", "comment")
+  for (v, rel) in al:
+    ship = rel.relationship
+    w = rel.record
     x = theory.get_outject(v)
     y = theory.get_outject(w)
     d = category(v, ship, w)
-    (flush, add) = witnesses(AB, v, w)
     yield  (get_primary_key(x),
             blurb(x),
             rcc5_symbol(ship),
             blurb(y),
             get_primary_key(y),
-            d, note, comment,
-            "; ".join([blurb(z) for z in flush]),
-            "; ".join([blurb(z) for z in add]))
+            d, rel.note,
+            alignment_comment(AB, v, rel))
 
 def generate_short_report(al, AB):
-  yield ("A name", "rcc5", "B name", "action")
-  for art in al:
-    (v, ship, w, note, comment) = art
+  yield ("A name", "B name", "category", "comment")
+  for (v, rel) in al:
+    w = rel.record
+    ship = rel.relationship
+    assert is_acceptable(v), blurb(v)
+    assert is_acceptable(w), blurb(w)
     d = category(v, ship, w)
     if d:
-      yield  (blurb(get_outject(v)),
-              rcc5_symbol(ship),
-              blurb(get_outject(w)),
-              d)
+      # Show mismatch / ambiguity ... ?
+      # m = get_match(z); m.note if m else ...
+      yield  (blurb(get_outject(v)) if ship != IREP else "NA",
+              blurb(get_outject(w)) if ship != PERI else "NA",
+              d,
+              alignment_comment(AB, v, rel))
 
-# This column is called "category" because that's what MDD calls it.
+# This column is called "category" for consistency with MDD.
 
 def category(v, ship, w):
   rel = get_matched(v)
   mat = rel and (rel.record == w)
-  stay = (get_rank(get_accepted(get_outject(v)), None) ==
-          get_rank(get_accepted(get_outject(w)), None))
+  x = get_outject(v)
+  y = get_outject(w)
+  stay = (get_rank(get_accepted(x), None) ==
+          get_rank(get_accepted(y), None))
   if ship == GT:
     if stay: action = (('shrink' and '') if mat else 'split')
     else: action = 'add'
@@ -74,14 +79,26 @@ def category(v, ship, w):
   elif ship == DISJOINT:
     action = ('false match' if mat else 'disjoint')
   elif ship == CONFLICT:        # Euler/X calls it 'overlaps'
-    action = ('reorganize' if mat else 'overlaps')
+    action = 'overlap'          # ('reorganize' if mat else ...)
   # Non-RCC5
   elif ship == OVERLAP:
     action = 'intersect in some way'
   elif ship == NOINFO:
     action = 'no information'
-  elif ship == SYNONYM:
-    action = 'synonym of'
+  elif ship == SYNONYM:              # a synonym of v <= w
+    # x = y1* <= y   i.e. x is being demoted from accepted to synonym (y1)
+    t = get_tipe(x, None)
+    if t and t == get_tipe(y, None):
+      action = 'rename (demotion)'
+    else:
+      action = 'lump (demotion; %s != %s)' % (t, get_tipe(y, None))
+  elif ship == MYNONYS:              # a synonym of w <= v
+    # x >= x1* = y   i.e. x1 is being promoted from synonym to accepted (y)
+    t = get_tipe(x, None)
+    if t and t == get_tipe(y, None):
+      action = 'rename (promotion)'
+    else:
+      action = 'split (promotion; %s != %s)' % (t, get_tipe(y, None))
   elif ship == IREP:
     action = 'add'
   elif ship == PERI:
@@ -90,16 +107,65 @@ def category(v, ship, w):
     action = rcc5_symbol(ship)
   return action
 
+def alignment_comment(AB, v, rel):
+  w = rel.record
+  comment = ''
+  # IREP means v is parent, PERI means w is parent
+  if rel.relationship == CONFLICT:
+    (flush, keep, add) = witnesses(AB, v, w)
+    comment = "%s|%s|%s" % (blurb(flush), blurb(keep), blurb(add))
+  else:
+    m1 = get_match(v, None) if rel.relationship != IREP else None
+    m2 = get_match(w, None) if rel.relationship != PERI else None
+    if m1 and m1.record == w:
+      # v and w are matches, so don't need info in both directions
+      comment = m1.note
+    elif m2 and m2.record == v:
+      # Shouldn't happen, since matches are symmetric
+      comment = m2.note
+    else:
+      n1 = "%s %s" % (blurb(m1.record), m1.note) if m1 else ''
+      n2 = "%s %s" % (blurb(m2.record), m2.note) if m2 else ''
+      if m1 or m2:
+        comment = "%s|%s" % (n1, n2)
+      else:
+        comment = ''
+  return comment
+
+# Report on block(v) - block(w) (synonyms removed)
+# and block(w) - block(v) (synonyms added)
+
+def witnesses(AB, v, w):
+  b1 = theory.get_block(v, theory.BOTTOM_BLOCK)
+  b2 = theory.get_block(w, theory.BOTTOM_BLOCK)
+  flush = choose_witness(AB, b1.difference(b2), v)
+  keep  = choose_witness(AB, b1.intersection(b2), w)
+  add   = choose_witness(AB, b2.difference(b1), w)
+  return (flush, keep, add)
+
+def choose_witness(AB, ids, v):
+  have = None
+  for id in ids:
+    e = theory.exemplar_record(AB, id, v) 
+    if not have:
+      have = e
+    if is_acceptable(e):
+      # maybe pick earliest year or something??
+      have = e
+  return have
+
 # -----------------------------------------------------------------------------
 # An alignment is a generator (an Iterable) of species/species articulations.
-# An articulation is a tuple (v, ship, w, note, comment).
+# An articulation is a pair (record, relation)
 
 def make_alignment(AB):
   return sorted(list(alignment_iter(AB)), key=articulation_order)
 
 # B has priority.  v in A part of AB, w in B part
 def articulation_order(art):
-  (v, ship, w, note, comment) = art
+  (v, rel) = art
+  w = rel.record
+  ship = rel.relationship
   if is_species(w) or not is_species(v):
     return (blurb(w), ship)
   else:
@@ -111,20 +177,20 @@ def alignment_iter(AB):
   theory.load_matches(matches_iter, AB)
   theory.theorize(AB)
   span.span(AB)
-  find_acceptables(AB)
+  #find_acceptables(AB)
 
   seen = {}
 
   # Preorder... 
   def traverse(z, infra):
     if is_species(z):       # Policy
-      for art in taxon_articulations(AB, z, infra): # Normalized
-        (v, ship, w, note, comment) = art
+      for (v, w) in taxon_articulators(AB, z, infra): # Normalized
         key = (get_primary_key(v), get_primary_key(w))
         if key in seen or (v == AB.top or w == AB.top):
           pass
         else:
-          yield art
+          rel = theory.cross_relation(AB, v, w)
+          yield (v, rel)
           seen[key] = True
       infra = z
     for c in get_inferiors(z):
@@ -132,41 +198,23 @@ def alignment_iter(AB):
   yield from traverse(AB.in_right(AB.B.top), False) # B priority
   yield from traverse(AB.in_left(AB.A.top), False)
 
-def taxon_articulations(AB, z, infra):
+# There may be duplicates
+
+def taxon_articulators(AB, z, infra):
   rr = list(theory.opposite_exemplar_records(AB, z))
   if len(rr) > 0:
     for r in rr:        # in same checklist as z
-      (s, comment) = get_acceptable(AB, r)
-      if r != s:
-        comment = '%s; via %s' % (comment, blurb(r),)
-      yield articulate(AB, z, s, comment)
+      yield articulator(AB, z, r)
   else:
     # Peripheral
-    rel = theory.get_reflection(z)
-    (w, comment) = get_acceptable(AB, rel.record) # Accepted and not infraspecific
-    yield articulate(AB, z, w, comment)           # Normalized
+    yield articulator(AB, z, theory.get_reflection(z).record)
 
-# Is this the place to filter out redundancies and unwanteds?
-# B (w) has priority
-
-def articulate(AB, v, w, comment):
-  (v, comment1) = get_acceptable(AB, v)
-  (w, comment2) = get_acceptable(AB, w)
-  if theory.isinB(AB, v):   # Normalize order to put priority second
-    (v, w) = (w, v)
-    comment = rev_comment(comment)
-  rel = theory.cross_relation(AB, v, w)
-  return (v, rel.relationship, w, rel.note, comment)
-
-# Report on block(v) - block(w) (synonyms removed)
-# and block(w) - block(v) (synonyms added)
-
-def witnesses(AB, v, w):
-  b1 = theory.get_block(v, theory.BOTTOM_BLOCK)
-  b2 = theory.get_block(w, theory.BOTTOM_BLOCK)
-  flush = [theory.exemplar_record(AB, id, v) for id in b1.difference(b2)]
-  add   = [theory.exemplar_record(AB, id, w) for id in b2.difference(b1)]
-  return (flush, add)
+def articulator(AB, u, r):
+  v = get_acceptable(AB, r) # Accepted and not infraspecific
+  if theory.isinA(AB, u):
+    return (u, v)
+  else:
+    return (v, u)
 
 def rev_comment(comment):
   if comment:
@@ -182,11 +230,54 @@ def is_species(z):              # x in AB
 
 (see_acceptable, set_acceptable) = prop.get_set(prop.declare_property('acceptable'))
 
-def is_acceptable(y):           # in AB
-  return not see_acceptable(y, None)
+def is_acceptable(u):           # in AB
+  if False:
+    return not see_acceptable(u, None)
+  else:
+    x = get_outject(u)
+    aa = not(unacceptable_locally(x))
+    if aa: assert is_accepted(x)
+    return aa
 
-def get_acceptable(AB, y):
-  return see_acceptable(y, None) or (y, 'acceptable')
+# This is inaccurate - doesn't allow nested infraspecific ranks
+# Returns reason
+
+def unacceptable_locally(x):
+  if not is_accepted(x):
+    return "not accepted"
+  if get_rank(x, None) == 'species':
+    return False
+  sup = get_superior(x, None)
+  if not sup:
+    return False
+  if get_rank(sup.record, None) == 'species':
+    # Taxa that are subspecies, variety, etc. are not acceptable
+    return 'infraspecific'
+  return False
+
+# Returns (ancestor, comment)
+
+def get_acceptable(AB, u):
+  if False:
+    return see_acceptable(y, None) or (u, 'acceptable')
+  else:
+    x = get_outject(u)
+    # Ascend until a species is found
+    reason = ''
+    while True:
+      reason2 = unacceptable_locally(x)
+      if not reason2: break
+      reason = reason2
+      sup = get_superior(x, None)
+      if not sup:
+        break
+      x = sup.record
+    assert is_accepted(x), blurb(x)
+    # discard reason
+    if isinA(AB, u):
+      return AB.in_left(x)
+    else:
+      return AB.in_right(x)
 
 # Acceptable = accepted AND not infraspecific
 # A synonym could be a synonym of a genus, species, subspecies, etc.

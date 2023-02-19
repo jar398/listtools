@@ -16,11 +16,11 @@ def simple_relationship(x, y):             # Within a single tree
   if x == y:
     if synx or syny:
       if synx and syny:
-        return relation(NOINFO, y, None, "sibling synonyms") # blah
+        return relation(NOINFO, y, "sibling synonyms") # blah
       elif synx:
-        return relation(LE, y, "synonym", "synonym <= accepted")
+        return relation(SYNONYM, y, "synonym <= accepted")
       else:
-        return relation(GE, y, None, "accepted >= synonym")
+        return relation(MYNONYS, y, "accepted >= synonym")
     else:
       return relation(EQ, y, None, "accepted = accepted")
   (x1, y1) = find_peers(x, y)    # Decrease levels as needed

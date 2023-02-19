@@ -39,7 +39,7 @@ def use_parse(gn_iter, check_iter):
     out_header = out_header + ["canonicalName"]
   if add_year:
     out_header = out_header + ["namePublishedInYear"]
-  out_header = out_header + ["canonicalStem", "type"]
+  out_header = out_header + ["canonicalStem", "tipe"]
 
   out_canonical_pos = windex(out_header, "canonicalName")
   out_year_pos = windex(out_header, "namePublishedInYear")

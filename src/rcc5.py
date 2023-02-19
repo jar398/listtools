@@ -33,6 +33,7 @@ OVERLAP = def_rcc5_symbol(LT|GT|EQ|CONFLICT, '{< = > ><}')  # ∩, equivalent, s
 
 ACCEPTED = LT
 SYNONYM = LE
+MYNONYS = GE
 
 PERI = def_rcc5_symbol(LT|DISJOINT, '{< !}')
 IREP = def_rcc5_symbol(GT|DISJOINT, '{> !}')

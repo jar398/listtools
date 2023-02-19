@@ -23,11 +23,11 @@ def eulerx_alignment(AB, al):
   yield ("articulation %s-%s %s-%s" %
          (get_tag(A), get_tag(B),
           checklist_description(A), checklist_description(B)))
-  for (v, ship, w, note, comment) in al:
-    assert note
+  for (v, rel) in al:
+    w = rel.record
     x = get_outject(v); y = get_outject(w)
     if not is_top(x) and not is_top(y):
-      yield eulerx_articulation(x, ship, y, note)
+      yield eulerx_articulation(x, rel.relationship, y, rel.note)
 
 def eulerx_articulation(x, ship, y, note):
   sym = rcc5_symbol(ship)

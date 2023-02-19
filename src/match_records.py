@@ -43,7 +43,7 @@ silly = 8
 
 unweights = None
 
-default_index_by = ["scientificName", "type",
+default_index_by = ["scientificName", "tipe",
                     "canonicalName", "canonicalStem",
                     "managed_id"]
 

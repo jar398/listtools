@@ -43,39 +43,41 @@ def cross_relation(AB, v, w):
     #! Synonym situations
     psup = local_sup(AB, v)
     qsup = local_sup(AB, w)
+    answer = None
     if psup and psup.relationship == SYNONYM:
       if qsup and qsup.relationship == SYNONYM:
         if equivalent(psup.record, qsup.record):
           answer = (NOINFO, "co-synonyms")
       else:
         if equivalent(psup.record, w):
-          answer = (SYNONYM, "is a synonym of")
-    else:
-      if qsup and qsup.relationship == SYNONYM:
-        answer = (SYNONYM, "has synonym")
+          answer = (SYNONYM, "is a synonym of") # v <= w
+    elif qsup and qsup.relationship == SYNONYM:
+      if equivalent(qsup.record, v):
+        answer = (MYNONYS, "has synonym") # w <= v
 
-    #! Deal with peripheral nodes (empty block)
-    v_up = increase_until_overlap(AB, v)
-    w_up = increase_until_overlap(AB, w)
-    if v_up != v and w_up != w:
-      answer = (DISJOINT, "peripherals")
-    elif v_up != v:
-      answer = (PERI, "left peripheral")
-    elif w_up != w:
-      answer = (IREP, "right peripheral")
+    if not answer:
+      #! Deal with peripheral nodes (empty block)
+      v_up = increase_until_overlap(AB, v)
+      w_up = increase_until_overlap(AB, w)
+      if v_up != v and w_up != w:
+        answer = (DISJOINT, "peripherals")
+      elif v_up != v:
+        answer = (PERI, "left peripheral")
+      elif w_up != w:
+        answer = (IREP, "right peripheral")
 
-    else:
-      ship = block_relationship(get_block(v, BOTTOM_BLOCK), get_block(w, BOTTOM_BLOCK))
-      if ship == EQ:
-        answer = compare_within_block(v, w)
       else:
-        # ship is not EQ (i.e. exemplar sets are different)
-        answer = (ship, "via exemplar set comparison")
+        ship = block_relationship(get_block(v, BOTTOM_BLOCK), get_block(w, BOTTOM_BLOCK))
+        if ship == EQ:
+          answer = compare_within_block(v, w)
+        else:
+          # ship is not EQ (i.e. exemplar sets are different)
+          answer = (ship, "via exemplar set comparison")
 
-    if answer[0] == EQ:
-      # Bug in get_reflection
-      log("# Recovered latent equivalence %s = %s, %s" %
-          (blurb(v), blurb(w), answer[1]))
+      if answer[0] == EQ:
+        # Bug in get_reflection
+        log("# Recovered latent equivalence %s = %s, %s" %
+            (blurb(v), blurb(w), answer[1]))
 
   (ship, note) = answer
   if monitor(v) or monitor(w):

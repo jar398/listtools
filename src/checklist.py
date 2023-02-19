@@ -16,7 +16,7 @@ scientific_prop = prop.declare_property("scientificName")
 year_prop = prop.declare_property("namePublishedInYear")  # http://rs.tdwg.org/dwc/terms/
 rank_prop = prop.declare_property("taxonRank")
 managed_id_prop = prop.declare_property("managed_id")
-tipe_prop = prop.declare_property("type") # a.k.a. 'tipe'
+tipe_prop = prop.declare_property("tipe")
 stemmed_prop = prop.declare_property("canonicalStem") # a.k.a. 'tipe'
 
 # Other checklist properties
@@ -51,7 +51,7 @@ outject_prop = prop.declare_property("outject")
 (get_year, set_year) = prop.get_set(year_prop)
 (get_managed_id, set_managed_id) = prop.get_set(managed_id_prop)
 (get_stemmed, set_stemmed) = prop.get_set(stemmed_prop)
-(get_tipe, set_tipe) = prop.get_set(managed_id_prop)
+(get_tipe, set_tipe) = prop.get_set(tipe_prop)
 
 # Links
 (get_parent_key, set_parent_key) = prop.get_set(parent_key_prop)
@@ -557,8 +557,7 @@ def blurb(r):
             get_managed_id(r, None) or
             get_primary_key(r, None) or
             "[no identifier]")
-    sup = get_superior(r, None)
-    if sup and sup.relationship == SYNONYM:
+    if not is_accepted(r):
       return name + "*"
     else:
       return name
