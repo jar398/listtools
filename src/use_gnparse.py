@@ -11,6 +11,8 @@ from util import windex, MISSING
 auth_re = regex.compile(u"\p{Uppercase_Letter}[\p{Letter}-]+")
 year_re = regex.compile(' ([12][0-9]{3})\)?$')
 
+CANON_SAMPLE_LIMIT = 0    # for debugging
+
 def use_parse(gn_iter, check_iter):
 
   # gnparse output: gn_iter / gn_header
@@ -83,10 +85,8 @@ def use_parse(gn_iter, check_iter):
     # The original may have junk after the CanonicalFull.
     # We further parse CanonicalStem (if provided) to Pre_epithet + epithet
     # and discard pre_epithet, otherwise just use all of Verbatim in key.
-    # If Authorship is present parse it into First + rest and discard
-    # the rest.
-    # If Year is absent try to get it from Verbatim, and if that fails
-    # use 9999 (so that the record sorts after those with years).
+    # If Authorship is present parse it into Most + last, keep last, and discard
+    # Most.  (The last epithet is most informative.)
 
     stemmed = MISSING
     tipe = MISSING   # default, overridden if possible
@@ -112,7 +112,10 @@ def use_parse(gn_iter, check_iter):
         epithet = stemmed.split(' ')[-1]
         trim_count += 1
         # Put them together
-        tipe = "TS|%s|%s|%s" % (year, epithet, auth)
+        if ';' in epithet or ';' in auth:
+          print("!!! Warning: semicolon in tipe should be quoted somehow",
+                file=sys.stderr)
+        tipe = "tipe[%s;%s;%s]" % (year, epithet, auth)
 
     else:
       status = (checklist_row[status_pos] if status_pos != None else '')
@@ -133,8 +136,6 @@ def use_parse(gn_iter, check_iter):
   print("# use_gnparse: of %s rows, got epithet for %s, got year for %s, added canonical for %s" %
         (row_count, trim_count, year_count, canon_count),
         file=sys.stderr)
-
-CANON_SAMPLE_LIMIT = 0
 
 if __name__ == '__main__':
   parser = argparse.ArgumentParser(description="""

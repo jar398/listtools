@@ -12,7 +12,6 @@ def read_csv(inport, pk_col=None, key=None):
 
 def ingest_csv(reader, pk_col=None, key=None):
   header = next(reader)
-  print("# util %s" % (header,), file=sys.stderr)
   assert isinstance(header, list) or isinstance(header, tuple)
   assert pk_col == None or key == None
   assert pk_col != None or key != None

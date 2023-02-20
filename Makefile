@@ -117,7 +117,7 @@ PRIMARY_KEY?=taxonID
 # overridden to EOLid for EOL
 DELTA_KEY?=$(PRIMARY_KEY)
 
-# projection, to make the files smaller
+# projection, to make the files smaller ... ?
 KEEP?="taxonID,canonicalName,scientificName,tipe,canonicalStem,managed_id,parentNameUsageID,acceptedNameUsageID"
 
 # not sure exactly what this means.  Add EOLid for EOL

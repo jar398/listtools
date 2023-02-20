@@ -133,7 +133,6 @@ def compute_sum(a_table, b_table, pk_col_arg, index_by):
             answer = (LOSER, row2[pk_pos2],
                       ("match not mutual: %s <- %s" %
                        (b1, row2[pk_pos2])))
-      # Maybe: if is_accepted(...) != is_accepted(...)
       else:
         # Probably an ambiguity {row1, row1'} <-> row2
         answer = (NOINFO, TOP, remark1)
@@ -230,13 +229,13 @@ def find_best_matches(header1, header2, all_rows1, all_rows2, pk_col):
   assert len(all_rows2) > 0
   corr_12 = correspondence(header1, header2)
   positions = indexed_positions(header1, INDEX_BY)
-  (weights, unweights) = get_weights(header1, header2, INDEX_BY)
+  (a_weights, unweights) = get_weights(header1, header2, INDEX_BY)
   if False:
     print("# correspondence: %s" % (corr_12,), file=sys.stderr)
     print("# indexed: %s" % positions, file=sys.stderr)
-    print("# weights: %s" % weights, file=sys.stderr)
+    print("# A weights: %s" % a_weights, file=sys.stderr)
     print("# unweights: %s" %
-          ", ".join(["%x: %s" % (x, y) for (x, y) in unweights]),
+          ", ".join(["%s: %s" % (x, y) for (x, y) in unweights]),
           file=sys.stderr)
   rows2_by_property = index_rows_by_property(all_rows2, header2)
   no_info = (-1, [])
@@ -257,7 +256,7 @@ def find_best_matches(header1, header2, all_rows1, all_rows2, pk_col):
       for row2 in rows2_by_property.get(prop, []):
         assert len(row2) == len(header2)
         key2 = row2[pk_pos2]
-        score = compute_score(row1, row2, corr_12, weights)
+        score = compute_score(row1, row2, corr_12, a_weights)
         best_rows_so_far1 = best_rows_in_file1.get(key2, no_info)
 
         # Update best file2 match for row1
@@ -289,55 +288,53 @@ def indexed_positions(header, index_by):
   p = []
   for col in index_by:
     w = windex(header, col)
-    if w:
+    if w != None:
       p.append(w)
     else:
       print("* No %s column present" % col, file=sys.stderr)
   return p
 
-def compute_score(row1, row2, corr_12, weights):
-  s = 0
+def compute_score(row1, row2, corr_12, a_weights):
+  score = 0
   for j in range(0, len(row2)):
-    w = weights[j]
-    if w != 0:
+    i = precolumn(corr_12, j)
+    if i != None:
+      v1 = row1[i]
       v2 = row2[j]
-      i = precolumn(corr_12, j)
-      if i != None:
-        v1 = row1[i]
-      else:
-        v1 = MISSING
-      if v1 == MISSING or v2 == MISSING:
-        d = 1
-      elif v1 == v2:
-        d = 1 << (index_by_limit + silly)
-      else:
-        d = 0
-      s += w * d
-  return s
+      if v1 != MISSING and v2 != MISSING and v1 == v2:
+        weight = a_weights[i]
+        if weight != 0:
+          score += weight
+        else:
+          # give a tiny bit of weight for unweighted columns
+          # this could give random results...
+          score += 1
+  # Maybe: if is_accepted(...) != is_accepted(...)
+  return score
 
 def match_reason(score, unweights):
-  for (mask, col) in unweights:
-    if (score & mask) > 0: return col
+  for (weight, col) in unweights:
+    if (score & weight) > 0: return col
   print("# score = %x unweight len = %x" % (score, len(list(unweights))),
         file=sys.stderr)
   return None
 
-# Initialize weights.  One for each column in file A.
+# Initialize weights used in score computation.  One for each column
+# in file A.  Returns (weights, unweights) where
+# weights = powers of 2 or zero, indexed by A-columns
+# unweights = (weight, name) for each indexed column
 
 def get_weights(header_b, header_a, index_by):
-  rev_index_by = index_by + []
-  rev_index_by.reverse()               # I hate this
-
-  masks = [1 << (silly + i) for i in range(0, len(rev_index_by))]
-
-  weights = [(1 if col in header_b else 0) for col in header_a]
-
-  for (col, mask) in zip(rev_index_by, masks):
-    pos = windex(header_a, col)
-    if pos != None: weights[pos] = mask
-  masks.reverse()
-  return (weights, list(zip([mask << (index_by_limit+silly) for mask in masks],
-                            index_by)))
+  a_weights = [0 for col in header_a]
+  unweights = []
+  for i in range(0, len(index_by)):
+    col = index_by[i]
+    pos = windex(header_a, col)   # Position in an A row
+    if pos != None:
+      weight = 1 << (silly + len(index_by) - i)
+      a_weights[pos] = weight
+    unweights.append((weight, col))
+  return (a_weights, unweights)
 
 LIMIT=10
 
