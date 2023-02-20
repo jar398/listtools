@@ -15,13 +15,13 @@ def theorize(AB):
   AB.exemplar_records = exemplar.choose_exemplars(AB) #list of (id, v, w)
   for ex in AB.exemplar_records:
     (_, v, w) = ex
-    set_exemplar(v, ex)
-    set_exemplar(w, ex)
+    set_exemplar_record(v, ex)
+    set_exemplar_record(w, ex)
   analyze_blocks(AB)                  # sets of examplars
   compute_cross_mrcas(AB)
   find_reflections(AB)
 
-(get_exemplar, set_exemplar) = prop.get_set(prop.declare_property("exemplar"))
+(get_exemplar_record, set_exemplar_record) = prop.get_set(prop.declare_property("exemplar_record"))
 
 #-----------------------------------------------------------------------------
 # cross_relation: The implementation of the RCC-5 theory of AB (A+B).
@@ -252,7 +252,7 @@ def compute_cross_mrcas(AB):
   def do_cross_mrcas(AB):
     def traverse(x):            # arg in A, result in B
       v = AB.in_left(x)         # in AB
-      probe = get_exemplar(v, None)       # in AB
+      probe = get_exemplar_record(v, None)       # in AB
       if probe:
         (_, v1, w1) = probe
         if v == v1: w = w1
@@ -290,7 +290,7 @@ def compute_cross_mrcas(AB):
 # Precompute 'blocks' (exemplar sets, implemented in one of various ways).
 # A block is represented as a set of exemplar ids.
 # Blocks are stored on nodes in AB.
-# Assumes exemplars have already been chosen and are available via `get_exemplar`.
+# Assumes exemplars have already been chosen and are available via `get_exemplar_record`.
 
 def analyze_blocks(AB):
   def traverse(x, in_left, inB):
@@ -302,7 +302,7 @@ def analyze_blocks(AB):
       e = combine_blocks(e, traverse(c, in_left, inB))
       if monitor(c): log("got subblock %s -> %s" % (blurb(c), len(e),))
     v = in_left(x)              # in A (or B if in B)
-    exem = get_exemplar(v, None) # (id, v, w)
+    exem = get_exemplar_record(v, None) # (id, v, w)
     if exem: e = adjoin_exemplar(exem[0], e)
     if e != BOTTOM_BLOCK:
       set_block(v, e)
@@ -320,22 +320,24 @@ def show_exemplars(z, tag, AB):
     return blurb(exemplar_record(AB, id, z))
   log("# %s: {%s}" % (tag, ", ".join(map(foo, get_block(z, BOTTOM_BLOCK)))))
 
-# id -> record
+# id -> record in same checklist as z
 
 def exemplar_record(AB, id, z):
   (_, v, w) = AB.exemplar_records[id]
   return v if isinA(AB, z) else w
 
+# id -> record not in same checklist as z
+
 def opposite_exemplar_record(AB, id, z):
   (_, v, w) = AB.exemplar_records[id]
   return v if isinB(AB, z) else w
 
-# record -> list of ids
+# record -> list of exemplar ids
 
 def exemplar_ids(AB, z):
   return list(get_block(z, BOTTOM_BLOCK))
 
-# The records in the B checklist corresponding to the exemplars
+# The records in z's checklist corresponding to the exemplars
 # in the block for z.
 
 def exemplar_records(AB, z):
