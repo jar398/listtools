@@ -32,25 +32,28 @@ def theorize(AB):
 # TBD: set status to "accepted" or "synonym" as appropriate
 
 def cross_relation(AB, v, w):
-  answer = synonym_answer(AB, v, w)
-
   #! In same summand?
   if isinA(AB, v) == isinA(AB, w):
     rel = simple.simple_relationship(get_outject(v), get_outject(w))
     answer = (rel.relationship, rel.note)
   else:
-
     #! Equivalent?
-    rel = equivalent(v, w)        # special case of get_reflection
+    v1 = local_accepted(AB, v)
+    w1 = local_accepted(AB, w)
+    rel = equivalent(v1, w1)
     if rel:
-      answer = (EQ, rel.note)
-    else:                         # inequivalent somehow
+      x = get_outject(v)
+      y = get_outject(w)
+      x1 = get_accepted(x)
+      y1 = get_accepted(y)
+      answer = simple.sibling_relationship(x, x1, y1, y)
+    else:
 
       #! Deal with peripheral nodes (empty block)
       v_up = increase_until_overlap(AB, v)
       w_up = increase_until_overlap(AB, w)
       if v_up != v and w_up != w:
-        answer = (DISJOINT, "peripherals")
+        answer = (DISJOINT, "distinct peripherals")
       elif v_up != v:
         answer = (PERI, "left peripheral")
       elif w_up != w:
@@ -66,52 +69,11 @@ def cross_relation(AB, v, w):
           # ship is not EQ (i.e. exemplar sets are different)
           answer = (ship, "different exemplar sets")
 
-      if answer[0] == EQ:
-        # Bug in get_reflection
-        log("# Recovered latent equivalence %s = %s, %s" %
-            (blurb(v), blurb(w), answer[1]))
-
   (ship, note) = answer
   if monitor(v) or monitor(w):
     log("# %s %s %s / %s" % (blurb(v), rcc5_symbol(ship), blurb(w), note))
 
-  return relation(ship, w, "articulation", note)
-
-# Deal with synonym situations
-
-def synonym_answer(AB, v, w):
-  answer = None
-  x = get_outject(v)
-  y = get_outject(w)
-  xsyn = not is_accepted(x)
-  ysyn = not is_accepted(y)
-  if xsyn and ysyn:
-    rel = equivalent(v, w)     # Foo.  Assumes 2 checklists
-    if rel:
-      answer = (EQ, rel.note)
-    elif equivalent(local_sup(AB, v).record,
-                    local_sup(AB, w).record):
-      answer = typical(x, y, NEQ, NOINFO, "+sibling %ss")
-  elif xsyn:
-    if equivalent(local_sup(AB, v).record, w):
-      answer = typical(x, y, LT, SYNONYM, "+is a %s of") # x <= y
-  elif ysyn:
-    if equivalent(v, local_sup(AB, w).record):
-      answer = typical(x, y, GT, MYNONYS, "+has %s") # y <= x
-  return answer
-
-# If x and y homotypic then EQ, else if heterotypic LT, else NOINFO
-# cf. simple.py
-def typical(x, y, het_ship, no_ship, note):
-  t1 = get_tipe(x, None)
-  t2 = get_tipe(y, None)
-  if t1 and t2:
-    if t1 == t2:
-      return (EQ, note % "homotypic synonym")
-    else:
-      return (het_ship, note % "heterotypic synonym")
-  else:
-    return (no_ship, note % "synonym")
+  return relation(ship, w, note=note)
 
 # v and w are inequivalent, but they are in the same nonempty block
 # (in parallel chains)
@@ -132,7 +94,7 @@ def compare_within_block(v, w):
   if rel1 and rel2:
     ship = rel1.relationship & rel2.relationship
     # Take intersection of relationships (both are true)??
-    assert ship, \
+    assert ship != 0, \
       (blurb(v),
        rcc5_symbol(rel1.relationship), 
        blurb(w_eq.record),
@@ -149,7 +111,7 @@ def compare_within_block(v, w):
   else:
     # Neither v nor w has a suitable equivalent, but they're in same block,
     # so COMPARABLE.   (assume existence of total interleaved chain.)
-    answer = (COMPARABLE, "in parallel monotypic chains")
+    answer = (COMPARABLE, "in interleaved monotypic chain")
   return answer
 
 # RCC-5 relationship across the two checklists
@@ -208,9 +170,9 @@ def find_reflections(AB):
 def find_reflection(AB, v):
   if is_toplike(v):
     if isinA(AB, v):
-      return relation(EQ, AB.in_right(AB.B.top), "reflection", "top")
+      return relation(EQ, AB.in_right(AB.B.top), note="top")
     else:
-      return relation(EQ, AB.in_left(AB.A.top), "reflection", "top")
+      return relation(EQ, AB.in_left(AB.A.top), note="top")
 
   # 1. Peripherals don't match, period
   vo = increase_until_overlap(AB, v)
@@ -218,14 +180,14 @@ def find_reflection(AB, v):
   if vo != v:
     # v doesn't overlap the checklist v isn't in
     assert not is_empty_block(get_block(vo, BOTTOM_BLOCK))
-    return relation(LT, w, "reflection", "peripheral")
+    return relation(LT, w, note="peripheral")
 
   # 2. Detect < when mismatched blocks
   b = get_block(v)    # Necessarily nonempty
   b2 = get_block(w)
   assert block_le(b, b2), (len(b), len(b2), b, b2)
   if not same_block(b2, b):
-    return relation(LT, w, "reflection", "smaller block")
+    return relation(LT, w, note="smaller block")
 
   # 3. Blocks match.  Look for match within block by name.
   nm = get_matched(v)     # returns relation in AB
@@ -248,14 +210,14 @@ def find_reflection(AB, v):
     if nm and same_block(get_block(nm.record, BOTTOM_BLOCK), b):
       # w matches in v's chain but not vice versa.  Asymmetric
       # log("# unmatched goes to matched: %s ? %s" % (blurb(v), blurb(w)))
-      return relation(OVERLAP, w, "reflection", "w at top of chain has a match")
+      return relation(OVERLAP, w, note="w at top of chain has a match")
     else:
       # Both unmatched and both at top of their chains
       assert get_block(w) == b
-      return relation(EQ, w, "reflection", "tops of chains, names unmatched")
+      return relation(EQ, w, note="tops of chains, names unmatched")
 
   # 5. Hmph
-  return relation(OVERLAP, w, "reflection", "v not at top of chain")
+  return relation(OVERLAP, w, note="v not at top of chain")
 
 # Find an ancestor of v (in A tree) that overlaps the B tree, i.e.
 # has a nonempty block

@@ -23,8 +23,8 @@ stemmed_prop = prop.declare_property("canonicalStem") # a.k.a. 'tipe'
 source_prop = prop.declare_property("source", inherit=False)    # which checklist does this belong to?
 
 # Links to other records, sometimes with explanation
-parent_key_prop = prop.declare_property("parentNameUsageID", inherit=False)    # LT
-accepted_key_prop = prop.declare_property("acceptedNameUsageID", inherit=False) # LE
+parent_key_prop = prop.declare_property("parentNameUsageID", inherit=False)
+accepted_key_prop = prop.declare_property("acceptedNameUsageID", inherit=False)
 superior_note_prop = prop.declare_property("superior_note", inherit=False)
 superior_prop = prop.declare_property("superior", inherit=False)    # value is a Relative
 
@@ -75,16 +75,15 @@ get_basis_of_match = prop.getter(basis_of_match_prop)
 (get_outject, set_outject) = prop.get_set(outject_prop)
 
 class Relative(NamedTuple):
-  relationship : Any    # < (LT, HAS_PARENT), <= (LE, SYNONYM), =, NOINFO, maybe others
+  relationship : Any    # < (LT, HAS_PARENT), <= (LE), =, NOINFO, maybe others
   record : Any       # the record that we're relating this one to
-  status : str      # status (taxonomicStatus) relative to record ('synonym' etc)
   note : str = ''   # further comments justifying this relationship
 
-def relation(ship, record, status, note=''):
+def relation(ship, record, note=''):
   assert isinstance(ship, int), ship
   assert ((ship == NOINFO and not record) or \
           isinstance(record, prop.Record)), blurb(record)
-  return Relative(ship, record, status, note)
+  return Relative(ship, record, note=note)
 
 # -----------------------------------------------------------------------------
 # Source checklists
@@ -176,17 +175,14 @@ def resolve_superior_link(S, record):
     if accepted:
       status = get_taxonomic_status(record, "synonym")    # default = synonym?
       if status == "equivalent":
-        rel = relation(EQ, record, "equivalent")
+        rel = relation(EQ, record, note="declared")
         set_equated(accepted, rel)
-        if False:
-          log("# Set equated for %s to %s" %
-              (blurb(accepted), blurb(rel)))
-        sup = relation(EQ, accepted, status)
+        sup = relation(EQ, accepted, note="declared")
       else:
         if monitor(record):
           log("# %s %s %s %s" %
               (blurb(record), taxonID, accepted_key, blurb(accepted)))
-        sup = relation(SYNONYM, accepted, status)
+        sup = relation(synonym_relationship(record, accepted), accepted, note="declared")
     else:
       log("# Synonym %s with unresolvable accepted: %s -> %s" %
           (get_tag(S), blurb(record), accepted_key))
@@ -197,22 +193,30 @@ def resolve_superior_link(S, record):
     if parent_key:
       parent = look_up_record(S, parent_key, record)
       if parent:
-        status = get_taxonomic_status(record, "accepted")
-        # If it's not accepted or valid or something darn close, we're confused
-        sup = relation(HAS_PARENT, parent, status)
+        sup = relation(HAS_PARENT, parent, note="declared")
       else:
         log("# accepted in %s but has unresolvable parent: %s -> %s" %
             (get_tag(S), blurb(record), parent_key))
-        sup = relation(HAS_PARENT, S.top, "unresolved parent id")
+        sup = relation(HAS_PARENT, S.top, note="unresolved parent id")
     else:
       # This is a root.  Hang on to it so that preorder can see it.
       #log("# No accepted, no parent: %s '%s' '%s'" %
        #   (blurb(record), parent_key, accepted_key))
-      sup = relation(HAS_PARENT, S.top, "root", "no parent")
+      sup = relation(HAS_PARENT, S.top, note="no parent")
 
   if sup:
     assert sup.record != record
     set_superior_carefully(record, sup)
+
+def synonym_relationship(record, accepted):
+  t1 = get_tipe(record, None)
+  t2 = get_tipe(accepted, None)
+  if t1 and t2:
+    if t1 == t2:
+      return EQ
+    else:
+      return LT
+  return SYNONYM                # LE
 
 def set_superior_carefully(x, sup):
   assert isinstance(x, prop.Record)
@@ -252,7 +256,7 @@ def link_superior(w, sup):      # w is inferior Record, sup is Relative
       ch.append(w)
     else:
       set_children(sup.record, [w]) # w is a Record
-  else:        # sup.relationship == SYNONYM or sup.relationship == EQ
+  else:
     ch = get_synonyms(sup.record, None)
     if ch != None:
       ch.append(w)
@@ -285,7 +289,7 @@ def validate(C):
     if not prop.mep_get(seen, x, False):
       log("** %s not in hierarchy; has to be a cycle" % (blurb(x),))
     sup = get_superior(x, None)
-    if sup and sup.relationship == SYNONYM:
+    if not is_accepted(x):
       if len(get_children(x, ())) > 0:
         log("** synonym %s has child %s" % (blurb(x), blurb(get_children(x)[0])))
       if len(get_synonyms(x, ())) > 0:
@@ -329,7 +333,7 @@ def ensure_inferiors_indexed(C):
         #log("# child of %s is %s" % (blurb(parent), blurb(record)))
       count += 1
 
-    else:                       # SYNONYM or EQ
+    else:                       # synonym of some kind
       accepted = sup.record
       # Add record to list of accepted record's synonyms
       ch = get_synonyms(accepted, None)
@@ -337,7 +341,7 @@ def ensure_inferiors_indexed(C):
         ch.append(record)
       else:
         set_synonyms(accepted, [record])
-      #log("# %s of %s is %s" % (sup.status, blurb(accepted), blurb(record)))
+      #log("# zzz %s, %s" % (blurb(accepted), blurb(record)))
       # if EQ then also set equivalent ??
       # but the target may be a ghost.
       count += 1
@@ -386,10 +390,10 @@ def get_accepted(x):            # Doesn't return falsish
     rp = get_superior(x, None)
     if monitor(x):
       log("> snap link %s %s" % (blurb(x), blurb(rp)))
-    return get_accepted(rp.record) # Eeeek!
-    # return rp.record
-
-
+    if rp:
+      return get_accepted(rp.record) # Eeeek!
+    else:
+      return x
 
 """
     y = get_equated(syn, None)
@@ -428,13 +432,17 @@ def recover_status(x, default=MISSING): # taxonomicStatus
   sup = get_superior(x, None)
   if not sup:
     return default
-  elif sup.status:
-    return sup.status
-  elif is_accepted(x):
-    return "accepted"
+  status = get_taxonomic_status(x, '?')
+  if is_accepted(x):
+    if status.startswith("accepted"):
+      return status
+    else:
+      return "accepted " + status
   else:
-    assert sup.relationship == SYNONYM
-    return "synonym"
+    if status.startswith("accepted"):
+      return "*" + statue
+    else:
+      return status
 
 # Non-DwC relationships, use optionally, see workspace
 
@@ -605,10 +613,10 @@ def load_matches(row_iterator, AB):
     note = get_basis_of_match(match, MISSING)
     # x or y might be None with ship=NOINFO ... hope this is OK
     if y and (ship == EQ or not get_match(y, None)):
-      set_match(y, relation(reverse_relationship(ship), x, None,
-                            reverse_note(note)))
+      set_match(y, relation(reverse_relationship(ship), x,
+                            note=reverse_note(note)))
     if x and (ship == EQ or not get_match(x, None)):
-      set_match(x, relation(ship, y, None, note))
+      set_match(x, relation(ship, y, note=note))
     if x and y: match_count += 1
     else: miss_count += 1
 

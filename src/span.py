@@ -12,6 +12,7 @@ import argparse, sys
 import theory
 from checklist import rows_to_checklist, checklist_to_rows, get_superior, \
   relation, get_children, set_children, get_synonyms, set_synonyms, \
+  get_taxonomic_status, set_taxonomic_status, \
   get_source, get_outject, blurb
 import newick
 import checklist, match_records, workspace
@@ -58,14 +59,17 @@ def span(AB):
         # N.b. w and v could be top
         if v_rel:    # in A
           # If w has an equivalent in B, synonymize the two
-          sup = relation(SYNONYM, v_rel.record, "equivalent",
-                         "treat equivalent as synonym")
+          sup = relation(EQ, v_rel.record,
+                         note="treat equivalent as synonym")
+          set_taxonomic_status(w, "equivalent") # Synonym
       if not sup:
         # p is one possible parent of w
         p_rel = cross_superior(C, w)
 
         # q is another possible parent of w
         qy_rel = get_superior(y, None)
+
+        status = get_taxonomic_status(w) # taxonomic status = ???
 
         # If there are two possibilities, pick the smallest
         if qy_rel and p_rel:
@@ -75,16 +79,16 @@ def span(AB):
           blot = "%s %s %s" % (blurb(p), rcc5_symbol(ship), blurb(q))
           if ship == GT or ship == GE:
             sup = relation(qy_rel.relationship, q,
-                           "%s, choosing right" % blot)
+                           note="%s, choosing right" % blot)
           elif ship == LT or ship == LE:
             sup = relation(p_rel.relationship, p,
-                           "%s, choosing left" % blot)
+                           note="%s, choosing left" % blot)
           elif theory.isinB(AB, w):
             sup = relation(qy_rel.relationship, q,
-                           "%s, choosing dominant (on right)" % blot)
+                           note="%s, choosing dominant (on right)" % blot)
           elif ship == EQ:
             sup = relation(p_rel.relationship, p,
-                           "%s, choosing dominant (on left)" % blot)
+                           note="%s, choosing dominant (on left)" % blot)
           else:
             # Happens a lot:
             # log("incomparable parent candidates: %s" % blot)
@@ -96,11 +100,11 @@ def span(AB):
         elif qy_rel:
           sup = relation(qy_rel.relationship,
                          C.in_right(qy_rel.record),
-                         "root 1")
+                         note="root 1")
         elif p_rel:
           sup = relation(p_rel.relationship,
                          p_rel.record,
-                         "root 2")
+                         note="root 2")
         else:
           log("no parent candidates!? %s" % blurb(w))
 
@@ -109,7 +113,8 @@ def span(AB):
         r = sup.record
         s_rel = theory.get_equivalent(r, None)
         if s_rel and theory.isinB(AB, s_rel.record):
-          sup = relation(sup.relationship, s_rel.record, sup.note + " normalized")
+          sup = relation(sup.relationship, s_rel.record,
+                         note=sup.note + " normalized")
 
       #log("sup %s = %s" % (blurb(w), blurb(sup)))
 
@@ -155,7 +160,7 @@ def cross_superior(AB, v0):
   assert ship == LT or ship == LE or ship == PERI, \
     (blurb(v), rcc5_symbol(ship), blurb(w))
 
-  return relation(ship, w, rel.status, rel.note)
+  return relation(ship, w, note=rel.note)
 
 # -----------------------------------------------------------------------------
 

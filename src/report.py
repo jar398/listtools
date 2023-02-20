@@ -81,10 +81,6 @@ def formatted_summary(rows):
   for row in rows:
     yield("%7s %7s %s" % row)
 
-def is_accepted(x):
-  sup = get_superior(x, None)
-  return (not sup) or sup.relationship != SYNONYM
-
 def personae(z):
   if is_top(z):
     return (None, None)
@@ -180,7 +176,7 @@ def conjure_record(C, key, record, register):
 #      x0 ---
 #             \   match
 #              \
-#       x  <->  y    SYNONYM / EQ
+#       x  <->  y    LT, LE, EQ
 #        \
 #  match  \
 #           --- y0

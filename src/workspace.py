@@ -85,8 +85,8 @@ def some_stuff_to_do(AB):
   btop = AB.in_right(AB.B.top)
 
   # cf. propose_equation
-  set_superior(atop, relation(EQ, btop, "top"))
-  set_equated(btop, relation(EQ, atop, "top"))
+  set_superior(atop, relation(EQ, btop, note="top"))
+  set_equated(btop, relation(EQ, atop, note="top"))
   AB.top = btop
 
   AB.indexed = False
@@ -142,9 +142,16 @@ def local_sup(AB, v):
   if not loc:
     return None
   if isinA(AB, v):
-    return relation(loc.relationship, AB.in_left(loc.record), loc.status, loc.note)
+    return relation(loc.relationship, AB.in_left(loc.record), note=loc.note)
   else:
-    return relation(loc.relationship, AB.in_right(loc.record), loc.status, loc.note)
+    return relation(loc.relationship, AB.in_right(loc.record), note=loc.note)
+
+def local_accepted(AB, v):
+  y = get_accepted(get_outject(v))
+  if isinA(AB, v):
+    return AB.in_left(y)
+  else:
+    return AB.in_right(y)
 
 def swap(AB):
   BA = AB.swap()
@@ -179,7 +186,7 @@ def workspace_from_newicks(m, n):
   if False:
     for record in all_records(AB): # No merge
       if record != AB.top:
-        set_superior(record, relation(SYNONYM, AB.top, "testing"))
+        set_superior(record, relation(SYNONYM, AB.top, note="testing"))
   return AB
 
 def show_workspace(AB, props=None):

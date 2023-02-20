@@ -10,43 +10,44 @@ from checklist import *
 
 # Returns a Relation explaining justification
 
-def simple_relationship(x0, y0):             # Within a single tree
-  (x, xsyn) = nip_synonym(x0)
-  (y, ysyn) = nip_synonym(y0)
+def simple_relationship(x, y):             # Within a single tree
   if x == y:
-    if xsyn and ysyn:
-      (ship, note) = typical(x0, y0, NEQ, NOINFO, "sibling %ss")
-    elif xsyn:
-      (ship, note) = typical(x0, y0, LT, SYNONYM, "%s of")
-    elif ysyn:
-      (ship, note) = typical(x0, y0, GT, MYNONYS, "has %s")
-    else:
-      (ship, note) = (EQ, "identical")
-    return relation(ship, y, None, note)
-    # return(ship, y, None, note)
-  (x1, y1) = find_peers(x, y)    # Decrease levels as needed
-  if x1 == y1:     # x <= x1 = y1 >= y
-    if x1 == x:     # x = x1 = y1 > y, x > y
-      return relation(GT, y, None, "x = x1 = y1 > y")
-    elif y1 == y:
-      return relation(LT, y, None, "x < x1 = y1 = y")
+    return relation(EQ, y, note="identical")
+  x1 = get_accepted(x)
+  y1 = get_accepted(y)
+  if x1 == y1:                    # same accepted
+    (ship, note) = sibling_relationship(x, x1, y1, y)
+    return relation(ship, y, note=note)
+
+  (x2, y2) = find_peers(x1, y1)    # Decrease levels as needed
+  if x2 == y2:     # x <= x2 = y2 >= y1
+    if x2 == x1:     # x = x2 = y2 > y, so x > y
+      return relation(GT, y, note="x = x2 = y2 > y")
+    elif y2 == y1:
+      return relation(LT, y, note="x < x2 = y2 = y")
     else:
       assert False  # can't happen
   else:
-    return relation(DISJOINT, y, None, "x <= x1 != y1 >= y")
+    return relation(DISJOINT, y, note="x <= x2 != y2 >= y")
 
-# If x and y homotypic then EQ, else if heterotypic LT, else NOINFO
-# cf. theory.py
-def typical(x, y, het_ship, no_ship, note):
-  t1 = get_tipe(x, None)
-  t2 = get_tipe(y, None)
-  if t1 and t2:
-    if t1 == t2:
-      return (EQ, note % "homotypic synonym")
+def sibling_relationship(x, x1, y1, y): # x1 equivalent to y1
+  if x1 != x and y1 != y:
+    r1 = get_superior(x).relationship
+    r2 = get_superior(y).relationship
+    if r1 == SYNONYM or r2 == SYNONYM or r1 != r2:
+      return (NOINFO, "sibling synonyms")
+    elif r1 == LT:
+      return (NEQ, "sibling heterotypic synonyms") # ?
     else:
-      return (het_ship, note % "heterotypic synonym")
+      return (EQ, "sibling homotypic synonyms")
+  elif x1 != x:
+    r1 = get_superior(x).relationship
+    return (r1, "synonym of") # could say heterotypic, homotypic, none
+  elif y1 != y:
+    r2 = get_superior(y).relationship
+    return (reverse_relationship(r2), "has synonym")
   else:
-    return (no_ship, note % "synonym")
+    return (EQ, "identical" if x == y else "equivalent")
 
 # Assumes already 'nipped'
 
@@ -69,8 +70,8 @@ def mrca(x, y):
   if x == BOTTOM: return y
   if y == BOTTOM: return x
 
-  (x, _) = nip_synonym(x)
-  (y, _) = nip_synonym(y)
+  x = get_accepted(x)
+  y = get_accepted(y)
   (x, y) = find_peers(x, y)
   while not (x is y):
     x = get_parent(x)
@@ -82,7 +83,7 @@ BOTTOM = None
 def simple_le(x, y):
   # Is x <= y?  Scan from x upwards, see if we find y
   if x == y: return True
-  (y, _) = nip_synonym(y)
+  y = get_accepted(y)
   x1 = x
   stop = get_level(y)
 
@@ -104,18 +105,6 @@ def in_same_tree(AB, x, y):
 
 # 2nd result is True if x is a synonym, False otherwise
 #
-def nip_synonym(x):
-  xsyn = False
-  while True:
-    sup = get_superior(x, None)
-    if not sup or is_accepted(x):
-      break
-    if sup.relationship != EQ:  # ?
-      xsyn = True
-    x = sup.record
-  assert get_level(x, None) != None, blurb(x)
-  return (x, xsyn)
-
 def get_level(x, default=None):
   i = really_get_level(x, None)
   if i == None:
