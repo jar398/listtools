@@ -96,6 +96,10 @@ def use_parse(gn_iter, check_iter):
       # Figure out epithet or some substitute
       # do not trim non-epithet if year or auth is missing
       stemmed = gn_row[stem_pos]
+      # See https://github.com/gnames/gnparser/issues/238
+      if stemmed.endswith('i') and canon.endswith('ii'):
+        stemmed = stemmed[0:-1]
+
       card = int(gn_row[cardinality_pos] or '0')
 
       # Figure out auth part of tipe... trim off authors after first
@@ -104,7 +108,7 @@ def use_parse(gn_iter, check_iter):
 
       if stemmed and year and auth and card > 1:
         # Figure out epithet part of type
-        # e.g. 'speciosus' in 'Hygrophorus lucorum var. speciosus'
+        # e.g. 'specios' in 'Hygrophorus lucorum var. speciosus'
         epithet = stemmed.split(' ')[-1]
         trim_count += 1
         # Put them together

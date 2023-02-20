@@ -78,19 +78,6 @@ def make_workspace(A, B, meta=None):
 
   return AB
 
-# NOT INVOKED
-
-def some_stuff_to_do(AB):
-  atop = AB.in_left(AB.A.top)
-  btop = AB.in_right(AB.B.top)
-
-  # cf. propose_equation
-  set_superior(atop, relation(EQ, btop, note="top"))
-  set_equated(btop, relation(EQ, atop, note="top"))
-  AB.top = btop
-
-  AB.indexed = False
-
 # Is given synonym usage a senior synonym of its accepted usage?
 # In the case of splitting, we expect the synonym to be a senior
 # synonym of the item.

@@ -17,7 +17,7 @@ year_prop = prop.declare_property("namePublishedInYear")  # http://rs.tdwg.org/d
 rank_prop = prop.declare_property("taxonRank")
 managed_id_prop = prop.declare_property("managed_id")
 tipe_prop = prop.declare_property("tipe")
-stemmed_prop = prop.declare_property("canonicalStem") # a.k.a. 'tipe'
+stemmed_prop = prop.declare_property("canonicalStem")
 
 # Other checklist properties
 source_prop = prop.declare_property("source", inherit=False)    # which checklist does this belong to?
@@ -139,6 +139,8 @@ def rows_to_checklist(iterabl, meta):
     set_source(record, S)       # not same as EOL "source" column
     resolve_superior_link(S, record)
   return S
+
+# Property scoping context ...
 
 def rows_to_context(row_iterable, primary_key_prop):
   Q = prop.make_context()
@@ -476,20 +478,23 @@ def get_matched(x):
 # Convert a checklist to csv rows (as an iterable); inverse of rows_to_checklist, above
 
 # This is a basic set of Darwin Core only properties.
+# When we serialize a checklist, these are the properties to be selectedd.
+# Must contain all the properties to be used by match_records.
 
 usual_props = \
     (primary_key_prop,
      canonical_prop,
      scientific_prop,
+     stemmed_prop,
      tipe_prop,
+     managed_id_prop,
      rank_prop,
      prop.declare_property("parentNameUsageID",
                        getter=recover_parent_key),
      prop.declare_property("acceptedNameUsageID",
                        getter=recover_accepted_key),
      prop.declare_property("taxonomicStatus",
-                       getter=recover_status),
-     managed_id_prop)
+                       getter=recover_status))
 
 # Alternative ways to order the rows
 

@@ -31,8 +31,6 @@ from util import ingest_csv, windex, MISSING, \
                  correspondence, precolumn, stable_hash, log
 from rcc5 import *
 
-default_index_by = "scientificName,type,canonicalName,canonicalStem,managed_id"
-
 MUTUAL = EQ       # relation to use for mutual match
 LOSER = NOINFO    # relation to use for runners-up
 
@@ -288,9 +286,14 @@ def find_best_matches(header1, header2, all_rows1, all_rows2, pk_col):
 # Positions in header2 of columns to be indexed (properties)
 
 def indexed_positions(header, index_by):
-  return [windex(header, col)
-          for col in index_by
-          if windex(header, col) != None]
+  p = []
+  for col in index_by:
+    w = windex(header, col)
+    if w:
+      p.append(w)
+    else:
+      print("* No %s column present" % col, file=sys.stderr)
+  return p
 
 def compute_score(row1, row2, corr_12, weights):
   s = 0
@@ -379,6 +382,9 @@ def test():
   inport2 = io.StringIO(u"taxonID,bar\n91,cat\n93,pig")
   main(inport1, inport2, "taxonID", ["taxonID", "bar"], sys.stdout)
 
+# -----------------------------------------------------------------------------
+# Command line interface
+
 def main(inport1, inport2, pk_col, index_by, outport):
   gen = match_records(csv.reader(inport1), csv.reader(inport2),
                       pk_col=pk_col, index_by=index_by)
@@ -400,15 +406,13 @@ if __name__ == '__main__':
                       default="taxonID",
                       help='name of column containing primary key')
   # Order is important
-  indexed="scientificName,type,canonicalName,canonicalStem,managed_id"
   parser.add_argument('--index',
-                      default=indexed,
+                      default=None,
                       help='names of columns to match on')
   args=parser.parse_args()
-  index = args.index
-  if not index: index = default_index_by
   with open(args.A, "r") as inport1:
     with open(args.B, "r") as inport2:
       main(inport1, inport2, args.pk,
-           index.split(","), sys.stdout)
+           args.index.split(",") if args.index else None,
+           sys.stdout)
 

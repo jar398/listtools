@@ -271,6 +271,7 @@ def clean_name(row, can_pos, sci_pos):
       mod = True
   if sci_pos != None and row[sci_pos]:
     repl = row[sci_pos].replace(' & ', ' and ') # frequent in DH 1.1
+    repl = repl.replace(',,', ',')    # kludge for MDD 1.0
     if repl != row[sci_pos]:
       row[sci_pos] = repl
       mod = True

@@ -59,13 +59,13 @@ gbif-report:
 #    MSW3 vs. MDD 1.10
 #    MDD 1.0 vs. 1.10"
 
-mdd-demo-67:
-	$(MAKE) A=work/mdd1.6 B=work/mdd1.7 ANAME=MDD1_6 BNAME=MDD1_7 demo
-
 mdd-demo:
 	$(MAKE) A=work/msw3 B=work/mdd1.0 ANAME=MSW3 BNAME=MDD1_1 demo
 	$(MAKE) A=work/msw3 B=work/mdd1.10 ANAME=MSW3 BNAME=MDD1_10 demo
 	$(MAKE) A=work/mdd1.0 B=work/mdd1.10 ANAME=MDD1 BNAME=MDD1_10 demo
+
+mdd-demo-67:
+	$(MAKE) A=work/mdd1.6 B=work/mdd1.7 ANAME=MDD1_6 BNAME=MDD1_7 demo
 
 # make A=mdd1.2-mammals B=mdd1.3 report
 # make A=mdd1.2 B=mdd1.3 report
@@ -109,7 +109,7 @@ col-report:
 SHELL?=/usr/bin/bash
 P?=src
 
-INDEX?="scientificName,type,canonicalName,canonicalStem,managed_id"
+INDEX?="scientificName,tipe,canonicalName,canonicalStem,managed_id"
 
 # Primary key column
 PRIMARY_KEY?=taxonID
@@ -118,7 +118,7 @@ PRIMARY_KEY?=taxonID
 DELTA_KEY?=$(PRIMARY_KEY)
 
 # projection, to make the files smaller
-KEEP?="taxonID,canonicalName,scientificName,type,canonicalStem,managed_id,parentNameUsageID,acceptedNameUsageID"
+KEEP?="taxonID,canonicalName,scientificName,tipe,canonicalStem,managed_id,parentNameUsageID,acceptedNameUsageID"
 
 # not sure exactly what this means.  Add EOLid for EOL
 MANAGED?=$(KEEP)
@@ -147,7 +147,7 @@ TIPWARDS=work/$(shell basename $A)-$(shell basename $B)-tipwards.csv
 demo: $(DEMO)
 
 $(DEMO): $P/demo.py $P/align.py $P/theory.py $P/simple.py $P/workspace.py \
-	   $P/checklist.py $A.csv $B.csv
+	   $P/checklist.py $P/match_records.py $A.csv $B.csv
 	@echo
 	@echo "--- PREPARING DEMO ---"
 	$P/demo.py --A $A.csv --B $B.csv --Aname $(ANAME) --Bname $(BNAME) \
@@ -366,6 +366,12 @@ in/m: sources/mdd1.10.url
 
 # MDD
 
+# 1.0 and 1.1 don't use the later managed ids
+work/mdd1.0.csv: work/mdd1.0-raw.csv
+work/mdd1.0-raw.csv: work/mdd/mdd1.0.csv
+	$P/start.py < $< --pk taxonID > $@.new
+	@mv -f $@.new $@
+
 # Need to clone the pgasu/MDD-DwC-mapping repo and put the clone sister to this repo
 # Get later versions at https://zenodo.org/record/7394529#.Y-z1dOLMI1I
 MAPPER?=../MDD-DwC-mapping
@@ -374,7 +380,6 @@ CONVERTMDD=mkdir -p work/mdd && python3 $(MAPPER)/src/explore_data.py
 
 work/mdd/mdd1.0.csv: $(MDDSOURCE)/MDD_v1_6495species_JMamm.csv
 	$(CONVERTMDD) --input $< --output $@
-
 work/mdd/mdd1.1.csv: $(MDDSOURCE)/MDD_v1.1_6526species.csv
 	$(CONVERTMDD) --input $< --output $@
 work/mdd/mdd1.2.csv: $(MDDSOURCE)/MDD_v1.2_6485species.csv
@@ -398,12 +403,13 @@ work/mdd/mdd1.9.csv: $(MDDSOURCE)/MDD_v1.9_6596species.csv
 work/mdd/mdd1.10.csv: $(MDDSOURCE)/MDD_v1.10_6615species.csv
 	$(CONVERTMDD) --input $< --output $@
 
-# TBD: 1.0 and 1.1 don't use the later managed ids
+work/mdd1.1-raw.csv: work/mdd/mdd1.1.csv $P/start.py
+	$P/start.py < $< --pk taxonID > $@.new
+	@mv -f $@.new $@
 
 work/mdd%-raw.csv: work/mdd/mdd%.csv $P/start.py
 	$P/start.py < $< --pk taxonID --managed mdd:taxonID > $@.new
 	@mv -f $@.new $@
-.PRECIOUS: mdd%-raw.csv
 
 # ----- 4. EOL examples
 
@@ -550,8 +556,8 @@ work/arts%-raw.csv: in/arts%.tsv $P/start.py
 
 # -----
 
-# Adjoin 'type' and 'year' columns.  To skip this change the rule to
-# simply copy %-raw.csv to %.csv above. 
+# Adjoin 'tipe' and 'year' columns.  To skip this change the rule to
+# simply copxy %-raw.csv to %.csv above. 
 %.csv: %-raw.csv $P/extract_names.py $P/use_gnparse.py
 	$P/extract_names.py < $< \
 	| gnparser -s \
