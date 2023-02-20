@@ -32,30 +32,20 @@ def theorize(AB):
 # TBD: set status to "accepted" or "synonym" as appropriate
 
 def cross_relation(AB, v, w):
-  #! In same summand
+  answer = synonym_answer(AB, v, w)
+
+  #! In same summand?
   if isinA(AB, v) == isinA(AB, w):
     rel = simple.simple_relationship(get_outject(v), get_outject(w))
     answer = (rel.relationship, rel.note)
-  #! Equivalent (should actually check reflection)
-  elif equivalent(v, w):        # special case of get_reflection
-    answer = (EQ, "equivalent")
-  else:                         # inequivalent somehow
-    #! Synonym situations
-    psup = local_sup(AB, v)
-    qsup = local_sup(AB, w)
-    answer = None
-    if psup and psup.relationship == SYNONYM:
-      if qsup and qsup.relationship == SYNONYM:
-        if equivalent(psup.record, qsup.record):
-          answer = (NOINFO, "co-synonyms")
-      else:
-        if equivalent(psup.record, w):
-          answer = (SYNONYM, "is a synonym of") # v <= w
-    elif qsup and qsup.relationship == SYNONYM:
-      if equivalent(qsup.record, v):
-        answer = (MYNONYS, "has synonym") # w <= v
+  else:
 
-    if not answer:
+    #! Equivalent?
+    rel = equivalent(v, w)        # special case of get_reflection
+    if rel:
+      answer = (EQ, rel.note)
+    else:                         # inequivalent somehow
+
       #! Deal with peripheral nodes (empty block)
       v_up = increase_until_overlap(AB, v)
       w_up = increase_until_overlap(AB, w)
@@ -65,14 +55,16 @@ def cross_relation(AB, v, w):
         answer = (PERI, "left peripheral")
       elif w_up != w:
         answer = (IREP, "right peripheral")
-
       else:
-        ship = block_relationship(get_block(v, BOTTOM_BLOCK), get_block(w, BOTTOM_BLOCK))
+
+        # Compare exemplar sets
+        ship = block_relationship(get_block(v, BOTTOM_BLOCK),
+                                  get_block(w, BOTTOM_BLOCK))
         if ship == EQ:
           answer = compare_within_block(v, w)
         else:
           # ship is not EQ (i.e. exemplar sets are different)
-          answer = (ship, "via exemplar set comparison")
+          answer = (ship, "different exemplar sets")
 
       if answer[0] == EQ:
         # Bug in get_reflection
@@ -85,6 +77,42 @@ def cross_relation(AB, v, w):
 
   return relation(ship, w, "articulation", note)
 
+# Deal with synonym situations
+
+def synonym_answer(AB, v, w):
+  answer = None
+  x = get_outject(v)
+  y = get_outject(w)
+  xsyn = not is_accepted(x)
+  ysyn = not is_accepted(y)
+  if xsyn and ysyn:
+    rel = equivalent(v, w)     # Foo.  Assumes 2 checklists
+    if rel:
+      answer = (EQ, rel.note)
+    elif equivalent(local_sup(AB, v).record,
+                    local_sup(AB, w).record):
+      answer = typical(x, y, NEQ, NOINFO, "+sibling %ss")
+  elif xsyn:
+    if equivalent(local_sup(AB, v).record, w):
+      answer = typical(x, y, LT, SYNONYM, "+is a %s of") # x <= y
+  elif ysyn:
+    if equivalent(v, local_sup(AB, w).record):
+      answer = typical(x, y, GT, MYNONYS, "+has %s") # y <= x
+  return answer
+
+# If x and y homotypic then EQ, else if heterotypic LT, else NOINFO
+# cf. simple.py
+def typical(x, y, het_ship, no_ship, note):
+  t1 = get_tipe(x, None)
+  t2 = get_tipe(y, None)
+  if t1 and t2:
+    if t1 == t2:
+      return (EQ, note % "homotypic synonym")
+    else:
+      return (het_ship, note % "heterotypic synonym")
+  else:
+    return (no_ship, note % "synonym")
+
 # v and w are inequivalent, but they are in the same nonempty block
 # (in parallel chains)
 
@@ -92,16 +120,16 @@ def compare_within_block(v, w):
   assert not is_empty_block(get_block(v, BOTTOM_BLOCK))
   # Look for a record match for v or w, and punt to simple case
   rel1 = rel2 = None
-  v_eq = get_equivalent(v, None)  # v, v_eq, v_eq.record in AB (from B)
+  v_eq = get_equivalent(v)
   if v_eq:
     # v = m ? w
     rel1 = simple.simple_relationship(get_outject(v_eq.record), get_outject(w))
-  w_eq = get_equivalent(w, None)   # w, w_eq, w_eq.record in AB
+  w_eq = get_equivalent(w)     # w, w_eq, w_eq.record in AB
   if w_eq:
     # v ? n = w
     rel2 = simple.simple_relationship(get_outject(v), get_outject(w_eq.record))
   # See whether the v/v_eq/w_eq/w diagram commutes
-  if w_eq and v_eq:
+  if rel1 and rel2:
     ship = rel1.relationship & rel2.relationship
     # Take intersection of relationships (both are true)??
     assert ship, \
@@ -112,10 +140,10 @@ def compare_within_block(v, w):
        rcc5_symbol(rel2.relationship), 
        blurb(w))
     answer = (ship, rel1.note)
-  elif v_eq:
+  elif rel1:
     answer = (rel1.relationship, rel1.note)
     # log("# v %s %s %s" % (blurb(v), blurb(rel1), blurb(w)))
-  elif w_eq:
+  elif rel2:
     answer = (rel2.relationship, rel2.note)
     # log("# w %s %s %s" % (blurb(v), blurb(rel2), blurb(w)))
   else:
@@ -123,21 +151,6 @@ def compare_within_block(v, w):
     # so COMPARABLE.   (assume existence of total interleaved chain.)
     answer = (COMPARABLE, "in parallel monotypic chains")
   return answer
-
-# Least node in opposite checklist that's > v
-# Returns a relation
-
-def alt_superior(AB, v):
-  w = get_reflection(v)     # candidate in AB, w >= v
-  if w == BOTTOM:
-    return None
-  ship = cross_relation(AB, v, w).relationship
-  if ship == EQ:
-    return local_sup(AB, w)
-  else:
-    assert cross_lt(v, w)
-    sup = local_sup(AB, v)
-    return relation(ship, w, sup.status if sup else "accepted", "alt_superior")
 
 # RCC-5 relationship across the two checklists
 # x and y are in AB
@@ -152,30 +165,26 @@ def cross_le(AB, v, w):
   return ship == LT or ship == LE or ship == PERI or ship == EQ
 
 # -----------------------------------------------------------------------------
-# Equivalence - a special case of reflection
+# Equivalence - a special case of reflection - returns relation
 
 def equivalent(v, w):
-  AB = get_source(v)            # BIG KLUDGE
-  # Easier: return v == get_equivalent(w, None)
-  # But, let's check symmetry here
-
-  ref1 = get_equivalent(v)
-  e1 = True if (ref1 and ref1.record == w) else False
-
-  ref2 = get_equivalent(w)
-  e2 = True if (ref2 and ref2.record == v) else False
-
-  assert e1 == e2, \
-    (e1, blurb(v), blurb(ref1),
-     e2, blurb(w), blurb(ref2))
-  return e1
+  rel = get_equivalent(v)
+  if rel and rel.record != w: rel = None
+  if True:
+    # Let's check symmetry
+    rel2 = get_equivalent(w)
+    if rel2 and rel2.record != v: rel2 = None
+    assert (not rel) == (not rel2), \
+      (blurb(v), blurb(rel),
+       blurb(w), blurb(rel2))
+  return rel
 
 # Given x, returns y such that x = y.  x and y are in AB, not A or B.
 # Returns a Relation or None.
 
 def get_equivalent(v, default=None):
-  ref = get_reflection(v)
-  return ref if ref.relationship == EQ else default
+  rel = get_reflection(v)
+  return rel if rel.relationship == EQ else default
 
 # -----------------------------------------------------------------------------
 # Find least w in B such that w >= v (in A).
@@ -199,9 +208,9 @@ def find_reflections(AB):
 def find_reflection(AB, v):
   if is_toplike(v):
     if isinA(AB, v):
-      return relation(EQ, AB.in_right(AB.B.top), "top")
+      return relation(EQ, AB.in_right(AB.B.top), "reflection", "top")
     else:
-      return relation(EQ, AB.in_left(AB.A.top), "top")
+      return relation(EQ, AB.in_left(AB.A.top), "reflection", "top")
 
   # 1. Peripherals don't match, period
   vo = increase_until_overlap(AB, v)
@@ -243,7 +252,7 @@ def find_reflection(AB, v):
     else:
       # Both unmatched and both at top of their chains
       assert get_block(w) == b
-      return relation(EQ, w, "equivalent", "tops of chains, names unmatched")
+      return relation(EQ, w, "reflection", "tops of chains, names unmatched")
 
   # 5. Hmph
   return relation(OVERLAP, w, "reflection", "v not at top of chain")

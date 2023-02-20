@@ -10,29 +10,43 @@ from checklist import *
 
 # Returns a Relation explaining justification
 
-def simple_relationship(x, y):             # Within a single tree
-  (x, synx) = nip_synonym(x)
-  (y, syny) = nip_synonym(y)
+def simple_relationship(x0, y0):             # Within a single tree
+  (x, xsyn) = nip_synonym(x0)
+  (y, ysyn) = nip_synonym(y0)
   if x == y:
-    if synx or syny:
-      if synx and syny:
-        return relation(NOINFO, y, "sibling synonyms") # blah
-      elif synx:
-        return relation(SYNONYM, y, "synonym <= accepted")
-      else:
-        return relation(MYNONYS, y, "accepted >= synonym")
+    if xsyn and ysyn:
+      (ship, note) = typical(x0, y0, NEQ, NOINFO, "sibling %ss")
+    elif xsyn:
+      (ship, note) = typical(x0, y0, LT, SYNONYM, "%s of")
+    elif ysyn:
+      (ship, note) = typical(x0, y0, GT, MYNONYS, "has %s")
     else:
-      return relation(EQ, y, None, "accepted = accepted")
+      (ship, note) = (EQ, "identical")
+    return relation(ship, y, None, note)
+    # return(ship, y, None, note)
   (x1, y1) = find_peers(x, y)    # Decrease levels as needed
   if x1 == y1:     # x <= x1 = y1 >= y
     if x1 == x:     # x = x1 = y1 > y, x > y
-      return relation(GT, y, None, "in-checklist")
+      return relation(GT, y, None, "x = x1 = y1 > y")
     elif y1 == y:
-      return relation(LT, y, None, "in-checklist")
+      return relation(LT, y, None, "x < x1 = y1 = y")
     else:
       assert False  # can't happen
   else:
-    return relation(DISJOINT, y, "in-checklist")
+    return relation(DISJOINT, y, None, "x <= x1 != y1 >= y")
+
+# If x and y homotypic then EQ, else if heterotypic LT, else NOINFO
+# cf. theory.py
+def typical(x, y, het_ship, no_ship, note):
+  t1 = get_tipe(x, None)
+  t2 = get_tipe(y, None)
+  if t1 and t2:
+    if t1 == t2:
+      return (EQ, note % "homotypic synonym")
+    else:
+      return (het_ship, note % "heterotypic synonym")
+  else:
+    return (no_ship, note % "synonym")
 
 # Assumes already 'nipped'
 
@@ -91,16 +105,16 @@ def in_same_tree(AB, x, y):
 # 2nd result is True if x is a synonym, False otherwise
 #
 def nip_synonym(x):
-  synx = False
+  xsyn = False
   while True:
     sup = get_superior(x, None)
-    if not sup or sup.relationship == ACCEPTED:
+    if not sup or is_accepted(x):
       break
-    if sup.relationship != EQ:
-      synx = True
+    if sup.relationship != EQ:  # ?
+      xsyn = True
     x = sup.record
   assert get_level(x, None) != None, blurb(x)
-  return (x, synx)
+  return (x, xsyn)
 
 def get_level(x, default=None):
   i = really_get_level(x, None)
@@ -123,11 +137,8 @@ def get_level(x, default=None):
 
 def get_parent(x):
   rp = get_superior(x, None)
-  if rp:
-    if False and rp.relationship != ACCEPTED:    ##????
-      return get_parent(rp.record)
-    else:
-      return rp.record
+  if rp:                        # and is_accepted(x) ????
+    return rp.record
   else: return None
 
 def ensure_levels(S):

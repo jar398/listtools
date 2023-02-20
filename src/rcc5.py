@@ -27,13 +27,14 @@ CONFLICT = def_rcc5_symbol(1 << 4, '><')
 
 LE = def_rcc5_symbol(LT|EQ, '{< =}')       # ≤, synonym
 GE = def_rcc5_symbol(GT|EQ, '{> =}')       # ≥, accepted
-NOINFO = def_rcc5_symbol(LT|GT|EQ|CONFLICT|DISJOINT, '{< = > ! ><}')
+NOINFO = def_rcc5_symbol(LT|GT|EQ|CONFLICT|DISJOINT, '{< = > >< !}')
 COMPARABLE = def_rcc5_symbol(LT|GT|EQ, '{< = >}')
 OVERLAP = def_rcc5_symbol(LT|GT|EQ|CONFLICT, '{< = > ><}')  # ∩, equivalent, similar
 
-ACCEPTED = LT
+HAS_PARENT = LT
 SYNONYM = LE
 MYNONYS = GE
+NEQ = def_rcc5_symbol(LT|GT|CONFLICT|DISJOINT, '{< > >< !}')
 
 PERI = def_rcc5_symbol(LT|DISJOINT, '{< !}')
 IREP = def_rcc5_symbol(GT|DISJOINT, '{> !}')

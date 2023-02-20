@@ -43,8 +43,7 @@ def generate_reports(AB, mode):
         s = [0, 0]      # [all, species only]
         stats[stat] = s
       s[0] += 1
-      rq = get_superior(y)
-      if rank == 'species' and (rq and rq.relationship == ACCEPTED):
+      if rank == 'species' and is_accepted(y):
         s[1] += 1
 
     for z in all_records(AB):
@@ -62,9 +61,8 @@ def generate_reports(AB, mode):
         if doit:
           accepted = ''
           if y:
-            sup = get_superior(y)
-            if sup and sup.relationship != ACCEPTED:
-              accepted = blurb(sup.record)
+            if not is_accepted(y):
+              accepted = blurb(get_superior(y).record)
           yield (blurb(x) if x else '',
                  blurb(y) if y else '',
                  accepted,

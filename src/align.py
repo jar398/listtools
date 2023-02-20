@@ -46,7 +46,7 @@ def generate_short_report(al, AB):
     assert is_acceptable(v), blurb(v)
     assert is_acceptable(w), blurb(w)
     d = category(v, ship, w)
-    if d:
+    if not d.startswith('retain'):
       # Show mismatch / ambiguity ... ?
       # m = get_match(z); m.note if m else ...
       yield  (blurb(get_outject(v)) if ship != IREP else "NA",
@@ -64,7 +64,7 @@ def category(v, ship, w):
   stay = (get_rank(get_accepted(x), None) ==
           get_rank(get_accepted(y), None))
   if ship == GT:
-    if stay: action = (('shrink' and '') if mat else 'split')
+    if stay: action = ('retain (split)' if mat else 'split')
     else: action = 'add'
   elif ship == EQ:
     # No match - ambiguous match - unique match
@@ -72,9 +72,9 @@ def category(v, ship, w):
     if get_canonical(v) != get_canonical(w):
       action = 'rename'
     else:
-      action = ('' if mat else 'equivalent') # Ambiguous ?
+      action = 'retain'
   elif ship == LT:
-    if stay: action = (('expand' and '') if mat else 'lump')
+    if stay: action = ('retain (lump)' if mat else 'lump')
     else: action = 'remove'
   elif ship == DISJOINT:
     action = ('false match' if mat else 'disjoint')
@@ -91,14 +91,14 @@ def category(v, ship, w):
     if t and t == get_tipe(y, None):
       action = 'rename (demotion)'
     else:
-      action = 'lump (demotion; %s != %s)' % (t, get_tipe(y, None))
+      action = 'lump (demotion)'
   elif ship == MYNONYS:              # a synonym of w <= v
     # x >= x1* = y   i.e. x1 is being promoted from synonym to accepted (y)
     t = get_tipe(x, None)
     if t and t == get_tipe(y, None):
       action = 'rename (promotion)'
     else:
-      action = 'split (promotion; %s != %s)' % (t, get_tipe(y, None))
+      action = 'split (promotion)'
   elif ship == IREP:
     action = 'add'
   elif ship == PERI:
@@ -106,6 +106,8 @@ def category(v, ship, w):
   else:
     action = rcc5_symbol(ship)
   return action
+
+# rel.note will often be the match type, so don't duplicate it
 
 def alignment_comment(AB, v, rel):
   w = rel.record
@@ -130,6 +132,7 @@ def alignment_comment(AB, v, rel):
         comment = "%s|%s" % (n1, n2)
       else:
         comment = ''
+  if comment == rel.note: comment = ''
   return comment
 
 # Report on block(v) - block(w) (synonyms removed)
@@ -183,8 +186,8 @@ def alignment_iter(AB):
 
   # Preorder... 
   def traverse(z, infra):
-    if is_species(z):       # Policy
-      for (v, w) in taxon_articulators(AB, z, infra): # Normalized
+    for (v, w) in taxon_articulators(AB, z, infra): # Normalized
+      if is_species(z):
         key = (get_primary_key(v), get_primary_key(w))
         if key in seen or (v == AB.top or w == AB.top):
           pass
@@ -192,7 +195,7 @@ def alignment_iter(AB):
           rel = theory.cross_relation(AB, v, w)
           yield (v, rel)
           seen[key] = True
-      infra = z
+        infra = z
     for c in get_inferiors(z):
       yield from traverse(c, infra)
   yield from traverse(AB.in_right(AB.B.top), False) # B priority

@@ -36,6 +36,7 @@ def start_csv(inport, params, outport, args):
   landmark_pos = windex(in_header, "Landmark")
   if landmark_pos != None: in_header[landmark_pos] = "landmark_status"
   accepted_pos = windex(in_header, "acceptedNameUsageID")
+  parent_pos = windex(in_header, "parentNameUsageID")
   tax_status_pos = windex(in_header, "taxonomicStatus")
   taxon_id_pos = windex(in_header, "taxonID")
 
@@ -108,14 +109,26 @@ def start_csv(inport, params, outport, args):
     if normalize_accepted(row, accepted_pos, taxon_id_pos):
       accepteds_normalized += 1
 
+    # Shouldn't have both accepted and parent
+    if False:
+      if accepted_pos and parent_pos and row[accepted_pos] and row[parent_pos]:
+        row[parent_pos] = MISSING
+
     # Two ways to test whether a usage is accepted
     usage_id = row[pk_pos_in] if pk_pos_in != None else MISSING
     au = row[accepted_pos] if accepted_pos != None else MISSING
     indication_1 = (au == MISSING or au == usage_id)
 
-    stat = row[tax_status_pos] if tax_status_pos != None else "accepted"
-    indication_2 = (stat == "accepted" or stat == "valid" or
-                    stat == "accepted name")
+    if tax_status_pos != None:
+      stat = row[tax_status_pos]
+      # itty bitty normalization, so we can test for accepted using startswith
+      # I don't work with plants that much
+      if stat == "valid":
+        stat = "accepted (valid)"
+        row[tax_status_pos] = stat
+    else:
+      stat == "accepted"
+    indication_2 = stat.startswith("accepted")
 
     if indication_1 != indication_2 and conflicts < 10:
       print("-- %s has accepted %s but taxstatus %s" %
@@ -203,6 +216,14 @@ def fresh_pk(row, out_header):
   except:
     assert False, row
 
+def normalize_accepted(row, accepted_pos, taxon_id_pos):
+  if (taxon_id_pos != None and
+      accepted_pos != None and
+      row[accepted_pos] == row[taxon_id_pos]):
+    row[accepted_pos] = MISSING
+    return True
+  return False
+
 """
 Let c = canonicalName from csv, s = scientificName from csv,
 sci = satisfies scientific name regex.
@@ -218,13 +239,6 @@ Case analysis:
   sci      not-sci   Swap if s is a prefix of c, otherwise leave.
   not-sci  not-sci   Remove s if =.  Otherwise leave.
 """
-
-def normalize_accepted(row, accepted_pos, taxon_id_pos):
-  if (taxon_id_pos != None and
-      accepted_pos != None and row[accepted_pos] == MISSING):
-    row[accepted_pos] = row[taxon_id_pos]
-    return True
-  return False
 
 # Returns True if a change was made
 

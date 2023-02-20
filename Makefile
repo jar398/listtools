@@ -512,7 +512,7 @@ col%-raw.csv: col%/dump/meta.xml $P/start.py
 
 # ----- 6. ITIS
 
-work/itis2022-mammals-raw.csv: work/itis2022-mammals/dump/meta.xml
+work/itis2022-mammals-raw.csv: work/itis2022-mammals/dump/meta.xml $P/start.py
 	$P/start.py --pk $(PRIMARY_KEY) --input `dirname $<`/taxa_*.txt \
 	  >$@.new
 	@mv -f $@.new $@
@@ -524,7 +524,7 @@ work/itis2022-mammals-raw.csv: work/itis2022-mammals/dump/meta.xml
 
 work/msw3.csv: work/msw3-raw.csv
 
-work/msw3-raw.csv: sources/msw3-source.csv
+work/msw3-raw.csv: sources/msw3-source.csv $P/start.py
 	$P/start.py --pk $(PRIMARY_KEY) --input $< \
 	  > $@.new
 	@mv -f $@.new $@

@@ -98,7 +98,8 @@ def read_topology(hier_file, root_id):
     # Not clear which part of the record is authoritative when there
     # is a conflict.
     # (accepted_id and not accepted_id == tid))
-    if accepted_id != MISSING and accepted_id != tid:
+    if accepted_id != MISSING:
+      assert accepted_id != tid
       (_, syns) = get_topo_record(accepted_id, topo)
       syns.append(tid)
     if parent_id != MISSING and parent_id != tid:

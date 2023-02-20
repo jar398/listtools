@@ -75,7 +75,7 @@ get_basis_of_match = prop.getter(basis_of_match_prop)
 (get_outject, set_outject) = prop.get_set(outject_prop)
 
 class Relative(NamedTuple):
-  relationship : Any    # < (LT, ACCEPTED), <= (LE, SYNONYM), =, NOINFO, maybe others
+  relationship : Any    # < (LT, HAS_PARENT), <= (LE, SYNONYM), =, NOINFO, maybe others
   record : Any       # the record that we're relating this one to
   status : str      # status (taxonomicStatus) relative to record ('synonym' etc)
   note : str = ''   # further comments justifying this relationship
@@ -169,7 +169,9 @@ def resolve_superior_link(S, record):
   accepted_key = get_accepted_key(record, None)
   taxonID = get_primary_key(record)
   assert taxonID
-  if accepted_key and accepted_key != taxonID:
+  assert accepted_key != taxonID       # see start.py
+  if accepted_key:
+    # set_accepted(record, False)
     accepted = look_up_record(S, accepted_key, record)
     if accepted:
       status = get_taxonomic_status(record, "synonym")    # default = synonym?
@@ -188,25 +190,25 @@ def resolve_superior_link(S, record):
     else:
       log("# Synonym %s with unresolvable accepted: %s -> %s" %
           (get_tag(S), blurb(record), accepted_key))
-      #sup = relation(ACCEPTED, S.top, "root", "synonym with unresolved accepted id")
   else:
     # Accepted
+    # set_accepted(record, True)
     parent_key = get_parent_key(record, None)
     if parent_key:
       parent = look_up_record(S, parent_key, record)
       if parent:
         status = get_taxonomic_status(record, "accepted")
         # If it's not accepted or valid or something darn close, we're confused
-        sup = relation(ACCEPTED, parent, status)
+        sup = relation(HAS_PARENT, parent, status)
       else:
         log("# accepted in %s but has unresolvable parent: %s -> %s" %
             (get_tag(S), blurb(record), parent_key))
-        sup = relation(ACCEPTED, S.top, "unresolved parent id")
+        sup = relation(HAS_PARENT, S.top, "unresolved parent id")
     else:
       # This is a root.  Hang on to it so that preorder can see it.
       #log("# No accepted, no parent: %s '%s' '%s'" %
        #   (blurb(record), parent_key, accepted_key))
-      sup = relation(ACCEPTED, S.top, "root", "no parent")
+      sup = relation(HAS_PARENT, S.top, "root", "no parent")
 
   if sup:
     assert sup.record != record
@@ -224,10 +226,9 @@ def set_superior_carefully(x, sup):
 
   # If sup itself is a synonym, we're in trouble
   if sup.relationship != EQ:
-    grand = get_superior(sup.record, None)
-    if grand and grand.relationship != ACCEPTED:
+    if not is_accepted(sup.record):
       log("** synonym of synonym: %s %s %s" %
-          (blurb(x), blurb(sup), blurb(grand)))
+          (blurb(x), blurb(sup)))
       assert False
 
   # OK go for it
@@ -238,13 +239,14 @@ def set_superior_carefully(x, sup):
 
 # Establish a link of the form w -> p
 # sup is a Relative with record p
+# How to represent whether w is accepted or not?
 
 def link_superior(w, sup):      # w is inferior Record, sup is Relative
   assert isinstance(w, prop.Record)
   assert isinstance(sup, Relative)
   assert get_superior(w, None) == None
   set_superior(w, sup)
-  if sup.relationship == ACCEPTED:
+  if is_accepted(w):
     ch = get_children(sup.record, None) # list of records
     if ch != None:
       ch.append(w)
@@ -315,7 +317,7 @@ def ensure_inferiors_indexed(C):
     assert sup, blurb(record)
     assert_local(record, sup.record)
 
-    if sup.relationship == ACCEPTED:
+    if is_accepted(record):
       #log("# accepted %s -> %s" % (blurb(record), blurb(sup.record)))
       parent = sup.record
       # Add record to list of parent's children
@@ -370,23 +372,23 @@ def is_top(x):
 def is_toplike(x):
   return get_canonical(x, None) == TOP_NAME
 
-# Not used I think
-def add_inferior(rel, status="accepted"):
-  if rel.relationship == ACCEPTED:
-    ch = get_children(x, None)
-    set_inferiors = set_children
-  else:
-    ch = get_synoyms(x, None)
-    set_inferiors = set_synonyms
-  if ch != None:
-    ch.append(rel)
-  else:
-    set_inferiors(x, [rel])
-  set_superior_carefully(c, rel)
-
 def get_inferiors(x):
   yield from get_children(x, ())
   yield from get_synonyms(x, ())
+
+def is_accepted(x):             # exported
+  return get_taxonomic_status(x, "accepted").startswith("accepted")
+
+def get_accepted(x):            # Doesn't return falsish
+  if is_accepted(x):
+    return x
+  else:
+    rp = get_superior(x, None)
+    if monitor(x):
+      log("> snap link %s %s" % (blurb(x), blurb(rp)))
+    return get_accepted(rp.record) # Eeeek!
+    # return rp.record
+
 
 
 """
@@ -407,34 +409,20 @@ def get_inferiors(x):
 # ----- Functions for filling columns in output table
 
 def recover_parent_key(x, default=MISSING):
-  sup = get_superior(x, None)
-  if sup and sup.relationship == ACCEPTED:
-    y = get_accepted(sup.record)
-    if not is_top(y):
-      return get_primary_key(y)
+  if is_accepted(x):
+    sup = get_superior(x, None)
+    if sup:
+      y = sup.record
+      if y and not is_top(y):
+        return get_primary_key(y)
   return default
 
 def recover_accepted_key(x, default=MISSING):
-  sup = get_superior(x, None)
-  if sup and sup.relationship != ACCEPTED:
-    y = get_accepted(sup.record)
-    if not is_top(y):
-      return get_primary_key(y)
-  return default
-
-def is_accepted(x):             # exported
-  sup = get_superior(x, None)
-  return (not sup) or sup.relationship == ACCEPTED
-
-def get_accepted(x):
-  rp = get_superior(x, None)
-  if (not rp or rp.relationship == ACCEPTED):
-    return x
+  y = get_accepted(x)
+  if y == x or is_top(y):
+    return MISSING
   else:
-    if monitor(x):
-      log("> snap link %s %s" % (blurb(x), blurb(rp)))
-    return get_accepted(rp.record) # Eeeek!
-    # return rp.record
+    return get_primary_key(y)
 
 def recover_status(x, default=MISSING): # taxonomicStatus
   sup = get_superior(x, None)
@@ -442,7 +430,7 @@ def recover_status(x, default=MISSING): # taxonomicStatus
     return default
   elif sup.status:
     return sup.status
-  elif sup.relationship == ACCEPTED:
+  elif is_accepted(x):
     return "accepted"
   else:
     assert sup.relationship == SYNONYM

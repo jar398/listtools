@@ -53,7 +53,7 @@ _global_property_counter = 0
 _label_to_propid = {}
 
 def declare_property(label, filler=None, getter=None, setter=None,
-                 fresh=False, inherit=True):
+                     fresh=False, inherit=True):
   global _global_property_counter
   id = _label_to_propid.get(label)
   if id == None:

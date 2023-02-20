@@ -215,14 +215,10 @@ def consider_unaccepted(AB, z):
   rq = get_right_superior(AB, z)
   if rq:
     assert rq.relationship != None
-    if False and rq.relationship != ACCEPTED:
-      log("# making %s a synonym in A+B because it's one in B" % blurb(z))
     return (rq.relationship, rq.status)
   rp = get_left_superior(AB, z)
   if rp:
     assert rp.relationship != None
-    if False and rp.relationship != ACCEPTED:
-      log("# making %s a synonym in A+B because it's one in A" % blurb(z))
     return (rp.relationship, rp.status)
   else:
     assert False
@@ -281,7 +277,7 @@ def find_difference(AB, z, default=None):
           if p != q:
             diffs.append('superior')
         if rp.relationship != rq.relationship:
-          if rp.relationship == ACCEPTED:
+          if rp.relationship == HAS_PARENT: # is_accepted(???)
             diffs.append('synonym/accepted')
           else:
             diffs.append('accepted/synonym')
@@ -398,7 +394,6 @@ def propose_superior(AB, z, rs, ship, status, note):
   assert rs
   assert isinstance(z, prop.Record), blurb(z)
   assert isinstance(rs, Relative)
-  assert ship == ACCEPTED or ship == SYNONYM
   # I don't feel good about these
   s = get_accepted(rs.record)
   rel = relation(ship,
