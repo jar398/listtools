@@ -1,114 +1,30 @@
 # $< = first prerequisite, $@ = target
 
+# See lower part of file for examples (NCBI etc.)
+
 # This has examples of the use of the list tools.
 # Very much in flux!
 
 all:
+	@echo "Use make parameter syntax to specify the two checklists, e.g."
+	@echo "  make A=work/ncbi201505-mammals B=work/ncbi202008-mammals demo"
+
+outofdate:
 	@echo "Please specify a target:"
 	@echo "  demo       align and generate Euler/X form of alignment"
 	@echo "  diff       show new/removed/changed records"
 	@echo "  round      demo diff/patch round trip"
 	@echo "  report     report on NCBI extensions differences 2015-2020"
 	@echo "  mdd-report report on MDD extensions differences 1.6-1.7"
-	@echo "Use make parameter syntax to specify the two checklists, e.g."
-	@echo "  make A=work/ncbi201505-mammals B=work/ncbi202008-mammals report"
 
 .SECONDARY:
-
-# Default example:
-# Compare two versions of NCBI mammals
-
-TAXON?=Mammalia
-taxon?=mammals
-A?=work/ncbi201505-$(taxon)
-B?=work/ncbi202008-$(taxon)
-ANAME?=A
-BNAME?=B
-
-# make A=ncbi201505-mammals B=ncbi202008-mammals demo
-# time make A=work/ncbi201505 B=work/ncbi202008 demo
-# time make A=work/ncbi201505 B=work/ncbi202008 demo
-#  etc. etc.
-
-# N.b. managed_id has a specific meaning in this system; it's an id in
-#  some managed namespace, prefixed by something to identify the namespace.
-# Example syntax:
-#   ncbi:123, eol:4567 (for page id), gbif:8910, worms:2345   etc.
-
-# ----- 1. NCBI example:
-
-ncbi-report:
-	$(MAKE) A=work/ncbi201505-$(taxon) B=work/ncbi202008-$(taxon) report
-
-# make A=ncbi201505 B=ncbi202008 report  # big, will take forever
-
-work/ncbi201505-$(taxon).csv: work/ncbi201505.csv
-
-# ----- 2. GBIF examples:
-
-gbif-report:
-	$(MAKE) A=work/gbif20190916-$(taxon) B=work/gbif20210303-$(taxon) report
-
-# make A=ncbi202008-mammals B=gbif20210303-mammals report
-# and so on.
-
-# ----- 3. BioKIC/ATCR examples:
-
-# Nate: "For the next steps, this would be awesome:
-#    MSW3 vs. MDD 1.0
-#    MSW3 vs. MDD 1.10
-#    MDD 1.0 vs. 1.10"
-
-mdd-demo:
-	$(MAKE) A=work/msw3 B=work/mdd1.0 ANAME=MSW3 BNAME=MDD1_1 demo
-	$(MAKE) A=work/msw3 B=work/mdd1.10 ANAME=MSW3 BNAME=MDD1_10 demo
-	$(MAKE) A=work/mdd1.0 B=work/mdd1.10 ANAME=MDD1 BNAME=MDD1_10 demo
-
-mdd-demo-67:
-	$(MAKE) A=work/mdd1.6 B=work/mdd1.7 ANAME=MDD1_6 BNAME=MDD1_7 demo
-
-# make A=mdd1.2-mammals B=mdd1.3 report
-# make A=mdd1.2 B=mdd1.3 report
-# make A=gbif20210303-mammals B=mdd1.0-mammals report
-# Prashant's request, see slack on 5/2/2022:
-# make A=mdd1.7 B=gbif20220317-mammals report
-
-# ----- 4. EOL examples:
-
-# Requires clone of 'plotter' repo:
-
-eol-report:
-	$(MAKE) A=dh11-$(taxon) B=dh12-$(taxon) report
-
-# time make A=dh11-mammals B=dh12-mammals round
-# time make A=dh09-mammals B=dh11-mammals round
-# time make A=dh11 B=dh12 round
-# time make A=dh09 B=dh11 round
-
-# Hierarchies - columns are those that neo4j needs to know
-# DELTA_KEY=EOLid MANAGE=EOLid,parentEOLid,taxonID,landmark_status \
-#   time make A=dh09-hier B=dh11-hier report
-
-# DELTA_KEY=EOLid MANAGE=EOLid,parentEOLid,taxonID,landmark_status \
-#   time make A=dh11-hier B=dh12-hier report
-
-# ----- 5. CoL examples:
-
-col-report:
-	$(MAKE) A=col2019-$(taxon) B=col2021-$(taxon) report
-
-# make A=col2021-mammals B=mdd1.7 report
-# and so on.
-
-# ----- 6. GBIF:
-
-# ----- 7. MSW/MDD:
 
 # ----- General parameters
 
 SHELL?=/usr/bin/bash
 P?=src
 
+# For match_records.py
 INDEX?="scientificName,tipe,canonicalName,canonicalStem,managed_id"
 
 # Primary key column
@@ -118,7 +34,7 @@ PRIMARY_KEY?=taxonID
 DELTA_KEY?=$(PRIMARY_KEY)
 
 # projection, to make the files smaller ... ?
-KEEP?="taxonID,canonicalName,scientificName,tipe,canonicalStem,managed_id,parentNameUsageID,acceptedNameUsageID"
+KEEP?="taxonID,canonicalName,scientificName,tipe,canonicalStem,managed_id,parentNameUsageID,acceptedNameUsageID,taxanomicStatus,nomenclaturalStatus"
 
 # not sure exactly what this means.  Add EOLid for EOL
 MANAGED?=$(KEEP)
@@ -126,8 +42,14 @@ MANAGED?=$(KEEP)
 # This is for EOL.  Requires clone of 'plotter' repo
 RAKE?=cd ../plotter && rake
 
-
 # ----- General rules, top down
+
+A=test1
+B=test2
+ANAME?=A
+BNAME?=B
+TAXON?=Mammalia
+taxon?=mammals
 
 # MDD-style comparison report:
 
@@ -142,7 +64,7 @@ DELTA=work/$(shell basename $A)-$(shell basename $B)-delta.csv
 DEMO=work/$(shell basename $A)-$(shell basename $B)-aligned.csv
 EULERX=work/$(shell basename $A)-$(shell basename $B)-eulerx.txt
 SHORT=work/$(shell basename $A)-$(shell basename $B)-short.csv
-TIPWARDS=work/$(shell basename $A)-$(shell basename $B)-tipwards.csv
+EXEMPLARS=work/$(shell basename $A)-$(shell basename $B)-exemplars.csv
 
 demo: $(DEMO)
 
@@ -155,6 +77,8 @@ $(DEMO): $P/demo.py $P/align.py $P/theory.py $P/simple.py $P/workspace.py \
 	@mv -f $@.new $@
 	@mv -f $(EULERX).new $(EULERX)
 	@mv -f $(SHORT).new $(SHORT)
+
+# Stale targets
 
 report: $(REPORT)
 REPORT_OPTIONS?=
@@ -252,69 +176,134 @@ $(DELTA): $A.csv $B.csv $P/delta.py $P/match_records.py $P/property.py
 # Any Darwin Core archive (DwCA):
 
 %/dump/meta.xml: %.dwca-url
-	mkdir -p `dirname $@`/dump
+	mkdir -p `dirname $@`.dump
 	wget -O `dirname $@`.zip $$(cat $<)
 	unzip -d `dirname $@` `dirname $@`.zip
 	touch `dirname $@`/*
 .PRECIOUS: %/dump/meta.xml
 
-# ----- Mammals rules
+# Adjoin 'tipe' and 'year' columns.  To skip this step, change the rule to
+# simply cp -pf %-raw.csv %.csv. 
+%.csv: %-raw.csv $P/extract_names.py $P/use_gnparse.py
+	$P/extract_names.py < $< \
+	| gnparser -s \
+	| $P/use_gnparse.py --source $< > $@.new
+	@mv -f $@.new $@
 
-# ncbi 40674, gbif 359, dh1 EOL-000000627548, dh0.9 -168130, page 1642
-# Most of these rules may be redundant now.  Cull at some point.
+tags:
+	etags $P/*.py
 
-work/ncbi%-$(taxon)-raw.csv: in/ncbi%-raw.csv $P/subset.py
-	$P/subset.py --hierarchy $< --root $(TAXON) < $< > $@.new
-	@mv -f $@.new $@
-.PRECIOUS: ncbi%-$(taxon)-raw.csv
+# Subsetting:
 
-#work/ncbi%-$(taxon).csv: work/ncbi%-$(taxon)-raw.csv
+%-$(taxon)-raw.csv: %-raw.csv $P/subset.py
+	$P/subset.py < $< --hierarchy $< --root $(TAXON) > $@.new
+	@mv -f $@.new $@
 
-work/gbif%-$(taxon)-raw.csv: in/gbif%-raw.csv $P/subset.py
-	$P/subset.py --hierarchy $< --root $(TAXON) < $< > $@.new
-	@mv -f $@.new $@
-.PRECIOUS: gbif%-$(taxon)-raw.csv
+# Testing
 
-work/dh1%-$(taxon)-raw.csv: in/dh1%-raw.csv $P/subset.py
-	$P/subset.py --hierarchy $< --root $(TAXON) < $< > $@.new
-	@mv -f $@.new $@
-.PRECIOUS: dh1%-$(taxon)-raw.csv
+test-demo: work/test1.csv work/test2.csv
+	$(MAKE) A=work/test1 B=work/test2 demo
+work/test1.csv: work/test1-raw.csv
+work/test2.csv: work/test2-raw.csv
 
-work/dh0%-$(taxon)-raw.csv: in/dh0%-raw.csv $P/subset.py
-	$P/subset.py --hierarchy $< --root $(TAXON) < $< > $@.new
-	@mv -f $@.new $@
-.PRECIOUS: dh0%-$(taxon)-raw.csv
+test:
+	$P/property.py
+	$P/checklist.py
+	$P/workspace.py
+	$P/align.py --test
+	$(MAKE) A=test1 B=test2 report
 
-work/col2021-mammals-raw.csv: in/col2021-raw.csv $P/subset.py
-	$P/subset.py --hierarchy $< --root 6224G < $< > $@.new
-	@mv -f $@.new $@
-work/col2021-primates-raw.csv: in/col2021-raw.csv $P/subset.py
-	$P/subset.py --hierarchy $< --root 3W7 < $< > $@.new
-	@mv -f $@.new $@
-work/%-$(taxon)-raw.csv: in/%-raw.csv $P/subset.py
-	$P/subset.py --hierarchy $< --root $(TAXON) < $< > $@.new
-	@mv -f $@.new $@
-.PRECIOUS: work/%-$(taxon)-raw.csv
+test-report: 
+	$(MAKE) A=test1 B=test2 report
+	@echo 'A: $(TEST1)'
+	@echo 'B: $(TEST2)'
+	$P/newick.py < work/test1-test2-merged.csv
 
-work/mdd1.7-$(taxon)-raw.csv: work/mdd1.7-raw.csv $P/subset.py
-	$P/subset.py --hierarchy $< --root $(TAXON) < $< > $@.new
-	@mv -f $@.new $@
-work/mdd1.6-$(taxon)-raw.csv: work/mdd1.6-raw.csv $P/subset.py
-	$P/subset.py --hierarchy $< --root $(TAXON) < $< > $@.new
-	@mv -f $@.new $@
-# Don't know why this doesn't work
-work/mdd1.0-$(taxon)-raw.csv: work/mdd1.0-raw.csv $P/subset.py
-	$P/subset.py --hierarchy $< --root $(TAXON) < $< > $@.new
-	@mv -f $@.new $@
+TEST1="((a,b)d,c)f1"
+TEST2="(a,(b,c)e)f2"
+
+work/test1-raw.csv:
+	$P/newick.py --newick $(TEST1)  >$@
+
+work/test2-raw.csv:
+	$P/newick.py --newick $(TEST2) >$@
+
+# -----------------------------------------------------------------------------
+# Examples
+
+# N.b. managed_id has a specific meaning in this system; it's an id in
+#  some managed namespace, prefixed by something to identify the namespace.
+# Example syntax:
+#   ncbi:123, eol:4567 (for page id), gbif:8910, worms:2345   etc.
+
+# ----- 1. NCBI example:
+
+ncbi-demo:
+	$(MAKE) A=work/ncbi201505-$(taxon) B=work/ncbi202008-$(taxon) \
+	  ANAME=N15 BNAME=N20 demo
+
+# make A=ncbi201505 B=ncbi202008 report  # big, will take forever
+
+work/ncbi201505-$(taxon).csv: work/ncbi201505-$(taxon)-raw.csv
+work/ncbi202008-$(taxon).csv: work/ncbi202008-$(taxon)-raw.csv
+
+# ----- 2. GBIF examples:
+
+gbif-demo:
+	$(MAKE) A=work/gbif20190916-$(taxon) B=work/gbif20210303-$(taxon) demo
+
+# make A=ncbi202008-mammals B=gbif20210303-mammals demo
+# and so on.
+
+# ----- 3. BioKIC/ATCR examples:
+
+mdd-demo:
+	$(MAKE) A=work/msw3 B=work/mdd1.0 ANAME=MSW3 BNAME=MDD1_1 demo
+	$(MAKE) A=work/msw3 B=work/mdd1.10 ANAME=MSW3 BNAME=MDD1_10 demo
+	$(MAKE) A=work/mdd1.0 B=work/mdd1.10 ANAME=MDD1 BNAME=MDD1_10 demo
+
+mdd-demo-67:
+	$(MAKE) A=work/mdd1.6 B=work/mdd1.7 ANAME=MDD1_6 BNAME=MDD1_7 demo
+
+# make A=mdd1.2-mammals B=mdd1.3 report
+# make A=mdd1.2 B=mdd1.3 report
+# make A=gbif20210303-mammals B=mdd1.0-mammals report
+# Prashant's request, see slack on 5/2/2022:
+# make A=mdd1.7 B=gbif20220317-mammals report
+
+# ----- 4. EOL examples:
+
+# Requires clone of 'plotter' repo.
+
+eol-report:
+	$(MAKE) A=dh11-$(taxon) B=dh12-$(taxon) report
+
+# time make A=dh11-mammals B=dh12-mammals round
+# time make A=dh09-mammals B=dh11-mammals round
+# time make A=dh11 B=dh12 round
+# time make A=dh09 B=dh11 round
+
+# Hierarchies - columns are those that neo4j needs to know
+# DELTA_KEY=EOLid MANAGE=EOLid,parentEOLid,taxonID,landmark_status \
+#   time make A=dh09-hier B=dh11-hier report
+
+# DELTA_KEY=EOLid MANAGE=EOLid,parentEOLid,taxonID,landmark_status \
+#   time make A=dh11-hier B=dh12-hier report
+
+# ----- 5. CoL examples:
+
+col-demo:
+	$(MAKE) A=col2019-$(taxon) B=col2021-$(taxon) demo
+
+# make A=col2021-mammals B=mdd1.7 demo
+# and so on.
 
 # ----- 1. NCBI-specific rules
 
-foo: work/ncbi201505.csv
-
-sources/ncbi201505.ncbi-url:
+work/ncbi201505.ncbi-url:
 	echo ftp://ftp.ncbi.nlm.nih.gov/pub/taxonomy/taxdump_archive/taxdmp_2015-05-01.zip \
 	  >$@
-sources/ncbi202008.ncbi-url:
+work/ncbi202008.ncbi-url:
 	echo ftp://ftp.ncbi.nlm.nih.gov/pub/taxonomy/taxdump_archive/taxdmp_2020-08-01.zip \
 	  >$@
 
@@ -334,8 +323,7 @@ work/%.dump/names.dmp: in/%.zip
 # Convert NCBI taxdump to DwC form
 work/ncbi%-raw.csv: work/ncbi%.dump/names.dmp src/ncbi_to_dwc.py $P/start.py
 	$P/ncbi_to_dwc.py `dirname $<` \
-	| $P/start.py --pk $(PRIMARY_KEY) \
-	| $P/sortcsv.py --key $(PRIMARY_KEY) > $@.new
+	| $P/start.py --pk $(PRIMARY_KEY) > $@.new
 	@mv -f $@.new $@
 
 # ----- 2. GBIF-specific rules
@@ -347,7 +335,7 @@ work/gbif20210303.dwca-url:
 	echo https://rs.gbif.org/datasets/backbone/2021-03-03/backbone.zip >$@
 
 # Ingest GBIF dump, convert TSV to CSV, add managed_id column
-gbif%-raw.csv: gbif%/dump/meta.xml $P/start.py
+gbif%-raw.csv: gbif%.dump/meta.xml $P/start.py
 	$P/start.py --pk $(PRIMARY_KEY) --input `src/find_taxa.py $<` \
 	  --managed gbif:taxonID >$@.new
 	@mv -f $@.new $@
@@ -510,18 +498,17 @@ work/col2019.dwca-url:
 
 # Ingest GBIF dump, convert TSV to CSV, add managed_id column
 # If CoL had record ids we could do --managed col:taxonID 
-col%-raw.csv: col%/dump/meta.xml $P/start.py
+col%-raw.csv: col%.dump/meta.xml $P/start.py
 	$P/start.py --pk $(PRIMARY_KEY) --input `src/find_taxa.py $<` \
 	  >$@.new
 	@mv -f $@.new $@
 .PRECIOUS: col%-raw.csv
 
 # ----- 6. ITIS
+# Where do we get ITIS?  Need a subset step.
 
-work/itis2022-mammals-raw.csv: work/itis2022-mammals/dump/meta.xml $P/start.py
-	$P/start.py --pk $(PRIMARY_KEY) --input `dirname $<`/taxa_*.txt \
-	  >$@.new
-	@mv -f $@.new $@
+work/itis2022-mammals-raw.csv: work/itis2022.dump/meta.xml
+work/itis2022-mammals.csv: work/itis2022-mammals-raw.csv
 
 # ----- 7. MDD and other
 
@@ -556,40 +543,3 @@ work/arts%-raw.csv: in/arts%.tsv $P/start.py
 
 # -----
 
-# Adjoin 'tipe' and 'year' columns.  To skip this change the rule to
-# simply copxy %-raw.csv to %.csv above. 
-%.csv: %-raw.csv $P/extract_names.py $P/use_gnparse.py
-	$P/extract_names.py < $< \
-	| gnparser -s \
-	| $P/use_gnparse.py --source $< > $@.new
-	@mv -f $@.new $@
-
-tags:
-	etags $P/*.py
-
-test-demo: work/test1.csv work/test2.csv
-	$(MAKE) A=work/test1 B=work/test2 demo
-work/test1.csv: work/test1-raw.csv
-work/test2.csv: work/test2-raw.csv
-
-test:
-	$P/property.py
-	$P/checklist.py
-	$P/workspace.py
-	$P/align.py --test
-	$(MAKE) A=test1 B=test2 report
-
-test-report: 
-	$(MAKE) A=test1 B=test2 report
-	@echo 'A: $(TEST1)'
-	@echo 'B: $(TEST2)'
-	$P/newick.py < work/test1-test2-merged.csv
-
-TEST1="((a,b)d,c)f1"
-TEST2="(a,(b,c)e)f2"
-
-work/test1-raw.csv:
-	$P/newick.py --newick $(TEST1)  >$@
-
-work/test2-raw.csv:
-	$P/newick.py --newick $(TEST2) >$@

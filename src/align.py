@@ -141,7 +141,8 @@ def alignment_comment(AB, v, rel):
 def witnesses(AB, v, w):
   b1 = theory.get_block(v, theory.BOTTOM_BLOCK)
   b2 = theory.get_block(w, theory.BOTTOM_BLOCK)
-  flush = choose_witness(AB, b1.difference(b2), v)
+  # Names are all according to B
+  flush = choose_witness(AB, b1.difference(b2), w)
   keep  = choose_witness(AB, b1.intersection(b2), w)
   add   = choose_witness(AB, b2.difference(b1), w)
   return (flush, keep, add)
