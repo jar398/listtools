@@ -74,6 +74,8 @@ def compute_sum(a_table, b_table, pk_col_arg, index_by):
 
   (header1, all_rows1) = a_table
   (header2, all_rows2) = b_table
+  clean_rows(header1, all_rows1)
+  clean_rows(header2, all_rows2)
 
   pk_pos1 = windex(header1, pk_col)
   pk_pos2 = windex(header2, pk_col)
@@ -367,6 +369,21 @@ def row_properties(row, header, positions):
           for i in range(0, len(header))
           if (i in positions and
               row[i] != MISSING)]
+
+# Had to do this for the Norway/Sweden comparison
+
+def clean_rows(header, table):
+  col = windex(header, "taxonomicStatus")
+  n = 0
+  if col != None:
+    for (id, row) in table.items():
+      if (row[col].startswith("accepted") or
+          row[col].startswith("valid")):
+        row[col] = "accepted"
+        n += 1
+  if n > 0:
+    print("# Normalized %s accepted statuses" % n, file=sys.stderr)
+
 
 # Test
 def test1():

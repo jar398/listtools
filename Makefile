@@ -78,7 +78,18 @@ $(DEMO): $P/demo.py $P/align.py $P/theory.py $P/simple.py $P/workspace.py \
 	@mv -f $(EULERX).new $(EULERX)
 	@mv -f $(SHORT).new $(SHORT)
 
-# Stale targets
+# Record matches, required for merging:
+
+matches: $(MATCHES)
+
+$(MATCHES): $A.csv $B.csv $P/match_records.py
+	@echo
+	@echo "--- COMPUTING RECORD MATCHES ---"
+	$P/match_records.py --A $A.csv --B $B.csv --pk $(DELTA_KEY) --index $(INDEX) \
+		    	    > $@.new
+	@mv -f $@.new $@
+
+# Stale targets, relicts of some EOL work
 
 report: $(REPORT)
 REPORT_OPTIONS?=
@@ -111,17 +122,6 @@ $(ALIGNED): $(MATCHES) $P/align.py $P/theory.py $P/workspace.py $P/checklist.py 
 		    > $@.new
 	@mv -f $@.new $@
 
-# Record matches, required for merging:
-
-matches: $(MATCHES)
-
-$(MATCHES): $A.csv $B.csv $P/match_records.py
-	@echo
-	@echo "--- COMPUTING RECORD MATCHES ---"
-	$P/match_records.py --A $A.csv --B $B.csv --pk $(DELTA_KEY) --index $(INDEX) \
-		    	    > $@.new
-	@mv -f $@.new $@
-
 # Round trip, for test of record based diff/patch: (EOL demo. no
 # hierarchy sensitivity)
 
@@ -138,14 +138,6 @@ $(ROUND): $(DELTA) $A-narrow.csv $B-narrow.csv $P/apply.py
 	@mv -f $@.new $@
 	@echo "--- Comparing $@ to $B.csv ---"
 	@wc $B-narrow.csv; wc $@
-
-# Make the file smaller by eliminating unneeded columns
-
-%-narrow.csv: %.csv $P/project.py
-	$P/project.py --keep $(KEEP) <$< | \
-	$P/sortcsv.py --key $(PRIMARY_KEY) >$@.new
-	@mv -f $@.new $@
-
 
 # Delta, describing how to change current database state into new
 # state:
@@ -173,31 +165,50 @@ $(DELTA): $A.csv $B.csv $P/delta.py $P/match_records.py $P/property.py
 # something:
 # 	$P/scatter.py --dest $(basename $(DELTA)) < $(DELTA)
 
-# Any Darwin Core archive (DwCA):
+# ----- Generally useful little file transformation rules
 
-%/dump/meta.xml: %.dwca-url
-	mkdir -p `dirname $@`.dump
-	wget -O `dirname $@`.zip $$(cat $<)
-	unzip -d `dirname $@` `dirname $@`.zip
-	touch `dirname $@`/*
-.PRECIOUS: %/dump/meta.xml
+# Download a DwCA zip file
+in/%.zip: work/%.dwca-url
+	wget -O $@.new $$(cat $<)
+	mv -f $@.new $@
+
+# Extract contents of a .zip file
+
+work/%.dump: in/%.zip
+	mkdir -p $@.new
+	unzip -d $@.new $<
+	rm -rf $@ && mv $@.new $@
+
+# Normalize the DwCA taxon file (no managed id space).
+
+%-raw.csv: %.dump $P/start.py
+	$P/start.py --pk $(PRIMARY_KEY) --input `src/find_taxa.py $<` \
+	  >$@.new
+	@mv -f $@.new $@
 
 # Adjoin 'tipe' and 'year' columns.  To skip this step, change the rule to
-# simply cp -pf %-raw.csv %.csv. 
+# cp -pf $< $@
 %.csv: %-raw.csv $P/extract_names.py $P/use_gnparse.py
 	$P/extract_names.py < $< \
 	| gnparser -s \
 	| $P/use_gnparse.py --source $< > $@.new
 	@mv -f $@.new $@
 
-tags:
-	etags $P/*.py
-
 # Subsetting:
 
 %-$(taxon)-raw.csv: %-raw.csv $P/subset.py
 	$P/subset.py < $< --hierarchy $< --root $(TAXON) > $@.new
 	@mv -f $@.new $@
+
+# Make the file smaller by eliminating unneeded columns
+
+%-narrow.csv: %.csv $P/project.py
+	$P/project.py --keep $(KEEP) <$< | \
+	$P/sortcsv.py --key $(PRIMARY_KEY) >$@.new
+	@mv -f $@.new $@
+
+tags:
+	etags $P/*.py
 
 # Testing
 
@@ -240,20 +251,72 @@ work/test2-raw.csv:
 
 ncbi-demo:
 	$(MAKE) A=work/ncbi201505-$(taxon) B=work/ncbi202008-$(taxon) \
-	  ANAME=N15 BNAME=N20 demo
-
-# make A=ncbi201505 B=ncbi202008 report  # big, will take forever
+	  ANAME=N2015 BNAME=N2020 demo
 
 work/ncbi201505-$(taxon).csv: work/ncbi201505-$(taxon)-raw.csv
 work/ncbi202008-$(taxon).csv: work/ncbi202008-$(taxon)-raw.csv
+# raw-to-raw subsetting is implicit... 
+
+# NCBI-specific rules
+
+# Convert NCBI taxdump to DwC form
+work/ncbi%-raw.csv: work/ncbi%.dump/names.dmp $P/ncbi_to_dwc.py $P/start.py
+	$P/ncbi_to_dwc.py `dirname $<` \
+	| $P/start.py --pk $(PRIMARY_KEY) > $@.new
+	@mv -f $@.new $@
+
+# Extract files from NCBI .zip file
+work/%.dump/names.dmp: in/%.zip
+	rm -rf `dirname $@`
+	mkdir -p `dirname $@`
+	unzip -d `dirname $@` $<
+	touch `dirname $@`/*
+
+# Download and unpack some version of NCBI Taxonomy
+# The theory of in/ is not well baked yet
+in/%.zip: sources/%.ncbi-url
+	wget -O $@.new $$(cat $<)
+	mv -f $@.new $@
+
+work/ncbi201505.ncbi-url:
+	echo ftp://ftp.ncbi.nlm.nih.gov/pub/taxonomy/taxdump_archive/taxdmp_2015-05-01.zip \
+	  >$@
+work/ncbi202008.ncbi-url:
+	echo ftp://ftp.ncbi.nlm.nih.gov/pub/taxonomy/taxdump_archive/taxdmp_2020-08-01.zip \
+	  >$@
 
 # ----- 2. GBIF examples:
 
 gbif-demo:
-	$(MAKE) A=work/gbif20190916-$(taxon) B=work/gbif20210303-$(taxon) demo
+	$(MAKE) A=work/gbif20190916-$(taxon) B=work/gbif20210303-$(taxon) \
+	  ANAME=G2019 BNAME=G2021 demo
+
+work/gbif20190916-$(taxon).csv: work/gbif20190916-$(taxon)-raw.csv
+work/gbif20210303-$(taxon).csv: work/gbif20210303-$(taxon)-raw.csv
+
+# raw-to-raw subsetting is implicit, don't need the following
+#work/gbif20190916-$(taxon)-raw.csv: work/gbif20190916-raw.csv
+
+# an instance of the DwC ingest rule.  shouldn't need
+#work/gbif20190916-raw.csv: work/gbif20190916.dump
 
 # make A=ncbi202008-mammals B=gbif20210303-mammals demo
 # and so on.
+
+# GBIF-specific rules
+
+# Ingest GBIF dump, convert TSV to CSV, add managed_id column
+work/gbif%-raw.csv: work/gbif%.dump $P/start.py
+	$P/start.py --pk $(PRIMARY_KEY) --input `src/find_taxa.py $<` \
+	  --managed gbif:taxonID >$@.new
+	@mv -f $@.new $@
+.PRECIOUS: work/gbif%-raw.csv
+
+work/gbif20190916.dwca-url:
+	echo https://rs.gbif.org/datasets/backbone/2019-09-06/backbone.zip >$@
+
+work/gbif20210303.dwca-url:
+	echo https://rs.gbif.org/datasets/backbone/2021-03-03/backbone.zip >$@
 
 # ----- 3. BioKIC/ATCR examples:
 
@@ -270,6 +333,30 @@ mdd-demo-67:
 # make A=gbif20210303-mammals B=mdd1.0-mammals report
 # Prashant's request, see slack on 5/2/2022:
 # make A=mdd1.7 B=gbif20220317-mammals report
+
+
+# Norway = artsnavnebase
+
+hyg-demo:
+	$(MAKE) A=work/nor-hyg B=work/swe-hyg demo
+
+work/nor-raw.csv: work/nor.dump $P/start.py
+
+%-hyg-raw.csv: %-raw.csv $P/subset.py
+	$P/subset.py < $< --hierarchy $< --root Hygrophorus > $@
+
+# Lost track of the URL.  Go do artsnavnebase web site and look around
+work/nor.dwca-url:
+	echo "http://mumble.net/something/something/dwca-artsnavnebase-v1.128.zip" >$@
+
+# Sweden = dyntaxa = artdatabanken
+
+# This doesn't work - requires an API token...
+#   --header="Ocp-Apim-Subscription-Key: a300a2..etc..etc"
+work/swe.dwca-url:
+	echo "https://api.artdatabanken.se/taxonservice/v1/darwincore/download" >$@
+
+
 
 # ----- 4. EOL examples:
 
@@ -297,49 +384,6 @@ col-demo:
 
 # make A=col2021-mammals B=mdd1.7 demo
 # and so on.
-
-# ----- 1. NCBI-specific rules
-
-work/ncbi201505.ncbi-url:
-	echo ftp://ftp.ncbi.nlm.nih.gov/pub/taxonomy/taxdump_archive/taxdmp_2015-05-01.zip \
-	  >$@
-work/ncbi202008.ncbi-url:
-	echo ftp://ftp.ncbi.nlm.nih.gov/pub/taxonomy/taxdump_archive/taxdmp_2020-08-01.zip \
-	  >$@
-
-# Download and unpack some version of NCBI Taxonomy
-# The theory of in/ is not well baked yet
-
-in/%.zip: sources/%.ncbi-url
-	wget -O $@.new $$(cat $<)
-	mv -f $@.new $@
-
-work/%.dump/names.dmp: in/%.zip
-	rm -rf `dirname $@`
-	mkdir -p `dirname $@`
-	unzip -d `dirname $@` $<
-	touch `dirname $@`/*
-
-# Convert NCBI taxdump to DwC form
-work/ncbi%-raw.csv: work/ncbi%.dump/names.dmp src/ncbi_to_dwc.py $P/start.py
-	$P/ncbi_to_dwc.py `dirname $<` \
-	| $P/start.py --pk $(PRIMARY_KEY) > $@.new
-	@mv -f $@.new $@
-
-# ----- 2. GBIF-specific rules
-
-work/gbif20190916.dwca-url:
-	echo https://rs.gbif.org/datasets/backbone/2019-09-06/backbone.zip >$@
-
-work/gbif20210303.dwca-url:
-	echo https://rs.gbif.org/datasets/backbone/2021-03-03/backbone.zip >$@
-
-# Ingest GBIF dump, convert TSV to CSV, add managed_id column
-gbif%-raw.csv: gbif%.dump/meta.xml $P/start.py
-	$P/start.py --pk $(PRIMARY_KEY) --input `src/find_taxa.py $<` \
-	  --managed gbif:taxonID >$@.new
-	@mv -f $@.new $@
-.PRECIOUS: gbif%-raw.csv
 
 # ----- 3. ASU/BioKIC example
 
@@ -498,7 +542,7 @@ work/col2019.dwca-url:
 
 # Ingest GBIF dump, convert TSV to CSV, add managed_id column
 # If CoL had record ids we could do --managed col:taxonID 
-col%-raw.csv: col%.dump/meta.xml $P/start.py
+col%-raw.csv: col%.dump $P/start.py
 	$P/start.py --pk $(PRIMARY_KEY) --input `src/find_taxa.py $<` \
 	  >$@.new
 	@mv -f $@.new $@
@@ -507,7 +551,7 @@ col%-raw.csv: col%.dump/meta.xml $P/start.py
 # ----- 6. ITIS
 # Where do we get ITIS?  Need a subset step.
 
-work/itis2022-mammals-raw.csv: work/itis2022.dump/meta.xml
+work/itis2022-mammals-raw.csv: work/itis2022.dump
 work/itis2022-mammals.csv: work/itis2022-mammals-raw.csv
 
 # ----- 7. MDD and other

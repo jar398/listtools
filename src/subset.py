@@ -31,13 +31,18 @@ def write_subset(infile, root_id, all, topo, outfile):
   tid_column = head.index("taxonID") 
   aid_column = head.index("acceptedNameUsageID")
   pid_column = head.index("parentNameUsageID")
-  sid_column = head.index("taxonomicStatus")
 
   writer = csv.writer(outfile)
   writer.writerow(head)
   for row in reader:
     tid = row[tid_column]
     if tid in all:
+      aid = row[aid_column]
+      if not aid in all:
+        row[aid_column] = MISSING
+      pid = row[pid_column]
+      if not pid in all:
+        row[pid_column] = MISSING
       writer.writerow(row)
 
 # Transitive closure of accepted records
@@ -83,7 +88,7 @@ def read_topology(hier_file, root_id):
   if tid_column == None:      # usually 0
     print("** No taxonID column found", file=sys.stderr)
   if pid_column == None:
-    print("** No taxonID column found", file=sys.stderr)
+    print("** No parentNameUsageID column found", file=sys.stderr)
   if aid_column == None:
     print("** No acceptedNameUsageID column found", file=sys.stderr)
   if sid_column == None:

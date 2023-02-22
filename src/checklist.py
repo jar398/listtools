@@ -177,9 +177,9 @@ def resolve_superior_link(S, record):
     if accepted:
       status = get_taxonomic_status(record, "synonym")    # default = synonym?
       if status == "equivalent":
-        rel = relation(EQ, record, note="declared")
+        rel = relation(EQ, record, note="input")
         set_equated(accepted, rel)
-        sup = relation(EQ, accepted, note="declared")
+        sup = relation(EQ, accepted, note="input")
       else:
         if monitor(record):
           log("# %s %s %s %s" %
@@ -230,12 +230,19 @@ def set_superior_carefully(x, sup):
           (blurb(x), blurb(have), blurb(sup)))
   assert x != sup.record, (blurb(x), blurb(sup))        # no self-loops
 
-  # If sup itself is a synonym, we're in trouble
+  # If sup itself is a synonym, we're in trouble.
+  # Unfortunately GBIF has a bunch of these.
   if sup.relationship != EQ:
-    if not is_accepted(sup.record):
-      log("** synonym of synonym: %s %s %s" %
-          (blurb(x), blurb(sup)))
-      assert False
+    s = sup
+    while not is_accepted(s.record):
+      su = get_superior(s.record, None)
+      if not su: break
+      s = su
+    if s != sup:
+      if False:
+        log("** parent not accepted: %s -> %s ...-> %s" %
+            (blurb(x), blurb(sup.record), blurb(s.record)))
+      sup = s
 
   # OK go for it
   link_superior(x, sup)
@@ -248,8 +255,8 @@ def set_superior_carefully(x, sup):
 # How to represent whether w is accepted or not?
 
 def link_superior(w, sup):      # w is inferior Record, sup is Relative
-  assert isinstance(w, prop.Record)
-  assert isinstance(sup, Relative)
+  assert isinstance(w, prop.Record), blurb(w)
+  assert isinstance(sup, Relative), blurb(sup)
   assert get_superior(w, None) == None
   set_superior(w, sup)
   if is_accepted(w):
@@ -382,8 +389,13 @@ def get_inferiors(x):
   yield from get_children(x, ())
   yield from get_synonyms(x, ())
 
+# Really this tests for not-synonym, but accepted is nicer to say
+# and the doubtful case only occurs in certain sources (such as GBIF)
+
 def is_accepted(x):             # exported
-  return get_taxonomic_status(x, "accepted").startswith("accepted")
+  status = get_taxonomic_status(x, "accepted")
+  return (status.startswith("accepted") or
+          status.startswith("doubtful"))
 
 def get_accepted(x):            # Doesn't return falsish
   if is_accepted(x):

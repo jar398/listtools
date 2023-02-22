@@ -106,7 +106,7 @@ def start_csv(inport, params, outport, args):
       if clean_rank(row, rank_pos, can_pos):
         ranks_cleaned += 1
 
-    if normalize_accepted(row, accepted_pos, taxon_id_pos):
+    if normalize_accepted(row, taxon_id_pos, parent_pos, accepted_pos):
       accepteds_normalized += 1
 
     # Shouldn't have both accepted and parent
@@ -114,11 +114,7 @@ def start_csv(inport, params, outport, args):
       if accepted_pos and parent_pos and row[accepted_pos] and row[parent_pos]:
         row[parent_pos] = MISSING
 
-    # Two ways to test whether a usage is accepted
-    usage_id = row[pk_pos_in] if pk_pos_in != None else MISSING
-    au = row[accepted_pos] if accepted_pos != None else MISSING
-    indication_1 = (au == MISSING or au == usage_id)
-
+    # Normalize nomenclatural status a bit
     if tax_status_pos != None:
       stat = row[tax_status_pos]
       # itty bitty normalization, so we can test for accepted using startswith
@@ -128,7 +124,13 @@ def start_csv(inport, params, outport, args):
         row[tax_status_pos] = stat
     else:
       stat == "accepted"
+      row[tax_status_pos] = stat
     indication_2 = stat.startswith("accepted")
+
+    # Two ways to test whether a usage is accepted
+    usage_id = row[pk_pos_in] if pk_pos_in != None else MISSING
+    au = row[accepted_pos] if accepted_pos != None else MISSING
+    indication_1 = (au == MISSING or au == usage_id)
 
     if indication_1 != indication_2 and conflicts < 10:
       print("-- %s has accepted %s but taxstatus %s" %
@@ -216,12 +218,16 @@ def fresh_pk(row, out_header):
   except:
     assert False, row
 
-def normalize_accepted(row, accepted_pos, taxon_id_pos):
-  if (taxon_id_pos != None and
-      accepted_pos != None and
-      row[accepted_pos] == row[taxon_id_pos]):
-    row[accepted_pos] = MISSING
-    return True
+def normalize_accepted(row, taxon_id_pos, parent_pos, accepted_pos):
+  if accepted_pos != None and row[accepted_pos] != MISSING:
+    if (taxon_id_pos != None and
+        row[accepted_pos] == row[taxon_id_pos]):
+      row[accepted_pos] = MISSING
+      return True
+    elif False and parent_pos != None and row[accepted_pos] != row[parent_pos]:
+      # Norwegian national checklist
+      row[parent_pos] = MISSING
+      return True
   return False
 
 """

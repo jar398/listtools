@@ -2,9 +2,11 @@
 
 # Get the name of the DwC taxa file in a GBIF or CoL DwCA archive.
 # GBIF moved the taxa file from dump/ to dump/backbone/ in 2022.
-# Argument is path to dump/ directory.
+# Argument is path to directory where dumped.
 
-# Ideally we read meta.xml to find out the name
+# Ideally we should find meta.xml and read it to find out the name,
+# but that would require me learning how to parse and crawl XML in
+# python.
 
 import sys, os
 
