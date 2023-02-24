@@ -22,7 +22,8 @@ def theorize(AB):
   compute_cross_mrcas(AB)
   find_reflections(AB)
 
-(get_exemplar_record, set_exemplar_record) = prop.get_set(prop.declare_property("exemplar_record"))
+(get_exemplar_record, set_exemplar_record) = \
+   prop.get_set(prop.declare_property("exemplar_record"))
 
 #-----------------------------------------------------------------------------
 # cross_relation: The implementation of the RCC-5 theory of AB (A+B).
@@ -255,10 +256,9 @@ def compute_cross_mrcas(AB):
       v = AB.in_left(x)         # in AB
       probe = get_exemplar_record(v, None)       # in AB
       if probe:
-        (_, vs, ws) = probe
-        if v in vs: w = ws[0]
-        elif v in ws: w = vs[0]
-        else: assert False
+        w_rel = get_matched(v)
+        assert w_rel
+        w = w_rel.record
         m = get_outject(w)
       else:
         m = BOTTOM                # identity for mrca

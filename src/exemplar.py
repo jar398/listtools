@@ -45,16 +45,14 @@ def choose_exemplars(AB):
         if emap == None: emap = {}
         w = rel.record          # in other checklist. not nec. tipward
         y = get_outject(w)
-        e1 = get_epithet(x)
-        e2 = get_epithet(y)
-        assert e1 == e2, (e1, e2, blurb(x), blurb(y))         # Not guaranteed...?
-        ex = emap.get(e1, None)
+        e = epithetlike(x, y)
+        ex = emap.get(e, None)
         if ex == None:
           id = len(exemplar_records)
           # Should save reason (in rel)??
           ex = (id, [], [])
           exemplar_records.append(ex)
-          emap[e1] = ex
+          emap[e] = ex
         (_, vs, ws) = ex
         if not mep_get(seen, v, False):
           vs.append(v)
@@ -68,14 +66,16 @@ def choose_exemplars(AB):
   log("# %s exemplar records" % len(exemplar_records))
   return exemplar_records
 
-
-def choose_epithet_records(x):
-  if is_accepted(x) and get_rank(x) == 'species':
-    # Get uniquized exemplars
-    e = get_epithet(x)
-    f = epithet_map[e]
-    if is_better_record_for_epithet(x, y): 
-      pass
+def epithetlike(x, y):          # x and y match uniquely
+  e1 = get_epithet(x)
+  e2 = get_epithet(y)
+  if e1 and e2:
+    return min(e1, e2)
+  if e1 or e2:
+    return e1 or e2
+  else:
+    assert get_canonical(x) and get_canonical(y)
+    return min(get_canonical(x), get_canonical(y)) # ??
 
 def exemplar_id(ex): return ex[0]
 
@@ -99,11 +99,8 @@ def rank(x):
 def get_epithet(x):
   # Stemmed name will always be present if it's been run through gnparse,
   # absent otherwise.
-  name = get_stemmed(x, None) or get_canonical(x, None)
-  assert name, get_scientific(x, None)
-  epithet = name.split(' ')[-1]
-  return epithet
-
+  stemmed = get_stemmed(x, None)
+  return stemmed.split(' ')[-1] if stemmed else None
 
 # Find tipward record matches (TRMs)
 
