@@ -23,6 +23,9 @@ while pk_pos is the position in the row list of the primary key.
 
 """
 
+# Largest number of alternative matches to provide
+WAD_SIZE = 4
+
 # -----
 
 import sys, io, argparse, csv
@@ -31,8 +34,8 @@ from util import ingest_csv, windex, MISSING, \
                  correspondence, precolumn, stable_hash, log
 from rcc5 import *
 
-MUTUAL = EQ       # relation to use for mutual match
-LOSER = NOINFO    # relation to use for runners-up
+MUTUAL = EQ       # relationship to use for mutual match
+LOSER = NOINFO    # relationship to use for runners-up
 
 # 20 : 8 : 20 : 8
 
@@ -56,13 +59,28 @@ def match_records(a_reader, b_reader, pk_col="taxonID", index_by=default_index_b
 # Sum -> row iterable, suitable for writing to output CSV file.
 # B is priority, so treat A matches as annotations on it
 # Part of this module's API.
+# coproduct arg is a generator, result is a generator.
 
 def generate_sum(coproduct, pk_col):
   yield ["match_id", "relationship", pk_col, "basis_of_match"]
+  aonly = bonly = matched = 0
   for (key1, ship, key2, remark) in coproduct:
+
+    # Print stats on outcome
+    if ship == MUTUAL:
+      matched += 1
+    elif key1 == None:
+      bonly += 1
+    else:
+      aonly += 1
+
     if ship != NOINFO or remark:
       ship_sym = rcc5_symbol(ship)
-      yield [key1, ship_sym, key2, remark]
+      yield (key1, ship_sym, key2, remark)
+
+  print("-- match_records: %s matches, %s in A unmatched, %s in B unmatched" %
+        (matched, aonly, bonly),
+        file=sys.stderr)
 
 # table * table -> sum (cf. delta.py ?)
 
@@ -82,37 +100,19 @@ def compute_sum(a_table, b_table, pk_col_arg, index_by):
   assert pk_pos1 != None 
   assert pk_pos2 != None
 
-  coproduct = []
-
   (best_rows_in_file2, best_rows_in_file1) = \
     find_best_matches(header1, header2, all_rows1, all_rows2, pk_col)
-  # print("# match_records: %s A rows with B match(es), %s B rows with A match(es)" %
-  #       (len(best_rows_in_file2), len(best_rows_in_file1)),
-  #       file=sys.stderr)
 
-  def connect(key1, rel, key2, remark):
-    assert isinstance(remark, str)
-    # Choose an id in the sum
-    if key2 != None:
-      key3 = key2
-    elif key1 in all_rows2:     # id collision
-      row1 = all_rows1[key1]
-      key3 = "%s$%s" % (key1, stable_hash(row1))
-    else:
-      key3 = key1
-    # Establish correspondences
-    coproduct.append((key1, rel, key2, remark))
-    return key3
-
+  # Returns (relationship, string, comment)
   def find_match(key1, best_rows_in_file2, best_rows_in_file1,
                  pk_pos1, pk_pos2, key1_in_A):
-    (row2, remark2) = check_match(key1, best_rows_in_file2, pk_pos2, key1_in_A)
+    (row2, rows2, remark2) = check_match(key1, best_rows_in_file2, pk_pos2, key1_in_A)
     # remark = MISSING means no matches
-    if row2 != None:
+    if row2 != None:            # len(rows2) == 1
       candidate = row2[pk_pos2]
-      (back1, remark1) = check_match(candidate, best_rows_in_file1, pk_pos1, not key1_in_A)
+      (back1, rows1, remark1) = check_match(candidate, best_rows_in_file1, pk_pos1, not key1_in_A)
       assert remark1
-      if back1 != None:
+      if back1 != None:         # len(rows1) == 1
         if back1[pk_pos1] == key1:
           # Mutual match!
           key2 = candidate
@@ -155,7 +155,7 @@ def compute_sum(a_table, b_table, pk_col_arg, index_by):
                                       best_rows_in_file1, pk_pos1, pk_pos2,
                                       True)
     # Store the correspondence.  key2 may be None.
-    connect(key1, rel2, key2, remark)
+    yield (key1, rel2, key2, remark)
     if key2 != None:
       seen2[key2] = True
 
@@ -172,30 +172,14 @@ def compute_sum(a_table, b_table, pk_col_arg, index_by):
       # Addition - why did it fail?
       # Unique match means outcompeted, probably?
       rel2 = reverse_relationship(rel1) # <= to >=
-      connect(key1, rel2, key2, remark)
+      yield (key1, rel2, key2, remark)
 
   if punt + copunt > 0:
     print("-- Senior synonyms: %s in A, %s in B" % (punt, copunt),
           file=sys.stderr)
 
-  # Print stats on outcome
-  aonly = bonly = matched = 0
-  for (key1, rel, key2, remark) in coproduct:
-    if rel == MUTUAL:
-      matched += 1
-    elif key1 == None:
-      bonly += 1
-    else:
-      aonly += 1
-  print("-- match_records: %s matches, %s in A unmatched, %s in B unmatched" %
-        (matched, aonly, bonly),
-        file=sys.stderr)
-
-  return coproduct
-
-WAD_SIZE = 4
-
-# Makes sure the match is mutual and unique
+# Makes sure the match is mutual and unique.
+# Returns a row.
 
 def check_match(key1, best_rows_in_file2, pk_pos2, key1_in_A):
   assert len(unweights) > 0
@@ -206,22 +190,24 @@ def check_match(key1, best_rows_in_file2, pk_pos2, key1_in_A):
     if reason != None:
       if len(rows2) == 1:
         assert rows2[0]
-        return (rows2[0], reason)
+        return (rows2[0], rows2, reason)
       elif len(rows2) < WAD_SIZE:
         keys2 = [row2[pk_pos2] for row2 in rows2]
         alts = ';'.join(keys2)
         if key1_in_A:
-          return (None, ("ambiguous (%s): -> %s" %
+          return (None, rows2,
+                        ("ambiguous (%s): -> %s" %
                          (reason, alts)))
         else:
-          return (None, ("coambiguous (%s): <- %s" %
+          return (None, rows2,
+                        ("coambiguous (%s): <- %s" %
                          (reason, alts)))
       else:
-        return (None, "too many matches (%s)" % reason)
+        return (None, (), "too many matches (%s)" % reason)
     else:
-      return (None, "weak matches only (%x)" % score2)
+      return (None, (), "weak matches only (%x)" % score2)
   else:
-    return (None, MISSING)
+    return (None, (), MISSING)
 
 # For each row in each input (A/B), compute the set of all best
 # (i.e. highest scoring) matches in the opposite input.
@@ -370,7 +356,9 @@ def row_properties(row, header, positions):
           if (i in positions and
               row[i] != MISSING)]
 
-# Had to do this for the Norway/Sweden comparison
+# Had to do this for the Norway/Sweden comparison.
+# Want various ways of expressing 'accepted' to be = in the score computation.
+# Turns out this matters...
 
 def clean_rows(header, table):
   col = windex(header, "taxonomicStatus")
@@ -380,10 +368,6 @@ def clean_rows(header, table):
       if (row[col].startswith("accepted") or
           row[col].startswith("valid")):
         row[col] = "accepted"
-        n += 1
-  if n > 0:
-    print("# Normalized %s accepted statuses" % n, file=sys.stderr)
-
 
 # Test
 def test1():

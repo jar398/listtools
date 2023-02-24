@@ -5,6 +5,7 @@ import property as prop
 import util, workspace
 
 from util import log
+from property import mep_get, mep_set
 from checklist import * 
 from workspace import * 
 from match_records import match_records
@@ -31,36 +32,77 @@ def exemplars(A_iter, B_iter, m_iter):
 def choose_exemplars(AB):
   analyze_tipwards(AB)
   exemplar_records = []
-  seen = prop.mep()
-  j = [0]
+  seen = prop.mep()             # set
   def do_exemplars(AB, inB):
-    def traverse(x):
-      for c in get_inferiors(x):
-        traverse(c)
+    def traverse(x, emap):
+      if emap == None and get_rank(x, None) == 'species':
+        emap = {}
+      for c in get_inferiors(x): # Generator
+        traverse(c, emap)
       v = AB.in_left(x)
       rel = get_tipward(v, None)
-      j[0] += 1
       if rel:
-        if inB:
-          w = v
-          v = rel.record
-        else:
-          w = rel.record
-        if prop.mep_get(seen, v, False): return
-        prop.mep_set(seen, v, True)
-        prop.mep_set(seen, w, True)
-        assert separated(v, w)
-        id = len(exemplar_records)
-        # Should save reason (in rel)??
-        exemplar_records.append((id, v, w))
-    traverse(AB.A.top)
+        if emap == None: emap = {}
+        w = rel.record          # in other checklist. not nec. tipward
+        y = get_outject(w)
+        e1 = get_epithet(x)
+        e2 = get_epithet(y)
+        assert e1 == e2, (e1, e2, blurb(x), blurb(y))         # Not guaranteed...?
+        ex = emap.get(e1, None)
+        if ex == None:
+          id = len(exemplar_records)
+          # Should save reason (in rel)??
+          ex = (id, [], [])
+          exemplar_records.append(ex)
+          emap[e1] = ex
+        (_, vs, ws) = ex
+        if not mep_get(seen, v, False):
+          vs.append(v)
+          mep_set(seen, v, True)
+        if not mep_get(seen, w, False):
+          ws.append(w)
+          mep_set(seen, w, True)
+    traverse(AB.A.top, None)
   do_exemplars(AB, False)
   do_exemplars(swap(AB), True)
-  log("# visited %s records" % j[0])
   log("# %s exemplar records" % len(exemplar_records))
   return exemplar_records
 
+
+def choose_epithet_records(x):
+  if is_accepted(x) and get_rank(x) == 'species':
+    # Get uniquized exemplars
+    e = get_epithet(x)
+    f = epithet_map[e]
+    if is_better_record_for_epithet(x, y): 
+      pass
+
 def exemplar_id(ex): return ex[0]
+
+# Selecting the 'best' name for an epithet.
+
+def has_better_epithet(x, y):
+  if y == None: return True
+  if is_accepted(x) and not is_accepted(y): return True
+  if rank(x) > rank(y): return True
+  else: return False
+
+def rank(x):
+  r = get_rank(x)
+  if r == 'species': return 5
+  if r == 'subspecies': return 4
+  if r == 'variety': return 3
+  else: return 0
+
+# Stemmed last epithet.
+
+def get_epithet(x):
+  # Stemmed name will always be present if it's been run through gnparse,
+  # absent otherwise.
+  name = get_stemmed(x, None) or get_canonical(x, None)
+  assert name, get_scientific(x, None)
+  epithet = name.split(' ')[-1]
+  return epithet
 
 
 # Find tipward record matches (TRMs)

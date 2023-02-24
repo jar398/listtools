@@ -114,20 +114,12 @@ def start_csv(inport, params, outport, args):
       if accepted_pos and parent_pos and row[accepted_pos] and row[parent_pos]:
         row[parent_pos] = MISSING
 
-    # Normalize nomenclatural status a bit
-    if tax_status_pos != None:
-      stat = row[tax_status_pos]
-      # itty bitty normalization, so we can test for accepted using startswith
-      # I don't work with plants that much
-      if stat == "valid":
-        stat = "accepted (valid)"
-        row[tax_status_pos] = stat
-    else:
-      stat == "accepted"
-      row[tax_status_pos] = stat
-    indication_2 = stat.startswith("accepted")
+    stat = row[tax_status_pos]
+    indication_2 = (stat.startswith("accepted") or
+                    stat.startswith("valid") or
+                    stat.startswith("dubious"))
 
-    # Two ways to test whether a usage is accepted
+    # Two ways to test whether a usage is accepted/dubious
     usage_id = row[pk_pos_in] if pk_pos_in != None else MISSING
     au = row[accepted_pos] if accepted_pos != None else MISSING
     indication_1 = (au == MISSING or au == usage_id)
@@ -225,7 +217,7 @@ def normalize_accepted(row, taxon_id_pos, parent_pos, accepted_pos):
       row[accepted_pos] = MISSING
       return True
     elif False and parent_pos != None and row[accepted_pos] != row[parent_pos]:
-      # Norwegian national checklist
+      # Norwegian national checklist has bogus parent pointers for synonyms
       row[parent_pos] = MISSING
       return True
   return False

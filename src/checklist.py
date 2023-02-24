@@ -395,6 +395,7 @@ def get_inferiors(x):
 def is_accepted(x):             # exported
   status = get_taxonomic_status(x, "accepted")
   return (status.startswith("accepted") or
+          status.startswith("valid") or
           status.startswith("doubtful"))
 
 def get_accepted(x):            # Doesn't return falsish
@@ -613,13 +614,13 @@ def load_matches(row_iterator, AB):
     # row = [matchID (x id), rel, taxonID (y id), remark]
     match = prop.construct(plan, row)
     x = y = None
-    xkey = get_match_key(match, None)
-    if xkey:
+    xkey = get_match_key(match, None)   # taxon id of what match is to
+    if xkey and '|' not in xkey:        # temporary
       x_in_A = look_up_record(AB.A, xkey)
       if x_in_A:
         x = AB.in_left(x_in_A)
-    ykey = get_primary_key(match, None)
-    if ykey:
+    ykey = get_primary_key(match, None)   # taxon id of what match is from
+    if ykey and '|' not in ykey:
       y_in_B = look_up_record(AB.B, ykey)
       if y_in_B:
         y = AB.in_right(y_in_B) 

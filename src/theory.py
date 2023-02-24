@@ -12,11 +12,12 @@ from workspace import *
 
 def theorize(AB):
   # ... exemplar.exemplars(A_iter, B_iter, m_iter) ...
-  AB.exemplar_records = exemplar.choose_exemplars(AB) #list of (id, v, w)
+  # TBD: option to read them from a file
+  AB.exemplar_records = exemplar.choose_exemplars(AB) #list of (id, vs, ws)
   for ex in AB.exemplar_records:
-    (_, v, w) = ex
-    set_exemplar_record(v, ex)
-    set_exemplar_record(w, ex)
+    (_, vs, ws) = ex
+    for v in vs: set_exemplar_record(v, ex)
+    for w in ws: set_exemplar_record(w, ex)
   analyze_blocks(AB)                  # sets of examplars
   compute_cross_mrcas(AB)
   find_reflections(AB)
@@ -254,9 +255,9 @@ def compute_cross_mrcas(AB):
       v = AB.in_left(x)         # in AB
       probe = get_exemplar_record(v, None)       # in AB
       if probe:
-        (_, v1, w1) = probe
-        if v == v1: w = w1
-        elif v == w1: w = v1
+        (_, vs, ws) = probe
+        if v in vs: w = ws[0]
+        elif v in ws: w = vs[0]
         else: assert False
         m = get_outject(w)
       else:
@@ -320,17 +321,18 @@ def show_exemplars(z, tag, AB):
     return blurb(exemplar_record(AB, id, z))
   log("# %s: {%s}" % (tag, ", ".join(map(foo, get_block(z, BOTTOM_BLOCK)))))
 
+# Apply this to something that 'belongs' to a single exemplar
 # id -> record in same checklist as z
 
 def exemplar_record(AB, id, z):
-  (_, v, w) = AB.exemplar_records[id]
-  return v if isinA(AB, z) else w
+  (_, vs, ws) = AB.exemplar_records[id]
+  return vs[0] if isinA(AB, z) else ws[0]
 
 # id -> record not in same checklist as z
 
 def opposite_exemplar_record(AB, id, z):
-  (_, v, w) = AB.exemplar_records[id]
-  return v if isinB(AB, z) else w
+  (_, vs, ws) = AB.exemplar_records[id]
+  return vs[0] if isinB(AB, z) else ws[0]
 
 # record -> list of exemplar ids
 

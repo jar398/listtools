@@ -88,7 +88,7 @@ def category(v, ship, w):
   elif ship == SYNONYM:              # a synonym of v <= w
     # x = y1* <= y   i.e. x is being demoted from accepted to synonym (y1)
     t = get_tipe(x, None)
-    if t and t == get_tipe(y, None):
+    if t and t == get_tipe(y, None): # ?
       action = 'rename (demotion)'
     else:
       action = 'lump (demotion)'
@@ -111,29 +111,27 @@ def category(v, ship, w):
 
 def alignment_comment(AB, v, rel):
   w = rel.record
-  comment = ''
-  # IREP means v is parent, PERI means w is parent
-  if rel.relationship == CONFLICT:
-    (flush, keep, add) = witnesses(AB, v, w)
-    comment = "%s|%s|%s" % (blurb(flush), blurb(keep), blurb(add))
-  else:
-    m1 = get_match(v, None) if rel.relationship != IREP else None
-    m2 = get_match(w, None) if rel.relationship != PERI else None
-    if m1 and m1.record == w:
-      # v and w are matches, so don't need info in both directions
-      comment = m1.note
-    elif m2 and m2.record == v:
-      # Shouldn't happen, since matches are symmetric
-      comment = m2.note
-    else:
-      n1 = "%s %s" % (blurb(m1.record), m1.note) if m1 else ''
-      n2 = "%s %s" % (blurb(m2.record), m2.note) if m2 else ''
-      if m1 or m2:
-        comment = "%s|%s" % (n1, n2)
-      else:
-        comment = ''
-  if comment == rel.note: comment = ''
-  return comment
+  ship = rel.relationship
+  comments = []
+
+  (flush, keep, add) = witnesses(AB, v, w)
+  if flush or keep or add and not ship == PERI and not ship == IREP:
+    comments.append("%s|%s|%s" %
+                    (blurb(flush) if flush else '',
+                     blurb(keep) if keep else '',
+                     blurb(add) if add else ''))
+
+  m1 = get_match(v, None) 
+  if m1 and m1.record != w and m1.note and ' ' in m1.note:
+    # v and w are matches, so don't need info in both directions
+    comments.append("A " + m1.note)
+
+  m2 = get_match(w, None)
+  if m2 and m2.record == v and m2.note and ' ' in m2.note:
+    # Shouldn't happen, since matches are symmetric
+    comments.append("B " + m2.note)
+
+  return '|'.join(comments)
 
 # Report on block(v) - block(w) (synonyms removed)
 # and block(w) - block(v) (synonyms added)

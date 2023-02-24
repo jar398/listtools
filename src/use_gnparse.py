@@ -92,7 +92,7 @@ def use_parse(gn_iter, check_iter):
     tipe = MISSING   # default, overridden if possible
     quality = int(gn_row[quality_pos])
 
-    if quality == 1 or quality == 2:
+    if True:  # was quality == 1 or quality == 2:
       # Figure out epithet or some substitute
       # do not trim non-epithet if year or auth is missing
       stemmed = gn_row[stem_pos]
@@ -100,6 +100,7 @@ def use_parse(gn_iter, check_iter):
       if stemmed.endswith('i') and canon.endswith('ii'):
         stemmed = stemmed[0:-1]
 
+      # Number of space-separated parts of name (e.g. Genus epithet = 2)
       card = int(gn_row[cardinality_pos] or '0')
 
       # Figure out auth part of tipe... trim off authors after first
