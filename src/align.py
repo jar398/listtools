@@ -23,7 +23,7 @@ def ingest(A_iter, A_name, B_iter, B_name):
 
 def generate_alignment_report(al, AB):
   yield ("A id", "A name", "rcc5", "B name", "B id",
-         "category", "note", "comment")
+         "category", "note", "witnesses", "match")
   for (v, rel) in al:
     ship = rel.relationship
     w = rel.record
@@ -36,10 +36,11 @@ def generate_alignment_report(al, AB):
             blurb(y),
             get_primary_key(y),
             d, rel.note,
-            alignment_comment(AB, v, rel))
+            witness_comment(AB, v, rel),
+            match_comment(AB, v, rel))
 
 def generate_short_report(al, AB):
-  yield ("A name", "B name", "category", "comment")
+  yield ("A name", "B name", "category", "witnesses", "match")
   for (v, rel) in al:
     w = rel.record
     ship = rel.relationship
@@ -52,7 +53,8 @@ def generate_short_report(al, AB):
       yield  (blurb(get_outject(v)) if ship != IREP else "NA",
               blurb(get_outject(w)) if ship != PERI else "NA",
               d,
-              alignment_comment(AB, v, rel))
+              witness_comment(AB, v, rel),
+              match_comment(AB, v, rel))
 
 # This column is called "category" for consistency with MDD.
 
@@ -109,27 +111,30 @@ def category(v, ship, w):
 
 # rel.note will often be the match type, so don't duplicate it
 
-def alignment_comment(AB, v, rel):
+def witness_comment(AB, v, rel):
   w = rel.record
   ship = rel.relationship
-  comments = []
-
   (flush, keep, add) = witnesses(AB, v, w)
   if flush or keep or add and not ship == PERI and not ship == IREP:
-    comments.append("%s|%s|%s" %
-                    (blurb(flush) if flush else '',
-                     blurb(keep) if keep else '',
-                     blurb(add) if add else ''))
+    return ("%s|%s|%s" %
+            (blurb(flush) if flush else '',
+             blurb(keep) if keep else '',
+             blurb(add) if add else ''))
+
+
+def match_comment(AB, v, rel):
+  w = rel.record
+  comments = []
 
   m1 = get_match(v, None) 
   if m1 and m1.record != w and m1.note and ' ' in m1.note:
     # v and w are matches, so don't need info in both directions
-    comments.append("A " + m1.note)
+    comments.append("A: " + m1.note)
 
   m2 = get_match(w, None)
   if m2 and m2.record != v and m2.note and ' ' in m2.note:
     # Shouldn't happen, since matches are symmetric
-    comments.append("B " + m2.note)
+    comments.append("B: " + m2.note)
 
   return '|'.join(comments)
 
