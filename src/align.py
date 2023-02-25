@@ -127,7 +127,7 @@ def alignment_comment(AB, v, rel):
     comments.append("A " + m1.note)
 
   m2 = get_match(w, None)
-  if m2 and m2.record == v and m2.note and ' ' in m2.note:
+  if m2 and m2.record != v and m2.note and ' ' in m2.note:
     # Shouldn't happen, since matches are symmetric
     comments.append("B " + m2.note)
 

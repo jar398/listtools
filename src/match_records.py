@@ -40,7 +40,7 @@ LOSER = NOINFO    # relationship to use for runners-up
 # 20 : 8 : 20 : 8
 
 index_by_limit = 20    # max number of reverse entries to keep
-silly = 8
+silly = 16
 
 unweights = None
 
@@ -63,7 +63,7 @@ def match_records(a_reader, b_reader, pk_col="taxonID", index_by=default_index_b
 
 def generate_sum(coproduct, pk_col):
   yield ["match_id", "relationship", pk_col, "basis_of_match"]
-  aonly = bonly = matched = 0
+  aonly = bonly = matched = ambig = 0
   for (key1, ship, key2, remark) in coproduct:
 
     # Print stats on outcome
@@ -73,6 +73,8 @@ def generate_sum(coproduct, pk_col):
       bonly += 1
     else:
       aonly += 1
+    if "ambiguous" in remark:
+      ambig += 1
 
     if ship != NOINFO or remark:
       ship_sym = rcc5_symbol(ship)
@@ -80,6 +82,9 @@ def generate_sum(coproduct, pk_col):
 
   print("-- match_records: %s matches, %s in A unmatched, %s in B unmatched" %
         (matched, aonly, bonly),
+        file=sys.stderr)
+  print("-- match_records: %s ambiguous" %
+        (ambig),
         file=sys.stderr)
 
 # table * table -> sum (cf. delta.py ?)
@@ -92,8 +97,8 @@ def compute_sum(a_table, b_table, pk_col_arg, index_by):
 
   (header1, all_rows1) = a_table
   (header2, all_rows2) = b_table
-  clean_rows(header1, all_rows1)
-  clean_rows(header2, all_rows2)
+  prepare_rows(header1, all_rows1)
+  prepare_rows(header2, all_rows2)
 
   pk_pos1 = windex(header1, pk_col)
   pk_pos2 = windex(header2, pk_col)
@@ -282,6 +287,8 @@ def indexed_positions(header, index_by):
       print("* No %s column present" % col, file=sys.stderr)
   return p
 
+# Higher score = more similar
+
 def compute_score(row1, row2, corr_12, a_weights):
   score = 0
   for j in range(0, len(row2)):
@@ -297,7 +304,6 @@ def compute_score(row1, row2, corr_12, a_weights):
           # give a tiny bit of weight for unweighted columns
           # this could give random results...
           score += 1
-  # Maybe: if is_accepted(...) != is_accepted(...)
   return score
 
 def match_reason(score, unweights):
@@ -360,14 +366,16 @@ def row_properties(row, header, positions):
 # Want various ways of expressing 'accepted' to be = in the score computation.
 # Turns out this matters...
 
-def clean_rows(header, table):
-  col = windex(header, "taxonomicStatus")
+def prepare_rows(header, table):
+  tstat_col = windex(header, "taxonomicStatus")
   n = 0
-  if col != None:
+  if tstat_col != None:
     for (id, row) in table.items():
-      if (row[col].startswith("accepted") or
-          row[col].startswith("valid")):
-        row[col] = "accepted"
+      tstat = row[tstat_col]
+      if (tstat == MISSING or
+          tstat.startswith("accepted") or
+          tstat.startswith("valid")):
+        row[tstat_col] = "accepted"
 
 # Test
 def test1():
