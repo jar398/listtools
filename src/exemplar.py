@@ -63,7 +63,7 @@ def choose_exemplars(AB):
     traverse(AB.A.top, None)
   do_exemplars(AB, False)
   do_exemplars(swap(AB), True)
-  log("# %s exemplar records" % len(exemplar_records))
+  log("# exemplars: %s exemplar records" % len(exemplar_records))
   return exemplar_records
 
 def epithetlike(x, y):          # x and y match uniquely
@@ -124,9 +124,9 @@ def find_tipwards(AB):
     if seen == 0:
       # not seen means that this node could be tipward
       v = AB.in_left(x)            # v is tipward...
-      rel = get_matched(v)  # rel is a Relative...
-      if monitor(x): log("# tipwards %s %s" % (blurb(x), blurb(rel)))
-      if rel:
+      rel = get_match(v, None)  # rel is a Relative...
+      if monitor(x): log("# exemplars: tipwards %s %s" % (blurb(x), blurb(rel)))
+      if rel and rel.relationship == EQ:
         assert separated(v, rel.record)
         # v is tipward and has a match, not necessarily tipward ...
         set_tipward(v, rel)

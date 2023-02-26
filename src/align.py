@@ -140,6 +140,8 @@ def match_comment(AB, v, rel):
   w = rel.record
   comments = []
 
+  # info = match_info(v, None)
+  # if info: (us, dir, kind, basis) = info ...
   m1 = get_match(v, None) 
   if m1 and m1.record != w and m1.note and ' ' in m1.note:
     # v and w are matches, so don't need info in both directions

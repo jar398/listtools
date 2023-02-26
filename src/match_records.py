@@ -71,7 +71,7 @@ def match_records(a_reader, b_reader, pk_col="taxonID",
 # coproduct arg is a generator, result is a generator.
 
 def generate_match_report(coproduct, pk_col):
-  yield ["match_id", "relationship", pk_col, "direction", "kind", "basis_of_match"]
+  yield [pk_col, "relationship", "match_id", "direction", "kind", "basis_of_match"]
   kind_counters = {}
   for (key1, ship, key2, direction, kind, basis_of_match) in coproduct:
 

@@ -589,8 +589,6 @@ def blurb(r):
   else:
     return "[no match]"
 
-# Begin dup 1
-
 def monitor(x):
   if not x: return False
   name = get_canonical(x, '')
@@ -602,54 +600,65 @@ def monitor(x):
 # or taxonomic matches... but basically, record matches).  The matches are stored 
 # as Relations under the 'match' property of nodes in AB.
 
-# x and y are in AB
+(get_match_info, set_match_info) = prop.get_set(prop.declare_property("match_info", inherit=False))
 
 def load_matches(row_iterator, AB):
-  log("# Loading matches")
-
-# End dup 1
+  log("# checklist: loading")
 
   # match_id,relationship,taxonID,direction,kind,basis_of_match
   header = next(row_iterator)
   plan = prop.make_plan_from_header(header)
-  match_count = 0
+  mutual_count = 0
   miss_count = 0
+
   for row in row_iterator:
-    # row = [matchID (x id), rel, taxonID (y id), remark]
-    match = prop.construct(plan, row)
-    x = y = None
-    xkey = get_match_key(match, None)   # taxon id of what match is to
-    if xkey and '|' not in xkey:        # temporary
-      x_in_A = look_up_record(AB.A, xkey)
-      if x_in_A:
-        x = AB.in_left(x_in_A)
-    ykey = get_primary_key(match, None)   # taxon id of what match is from
-    if ykey and '|' not in ykey:
-      y_in_B = look_up_record(AB.B, ykey)
-      if y_in_B:
-        y = AB.in_right(y_in_B) 
+    # row = [taxonID (x id), rel, matchID (y id), dir, kind, basis]
+    match_record = prop.construct(plan, row)
+    A_ids = get_primary_key(match_record, MISSING).split('|')
+    xs = map(lambda id: look_up_record(AB.A, id), A_ids)
+    us = [AB.in_left(x) for x in xs if x]
+    B_ids = get_match_key(match_record, MISSING).split('|')
+    ys = map(lambda id: look_up_record(AB.B, id), B_ids)
+    vs = [AB.in_right(y) for y in ys if y]
+    u = us[0] if len(us) == 1 else None
+    v = vs[0] if len(vs) == 1 else None
+    assert u or v, (A_ids, B_ids)
 
     # Put ambiguities into the comment ??
 
-    # The columns of the csv file
-
-    ship = rcc5_relationship(get_match_relationship(match)) # EQ, NOINFO
+    ship = rcc5_relationship(get_match_relationship(match_record)) # EQ, NOINFO
     # match_direction, match_kind, basis_of_match
-    note = "%s: %s" % (get_match_direction(match, '?'),
-                       get_match_kind(match, '?'))
+    dir = get_match_direction(match_record, '?')
+    kind = get_match_kind(match_record, '?')
+    basis = get_basis_of_match(match_record, '')
+    note = "%s: %s" % (dir, kind)
            
-    # x or y might be None with ship=NOINFO ... hope this is OK
-    if x and (ship == EQ or not get_match(x, None)):
-      set_match(x, relation(ship, y, note=note))
-    if y and (ship == EQ or not get_match(y, None)):
-      set_match(y, relation(reverse_relationship(ship),
-                            x, note))
-    if x and y: match_count += 1
-    else: miss_count += 1
-    if monitor(x) or monitor(y):
-      log("# Match: %s -> %s, %s" % (blurb(x), blurb(y), note))
+    # u or v might be None with ship=NOINFO ... hope this is OK
+    assert dir in ('A->B', 'B->A', 'A<->B')
+    if dir == 'A<->B':
+      assert u and v and ship == EQ, (blurb(u), rcc5_symbol(ship), blurb(v))
+      set_match(u, relation(ship, v, note=note))
+      set_match_info(u, (vs, dir, kind, basis))
+      set_match(v, relation(reverse_relationship(ship), u, note=note))
+      set_match_info(v, (us, dir, kind, basis))
+      mutual_count += 1
+    elif dir == 'A->B':
+      assert u and ship == NOINFO
+      set_match(u, relation(ship, v, note=note))
+      set_match_info(u, (vs, dir, kind, basis))
+      miss_count += 1
+    elif dir == 'B->A':
+      assert v and ship == NOINFO
+      miss_count += 1
+      set_match(v, relation(reverse_relationship(ship), u, note=note))
+      set_match_info(v, (us, dir, kind, basis))
+    else:
+      assert False
 
-  log("# loaded %s match records, %s nonmatches" % (match_count, miss_count))
+    if monitor(u) or monitor(v):
+      log("# match: %s -> %s, %s" % (map(blurb, us), map(blurb, vs), note))
+
+  log("# loaded %s match records, %s nonmatches" % (mutual_count, miss_count))
 
 def record_match(x):
   rel = get_matched(x)
