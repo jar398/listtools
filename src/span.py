@@ -139,13 +139,11 @@ def cross_superior(AB, v0):
   if not v:
     log("no overlap of %s with B" % blurb(v))
     return None
-  if monitor(v): log("# xsup loop v0 = %s <= %s = v" % (blurb(v0), blurb(v)))
   # increase w until v0 < w
   rel = theory.get_reflection(v)     # candidate in AB
   assert rel
   w = rel.record
   while True:
-    if monitor(v): log("#  xsup iter w = %s" % (blurb(w), ))
     rel = theory.cross_relation(AB, v0, w)
     ship = rel.relationship
     if ship == LT or ship == LE or ship == PERI:

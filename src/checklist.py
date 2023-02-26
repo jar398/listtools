@@ -34,8 +34,6 @@ equated_note_prop = prop.declare_property("equated_note", inherit=False)    # va
 equated_prop = prop.declare_property("equated", inherit=False)    # value is a Relative
 
 # For record matches made by name(s)
-match_key_prop = prop.declare_property("match_id", inherit=False)
-basis_of_match_prop = prop.declare_property("basis_of_match", inherit=False)
 match_prop = prop.declare_property("match", inherit=False)
 get_match_relationship = prop.getter(prop.declare_property("relationship", inherit=False))
 
@@ -52,6 +50,7 @@ outject_prop = prop.declare_property("outject")
 (get_managed_id, set_managed_id) = prop.get_set(managed_id_prop)
 (get_stemmed, set_stemmed) = prop.get_set(stemmed_prop)
 (get_tipe, set_tipe) = prop.get_set(tipe_prop)
+(get_match, set_match) = prop.get_set(match_prop)
 
 # Links
 (get_parent_key, set_parent_key) = prop.get_set(parent_key_prop)
@@ -68,9 +67,10 @@ get_equated_key = prop.getter(equated_key_prop)
 get_equated_note = prop.getter(equated_note_prop)
 (get_equated, set_equated) = prop.get_set(equated_prop)
 
-get_match_key = prop.getter(match_key_prop)
-get_basis_of_match = prop.getter(basis_of_match_prop)
-(get_match, set_match) = prop.get_set(match_prop)
+get_match_key = prop.getter(prop.declare_property("match_id", inherit=False))
+get_match_direction = prop.getter(prop.declare_property("direction", inherit=False))
+get_match_kind = prop.getter(prop.declare_property("kind", inherit=False))
+get_basis_of_match = prop.getter(prop.declare_property("basis_of_match", inherit=False))
 
 (get_outject, set_outject) = prop.get_set(outject_prop)
 
@@ -577,7 +577,7 @@ def blurb(r):
       return name
   elif isinstance(r, Relative):
     if r.note:
-      return ("[%s %s '%s']" %
+      return ("[? %s %s, '%s']" %
               (rcc5_symbol(r.relationship),
                blurb(r.record), r.note))
     else:
@@ -589,10 +589,12 @@ def blurb(r):
   else:
     return "[no match]"
 
+# Begin dup 1
+
 def monitor(x):
   if not x: return False
   name = get_canonical(x, '')
-  return (name == "Dasyprocta variegata"
+  return (name == "Craseomys regulus"
           )
 
 # -----------------------------------------------------------------------------
@@ -605,7 +607,9 @@ def monitor(x):
 def load_matches(row_iterator, AB):
   log("# Loading matches")
 
-  # match_id,relationship,taxonID,basis_of_match
+# End dup 1
+
+  # match_id,relationship,taxonID,direction,kind,basis_of_match
   header = next(row_iterator)
   plan = prop.make_plan_from_header(header)
   match_count = 0
@@ -625,26 +629,27 @@ def load_matches(row_iterator, AB):
       if y_in_B:
         y = AB.in_right(y_in_B) 
 
+    # Put ambiguities into the comment ??
+
     # The columns of the csv file
 
     ship = rcc5_relationship(get_match_relationship(match)) # EQ, NOINFO
-    note = get_basis_of_match(match, MISSING)
+    # match_direction, match_kind, basis_of_match
+    note = "%s: %s" % (get_match_direction(match, '?'),
+                       get_match_kind(match, '?'))
+           
     # x or y might be None with ship=NOINFO ... hope this is OK
-    if y and (ship == EQ or not get_match(y, None)):
-      set_match(y, relation(reverse_relationship(ship), x,
-                            note=reverse_note(note)))
     if x and (ship == EQ or not get_match(x, None)):
       set_match(x, relation(ship, y, note=note))
+    if y and (ship == EQ or not get_match(y, None)):
+      set_match(y, relation(reverse_relationship(ship),
+                            x, note))
     if x and y: match_count += 1
     else: miss_count += 1
+    if monitor(x) or monitor(y):
+      log("# Match: %s -> %s, %s" % (blurb(x), blurb(y), note))
 
-  log("# loaded %s matches, %s misses" % (match_count, miss_count))
-
-def reverse_note(note):
-  if ' ' in note:
-    return "↔ " + note            # tbd: deal with 'coambiguous'
-  else:
-    return note
+  log("# loaded %s match records, %s nonmatches" % (match_count, miss_count))
 
 def record_match(x):
   rel = get_matched(x)

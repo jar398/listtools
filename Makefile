@@ -214,8 +214,8 @@ tags:
 
 test-demo: work/test1.csv work/test2.csv
 	$(MAKE) A=work/test1 B=work/test2 demo
-work/test1.csv: work/test1-raw.csv
-work/test2.csv: work/test2-raw.csv
+work/test1.csv: work/test1-raw.csv $P/extract_names.py $P/use_gnparse.py
+work/test2.csv: work/test2-raw.csv $P/extract_names.py $P/use_gnparse.py
 
 test:
 	$P/property.py
@@ -253,8 +253,10 @@ ncbi-demo:
 	$(MAKE) A=work/ncbi201505-$(taxon) B=work/ncbi202008-$(taxon) \
 	  ANAME=N2015 BNAME=N2020 demo
 
-work/ncbi201505-$(taxon).csv: work/ncbi201505-$(taxon)-raw.csv
-work/ncbi202008-$(taxon).csv: work/ncbi202008-$(taxon)-raw.csv
+work/ncbi201505-$(taxon).csv: work/ncbi201505-$(taxon)-raw.csv \
+   $P/extract_names.py $P/use_gnparse.py
+work/ncbi202008-$(taxon).csv: work/ncbi202008-$(taxon)-raw.csv \
+   $P/extract_names.py $P/use_gnparse.py
 # raw-to-raw subsetting is implicit... 
 
 # NCBI-specific rules
@@ -291,9 +293,10 @@ gbif-demo:
 	$(MAKE) A=work/gbif20190916-$(taxon) B=work/gbif20210303-$(taxon) \
 	  ANAME=G2019 BNAME=G2021 demo
 
-work/gbif20190916-$(taxon).csv: work/gbif20190916-$(taxon)-raw.csv
-work/gbif20210303-$(taxon).csv: work/gbif20210303-$(taxon)-raw.csv
-
+work/gbif20190916-$(taxon).csv: work/gbif20190916-$(taxon)-raw.csv \
+   $P/extract_names.py $P/use_gnparse.py
+work/gbif20210303-$(taxon).csv: work/gbif20210303-$(taxon)-raw.csv \
+   $P/extract_names.py $P/use_gnparse.py
 # raw-to-raw subsetting is implicit, don't need the following
 #work/gbif20190916-$(taxon)-raw.csv: work/gbif20190916-raw.csv
 
@@ -320,6 +323,13 @@ work/gbif20210303.dwca-url:
 
 # ----- 3. BioKIC/ATCR examples:
 
+# To obtain Darwin Core versions of MDD:
+#   1. Download the main .csv files for MDD from Zenodo
+#   2. Run them through Prashant's tool at
+#   https://github.com/jar/MDD-DwC-mapping/ 
+# Automation for all this is on the to-do list... don't know if I'll
+# ever get around to it
+
 mdd-demo:
 	$(MAKE) A=work/msw3 B=work/mdd1.0 ANAME=MSW3 BNAME=MDD1_1 demo
 	$(MAKE) A=work/msw3 B=work/mdd1.10 ANAME=MSW3 BNAME=MDD1_10 demo
@@ -342,14 +352,23 @@ hyg-demo:
 
 work/nor-raw.csv: work/nor.dump $P/start.py
 
-%-hyg-raw.csv: %-raw.csv $P/subset.py
-	$P/subset.py < $< --hierarchy $< --root Hygrophorus > $@
-
 # Lost track of the URL.  Go do artsnavnebase web site and look around
 work/nor.dwca-url:
 	echo "http://mumble.net/something/something/dwca-artsnavnebase-v1.128.zip" >$@
 
 # Sweden = dyntaxa = artdatabanken
+
+work/swe-hyg.csv: work/swe-hyg-raw.csv
+
+work/swe-hyg-raw.csv: work/swe-raw.csv $P/subset.py
+	$P/subset.py < $< --hierarchy $< --root Hygrophorus > $@
+
+work/swe-raw.csv: work/swe.dump $P/start.py
+	$P/start.py --pk $(PRIMARY_KEY) --input `src/find_taxa.py $<` | \
+	  grep -v ",speciesAggregate," \
+	  >$@.new
+	@mv -f $@.new $@
+
 
 # This doesn't work - requires an API token...
 #   --header="Ocp-Apim-Subscription-Key: a300a2..etc..etc"
@@ -399,7 +418,8 @@ in/m: sources/mdd1.10.url
 # MDD
 
 # 1.0 and 1.1 don't use the later managed ids
-work/mdd1.0.csv: work/mdd1.0-raw.csv
+work/mdd1.0.csv: work/mdd1.0-raw.csv \
+   $P/extract_names.py $P/use_gnparse.py
 work/mdd1.0-raw.csv: work/mdd/mdd1.0.csv
 	$P/start.py < $< --pk taxonID > $@.new
 	@mv -f $@.new $@
@@ -559,7 +579,8 @@ work/itis2022-mammals.csv: work/itis2022-mammals-raw.csv
 # Where did I get the file sources/msw3-raw.csv ?
 # How was it created?
 
-work/msw3.csv: work/msw3-raw.csv
+work/msw3.csv: work/msw3-raw.csv \
+   $P/extract_names.py $P/use_gnparse.py
 
 work/msw3-raw.csv: sources/msw3-source.csv $P/start.py
 	$P/start.py --pk $(PRIMARY_KEY) --input $< \

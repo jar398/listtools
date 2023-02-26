@@ -71,19 +71,6 @@ def use_parse(gn_iter, check_iter):
         out_row[out_year_pos] = year
         year_count += 1
 
-    # Fill in canonical if it's missing from source (checklist_row)
-    canon = out_row[out_canonical_pos]
-    if canon == MISSING:
-      # Use quality metric to rule out bad results from gnparse?  E.g.
-      #   Hygrophorus limacinus, s.auct., non (Scop.) Fr.  -> Hygrophorus
-      canon = gn_row[canonical_full_pos]
-      if canon:
-        out_row[out_canonical_pos] = canon
-        if canon_count < CANON_SAMPLE_LIMIT:
-          print("# canonical := '%s' bc '%s'" % (canon_full, gn_row[verbatim_pos]),
-                file=sys.stderr)
-        canon_count += 1
-
     # gnparser tries to parse Verbatim into
     #   CanonicalSimple [+ FullJunk] [+ Authorship] [+ Year].
     # where CanonicalFull = CanonicalSimple + FullJunk.
@@ -96,7 +83,24 @@ def use_parse(gn_iter, check_iter):
     tipe = MISSING   # default, overridden if possible
     quality = int(gn_row[quality_pos])
 
-    if True:  # was quality == 1 or quality == 2:
+    # Use quality metric to rule out bad results from gnparse.  E.g.
+    # if row has scientific "Hygrophorus limacinus, s.auct., non (Scop.) Fr."
+    # then gnparser will say the canonicalName is "Hygrophorus" - bad.
+
+    if quality < 4:  # was quality == 1 or quality == 2:
+
+      # gnparser canonical.
+      # Fill in canonical if it's missing from source (checklist_row)
+      canon = out_row[out_canonical_pos]
+      if canon == MISSING:
+        canon = gn_row[canonical_full_pos]
+        if canon:
+          out_row[out_canonical_pos] = canon
+          if canon_count < CANON_SAMPLE_LIMIT:
+            print("# canonical := '%s' bc '%s'" % (canon_full, gn_row[verbatim_pos]),
+                  file=sys.stderr)
+          canon_count += 1
+
       # Figure out epithet or some substitute
       # do not trim non-epithet if year or auth is missing
       if gn_row[canonical_full_pos] == gn_row[canonical_simple_pos]:
@@ -121,7 +125,9 @@ def use_parse(gn_iter, check_iter):
         if ';' in epithet or ';' in auth:
           print("!!! Warning: semicolon in tipe should be quoted somehow",
                 file=sys.stderr)
-        tipe = "tipe[%s;%s;%s]" % (year, epithet, auth)
+        assert not ' ' in epithet
+        assert not ' ' in auth
+        tipe = "[? %s %s, %s]" % (epithet, auth, year)
 
     else:
       status = (checklist_row[status_pos] if status_pos != None else '')

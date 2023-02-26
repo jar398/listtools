@@ -16,7 +16,7 @@ def simple_relationship(x, y):             # Within a single tree
   x1 = get_accepted(x)
   y1 = get_accepted(y)
   if x1 == y1:                    # same accepted
-    (ship, note) = sibling_relationship(x, x1, y1, y)
+    (ship, note) = sibling_relationship(x, y)
     return relation(ship, y, note=note)
 
   (x2, y2) = find_peers(x1, y1)    # Decrease levels as needed
@@ -30,13 +30,18 @@ def simple_relationship(x, y):             # Within a single tree
   else:
     return relation(DISJOINT, y, note="x <= x2 != y2 >= y")
 
-def sibling_relationship(x, x1, y1, y): # x1 equivalent to y1
+# Compare x1 to y1 as siblings under assumption that x1 = y1
+# Requires review
+# x and y might be in different checklists!
+def sibling_relationship(x, y):
+  x1 = get_accepted(x)
+  y1 = get_accepted(y)
   if x1 != x and y1 != y:
     r1 = get_superior(x).relationship
     r2 = get_superior(y).relationship
     if r1 == SYNONYM or r2 == SYNONYM or r1 != r2:
       return (NOINFO, "sibling synonyms")
-    elif r1 == LT:
+    elif r1 == LT:                                 # ?
       return (NEQ, "sibling heterotypic synonyms") # ?
     else:
       return (EQ, "sibling homotypic synonyms")

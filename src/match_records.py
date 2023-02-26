@@ -34,9 +34,6 @@ from util import ingest_csv, windex, MISSING, \
                  correspondence, precolumn, stable_hash, log
 from rcc5 import *
 
-MUTUAL = EQ       # relationship to use for mutual match
-LOSER = NOINFO    # relationship to use for runners-up
-
 # 20 : 8 : 20 : 8
 
 index_by_limit = 20    # max number of reverse entries to keep
@@ -47,249 +44,212 @@ unweights = None
 default_index_by = ["scientificName", "tipe",
                     "canonicalName", "canonicalStem",
                     "managed_id"]
+#default_discriminators = ["namePublishedInYear", "nomenclaturalStatus"]
+default_discriminators = []
+
+TOP = MISSING
 
 # Row iterables -> row iterable
 
-def match_records(a_reader, b_reader, pk_col="taxonID", index_by=default_index_by):
+def match_records(a_reader, b_reader, pk_col="taxonID",
+                  index_by=None,
+                  discriminators=None):
+  if index_by == None: index_by = default_index_by
+  if discriminators == None: discriminators = default_discriminators
+  assert index_by != None, index_by
+  assert discriminators != None, discriminators
+
   a_table = ingest_csv(a_reader, pk_col)
   b_table = ingest_csv(b_reader, pk_col)
-  cop = compute_sum(a_table, b_table, pk_col, index_by)
-  return generate_sum(cop, pk_col)
+  # match_checklists returns a generator
+  cop = match_checklists(a_table, b_table, pk_col, index_by, discriminators)
+  yield from generate_match_report(cop, pk_col)
 
 # Sum -> row iterable, suitable for writing to output CSV file.
 # B is priority, so treat A matches as annotations on it
 # Part of this module's API.
 # coproduct arg is a generator, result is a generator.
 
-def generate_sum(coproduct, pk_col):
-  yield ["match_id", "relationship", pk_col, "basis_of_match"]
-  aonly = bonly = matched = ambig = 0
-  for (key1, ship, key2, remark) in coproduct:
+def generate_match_report(coproduct, pk_col):
+  yield ["match_id", "relationship", pk_col, "direction", "kind", "basis_of_match"]
+  kind_counters = {}
+  for (key1, ship, key2, direction, kind, basis_of_match) in coproduct:
 
-    # Print stats on outcome
-    if ship == MUTUAL:
-      matched += 1
-    elif key1 == None:
-      bonly += 1
-    else:
-      aonly += 1
-    if "ambiguous" in remark:
-      ambig += 1
+    dk = (direction, kind)
+    counter = kind_counters.get(dk)
+    if not counter:
+      counter = [0]
+      kind_counters[dk] = counter
+    counter[0] += 1
 
-    if ship != NOINFO or remark:
+    if kind != "no match":
       ship_sym = rcc5_symbol(ship)
-      yield (key1, ship_sym, key2, remark)
+      yield (key1, ship_sym, key2, direction, kind, basis_of_match)
 
-  print("-- match_records: %s matches, %s in A unmatched, %s in B unmatched" %
-        (matched, aonly, bonly),
-        file=sys.stderr)
-  print("-- match_records: %s ambiguous" %
-        (ambig),
-        file=sys.stderr)
+  for (dk, counter) in kind_counters.items():
+    (direction, kind) = dk
+    log("-- match: %s %s: %s" % (direction, kind, counter[0]))
 
 # table * table -> sum (cf. delta.py ?)
 
-def compute_sum(a_table, b_table, pk_col_arg, index_by):
-  global INDEX_BY, pk_col, pk_pos1, pk_pos2
+def match_checklists(a_table, b_table, pk_col_arg, index_by, discriminators):
+  global header1, header2, pk_col, pk_pos1, pk_pos2
   pk_col = pk_col_arg
-  assert len(index_by) < index_by_limit
-  INDEX_BY = index_by    # kludge
-
-  (header1, all_rows1) = a_table
+  (header1, all_rows1) = a_table   # dict all_rows1: key -> row
   (header2, all_rows2) = b_table
+  pk_pos1 = windex(header1, pk_col)
+  assert pk_pos1 != None 
+  pk_pos2 = windex(header2, pk_col)
+  assert pk_pos2 != None
+
+  assert len(index_by) + len(discriminators) < index_by_limit
+
   prepare_rows(header1, all_rows1)
   prepare_rows(header2, all_rows2)
 
-  pk_pos1 = windex(header1, pk_col)
-  pk_pos2 = windex(header2, pk_col)
-  assert pk_pos1 != None 
-  assert pk_pos2 != None
-
-  (best_rows_in_file2, best_rows_in_file1) = \
-    find_best_matches(header1, header2, all_rows1, all_rows2, pk_col)
-
-  # Returns (relationship, string, comment)
-  def find_match(key1, best_rows_in_file2, best_rows_in_file1,
-                 pk_pos1, pk_pos2, key1_in_A):
-    (row2, rows2, remark2) = check_match(key1, best_rows_in_file2, pk_pos2, key1_in_A)
-    # remark = MISSING means no matches
-    if row2 != None:            # len(rows2) == 1
-      candidate = row2[pk_pos2]
-      (back1, rows1, remark1) = check_match(candidate, best_rows_in_file1, pk_pos1, not key1_in_A)
-      assert remark1
-      if back1 != None:         # len(rows1) == 1
-        if back1[pk_pos1] == key1:
-          # Mutual match!
-          key2 = candidate
-          # remark2 and remark1 give fields
-          if remark2 == remark1:
-            remark = remark2
-          else:
-            # Shouldn't happen I think ??
-            remark = (key2, "%s|%s" % (remark2, remark1))
-          answer = (MUTUAL, key2, remark)
-        else:
-          b1 = back1[pk_pos1]
-          # wish there was a name here so we can see what's going on
-          # should be sensitive to key1_in_A
-          if key1_in_A:
-            answer = (LOSER, row2[pk_pos2],
-                      ("match not mutual: %s -> %s" %
-                       (row2[pk_pos2], b1)))
-          else:
-            answer = (LOSER, row2[pk_pos2],
-                      ("match not mutual: %s <- %s" %
-                       (b1, row2[pk_pos2])))
-      else:
-        # Probably an ambiguity {row1, row1'} <-> row2
-        answer = (NOINFO, TOP, remark1)
-    else:
-      # No match in B, or an ambiguity row1 <-> {row2, row2'}
-      answer = (NOINFO, TOP, remark2)
-    return answer
-
-  TOP = MISSING
+  (best_results2, best_results1) = \
+    find_best_matches(header1, header2, all_rows1, all_rows2, 
+                      index_by, discriminators)
 
   # -----
 
-  seen2 = {}                    # injection B -> A+B
-  punt = 0
+  log("-- match: %s rows1, %s with matches" % (len(all_rows1), len(best_results2)))
 
   for (key1, row1) in all_rows1.items():
-    (rel2, key2, remark) = find_match(key1, best_rows_in_file2,
-                                      best_rows_in_file1, pk_pos1, pk_pos2,
-                                      True)
+    (rows2, kind1, rel1, basis1) = \
+      analyze_matches(key1, best_results2, best_results1, True)
+    if len(rows2) >= WAD_SIZE:
+      rows2 = (); kind1 = "too many matches"
     # Store the correspondence.  key2 may be None.
-    yield (key1, rel2, key2, remark)
-    if key2 != None:
-      seen2[key2] = True
+    key2 = '|'.join(map(lambda row2: row2[pk_pos2], rows2))
+    if kind1 == "mutual":
+      yield (key1, rel1, key2, "A<->B", kind1, basis1)
+    else:
+      yield (key1, rel1, key2, "A->B", kind1, basis1)
 
-  copunt = 0
+  log("# %s rows1, %s with matches" % (len(all_rows2), len(best_results1)))
 
   for (key2, row2) in all_rows2.items():
-    if not key2 in seen2:
-      (rel1, key1, remark) = find_match(key2, best_rows_in_file1,
-                                        best_rows_in_file2, pk_pos2, pk_pos1,
-                                        False)
-      if key1:
-        # shouldn't happen
-        remark = "! surprising match: %s <-> %s" % (key2, key1)
-      # Addition - why did it fail?
-      # Unique match means outcompeted, probably?
-      rel2 = reverse_relationship(rel1) # <= to >=
-      yield (key1, rel2, key2, remark)
-
-  if punt + copunt > 0:
-    print("-- Senior synonyms: %s in A, %s in B" % (punt, copunt),
-          file=sys.stderr)
-
-# Makes sure the match is mutual and unique.
-# Returns a row.
-
-def check_match(key1, best_rows_in_file2, pk_pos2, key1_in_A):
-  assert len(unweights) > 0
-  best2 = best_rows_in_file2.get(key1)
-  if best2:
-    (score2, rows2) = best2
-    reason = match_reason(score2, unweights)
-    if reason != None:
-      if len(rows2) == 1:
-        assert rows2[0]
-        return (rows2[0], rows2, reason)
-      elif len(rows2) < WAD_SIZE:
-        keys2 = [row2[pk_pos2] for row2 in rows2]
-        alts = ';'.join(keys2)
-        if key1_in_A:
-          return (None, rows2,
-                        ("ambiguous (%s): -> %s" %
-                         (reason, alts)))
-        else:
-          return (None, rows2,
-                        ("coambiguous (%s): <- %s" %
-                         (reason, alts)))
-      else:
-        return (None, (), "too many matches (%s)" % reason)
+    (rows1, kind2, rel2, basis2) = \
+      analyze_matches(key2, best_results1, best_results2, False)
+    if len(rows1) >= WAD_SIZE:
+      rows1 = (); kind2 = "too many matches"
+    key1 = '|'.join(map(lambda row1: row1[pk_pos1], rows1))
+    if kind2 == "mutual":
+      pass
     else:
-      return (None, (), "weak matches only (%x)" % score2)
+      yield (key1, rel2, key2, "B->A", kind2, basis2)
+
+no_result = (-1, [])
+
+# Returns (relationship, string, comment)
+def analyze_matches(key_a, best_results_b, best_results_a, key_a_in_A):
+  (score, rows_b) = best_results_b.get(key_a, no_result)
+  rows_a = ()
+  if len(rows_b) == 1:
+    row_b = rows_b[0]
+    assert isinstance(row_b[0], str)
+    pk_pos_b = pk_pos2 if key_a_in_A else pk_pos1
+    key_b = row_b[pk_pos_b]
+    (_, rows_a) = best_results_a.get(key_b, no_result)
+    assert len(rows_a) > 0, (key_a, key_b)
+    pk_pos_a = pk_pos1 if key_a_in_A else pk_pos2
+    keys_a = map(lambda row:row[pk_pos_a], rows_a)
+    if key_a in keys_a:
+      if len(rows_a) == 1:
+        kind = "mutual"
+      else:
+        kind = "in competition"
+    else:
+      kind = "lost competition"
+  elif len(rows_b) > 1:
+    kind = "ambiguous"
   else:
-    return (None, (), MISSING)
+    kind = "no match"
+  rel = EQ if kind == "mutual" else NOINFO
+  return (rows_b, kind, rel, match_basis(score, unweights))
 
 # For each row in each input (A/B), compute the set of all best
 # (i.e. highest scoring) matches in the opposite input.
+# Returns (key1 -> (score, [row2, ...]), key2 -> (score, [row1, ...]))
 
-def find_best_matches(header1, header2, all_rows1, all_rows2, pk_col):
+def find_best_matches(header1, header2, all_rows1, all_rows2, 
+                      index_by, discriminators):
   global pk_pos1, pk_pos2, unweights # Passed in
   assert len(all_rows2) > 0
   corr_12 = correspondence(header1, header2)
-  positions = indexed_positions(header1, INDEX_BY)
-  (a_weights, unweights) = get_weights(header1, header2, INDEX_BY)
+  positions = get_positions(header1, index_by)
+  (a_weights, unweights) = get_weights(header1, header2, index_by, discriminators)
   if False:
-    print("# correspondence: %s" % (corr_12,), file=sys.stderr)
-    print("# indexed: %s" % positions, file=sys.stderr)
-    print("# A weights: %s" % a_weights, file=sys.stderr)
-    print("# unweights: %s" %
-          ", ".join(["%s: %s" % (x, y) for (x, y) in unweights]),
-          file=sys.stderr)
-  rows2_by_property = index_rows_by_property(all_rows2, header2)
-  no_info = (-1, [])
+    log("# correspondence: %s" % (corr_12,))
+    log("# indexed: %s" % positions)
+    log("# A weights: %s" % a_weights)
+    log("# unweights: %s" %
+          ", ".join(["%s: %s" % (x, y) for (x, y) in unweights]))
+  rows2_by_property = index_rows_by_property(all_rows2, header2, index_by)
 
-  best_rows_in_file2 = {}    # key1 -> (score, rows2)
-  best_rows_in_file1 = {}    # key2 -> (score, rows1)
+  best_results2 = {}    # key1 -> (score, [row2, ...])
+  best_results1 = {}    # key2 -> (score, [row1, ...])
   prop_count = 0
   for (key1, row1) in all_rows1.items():
+    assert isinstance(row1[0], str)
     assert len(row1) == len(header1)
-    # The following check is also enforced by start.py... flush them here?
-    best2_so_far = no_info
-    best_rows_so_far2 = no_info
 
+    # best_results2: key1 -> (score, [row2...])
+    result2_so_far = best_results2.get(key1, None) or no_result
+
+    # Compare matching rows in rows2 to row1.
     for prop in row_properties(row1, header1, positions):
       if prop_count > 0 and prop_count % 500000 == 0:
-        print("# %s property values..." % prop_count, file=sys.stderr)
+        log("# %s property values..." % prop_count)
       prop_count += 1
-      for row2 in rows2_by_property.get(prop, []):
+
+      for row2 in rows2_by_property.get(prop, ()):
+        assert isinstance(row2[0], str)
         assert len(row2) == len(header2)
         key2 = row2[pk_pos2]
+        # key2 -> (score, [row1 ...])
+        result1_so_far = best_results1.get(key2, None) or no_result
+
         score = compute_score(row1, row2, corr_12, a_weights)
-        best_rows_so_far1 = best_rows_in_file1.get(key2, no_info)
+        if False:
+          log("# compare %s to %s (%s) because %s" % (key1, key2, score, prop))
 
-        # Update best file2 match for row1
-        (score2_so_far, rows2) = best_rows_so_far2
+        # Does row2 improve on existing result for row1?
+        (score2_so_far, rows2) = result2_so_far # keyed by row1
         if score > score2_so_far:
-          best_rows_so_far2 = (score, [row2])
+          result2_so_far = (score, [row2])
         elif score == score2_so_far and not row2 in rows2:
-          if len(rows2) < WAD_SIZE: rows2.append(row2)
+          if len(rows2) < WAD_SIZE:
+            rows2.append(row2)
 
-        # Update best file1 match for row2
-        (score1_so_far, rows1) = best_rows_so_far1
+        # Does row1 improve on existing result for row2?
+        (score1_so_far, rows1) = result1_so_far # keyed by row2
         if score > score1_so_far:
-          best_rows_in_file1[key2] = (score, [row1])
+          result1_so_far = (score, [row1])
         elif score == score1_so_far and not row1 in rows1:
-          if len(rows1) < WAD_SIZE: rows1.append(row1)
+          if len(rows1) < WAD_SIZE:
+            rows1.append(row1)
 
-    if best_rows_so_far2 != no_info:
-      best_rows_in_file2[key1] = best_rows_so_far2
+        # key2 -> (score, [row1...])
+        if len(result1_so_far[1]) > 0:
+          best_results1[key2] = result1_so_far
 
-  print("# match_records: indexed %s property values" % prop_count, file=sys.stderr)
+    # key1 -> (score, [row2...])
+    if len(result2_so_far[1]) > 0:
+      best_results2[key1] = result2_so_far
+
+  #log("# match_records: indexed %s property values" % prop_count)
   if len(all_rows1) > 0 and len(all_rows2) > 0:
-    assert len(best_rows_in_file1) > 0
-    assert len(best_rows_in_file2) > 0
-  return (best_rows_in_file2, best_rows_in_file1)
-
-# Positions in header2 of columns to be indexed (properties)
-
-def indexed_positions(header, index_by):
-  p = []
-  for col in index_by:
-    w = windex(header, col)
-    if w != None:
-      p.append(w)
-    else:
-      print("* No %s column present" % col, file=sys.stderr)
-  return p
+    assert len(best_results1) > 0
+    assert len(best_results2) > 0
+  return (best_results2,           # Keyed by key1
+          best_results1)           # Keyed by key2
 
 # Higher score = more similar
 
 def compute_score(row1, row2, corr_12, a_weights):
+  assert len(a_weights) == len(row1), (a_weights, row1)
   score = 0
   for j in range(0, len(row2)):
     i = precolumn(corr_12, j)
@@ -303,14 +263,13 @@ def compute_score(row1, row2, corr_12, a_weights):
         else:
           # give a tiny bit of weight for unweighted columns
           # this could give random results...
-          score += 1
+          score += 2
   return score
 
-def match_reason(score, unweights):
+def match_basis(score, unweights):
   for (weight, col) in unweights:
     if (score & weight) > 0: return col
-  print("# score = %x unweight len = %x" % (score, len(list(unweights))),
-        file=sys.stderr)
+  log("# score = %x unweight len = %x" % (score, len(list(unweights))))
   return None
 
 # Initialize weights used in score computation.  One for each column
@@ -318,22 +277,25 @@ def match_reason(score, unweights):
 # weights = powers of 2 or zero, indexed by A-columns
 # unweights = (weight, name) for each indexed column
 
-def get_weights(header_b, header_a, index_by):
+def get_weights(header_a, header_b, index_by, discriminators):
+  all = index_by + discriminators
   a_weights = [0 for col in header_a]
   unweights = []
-  for i in range(0, len(index_by)):
-    col = index_by[i]
-    pos = windex(header_a, col)   # Position in an A row
-    if pos != None:
-      weight = 1 << (silly + len(index_by) - i)
-      a_weights[pos] = weight
-    unweights.append((weight, col))
+  for i in range(0, len(all)):  # 0 = more important
+    col = all[i]
+    pos_a = windex(header_a, col)   # Position in an A row
+    pos_b = windex(header_b, col)   # Position in a B row
+    if pos_a != None and pos_b != None:
+      weight = 1 << (silly + len(all) - i)
+      a_weights[pos_a] = weight
+    if i < len(index_by):
+      unweights.append((weight, col))
   return (a_weights, unweights)
 
 LIMIT=10
 
-def index_rows_by_property(all_rows, header):
-  positions = indexed_positions(header, INDEX_BY)
+def index_rows_by_property(all_rows, header, index_by):
+  positions = get_positions(header, index_by)
   rows_by_property = {}
   entry_count = 0
   for (key, row) in all_rows.items():
@@ -350,32 +312,48 @@ def index_rows_by_property(all_rows, header):
       else:
         rows_by_property[property] = [row]
         entry_count += 1
-  # print("# match_records: %s rows indexed by values" % (len(rows_by_property),),
-  #       file=sys.stderr)
+  # log("# match_records: %s rows indexed by values" % (len(rows_by_property),))
   return rows_by_property
 
+# Positions in header2 of columns to be indexed (properties), as a list
+
+def get_positions(header, index_by):
+  p = []
+  for col in index_by:
+    w = windex(header, col)
+    if w != None:
+      p.append(w)
+    else:
+      log("* No %s column present" % col)
+  return p
+
+# Generate all the (propertyname, value) pairs selected from row at
+# the given positions.
+# A property is a pair (propertyname, value).
 # Future: exclude really ephemeral properties like taxonID
 
 def row_properties(row, header, positions):
-  return [(header[i], row[i])
-          for i in range(0, len(header))
-          if (i in positions and
-              row[i] != MISSING)]
+  for pos in positions:
+    if row[pos] != MISSING and row[pos] != "NA":
+      yield (header[pos], row[pos])
 
-# Had to do this for the Norway/Sweden comparison.
+# Had to do this for the Norway/Sweden comparison...
 # Want various ways of expressing 'accepted' to be = in the score computation.
 # Turns out this matters...
 
-def prepare_rows(header, table):
+def prepare_rows(header, dict): # dict: key -> row
   tstat_col = windex(header, "taxonomicStatus")
-  n = 0
-  if tstat_col != None:
-    for (id, row) in table.items():
+  nstat_col = windex(header, "nomenclaturalStatus")
+  for (id, row) in dict.items():
+    if tstat_col != None:
       tstat = row[tstat_col]
       if (tstat == MISSING or
           tstat.startswith("accepted") or
           tstat.startswith("valid")):
         row[tstat_col] = "accepted"
+    if nstat_col != None:
+      if row[nstat_col] == MISSING:
+        row[tstat_col] = "available"
 
 # Test
 def test1():

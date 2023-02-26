@@ -39,19 +39,14 @@ def cross_relation(AB, v, w):
     rel = simple.simple_relationship(get_outject(v), get_outject(w))
     answer = (rel.relationship, rel.note)
   else:
-    #! Equivalent?
-    v1 = local_accepted(AB, v)
-    w1 = local_accepted(AB, w)
-    rel = equivalent(v1, w1)
+
+    #! Co-synonyms?
+    rel = equivalent(local_accepted(AB, v), local_accepted(AB, w))
     if rel:
-      x = get_outject(v)
-      y = get_outject(w)
-      x1 = get_accepted(x)
-      y1 = get_accepted(y)
-      answer = simple.sibling_relationship(x, x1, y1, y)
+      answer = simple.sibling_relationship(get_outject(v), get_outject(w))
     else:
 
-      #! Deal with peripheral nodes (empty block)
+      #! Is either one peripheral?
       v_up = increase_until_overlap(AB, v)
       w_up = increase_until_overlap(AB, w)
       if v_up != v and w_up != w:
@@ -62,18 +57,20 @@ def cross_relation(AB, v, w):
         answer = (IREP, "right peripheral")
       else:
 
-        # Compare exemplar sets
+        #! Do they have distinct exemplar sets?
         ship = block_relationship(get_block(v, BOTTOM_BLOCK),
                                   get_block(w, BOTTOM_BLOCK))
-        if ship == EQ:
-          answer = compare_within_block(v, w)
-        else:
+        if ship != EQ:
           # ship is not EQ (i.e. exemplar sets are different)
           answer = (ship, "different exemplar sets")
+        else:
+
+          #! In same block?
+          answer = compare_within_block(v, w)
 
   (ship, note) = answer
   if monitor(v) or monitor(w):
-    log("# %s %s %s / %s" % (blurb(v), rcc5_symbol(ship), blurb(w), note))
+    log("# theory: [%s %s %s] because %s" % (blurb(v), rcc5_symbol(ship), blurb(w), note))
 
   return relation(ship, w, note=note)
 
@@ -106,13 +103,15 @@ def compare_within_block(v, w):
     answer = (ship, rel1.note)
   elif rel1:
     answer = (rel1.relationship, rel1.note)
-    # log("# v %s %s %s" % (blurb(v), blurb(rel1), blurb(w)))
+    # log("# theory: v %s %s %s" % (blurb(v), blurb(rel1), blurb(w)))
   elif rel2:
     answer = (rel2.relationship, rel2.note)
-    # log("# w %s %s %s" % (blurb(v), blurb(rel2), blurb(w)))
+    # log("# theory: w %s %s %s" % (blurb(v), blurb(rel2), blurb(w)))
   else:
     # Neither v nor w has a suitable equivalent, but they're in same block,
     # so COMPARABLE.   (assume existence of total interleaved chain.)
+    # Happens a lot e.g. Spermophilopsis leptodactyla
+    #log("# theory: Comparable: [%s %s %s]" % (blurb(v), rcc5_symbol(COMPARABLE), blurb(w)))
     answer = (COMPARABLE, "in interleaved monotypic chain")
   return answer
 
@@ -211,7 +210,7 @@ def find_reflection(AB, v):
     nm = get_matched(w)
     if nm and same_block(get_block(nm.record, BOTTOM_BLOCK), b):
       # w matches in v's chain but not vice versa.  Asymmetric
-      # log("# unmatched goes to matched: %s ? %s" % (blurb(v), blurb(w)))
+      # log("# theory: unmatched goes to matched: %s ? %s" % (blurb(v), blurb(w)))
       return relation(OVERLAP, w, note="w at top of chain has a match")
     else:
       # Both unmatched and both at top of their chains
@@ -296,18 +295,19 @@ def compute_cross_mrcas(AB):
 def analyze_blocks(AB):
   def traverse(x, in_left, inB):
     # x is in A (or B if inB)
-    if monitor(x): log("computing block for %s" % (blurb(x),))
+    if monitor(x): log("# theory: computing block for %s" % (blurb(x),))
     # initial e = exemplars from descendants
     e = BOTTOM_BLOCK
     for c in get_inferiors(x):  # inferiors in A/B
       e = combine_blocks(e, traverse(c, in_left, inB))
-      if monitor(c): log("got subblock %s -> %s" % (blurb(c), len(e),))
+      if monitor(c):
+        log("# theory: got subblock %s -> %s" % (blurb(c), len(e),))
     v = in_left(x)              # in A (or B if in B)
     exem = get_exemplar_record(v, None) # (id, v, w)
     if exem: e = adjoin_exemplar(exem[0], e)
     if e != BOTTOM_BLOCK:
       set_block(v, e)
-    #log("# block(%s) = %s" % (blurb(x), e))
+    #log("# theory: block(%s) = %s" % (blurb(x), e))
     return e
   traverse(AB.A.top, AB.in_left, False)
   traverse(AB.B.top, AB.in_right, True)
@@ -319,7 +319,7 @@ def exemplar_id(ex): return ex[0]
 def show_exemplars(z, tag, AB):
   def foo(id):
     return blurb(exemplar_record(AB, id, z))
-  log("# %s: {%s}" % (tag, ", ".join(map(foo, get_block(z, BOTTOM_BLOCK)))))
+  log("# theory: %s: {%s}" % (tag, ", ".join(map(foo, get_block(z, BOTTOM_BLOCK)))))
 
 # Apply this to something that 'belongs' to a single exemplar
 # id -> record in same checklist as z

@@ -106,7 +106,7 @@ def stdopen(x):
 
 # 
 
-log_allowance = 50
+log_allowance = 100
 
 def log(mess):
   global log_allowance

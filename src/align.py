@@ -30,6 +30,20 @@ def generate_alignment_report(al, AB):
     x = theory.get_outject(v)
     y = theory.get_outject(w)
     d = category(v, ship, w)
+
+    if d.startswith('remove'):
+      # The following seems to have zero effect.
+      mrel = get_match(x, None)          # Mutual match - we expect this to be included
+      if mrel:
+        if mrel.record:
+          rel = theory.cross_relation(AB, v, mrel.record)
+          log("# removing [%s %s %s], %s" % \
+              (blurb(v), rcc5_symbol(rel.relationship),
+               blurb(rel.record), rel.note))
+        else:
+          log("# removing %s, match note %s" %
+              (blurb(v), rel.note))
+
     yield  (get_primary_key(x),
             blurb(x),
             rcc5_symbol(ship),
@@ -59,7 +73,7 @@ def generate_short_report(al, AB):
 # This column is called "category" for consistency with MDD.
 
 def category(v, ship, w):
-  rel = get_matched(v)
+  rel = get_match(v, None)      # Does the name persist in B?
   mat = rel and (rel.record == w)
   x = get_outject(v)
   y = get_outject(w)
@@ -67,7 +81,10 @@ def category(v, ship, w):
           get_rank(get_accepted(y), None))
   if ship == GT:
     if stay: action = ('retain (split)' if mat else 'split')
-    else: action = 'add'
+    else: action = 'add (but it was sort of there?)'
+  elif ship == LT:
+    if stay: action = ('retain (lump)' if mat else 'lump')
+    else: action = 'remove (but sort of staying?)'
   elif ship == EQ:
     # No match - ambiguous match - unique match
     # Different names - same name
@@ -75,9 +92,6 @@ def category(v, ship, w):
       action = 'rename'
     else:
       action = 'retain'
-  elif ship == LT:
-    if stay: action = ('retain (lump)' if mat else 'lump')
-    else: action = 'remove'
   elif ship == DISJOINT:
     action = ('false match' if mat else 'disjoint')
   elif ship == CONFLICT:        # Euler/X calls it 'overlaps'
@@ -129,12 +143,12 @@ def match_comment(AB, v, rel):
   m1 = get_match(v, None) 
   if m1 and m1.record != w and m1.note and ' ' in m1.note:
     # v and w are matches, so don't need info in both directions
-    comments.append("A: " + m1.note)
+    comments.append(m1.note)
 
   m2 = get_match(w, None)
   if m2 and m2.record != v and m2.note and ' ' in m2.note:
     # Shouldn't happen, since matches are symmetric
-    comments.append("B: " + m2.note)
+    comments.append(m2.note)
 
   return '|'.join(comments)
 
