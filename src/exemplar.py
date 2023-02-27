@@ -129,12 +129,14 @@ def find_tipwards(AB):
       if rel and rel.relationship == EQ:
         assert separated(v, rel.record)
         # v is tipward and has a match, not necessarily tipward ...
-        set_tipward(v, rel)
-        if True:
-          w = rel.record
-          rel2 = get_matched(w)
-          assert rel2           # symmetric
-          assert rel2.record == v
+        w = rel.record
+        # v in get_matches(w) ... ??? no
+        rel2 = get_matched(w)
+        if not rel2 or rel2.record != v:
+          log("# Nonreciprocal tipwards %s %s" % (blurb(w), blurb(rel2)))
+          diagnose_match(v)
+        else:
+          set_tipward(v, rel)
           set_tipward(w, rel2)
         seen = 1
     return seen + seen2

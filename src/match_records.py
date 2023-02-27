@@ -150,10 +150,12 @@ def analyze_matches(row_a, best_results_b, best_results_a, key_a_in_A):
   (score, rows_b) = best_results_b.get(key_a, no_result)
   rows_a = ()
   if True:
+    # Does row_b return back to row_a ?
     def reciprocal(row_b):
       key_b = row_b[pk_pos_b]
       (_, rows_a) = best_results_a.get(key_b, no_result)
       return row_a in rows_a
+    # Which of the rows_b returns back to row_a ?
     reciprocal_rows_b = [row_b for row_b in rows_b if reciprocal(row_b)]
     if len(reciprocal_rows_b) >= 1:
       rows_b = reciprocal_rows_b
@@ -162,8 +164,8 @@ def analyze_matches(row_a, best_results_b, best_results_a, key_a_in_A):
       else:
         kind = "ambiguous"
     elif len(rows_b) > 0:
-      kind = "no mutual matches"
-    else: # len(rows_b) == 0:
+      kind = "no mutual matches" # 'lost'
+    else:
       kind = "no match"
   else:
     if len(rows_b) == 1:

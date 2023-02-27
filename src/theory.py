@@ -65,7 +65,7 @@ def cross_relation(AB, v, w):
         elif w_up != w and (ship & ~GE == 0):
           answer = (IREP, "right peripheral")
         else:
-          answer = (DISJOINT, "peripheral not under non-peripheral")
+          answer = (DISJOINT, "peripheral elsewhere")
       else:
 
         #! Do they have distinct exemplar sets?

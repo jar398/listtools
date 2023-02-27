@@ -670,21 +670,28 @@ def get_matches(u):
     return ()
 
 def diagnose_match(u):
-  u_info = get_match_info(u, None)
-  if u_info:
-    (vs, u_kind, u_basis) = u_info
-    log("%s %s %s" % (xblurb(u), u_kind, u_basis))
-    for v in vs:
-      v_info = get_match_info(v, None)
-      if v_info:
-        (us, v_kind, v_basis) = v_info
-        log("  -> %s %s %s" % (xblurb(v), v_kind, v_basis))
-        for uu in us:
-          log("       -> %s" % xblurb(uu))
+  def descend(u, prefix, u_return, v_return, count):
+    u_info = get_match_info(u, None)
+    if u_info:
+      (vs, u_kind, u_basis) = u_info
+      mess = "%s%s %s %s" % (prefix, xblurb(u), u_kind, u_basis)
+      if u == u_return:
+        log(mess + " (return)")
       else:
-        log("  -> %s" % (xblurb(v)))
-  else:
-    log("  -> %s" % (xblurb(u)))
+        log(mess)
+        if count > 0:
+          for v in vs:
+            descend(v, ' ' * len(prefix) + "  -> ", v_return, u_return or u, count-1)
+  descend(u, "", None, None, 3)
+
+"""
+u1 -> v1 -> u2 -> v3
+(None, None)
+(u1, None)
+(v1, u1)
+(u1, v1)
+...
+"""
 
 def xblurb(u):
   name = get_scientific(u) or get_canonical_name(u) or get_managed_id(u)
