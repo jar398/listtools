@@ -24,9 +24,6 @@ outofdate:
 SHELL?=/usr/bin/bash
 P?=src
 
-# For match_records.py
-INDEX?="scientificName,tipe,canonicalName,canonicalStem,managed_id"
-
 # Primary key column
 PRIMARY_KEY?=taxonID
 
@@ -85,7 +82,7 @@ matches: $(MATCHES)
 $(MATCHES): $A.csv $B.csv $P/match_records.py
 	@echo
 	@echo "--- COMPUTING RECORD MATCHES ---"
-	$P/match_records.py --A $A.csv --B $B.csv --pk $(DELTA_KEY) --index $(INDEX) \
+	$P/match_records.py --A $A.csv --B $B.csv --pk $(DELTA_KEY) \
 		    	    > $@.new
 	@mv -f $@.new $@
 
@@ -156,7 +153,7 @@ $(DELTA): $A.csv $B.csv $P/delta.py $P/match_records.py $P/property.py
 	@echo "--- COMPUTING DELTA ---"
 	set -o pipefail; \
 	$P/delta.py --A $A.csv --B $B.csv --pk $(DELTA_KEY) \
-		    --index $(INDEX) --manage $(KEEP)
+		    --manage $(KEEP)
 	| $P/sortcsv.py --key $(DELTA_KEY) \
 	> $@.new
 	@mv -f $@.new $@

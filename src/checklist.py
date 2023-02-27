@@ -18,6 +18,8 @@ rank_prop = prop.declare_property("taxonRank")
 managed_id_prop = prop.declare_property("managed_id")
 tipe_prop = prop.declare_property("tipe")
 stemmed_prop = prop.declare_property("canonicalStem")
+taxonomic_status_prop = prop.declare_property("taxonomicStatus")
+nomenclatural_status_prop = prop.declare_property("nomenclaturalStatus")
 
 # Other checklist properties
 source_prop = prop.declare_property("source", inherit=False)    # which checklist does this belong to?
@@ -50,13 +52,16 @@ outject_prop = prop.declare_property("outject")
 (get_managed_id, set_managed_id) = prop.get_set(managed_id_prop)
 (get_stemmed, set_stemmed) = prop.get_set(stemmed_prop)
 (get_tipe, set_tipe) = prop.get_set(tipe_prop)
+(get_nomenclatural_status, set_nomenclatural_status) = \
+  prop.get_set(nomenclatural_status_prop)
+(get_taxonomic_status, set_taxonomic_status) = \
+  prop.get_set(taxonomic_status_prop)
+
 (get_match, set_match) = prop.get_set(match_prop)
 
 # Links
 (get_parent_key, set_parent_key) = prop.get_set(parent_key_prop)
 (get_accepted_key, set_accepted_key) = prop.get_set(accepted_key_prop)
-(get_taxonomic_status, set_taxonomic_status) = \
-  prop.get_set(prop.declare_property("taxonomicStatus"))
 get_superior_note = prop.getter(superior_note_prop)
 (get_superior, set_superior) = prop.get_set(superior_prop)
 (get_children, set_children) = prop.get_set(prop.declare_property("children", inherit=False))
@@ -592,7 +597,7 @@ def blurb(r):
 def monitor(x):
   if not x: return False
   name = get_canonical(x, '')
-  return (name == "Craseomys regulus"
+  return (False  #name == "Craseomys regulus"
           )
 
 # -----------------------------------------------------------------------------
@@ -633,38 +638,63 @@ def load_matches(row_iterator, AB):
     basis = get_basis_of_match(match_record, '')
     note = "%s: %s" % (dir, kind)
            
+    if monitor(u) or monitor(v):
+      log("# match: %s -> %s, %s" %
+          (tuple(map(blurb, us)), tuple(map(blurb, vs)), note))
+
     # u or v might be None with ship=NOINFO ... hope this is OK
     assert dir in ('A->B', 'B->A', 'A<->B')
     if dir == 'A<->B':
-      assert u and v and ship == EQ, (blurb(u), rcc5_symbol(ship), blurb(v))
-      set_match(u, relation(ship, v, note=note))
-      set_match_info(u, (vs, dir, kind, basis))
-      set_match(v, relation(reverse_relationship(ship), u, note=note))
-      set_match_info(v, (us, dir, kind, basis))
+      assert ship == EQ
       mutual_count += 1
-    elif dir == 'A->B':
-      assert u and ship == NOINFO
-      set_match(u, relation(ship, v, note=note))
-      set_match_info(u, (vs, dir, kind, basis))
-      miss_count += 1
-    elif dir == 'B->A':
-      assert v and ship == NOINFO
-      miss_count += 1
-      set_match(v, relation(reverse_relationship(ship), u, note=note))
-      set_match_info(v, (us, dir, kind, basis))
     else:
-      assert False
-
-    if monitor(u) or monitor(v):
-      log("# match: %s -> %s, %s" % (map(blurb, us), map(blurb, vs), note))
+      assert ship == NOINFO
+      miss_count += 1
+    if dir == 'A<->B' or dir == 'A->B':
+      assert u
+      set_match(u, relation(ship, v, note=note))
+      set_match_info(u, (vs, kind, basis))
+    if dir == 'A<->B' or dir == 'B->A':
+      assert v
+      set_match(v, relation(ship, u, note=note))
+      set_match_info(v, (us, kind, basis))
 
   log("# loaded %s match records, %s nonmatches" % (mutual_count, miss_count))
 
-def record_match(x):
-  rel = get_matched(x)
-  if rel:
-    return rel.record
-  return None
+def get_matches(u):
+  info = get_match_info(u, None)
+  if info:
+    (vs, kind, basis) = info
+    return vs
+  else:
+    return ()
+
+def diagnose_match(u):
+  u_info = get_match_info(u, None)
+  if u_info:
+    (vs, u_kind, u_basis) = u_info
+    log("%s %s %s" % (xblurb(u), u_kind, u_basis))
+    for v in vs:
+      v_info = get_match_info(v, None)
+      if v_info:
+        (us, v_kind, v_basis) = v_info
+        log("  -> %s %s %s" % (xblurb(v), v_kind, v_basis))
+        for uu in us:
+          log("       -> %s" % xblurb(uu))
+      else:
+        log("  -> %s" % (xblurb(v)))
+  else:
+    log("  -> %s" % (xblurb(u)))
+
+def xblurb(u):
+  name = get_scientific(u) or get_canonical_name(u) or get_managed_id(u)
+  if not is_accepted(u):
+    name = name + "*"
+  stuff = [blurb(u)]
+  stuff.append(get_primary_key(u))
+  if get_nomenclatural_status(u, None):
+    stuff.append(get_nomenclatural_status(u))
+  return ' '.join(stuff)
 
 """
 taxonomy 2015 Prum

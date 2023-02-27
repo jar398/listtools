@@ -41,8 +41,8 @@ silly = 16
 
 unweights = None
 
-default_index_by = ["scientificName", "tipe",
-                    "canonicalName", "canonicalStem",
+default_index_by = ["scientificName",
+                    "canonicalName", "canonicalStem", "tipe",
                     "managed_id"]
 #default_discriminators = ["namePublishedInYear", "nomenclaturalStatus"]
 default_discriminators = []
@@ -117,7 +117,7 @@ def match_checklists(a_table, b_table, pk_col_arg, index_by, discriminators):
 
   for (key1, row1) in all_rows1.items():
     (rows2, kind1, rel1, basis1) = \
-      analyze_matches(key1, best_results2, best_results1, True)
+      analyze_matches(row1, best_results2, best_results1, True)
     if len(rows2) >= WAD_SIZE:
       rows2 = (); kind1 = "too many matches"
     # Store the correspondence.  key2 may be None.
@@ -131,7 +131,7 @@ def match_checklists(a_table, b_table, pk_col_arg, index_by, discriminators):
 
   for (key2, row2) in all_rows2.items():
     (rows1, kind2, rel2, basis2) = \
-      analyze_matches(key2, best_results1, best_results2, False)
+      analyze_matches(row2, best_results1, best_results2, False)
     if len(rows1) >= WAD_SIZE:
       rows1 = (); kind2 = "too many matches"
     key1 = '|'.join(map(lambda row1: row1[pk_pos1], rows1))
@@ -143,29 +143,50 @@ def match_checklists(a_table, b_table, pk_col_arg, index_by, discriminators):
 no_result = (-1, [])
 
 # Returns (relationship, string, comment)
-def analyze_matches(key_a, best_results_b, best_results_a, key_a_in_A):
+def analyze_matches(row_a, best_results_b, best_results_a, key_a_in_A):
+  pk_pos_a = pk_pos1 if key_a_in_A else pk_pos2
+  pk_pos_b = pk_pos2 if key_a_in_A else pk_pos1
+  key_a = row_a[pk_pos_a]
   (score, rows_b) = best_results_b.get(key_a, no_result)
   rows_a = ()
-  if len(rows_b) == 1:
-    row_b = rows_b[0]
-    assert isinstance(row_b[0], str)
-    pk_pos_b = pk_pos2 if key_a_in_A else pk_pos1
-    key_b = row_b[pk_pos_b]
-    (_, rows_a) = best_results_a.get(key_b, no_result)
-    assert len(rows_a) > 0, (key_a, key_b)
-    pk_pos_a = pk_pos1 if key_a_in_A else pk_pos2
-    keys_a = map(lambda row:row[pk_pos_a], rows_a)
-    if key_a in keys_a:
-      if len(rows_a) == 1:
+  if True:
+    def reciprocal(row_b):
+      key_b = row_b[pk_pos_b]
+      (_, rows_a) = best_results_a.get(key_b, no_result)
+      return row_a in rows_a
+    reciprocal_rows_b = [row_b for row_b in rows_b if reciprocal(row_b)]
+    if len(reciprocal_rows_b) >= 1:
+      rows_b = reciprocal_rows_b
+      if len(reciprocal_rows_b) == 1:
         kind = "mutual"
       else:
-        kind = "in competition"
-    else:
-      kind = "lost competition"
-  elif len(rows_b) > 1:
-    kind = "ambiguous"
+        kind = "ambiguous"
+    elif len(rows_b) > 0:
+      kind = "no mutual matches"
+    else: # len(rows_b) == 0:
+      kind = "no match"
   else:
-    kind = "no match"
+    if len(rows_b) == 1:
+      row_b = rows_b[0]
+      assert isinstance(row_b[0], str)
+      pk_pos_b = pk_pos2 if key_a_in_A else pk_pos1
+      key_b = row_b[pk_pos_b]
+      (_, rows_a) = best_results_a.get(key_b, no_result)
+      key_a = row_a[pk_pos_a]
+      assert len(rows_a) > 0, (key_a, key_b)
+      pk_pos_a = pk_pos1 if key_a_in_A else pk_pos2
+      keys_a = map(lambda row:row[pk_pos_a], rows_a)
+      if key_a in keys_a:
+        if len(rows_a) == 1:
+          kind = "mutual"
+        else:
+          kind = "in competition"
+      else:
+        kind = "lost competition"
+    elif len(rows_b) > 1:
+      kind = "ambiguous"
+    else:
+      kind = "no match"
   rel = EQ if kind == "mutual" else NOINFO
   return (rows_b, kind, rel, match_basis(score, unweights))
 

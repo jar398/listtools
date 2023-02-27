@@ -107,7 +107,6 @@ if __name__ == '__main__':
                                 aname,
                                 csv.reader(b_file),
                                 bname)
-
         al = list(al)
         report = align.generate_alignment_report(al, AB)
         util.write_rows(report, sys.stdout)

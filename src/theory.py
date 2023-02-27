@@ -47,32 +47,48 @@ def cross_relation(AB, v, w):
     else:
 
       #! Is either one peripheral?
+      # Compose v <= v_up ship w_up >= w.  Cases:
+      #  v < v_up  ? w_up > w    !
+      #  v < v_up <= w_up = w    <
+      #  v = v_up >= w_up > w    >
+      #  v < v_up  ? w_up = w    !
+      #  v = v_up  ? w_up > w    !
+      #  v = v_up  ? w_up = w    ?
       v_up = increase_until_overlap(AB, v)
       w_up = increase_until_overlap(AB, w)
       if v_up != v and w_up != w:
-        answer = (DISJOINT, "distinct peripherals")
-      elif v_up != v:
-        answer = (PERI, "left peripheral")
-      elif w_up != w:
-        answer = (IREP, "right peripheral")
+        answer = (DISJOINT, "different peripherals")
+      elif v_up != v or w_up != w:
+        (ship, _) = blocked_relationship(AB, v_up, w_up)
+        if v_up != v and (ship & ~LE == 0):
+          answer = (PERI, "left peripheral")
+        elif w_up != w and (ship & ~GE == 0):
+          answer = (IREP, "right peripheral")
+        else:
+          answer = (DISJOINT, "peripheral not under non-peripheral")
       else:
 
         #! Do they have distinct exemplar sets?
-        ship = block_relationship(get_block(v, BOTTOM_BLOCK),
-                                  get_block(w, BOTTOM_BLOCK))
-        if ship != EQ:
-          # ship is not EQ (i.e. exemplar sets are different)
-          answer = (ship, "different exemplar sets")
-        else:
-
-          #! In same block?
-          answer = compare_within_block(v, w)
+        answer = blocked_relationship(AB, v, w)
 
   (ship, note) = answer
   if monitor(v) or monitor(w):
     log("# theory: [%s %s %s] because %s" % (blurb(v), rcc5_symbol(ship), blurb(w), note))
 
   return relation(ship, w, note=note)
+
+# Compare taxa that both have nonempty exemplar sets.
+
+def blocked_relationship(AB, v, w):
+  ship = block_relationship(get_block(v, BOTTOM_BLOCK),
+                            get_block(w, BOTTOM_BLOCK))
+  if ship != EQ:
+    # ship is not EQ (i.e. exemplar sets are different)
+    answer = (ship, "different exemplar sets")
+  else:
+    #! In same block.  Use names to order.
+    answer = compare_within_block(v, w)
+  return answer
 
 # v and w are inequivalent, but they are in the same nonempty block
 # (in parallel chains)

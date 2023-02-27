@@ -31,18 +31,12 @@ def generate_alignment_report(al, AB):
     y = theory.get_outject(w)
     d = category(v, ship, w)
 
-    if d.startswith('remove'):
-      # The following seems to have zero effect.
-      mrel = get_match(x, None)          # Mutual match - we expect this to be included
-      if mrel:
-        if mrel.record:
-          rel = theory.cross_relation(AB, v, mrel.record)
-          log("# removing [%s %s %s], %s" % \
-              (blurb(v), rcc5_symbol(rel.relationship),
-               blurb(rel.record), rel.note))
-        else:
-          log("# removing %s, match note %s" %
-              (blurb(v), rel.note))
+    seen = {}
+    if (d.startswith('remove') and get_match(v, None) != None and
+        not get_primary_key(v) in seen):
+      log("# Removing %s, why?" % blurb(v))
+      diagnose_match(v)         # logs
+      seen[get_primary_key(v)] = True
 
     yield  (get_primary_key(x),
             blurb(x),
@@ -229,7 +223,10 @@ def taxon_articulators(AB, z, infra):
     for r in rr:        # in same checklist as z
       yield articulator(AB, z, r)
   else:
-    # Peripheral
+    vs = get_matches(z)
+    for v in vs:
+      yield articulator(AB, z, v)
+    # Peripheral - has to attach somewhere
     yield articulator(AB, z, theory.get_reflection(z).record)
 
 def articulator(AB, u, r):
@@ -363,5 +360,5 @@ if __name__ == '__main__':
       with util.stdopen(b_path) as b_file:
         (al, AB) = ingest(csv.reader(a_file), "A",
                           csv.reader(b_file), "B")
-        generate_report
+        report = generate_alignment_report(al, AB)
         util.write_rows(report, sys.stdout)
