@@ -45,6 +45,7 @@ def use_parse(gn_iter, check_iter):
   out_header = out_header + ["canonicalStem", "tipe"]
 
   out_canonical_pos = windex(out_header, "canonicalName")
+  out_scientific_pos = windex(out_header, "scientificName")
   out_year_pos = windex(out_header, "namePublishedInYear")
 
   row_count = 0
@@ -52,6 +53,7 @@ def use_parse(gn_iter, check_iter):
   year_count = 0
   canon_count = 0
   stemmed_count = 0
+  lose_count = 0
 
   yield out_header
   for checklist_row in check_iter:
@@ -146,8 +148,15 @@ def use_parse(gn_iter, check_iter):
       assert False
     yield out_row
 
-  print("# use_gnparse: %s rows, added canonical %s, stemmed %s, year %s, tipe %s" %
-        (row_count, canon_count, stemmed_count, year_count, tipe_count),
+    # Kill scientificNames that are redundant with their canonicalName
+    if (out_row[out_canonical_pos] != MISSING and
+        (out_row[out_canonical_pos] == out_row[out_scientific_pos])):
+      out_row[out_scientific_pos] = MISSING
+      lose_count += 1
+
+  print("# use_gnparse: %s rows, added canonical %s, stemmed %s, year %s, tipe %s, lose %s" %
+        (row_count, canon_count, stemmed_count, year_count,
+         tipe_count, lose_count),
         file=sys.stderr)
 
 if __name__ == '__main__':

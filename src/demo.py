@@ -30,7 +30,7 @@ def eulerx_alignment(AB, al):
       yield eulerx_articulation(x, rel.relationship, y, rel.note)
 
 def eulerx_articulation(x, ship, y, note):
-  sym = rcc5_symbol(ship)
+  sym = rcc5_eulerx(ship)
   if ok_for_eulerx(ship):
     return "[%s %s %s]" % (get_eulerx_qualified_name(x),
                            sym,
