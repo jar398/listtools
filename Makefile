@@ -256,7 +256,8 @@ work/ncbi202008-$(taxon).csv: work/ncbi202008-$(taxon)-raw.csv \
    $P/extract_names.py $P/use_gnparse.py
 # raw-to-raw subsetting is implicit... 
 
-# NCBI-specific rules
+work/ncbi201505-$(taxon)-raw.csv: work/ncbi201505-raw.csv
+work/ncbi202008-$(taxon)-raw.csv: work/ncbi202008-raw.csv
 
 # Convert NCBI taxdump to DwC form
 work/ncbi%-raw.csv: work/ncbi%.dump/names.dmp $P/ncbi_to_dwc.py $P/start.py
@@ -403,7 +404,6 @@ col-demo:
 
 # ----- 3. ASU/BioKIC example
 
-
 # Sources are in pgasu/MDD-DwC-mapping repo, based on original sources
 # on zenodo
 #  https://zenodo.org/record/7394529/files/MDD_v1.10_6615species.csv?download=1
@@ -425,40 +425,27 @@ work/mdd1.0-raw.csv: work/mdd/mdd1.0.csv
 # Get later versions at https://zenodo.org/record/7394529#.Y-z1dOLMI1I
 MAPPER?=../MDD-DwC-mapping
 MDDSOURCE?=$(MAPPER)/data
-CONVERTMDD=mkdir -p work/mdd && python3 $(MAPPER)/src/explore_data.py
+MDDDWC?=$(MAPPER)/dwc
+$(MDDDWC)/mdd1.0-dwc.csv: $(MDDSOURCE)/MDD_v1_6495species_JMamm.csv
+$(MDDDWC)/mdd1.1-dwc.csv: $(MDDSOURCE)/MDD_v1.1_6526species.csv
+$(MDDDWC)/mdd1.2-dwc.csv: $(MDDSOURCE)/MDD_v1.2_6485species.csv
+$(MDDDWC)/mdd1.3-dwc.csv: $(MDDSOURCE)/MDD_v1.3_6513species.csv
+$(MDDDWC)/mdd1.31-dwc.csv: $(MDDSOURCE)/MDD_v1.31_6513species.csv
+$(MDDDWC)/mdd1.4-dwc.csv: $(MDDSOURCE)/MDD_v1.4_6533species.csv
+$(MDDDWC)/mdd1.5-dwc.csv: $(MDDSOURCE)/MDD_v1.5_6554species.csv
+$(MDDDWC)/mdd1.6-dwc.csv: $(MDDSOURCE)/MDD_v1.6_6557species.csv
+$(MDDDWC)/mdd1.7-dwc.csv: $(MDDSOURCE)/MDD_v1.7_6567species.csv
+$(MDDDWC)/mdd1.8-dwc.csv: $(MDDSOURCE)/MDD_v1.8_6591species.csv
+$(MDDDWC)/mdd1.9-dwc.csv: $(MDDSOURCE)/MDD_v1.9_6596species.csv
+$(MDDDWC)/mdd1.10-dwc.csv: $(MDDSOURCE)/MDD_v1.10_6615species.csv
 
-work/mdd/mdd1.0.csv: $(MDDSOURCE)/MDD_v1_6495species_JMamm.csv
-	$(CONVERTMDD) --input $< --output $@
-work/mdd/mdd1.1.csv: $(MDDSOURCE)/MDD_v1.1_6526species.csv
-	$(CONVERTMDD) --input $< --output $@
-work/mdd/mdd1.2.csv: $(MDDSOURCE)/MDD_v1.2_6485species.csv
-	$(CONVERTMDD) --input $< --output $@
-work/mdd/mdd1.3.csv: $(MDDSOURCE)/MDD_v1.3_6513species.csv
-	$(CONVERTMDD) --input $< --output $@
-work/mdd/mdd1.31.csv: $(MDDSOURCE)/MDD_v1.31_6513species.csv
-	$(CONVERTMDD) --input $< --output $@
-work/mdd/mdd1.4.csv: $(MDDSOURCE)/MDD_v1.4_6533species.csv
-	$(CONVERTMDD) --input $< --output $@
-work/mdd/mdd1.5.csv: $(MDDSOURCE)/MDD_v1.5_6554species.csv
-	$(CONVERTMDD) --input $< --output $@
-work/mdd/mdd1.6.csv: $(MDDSOURCE)/MDD_v1.6_6557species.csv
-	$(CONVERTMDD) --input $< --output $@
-work/mdd/mdd1.7.csv: $(MDDSOURCE)/MDD_v1.7_6567species.csv
-	$(CONVERTMDD) --input $< --output $@
-work/mdd/mdd1.8.csv: $(MDDSOURCE)/MDD_v1.8_6591species.csv
-	$(CONVERTMDD) --input $< --output $@
-work/mdd/mdd1.9.csv: $(MDDSOURCE)/MDD_v1.9_6596species.csv
-	$(CONVERTMDD) --input $< --output $@
-work/mdd/mdd1.10.csv: $(MDDSOURCE)/MDD_v1.10_6615species.csv
-	$(CONVERTMDD) --input $< --output $@
-
-work/mdd1.1-raw.csv: work/mdd/mdd1.1.csv $P/start.py
+work/mdd%-raw.csv: $(MDDDWC)/mdd%-dwc.csv $P/start.py
 	$P/start.py < $< --pk taxonID > $@.new
 	@mv -f $@.new $@
 
-work/mdd%-raw.csv: work/mdd/mdd%.csv $P/start.py
-	$P/start.py < $< --pk taxonID --managed mdd:taxonID > $@.new
-	@mv -f $@.new $@
+work/mdd1.1-raw.csv: $(MDDDWC)/mdd1.1-dwc.csv $P/start.py
+work/mdd1.6-raw.csv: $(MDDDWC)/mdd1.6-dwc.csv $P/start.py
+work/mdd1.7-raw.csv: $(MDDDWC)/mdd1.7-dwc.csv $P/start.py
 
 # ----- 4. EOL examples
 

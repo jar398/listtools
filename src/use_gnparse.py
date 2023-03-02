@@ -61,13 +61,14 @@ def use_parse(gn_iter, check_iter):
   stemmed_count = 0
   lose_count = 0
 
+  n_added_columns = (len(out_header) - len(checklist_header))
+
   yield out_header
   for checklist_row in check_iter:
     assert len(checklist_row) == len(checklist_header)
     row_count += 1
     gn_row = next(gn_iter)
-
-    out_row = checklist_row
+    out_row = checklist_row + n_added_columns * [MISSING]
 
     # Fill in year if it's missing from source
     year = out_row[out_year_pos]
@@ -145,8 +146,8 @@ def use_parse(gn_iter, check_iter):
 
     # Add extra columns to the original input
     if stemmed: stemmed_count += 1
-    out_row[stem_pos] = stemmed
-    out_row[tipe_pos] = tipe
+    out_row[out_stem_pos] = stemmed
+    out_row[out_tipe_pos] = tipe
     if len(out_row) != len(out_header):
       print("! %s %s" % (len(out_header), out_header,), file=sys.stderr)
       print("! %s %s" % (len(out_row), out_row,), file=sys.stderr)
