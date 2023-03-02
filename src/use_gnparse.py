@@ -32,19 +32,25 @@ def use_parse(gn_iter, check_iter):
   quality_pos = windex(gn_header, "Quality")
 
   checklist_header = next(check_iter)
+  out_header = checklist_header + []
+
+  def ensure_column(col):
+    pos = windex(out_header, col)
+    if pos != None:
+      return (pos, False)
+    else:
+      pos = len(out_header)
+      out_header.append(col)
+      return (pos, True)      
+
+  (out_canon_pos, add_canon) = ensure_column("canonicalName")
+  (out_year_pos, add_year) = ensure_column("namePublishedInYear")
+  (out_stem_pos, add_stem) = ensure_column("canonicalStem")
+  (out_tipe_pos, add_tipe) = ensure_column("tipe")
+
   # May need to consult the source record too
-  add_canon = not "canonicalName" in checklist_header
-  add_year = not "namePublishedInYear" in checklist_header
   status_pos = windex(checklist_header, "nomenclaturalStatus")
 
-  out_header = checklist_header
-  if add_canon:
-    out_header = out_header + ["canonicalName"]
-  if add_year:
-    out_header = out_header + ["namePublishedInYear"]
-  out_header = out_header + ["canonicalStem", "tipe"]
-
-  out_canonical_pos = windex(out_header, "canonicalName")
   out_scientific_pos = windex(out_header, "scientificName")
   out_year_pos = windex(out_header, "namePublishedInYear")
 
@@ -62,8 +68,6 @@ def use_parse(gn_iter, check_iter):
     gn_row = next(gn_iter)
 
     out_row = checklist_row
-    if add_canon: out_row = out_row + [MISSING]
-    if add_year:  out_row = out_row + [MISSING]
 
     # Fill in year if it's missing from source
     year = out_row[out_year_pos]
@@ -93,11 +97,11 @@ def use_parse(gn_iter, check_iter):
 
       # gnparser canonical.
       # Fill in canonical if it's missing from source (checklist_row)
-      canon = out_row[out_canonical_pos]
+      canon = out_row[out_canon_pos]
       if canon == MISSING:
         canon = gn_row[canonical_full_pos]
         if canon:
-          out_row[out_canonical_pos] = canon
+          out_row[out_canon_pos] = canon
           if canon_count < CANON_SAMPLE_LIMIT:
             print("# canonical := '%s' bc '%s'" % (canon_full, gn_row[verbatim_pos]),
                   file=sys.stderr)
@@ -141,7 +145,8 @@ def use_parse(gn_iter, check_iter):
 
     # Add extra columns to the original input
     if stemmed: stemmed_count += 1
-    out_row = out_row + [stemmed, tipe]
+    out_row[stem_pos] = stemmed
+    out_row[tipe_pos] = tipe
     if len(out_row) != len(out_header):
       print("! %s %s" % (len(out_header), out_header,), file=sys.stderr)
       print("! %s %s" % (len(out_row), out_row,), file=sys.stderr)
@@ -149,8 +154,8 @@ def use_parse(gn_iter, check_iter):
     yield out_row
 
     # Kill scientificNames that are redundant with their canonicalName
-    if (out_row[out_canonical_pos] != MISSING and
-        (out_row[out_canonical_pos] == out_row[out_scientific_pos])):
+    if (out_row[out_canon_pos] != MISSING and
+        (out_row[out_canon_pos] == out_row[out_scientific_pos])):
       out_row[out_scientific_pos] = MISSING
       lose_count += 1
 
