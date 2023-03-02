@@ -48,6 +48,15 @@ def windex(header, fieldname):
   else:
     return None
 
+def ensure_column(column_name, out_header):
+  added = False
+  pos = windex(out_header, column_name)
+  if pos == None:
+    pos = len(out_header)
+    out_header.add(column_name)
+    added = True
+  return (pos, added)
+
 # Returns row with same length as correspondence
 
 # correspondence[j] is position of column that maps to jth column

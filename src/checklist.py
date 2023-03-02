@@ -20,6 +20,7 @@ tipe_prop = prop.declare_property("tipe")
 stemmed_prop = prop.declare_property("canonicalStem")
 taxonomic_status_prop = prop.declare_property("taxonomicStatus")
 nomenclatural_status_prop = prop.declare_property("nomenclaturalStatus")
+taxon_remarks_citation_prop = prop.declare_property("taxonRemarksCitation")
 
 # Other checklist properties
 source_prop = prop.declare_property("source", inherit=False)    # which checklist does this belong to?
@@ -54,6 +55,8 @@ outject_prop = prop.declare_property("outject")
 (get_tipe, set_tipe) = prop.get_set(tipe_prop)
 (get_nomenclatural_status, set_nomenclatural_status) = \
   prop.get_set(nomenclatural_status_prop)
+(get_taxon_remarks_citation, set_taxon_remarks_citation) = \
+  prop.get_set(taxon_remarks_citation_prop)
 (get_taxonomic_status, set_taxonomic_status) = \
   prop.get_set(taxonomic_status_prop)
 
@@ -702,95 +705,6 @@ def xblurb(u):
   if get_nomenclatural_status(u, None):
     stuff.append(get_nomenclatural_status(u))
   return ' '.join(stuff)
-
-"""
-taxonomy 2015 Prum
-(Aves Gall_Neoa_Clade Palaeognathae)
-(Gall_Neoa_Clade Galloanserae Neoaves)
-
-taxonomy 2014 Jarvis
-(Aves Neognathae Paleognathae)
-(Paleognathae Struthioniformes Tinamiformes)
-
-articulation 2015-2014 Prum-Jarvis
-[2015.Aves is_included_in 2014.Aves]
-[2015.Gall_Neoa_Clade equals 2014.Neognathae]
-[2015.Palaeognathae is_included_in 2014.Paleognathae]
-[2015.Galloanserae equals 2014.Struthioniformes]
-[2015.Neoaves equals 2014.Tinamiformes]
-"""
-
-# Unique name of the sort Euler/X likes
-# TBD: ensure name is unique (deal with multiple taxa with same canonical)
-
-def get_eulerx_name(x, C=None):
-  if not C: C = get_source(x)
-  which = C.eulerx_which.get(get_primary_key(x))
-  if not which: return None
-  (e, i, cell) = which
-  if cell[0] <= 1:
-    return e
-  else:
-    if False:                   # lots of these in ncbi mammals
-      tag = get_source_tag(x)
-      print("# Discriminating: %s %s/%s, %s in %s" % (e, i, cell[0], get_primary_key(x), tag),
-            file=sys.stderr)
-    return "%s_%s" % (e, i)
-
-def assign_eulerx_names(C):
-  spin = {}    # maps eulerx base name to integer
-  eulerx_which = {}
-  C.eulerx_which = eulerx_which
-  def traverse(x):
-    # x is accepted
-    e = get_eulerx_base_name(x)
-    cell = spin.get(e, 0)
-    if not cell:
-      cell = [0]
-      spin[e] = cell
-    cell[0] += 1
-    key = get_primary_key(x)
-    eulerx_which[key] = (e, cell[0], cell)
-    if get_rank(x, None) != 'species':
-      for c in get_children(x, ()):
-        traverse(c)
-  traverse(C.top)
-
-def get_eulerx_base_name(x):
-  e = blurb(x)
-  e = e.replace(' ', '_')
-  e = e.replace('.', '_')
-  # Nico's cosmetic preference
-  e = e.replace('__', '_')
-  return e
-
-# x is a record (list)
-
-def get_eulerx_qualified_name(x):
-  src = get_source_tag(x)       # e.g. "A"
-  return "%s.%s" % (src, get_eulerx_name(x))
-
-def generate_eulerx_checklist(C):
-  assign_eulerx_names(C)
-  tag = get_tag(C)
-  descr = checklist_description(C)
-  yield ("taxonomy %s %s" % (tag, descr))
-  names = []
-  for rec in preorder_records(C):
-    if rec != C.top:
-      children = get_children(rec, None) # not the synonyms
-      if children:
-        sup_name = get_eulerx_name(rec, C)
-        if sup_name and get_rank(rec, None) != 'species':
-          names = list(map(lambda x:get_eulerx_name(x, C), children))
-          names.sort()
-          yield ("(%s %s)" % (sup_name, ' '.join(names)))
-  yield ''
-
-def checklist_description(C):
-  return get_tag(C) + "_checklist"
-
-# -----------------------------------------------------------------------------
 
 if __name__ == '__main__':
   import newick

@@ -5,54 +5,9 @@ import util
 import workspace
 import align
 
-from rcc5 import *
 from checklist import *
 from workspace import *
-
-# Returns an Iterable of rows
-
-# Returns generator of lines (strings)
-
-def generate_eulerx(AB, al):
-  yield from generate_eulerx_checklist(AB.A)
-  yield from generate_eulerx_checklist(AB.B)
-  yield from eulerx_alignment(AB, al)
-
-def eulerx_alignment(AB, al):
-  A = AB.A; B = AB.B
-  yield ("articulation %s-%s %s-%s" %
-         (get_tag(A), get_tag(B),
-          checklist_description(A), checklist_description(B)))
-  for (v, rel) in al:
-    w = rel.record
-    x = get_outject(v); y = get_outject(w)
-    if not is_top(x) and not is_top(y):
-      yield eulerx_articulation(x, rel.relationship, y, rel.note)
-
-def eulerx_articulation(x, ship, y, note):
-  sym = rcc5_eulerx(ship)
-  if ok_for_eulerx(ship):
-    return "[%s %s %s]" % (get_eulerx_qualified_name(x),
-                           sym,
-                           get_eulerx_qualified_name(y))
-  else:
-    return ("#[%s %s %s] %s" %
-            (get_eulerx_qualified_name(x),
-             sym,
-             get_eulerx_qualified_name(y),
-             note or ''))
-
-def ok_for_eulerx(ship):
-  if False:
-    if ship == EQ: return '='
-    elif ship == LT: return '<'
-    elif ship == GT: return '>'
-    elif ship == CONFLICT: return '><'
-    elif ship == DISJOINT: return '!'
-    else: return False
-  return True
-
-# -----------------------------------------------------------------------------
+from eulerx import generate_eulerx
 
 def test():
   def testit(m, n):
