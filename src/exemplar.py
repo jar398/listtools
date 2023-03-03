@@ -133,8 +133,9 @@ def find_tipwards(AB):
         # v in get_matches(w) ... ??? no
         rel2 = get_matched(w)
         if not rel2 or rel2.record != v:
-          log("# Nonreciprocal tipwards %s %s" % (blurb(w), blurb(rel2)))
-          diagnose_match(v)
+          pass
+          # log("# Nonreciprocal tipwards %s %s" % (blurb(w), blurb(rel2)))
+          # diagnose_match(v)
         else:
           set_tipward(v, rel)
           set_tipward(w, rel2)

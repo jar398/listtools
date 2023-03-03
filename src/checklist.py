@@ -218,8 +218,11 @@ def resolve_superior_link(S, record):
       sup = relation(HAS_PARENT, S.top, note="no parent")
 
   if sup:
-    assert sup.record != record
     set_superior_carefully(record, sup)
+    #if is_toplike(sup.record):
+    #  log("# Superior %s = %s" % (blurb(record), blurb(sup)))
+  else:
+    log("# No superior: %s" % blurb(record))
 
 def synonym_relationship(record, accepted):
   t1 = get_tipe(record, None)
@@ -234,9 +237,11 @@ def synonym_relationship(record, accepted):
 def set_superior_carefully(x, sup):
   assert isinstance(x, prop.Record)
   assert isinstance(sup, Relative)
+  assert sup.record != x
   have = get_superior(x, None)
   if have:
-    if have.relationship != sup.relationship:
+    if (have.relationship != sup.relationship or
+        have.record != sup.record):
       log("**** Changing sup of %s from %a to %s" %
           (blurb(x), blurb(have), blurb(sup)))
   assert x != sup.record, (blurb(x), blurb(sup))        # no self-loops
@@ -390,6 +395,7 @@ def make_top(C):
 
 TOP_NAME = "⊤"
 
+# For non-coproduct checklists only
 def is_top(x):
   return x == get_source(x).top
 

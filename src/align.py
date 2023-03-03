@@ -10,7 +10,8 @@ from property import mep_get, mep_set
 from rcc5 import *
 from checklist import *
 from workspace import *
-from theory import local_sup
+from theory import local_sup, get_equivalent
+from simple import simple_relationship
 
 def ingest(A_iter, A_name, B_iter, B_name):
   A = rows_to_checklist(A_iter, {'tag': A_name or "A"})  # meta
@@ -32,10 +33,11 @@ def generate_alignment_report(al, AB):
     d = category(v, ship, w)
 
     seen = {}
-    if (d.startswith('remove') and get_match(v, None) != None and
+    if (d.startswith('drop') and get_match(v, None) != None and
         not get_primary_key(v) in seen):
-      log("# Removing %s, why?" % blurb(v))
-      diagnose_match(v)         # logs
+      if monitor(v):
+        log("# Removing %s, why?" % blurb(v))
+        diagnose_match(v)         # logs
       seen[get_primary_key(v)] = True
 
     yield  (get_primary_key(x),
@@ -51,18 +53,18 @@ def generate_short_report(al, AB):
   yield ("A name", "B name", "category", "witnesses", "match")
   for (v, rel) in al:
     w = rel.record
-    ship = rel.relationship
-    assert is_acceptable(v), blurb(v)
-    assert is_acceptable(w), blurb(w)
-    d = category(v, ship, w)
-    if not d.startswith('retain'):
-      # Show mismatch / ambiguity ... ?
-      # m = get_match(z); m.note if m else ...
-      yield  (blurb(get_outject(v)) if ship != IREP else MISSING,
-              blurb(get_outject(w)) if ship != PERI else MISSING,
-              d,
-              witness_comment(AB, v, rel),
-              match_comment(AB, v, rel))
+    if ((is_species(v) or is_species(w)) and
+        is_acceptable(v) and is_acceptable(w)):  # filter out subspecies too
+      ship = rel.relationship
+      d = category(v, ship, w)
+      if not d.startswith('retain'):
+        # Show mismatch / ambiguity ... ?
+        # m = get_match(z); m.note if m else ...
+        yield  (blurb(get_outject(v)) if ship != IREP else MISSING,
+                blurb(get_outject(w)) if ship != PERI else MISSING,
+                d,
+                witness_comment(AB, v, rel),
+                match_comment(AB, v, rel))
 
 # This column is called "category" for consistency with MDD.
 
@@ -75,10 +77,10 @@ def category(v, ship, w):
           get_rank(get_accepted(y), None))
   if ship == GT:
     if stay: action = ('retain (split)' if mat else 'split')
-    else: action = 'add (but it was sort of there?)'
+    else: action = 'add'
   elif ship == LT:
     if stay: action = ('retain (lump)' if mat else 'lump')
-    else: action = 'remove (but sort of staying?)'
+    else: action = 'drop'
   elif ship == EQ:
     # No match - ambiguous match - unique match
     # Different names - same name
@@ -112,7 +114,7 @@ def category(v, ship, w):
   elif ship == IREP:
     action = 'add'
   elif ship == PERI:
-    action = 'remove'
+    action = 'drop'
   else:
     action = rcc5_symbol(ship)
   return action
@@ -132,7 +134,24 @@ def witness_comment(AB, v, rel):
              blurb(add) if add else ''))
 
 
+# Ideally, display only surprises: where name match and hierarchy 
+# match give different results.  That would only be the = case.
+# And = is suggested by any positive matches where either match set
+# contains the opposite node.
+
 def match_comment(AB, v, rel):
+  w = rel.record
+  ws = get_matches(v)
+  vs = get_matches(w)
+  x1 = v in vs
+  x2 = w in ws
+  if (x1 or x2) == (rel.relationship == EQ):
+    return MISSING
+  else:            # Surprising
+    return ("a -> %s %s b -> %s %s a" %
+            (len(ws), ';' if x1 else '/', len(vs), ';' if x2 else '/'))
+
+def match_comment1(AB, v, rel):
   w = rel.record
   comments = []
 
@@ -162,7 +181,7 @@ def witnesses(AB, v, w):
   flush = choose_witness(AB, b1.difference(b2), w)
   keep  = choose_witness(AB, b1.intersection(b2), w)
   add   = choose_witness(AB, b2.difference(b1), w)
-  if len(b1) + len(b1) > 1000:
+  if len(b1) + len(b1) > 10000:
     debug_withnesses(AB, v, w)
   return (flush, keep, add)
 
@@ -179,6 +198,7 @@ def debug_withnesses(AB, v, w):
 
 def choose_witness(AB, ids, v):
   have = None
+  count = 0
   for id in ids:
     e = theory.exemplar_record(AB, id, v) 
     if not have:
@@ -187,6 +207,10 @@ def choose_witness(AB, ids, v):
       # maybe pick earliest year or something??
       have = e
       break
+    if count == 100:
+      have = e
+      break
+    count += 1
   return have
 
 # -----------------------------------------------------------------------------
@@ -215,37 +239,43 @@ def alignment_iter(AB):
 
   seen = {}
 
-  # Preorder... 
-  def traverse(z, infra):
-    for (v, w) in taxon_articulators(AB, z, infra): # Normalized
-      if is_species(z):
-        key = (get_primary_key(v), get_primary_key(w))
-        if key in seen or (v == AB.top or w == AB.top):
-          pass
-        else:
-          rel = theory.cross_relation(AB, v, w)
+  def traverse(z, inj):
+    count = 0
+    v = inj(z)
+    for (v, w) in taxon_articulators(AB, z, inj): # Normalized
+      count += 1
+      if count % 1000 == 0:
+        print("# articulator %s: %s" % (blurb(v), blurb(w)),
+              file=sys.stderr)
+      key = (get_primary_key(v), get_primary_key(w))
+      if key in seen or (v == AB.top or w == AB.top):
+        pass
+      else:
+        rel = theory.cross_relation(AB, v, w)
+        # Suppress if entailed by either checklist
+        if (rel.relationship != EQ and
+            not (get_equivalent(v) or get_equivalent(w))):
           yield (v, rel)
           seen[key] = True
-        infra = z
-    for c in get_inferiors(z):
-      yield from traverse(c, infra)
-  yield from traverse(AB.in_right(AB.B.top), False) # B priority
-  yield from traverse(AB.in_left(AB.A.top), False)
+    for c in get_children(z, ()):
+      yield from traverse(c, inj)
+  yield from traverse(AB.B.top, AB.in_right)    # B commtents priority
+  yield from traverse(AB.A.top, AB.in_left)
 
 # There may be duplicates
+# Filter out those involving synonyms
 
-def taxon_articulators(AB, z, infra):
-  rr = list(theory.opposite_exemplar_records(AB, z))
-  if len(rr) > 0:
-    for r in rr:        # in same checklist as z
-      yield articulator(AB, z, r)
-  else:
-    vs = get_matches(z)
-    for v in vs:
-      yield articulator(AB, z, v)
-    # Peripheral - has to attach somewhere
-    re = theory.get_reflection(z).record
-    yield articulator(AB, z, re)
+def taxon_articulators(AB, z, inj):
+  if is_accepted(z):
+    v = inj(z)
+    re = theory.get_reflection(v).record
+    if is_accepted(get_outject(re)):
+      yield articulator(AB, v, re)
+      for c in get_children(z, ()):
+        yield articulator(AB, inj(c), re)
+    for m in get_matches(z):
+      if is_accepted(m):
+        yield articulator(AB, m, v)
 
 def articulator(AB, u, r):
   v = get_acceptable(AB, r) # Accepted and not infraspecific
@@ -260,8 +290,9 @@ def rev_comment(comment):
   else:
     return comment
 
-def is_species(z):              # x in AB
-  return get_rank(z, None) == 'species' and is_accepted(get_outject(z))
+def is_species(v):              # z local
+  z = get_outject(v)
+  return get_rank(z, None) == 'species' and is_accepted(z)
 
 # Acceptable = accepted and not infraspecific.
 # Approximation!

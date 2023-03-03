@@ -204,11 +204,8 @@ def find_reflections(AB):
 # We conclude that v = w iff we would conclude that w = v
 
 def find_reflection(AB, v):
-  if is_toplike(v):
-    if isinA(AB, v):
-      return relation(EQ, AB.in_right(AB.B.top), note="top")
-    else:
-      return relation(EQ, AB.in_left(AB.A.top), note="top")
+  if is_top(get_outject(v)):
+    return relation(EQ, v, note="top")
 
   # 1. Peripherals don't match, period
   vo = increase_until_overlap(AB, v)
@@ -228,6 +225,7 @@ def find_reflection(AB, v):
   # 3. Blocks match.  Look for match within block by name.
   nm = get_matched(v)     # returns relation in AB
   if nm and same_block(get_block(nm.record, BOTTOM_BLOCK), b):
+    assert not(is_toplike(nm.record))
     return nm                 # They're EQ
 
   # 4. If v and w are both at top of their chains, and neither has
@@ -246,13 +244,16 @@ def find_reflection(AB, v):
     if nm and same_block(get_block(nm.record, BOTTOM_BLOCK), b):
       # w matches in v's chain but not vice versa.  Asymmetric
       # log("# theory: unmatched goes to matched: %s ? %s" % (blurb(v), blurb(w)))
+      assert not(is_toplike(w))
       return relation(OVERLAP, w, note="w at top of chain has a match")
     else:
       # Both unmatched and both at top of their chains
       assert get_block(w) == b
+      assert not(is_toplike(w))
       return relation(EQ, w, note="tops of chains, names unmatched")
 
   # 5. Hmph
+  assert not(is_toplike(w))
   return relation(OVERLAP, w, note="v not at top of chain")
 
 # Find an ancestor of v (in A tree) that overlaps the B tree, i.e.
@@ -267,6 +268,7 @@ def increase_until_overlap(AB, v):
     rel = local_sup(AB, v)
     assert rel                  # Assume some intersection
     v = rel.record
+    assert not(is_toplike(v))
   return v
 
 # -----------------------------------------------------------------------------
@@ -298,7 +300,10 @@ def compute_cross_mrcas(AB):
         m = BOTTOM                # identity for mrca
       for c in get_inferiors(x):  # c in A
         q = traverse(c)       # in B
+        m0 = m
         m = simple.mrca(m, q)      # in B
+        #if m and is_top(m) and m != m0:
+        #  log("# toplike mrca of %s, %s = %s" % (blurb(m0), blurb(q), blurb(m)))
 
       # Sanity checks
       b1 = get_block(v, BOTTOM_BLOCK)
@@ -312,6 +317,8 @@ def compute_cross_mrcas(AB):
         # AssertionError: ([122, 123, 124], [124])
         assert block_le(b1, b2), (list(b1), list(b2))
 
+        #if is_toplike(w):
+        #  log("# toplike cross_mrca of %s = %s" % (blurb(v), blurb(w)))
         set_cross_mrca(v, w)
       return m
     traverse(AB.A.top)
