@@ -443,9 +443,11 @@ work/mdd%-raw.csv: $(MDDDWC)/mdd%-dwc.csv $P/start.py
 	$P/start.py < $< --pk taxonID > $@.new
 	@mv -f $@.new $@
 
+work/mdd1.0-raw.csv: $(MDDDWC)/mdd1.0-dwc.csv $P/start.py
 work/mdd1.1-raw.csv: $(MDDDWC)/mdd1.1-dwc.csv $P/start.py
 work/mdd1.6-raw.csv: $(MDDDWC)/mdd1.6-dwc.csv $P/start.py
 work/mdd1.7-raw.csv: $(MDDDWC)/mdd1.7-dwc.csv $P/start.py
+work/mdd1.10-raw.csv: $(MDDDWC)/mdd1.10-dwc.csv $P/start.py
 
 # ----- 4. EOL examples
 

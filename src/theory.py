@@ -87,48 +87,67 @@ def blocked_relationship(AB, v, w):
     answer = (ship, "different exemplar sets")
   else:
     #! In same block.  Use names to order.
-    answer = compare_within_block(v, w)
+    answer = compare_within_block(AB, v, w)
   return answer
 
 # v and w are inequivalent, but they are in the same nonempty block
 # (in parallel chains)
 
-def compare_within_block(v, w):
+def compare_within_block(AB, v, w):
   assert not is_empty_block(get_block(v, BOTTOM_BLOCK))
   # Look for a record match for v or w, and punt to simple case
-  rel1 = rel2 = None
-  v_eq = get_equivalent(v)
-  if v_eq:
-    # v = m ? w
-    rel1 = simple.simple_relationship(get_outject(v_eq.record), get_outject(w))
-  w_eq = get_equivalent(w)     # w, w_eq, w_eq.record in AB
-  if w_eq:
-    # v ? n = w
-    rel2 = simple.simple_relationship(get_outject(v), get_outject(w_eq.record))
-  # See whether the v/v_eq/w_eq/w diagram commutes
-  if rel1 and rel2:
-    ship = rel1.relationship & rel2.relationship
+
+  # Set up a v/m/w/n diagram and see how well it commutes.
+
+  # Path 1: v = m ? w
+  rel_vm = get_equivalent(v)      # v = m
+  if rel_vm:
+    m = rel_vm.record
+    rel_mw = simple.simple_relationship(get_outject(m), get_outject(w)) # in A or B
+    ship1 = rel_mw.relationship   # v ? w
+
+  # Path 2: v ? n = w   (starting with w)
+  rel_wn = get_equivalent(w)     # n = w
+  if rel_wn:
+    n = rel_wn.record
+    rel_vn = simple.simple_relationship(get_outject(v), get_outject(n))
+    ship2 = rel_vn.relationship   # v ? w
+
+  if rel_vm and rel_wn:
+    # Take intersection to see where they agree
+    ship = ship1 & ship2
     # Take intersection of relationships (both are true)??
     assert ship != 0, \
-      (blurb(v),
-       rcc5_symbol(rel1.relationship), 
-       blurb(w_eq.record),
-       blurb(v_eq.record),
-       rcc5_symbol(rel2.relationship), 
-       blurb(w))
-    answer = (ship, rel1.note)
-  elif rel1:
-    answer = (rel1.relationship, rel1.note)
-    # log("# theory: v %s %s %s" % (blurb(v), blurb(rel1), blurb(w)))
-  elif rel2:
-    answer = (rel2.relationship, rel2.note)
+      (blurb(v),              # v
+       blurb(rel_vm),         #   = m
+       blurb(rel_mw),         #       ? w
+       'and',                 # v
+       blurb(rel_vn),         #   ? n
+       cross_relation(n, w))  #       = w
+    if ship1 != ship2:
+      if ship != ship1:
+        log("# (%s, %s); Reducing %s to %s" %
+            (blurb(v), blurb(w), rcc5_symbol(ship1), rcc5_symbol(ship)))
+      elif ship != ship2:
+        log("# (%s, %s): Reducing %s to %s" %
+            (blurb(v), blurb(w), rcc5_symbol(ship2), rcc5_symbol(ship)))
+
+    # All four notes are relevant, actually
+    answer = (ship, rel_mw.note)
+
+  elif rel_vm:
+    # have m, but no equivalent to w
+    answer = (ship1, rel_vm.note)
+    # log("# theory: v %s %s %s" % (blurb(v), blurb(rel_m), blurb(w)))
+  elif rel_wn:
+    answer = (ship2, rel_wn.note)
     # log("# theory: w %s %s %s" % (blurb(v), blurb(rel2), blurb(w)))
   else:
     # Neither v nor w has a suitable equivalent, but they're in same block,
     # so COMPARABLE.   (assume existence of total interleaved chain.)
     # Happens a lot e.g. Spermophilopsis leptodactyla
     #log("# theory: Comparable: [%s %s %s]" % (blurb(v), rcc5_symbol(COMPARABLE), blurb(w)))
-    answer = (COMPARABLE, "in interleaved monotypic chain")
+    answer = (COMPARABLE, "'monotypic chain'")
   return answer
 
 # RCC-5 relationship across the two checklists
@@ -318,6 +337,11 @@ def analyze_blocks(AB):
       e = combine_blocks(e, traverse(c, in_left, inB))
       if monitor(c):
         log("# theory: got subblock %s -> %s" % (blurb(c), len(e),))
+
+    if False and len(e) > 1000:
+      print("# analyze_blocks: %s has %s exemplars" % (blurb(x), len(e)),
+            file=sys.stderr)
+
     v = in_left(x)              # in A (or B if in B)
     exem = get_exemplar_record(v, None) # (id, v, w)
     if exem: e = adjoin_exemplar(exem[0], e)

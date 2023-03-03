@@ -58,8 +58,8 @@ def generate_short_report(al, AB):
     if not d.startswith('retain'):
       # Show mismatch / ambiguity ... ?
       # m = get_match(z); m.note if m else ...
-      yield  (blurb(get_outject(v)) if ship != IREP else "NA",
-              blurb(get_outject(w)) if ship != PERI else "NA",
+      yield  (blurb(get_outject(v)) if ship != IREP else MISSING,
+              blurb(get_outject(w)) if ship != PERI else MISSING,
               d,
               witness_comment(AB, v, rel),
               match_comment(AB, v, rel))
@@ -122,7 +122,9 @@ def category(v, ship, w):
 def witness_comment(AB, v, rel):
   w = rel.record
   ship = rel.relationship
-  (flush, keep, add) = witnesses(AB, v, w)
+  probe = witnesses(AB, v, w)
+  if not probe: return ''
+  (flush, keep, add) = probe
   if flush or keep or add and not ship == PERI and not ship == IREP:
     return ("%s|%s|%s" %
             (blurb(flush) if flush else '',
@@ -154,11 +156,26 @@ def match_comment(AB, v, rel):
 def witnesses(AB, v, w):
   b1 = theory.get_block(v, theory.BOTTOM_BLOCK)
   b2 = theory.get_block(w, theory.BOTTOM_BLOCK)
+  if len(b1) == 0 or len(b2) == 0:
+    return None
   # Names are all according to B
   flush = choose_witness(AB, b1.difference(b2), w)
   keep  = choose_witness(AB, b1.intersection(b2), w)
   add   = choose_witness(AB, b2.difference(b1), w)
+  if len(b1) + len(b1) > 1000:
+    debug_withnesses(AB, v, w)
   return (flush, keep, add)
+
+def debug_withnesses(AB, v, w):
+  b1 = theory.get_block(v, theory.BOTTOM_BLOCK)
+  b2 = theory.get_block(w, theory.BOTTOM_BLOCK)
+  def foo(v, which, w, s):
+    print("# choose_witness: %s %s %s has %s exemplars" %
+          (blurb(v), which, blurb(w), len(s)),
+          file=sys.stderr)
+  foo(v, "-", w, b1.difference(b2))
+  foo(v, "∩", w, b1.intersection(b2))
+  foo(w, "-", v, b2.difference(b1))
 
 def choose_witness(AB, ids, v):
   have = None
@@ -166,9 +183,10 @@ def choose_witness(AB, ids, v):
     e = theory.exemplar_record(AB, id, v) 
     if not have:
       have = e
-    if is_acceptable(e):
+    if is_acceptable(e):     # ?
       # maybe pick earliest year or something??
       have = e
+      break
   return have
 
 # -----------------------------------------------------------------------------
@@ -194,7 +212,6 @@ def alignment_iter(AB):
   theory.load_matches(matches_iter, AB)
   theory.theorize(AB)
   span.span(AB)
-  #find_acceptables(AB)
 
   seen = {}
 
@@ -227,7 +244,8 @@ def taxon_articulators(AB, z, infra):
     for v in vs:
       yield articulator(AB, z, v)
     # Peripheral - has to attach somewhere
-    yield articulator(AB, z, theory.get_reflection(z).record)
+    re = theory.get_reflection(z).record
+    yield articulator(AB, z, re)
 
 def articulator(AB, u, r):
   v = get_acceptable(AB, r) # Accepted and not infraspecific
@@ -248,77 +266,36 @@ def is_species(z):              # x in AB
 # Acceptable = accepted and not infraspecific.
 # Approximation!
 
-(see_acceptable, set_acceptable) = prop.get_set(prop.declare_property('acceptable'))
-
 def is_acceptable(u):           # in AB
-  if False:
-    return not see_acceptable(u, None)
-  else:
-    x = get_outject(u)
-    aa = not(unacceptable_locally(x))
-    if aa: assert is_accepted(x)
-    return aa
+  return is_acceptable_locally(get_outject(u))
 
-# This is inaccurate - doesn't allow nested infraspecific ranks
-# Returns reason
-
-def unacceptable_locally(x):
-  if not is_accepted(x):
-    return "not accepted"
-  if get_rank(x, None) == 'species':
-    return False
-  sup = get_superior(x, None)
-  if not sup:
-    return False
-  if get_rank(sup.record, None) == 'species':
-    # Taxa that are subspecies, variety, etc. are not acceptable
-    return 'infraspecific'
-  return False
-
-# Returns (ancestor, comment)
+# Returns ancestor
 
 def get_acceptable(AB, u):
-  if False:
-    return see_acceptable(y, None) or (u, 'acceptable')
+  x = get_outject(u)
+  # Ascend until an acceptable is found
+  while not is_acceptable_locally(x):
+    sup = get_superior(x, None)
+    if not sup:
+      break
+    x = sup.record
+  return AB.in_left(x) if isinA(AB, u) else AB.in_right(x)
+
+# This is inaccurate - doesn't allow nested infraspecific ranks
+
+def is_acceptable_locally(x):
+  if is_accepted(x):
+    if get_rank(x, None) == 'species':
+      return True
+    sup = get_superior(x, None)
+    if not sup:
+      return True
+    if get_rank(sup.record, None) == 'species':
+      # Taxa that are below species (variety, etc.) are not acceptable
+      return False
+    return True
   else:
-    x = get_outject(u)
-    # Ascend until a species is found
-    reason = ''
-    while True:
-      reason2 = unacceptable_locally(x)
-      if not reason2: break
-      reason = reason2
-      sup = get_superior(x, None)
-      if not sup:
-        break
-      x = sup.record
-    assert is_accepted(x), blurb(x)
-    # discard reason
-    if isinA(AB, u):
-      return AB.in_left(x)
-    else:
-      return AB.in_right(x)
-
-# Acceptable = accepted AND not infraspecific
-# A synonym could be a synonym of a genus, species, subspecies, etc.
-
-def find_acceptables(AB):
-  def find(C, in_lr):
-    def traverse(x, a):
-      if is_accepted(x):
-        # Infraspecific if a is a species
-        if a and get_rank(a, None) == 'species':
-          # assert get_rank(x, None) != 'variety', 1
-          set_acceptable(in_lr(x), (in_lr(a), 'infraspecific'))
-        else:
-          a = x
-      else:
-        set_acceptable(in_lr(x), (in_lr(a), 'synonym'))
-      for c in get_inferiors(x):
-        traverse(c, a)
-    traverse(C.top, None)
-  find(AB.A, lambda x: AB.in_left(x))
-  find(AB.B, lambda y: AB.in_right(y))
+    return False
 
 def sort_key(c):
   return (get_canonical(c, ''),

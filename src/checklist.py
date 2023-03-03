@@ -146,6 +146,9 @@ def rows_to_checklist(iterabl, meta):
   for record in prop.get_records(column):
     set_source(record, S)       # not same as EOL "source" column
     resolve_superior_link(S, record)
+  roots = list(get_inferiors(S.top))
+  if len(roots) > 1:
+    log("-- %s roots" % len(roots))
   return S
 
 # Property scoping context ...
@@ -411,8 +414,6 @@ def get_accepted(x):            # Doesn't return falsish
     return x
   else:
     rp = get_superior(x, None)
-    if monitor(x):
-      log("> snap link %s %s" % (blurb(x), blurb(rp)))
     if rp:
       return get_accepted(rp.record) # Eeeek!
     else:
@@ -585,9 +586,9 @@ def blurb(r):
       return name
   elif isinstance(r, Relative):
     if r.note:
-      return ("[? %s %s, '%s']" %
-              (rcc5_symbol(r.relationship),
-               blurb(r.record), r.note))
+      return ("[%s (%s) %s]" %
+              (rcc5_symbol(r.relationship), r.note,
+               blurb(r.record)))
     else:
       return "[%s %s]" % (rcc5_symbol(r.relationship), blurb(r.record))
   elif isinstance(r, str):

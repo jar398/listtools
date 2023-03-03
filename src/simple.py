@@ -22,13 +22,13 @@ def simple_relationship(x, y):             # Within a single tree
   (x2, y2) = find_peers(x1, y1)    # Decrease levels as needed
   if x2 == y2:     # x <= x2 = y2 >= y1
     if x2 == x1:     # x = x2 = y2 > y, so x > y
-      return relation(GT, y, note="x = x2 = y2 > y")
+      return relation(GE, y, note="x = x2 = y2 >= y")
     elif y2 == y1:
-      return relation(LT, y, note="x < x2 = y2 = y")
+      return relation(LE, y, note="x <= x2 = y2 = y")
     else:
       assert False  # can't happen
   else:
-    return relation(DISJOINT, y, note="x <= x2 != y2 >= y")
+    return relation(COMPARABLE, y, note="x <= x2 != y2 >= y")
 
 # Compare x1 to y1 as siblings under assumption that x1 = y1
 # Requires review
@@ -37,6 +37,7 @@ def sibling_relationship(x, y):
   x1 = get_accepted(x)
   y1 = get_accepted(y)
   if x1 != x and y1 != y:
+    # x and y are both synonyms
     r1 = get_superior(x).relationship
     r2 = get_superior(y).relationship
     if r1 == SYNONYM or r2 == SYNONYM or r1 != r2:
