@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 
-import sys, argparse
+import sys, argparse, regex
 import property as prop
 import util, workspace
+import rows
 
 from util import log
 from property import mep_get, mep_set
@@ -16,57 +17,65 @@ from match_records import match_records
 # are 'tipward' do.  'Tipward' means that at least one of the two taxa
 # has no tipward accepted descendant taxon.
 
-def exemplars(A_iter, B_iter, m_iter):
-  A = rows_to_checklist(A_iter, {'tag': "A"})
-  B = rows_to_checklist(B_iter, {'tag': "B"})
-  AB = workspace.make_workspace(A, B, {'tag': "AB"})
-  if not m_iter:
-    m_iter = match_records(checklist_to_rows(A), checklist_to_rows(B))
-  checklist.load_matches(m_iter, AB)
+def generate_exemplars(AB):
   yield ("exemplar", "A_taxonID", "B_taxonID")
-  for (id, v, w) in choose_exemplars(AB):
-    yield (id, get_primary_key(get_outject(v)), get_primary_key(get_outject(w)))
+  count = 0
+  for (id, vs, rels, pnym) in choose_exemplars(AB):
+    count += 1
+    yield (id,
+           get_primary_key(get_outject(v)),
+           get_primary_key(get_outject(rel.record)),
+           pnym)
+  log("# exemplar report rows: %s" % count)
 
-# Returns list of (id, v, w)
+# Returns generator of (id, v, w, protonymic).
+# Called from 
 
 def choose_exemplars(AB):
   analyze_tipwards(AB)
-  exemplar_records = []
-  seen = prop.mep()             # set
+  seen = prop.mep()             # set of Record
+  counter = [0]
   def do_exemplars(AB, inB):
-    def traverse(x, emap):
-      if emap == None and get_rank(x, None) == 'species':
-        emap = {}
+    def traverse(x, species_exem):      # x in A
+      # log("# considering %s" % (blurb(x)))
+      x_exem = get_proto(x)
+      inf_exem = (x_exem
+                  if get_rank(x, None) == 'species'
+                  else species_exem)
       for c in get_inferiors(x): # Generator
-        traverse(c, emap)
+        # One child of c, together with its homotypic synonyms, will have the same protonym
+        yield from traverse(c, inf_exem)
       v = AB.in_left(x)
       rel = get_tipward(v, None)
+      log("# tipward? %s %s" % (blurb(v), blurb(rel)))
       if rel:
-        if emap == None: emap = {}
         w = rel.record          # in other checklist. not nec. tipward
         y = get_outject(w)
-        e = epithetlike(x, y)
-        ex = emap.get(e, None)
-        if ex == None:
-          id = len(exemplar_records)
-          # Should save reason (in rel)??
-          ex = (id, [], [])
-          exemplar_records.append(ex)
-          emap[e] = ex
-        (_, vs, ws) = ex
+        if x_exem:              # Passed down from ancestor species
+          (_, _, _, x_proto) = x_exem
+          proto = parse.unify_protos(x_proto, get_proto(y))
+        else:
+          proto = x_proto
+        nymic = parse.unparse_proto(proto) if proto else MISSING
+        if have == None:
+          id = counter[0]; counter[0] += 1
+          have = [id, None, None, nymic]
+          log("# exemplar %s" % have)
+        [_, v, w, _] = have
         if not mep_get(seen, v, False):
-          vs.append(v)
-          mep_set(seen, v, True)
+          have[1] = v
+          mep_set(seen, v, have)
         if not mep_get(seen, w, False):
-          ws.append(w)
-          mep_set(seen, w, True)
-    traverse(AB.A.top, None)
-  do_exemplars(AB, False)
-  do_exemplars(swap(AB), True)
-  log("# exemplars: %s exemplar records" % len(exemplar_records))
-  return exemplar_records
+          have[2] = w
+          mep_set(seen, w, have)
+        if v and w:
+          yield have
+    yield from traverse(AB.A.top, None, None)
+  yield from do_exemplars(AB, False)
+  yield from do_exemplars(swap(AB), True)
+  log("# exemplars: %s exemplar records" % counter[0])
 
-def epithetlike(x, y):          # x and y match uniquely
+def unify_protonymics(x, y):          # x and y match uniquely
   e1 = get_epithet(x)
   e2 = get_epithet(y)
   if e1 and e2:
@@ -93,14 +102,6 @@ def rank(x):
   if r == 'subspecies': return 4
   if r == 'variety': return 3
   else: return 0
-
-# Stemmed last epithet.
-
-def get_epithet(x):
-  # Stemmed name will always be present if it's been run through gnparse,
-  # absent otherwise.
-  stemmed = get_stemmed(x, None)
-  return stemmed.split(' ')[-1] if stemmed else None
 
 # Find tipward record matches (TRMs)
 
@@ -134,12 +135,16 @@ def find_tipwards(AB):
         rel2 = get_matched(w)
         if not rel2 or rel2.record != v:
           pass
-          # log("# Nonreciprocal tipwards %s %s" % (blurb(w), blurb(rel2)))
+          log("# Nonreciprocal tipwards %s %s" % (blurb(w), blurb(rel2)))
           # diagnose_match(v)
         else:
           set_tipward(v, rel)
           set_tipward(w, rel2)
         seen = 1
+        # log("# Tipwards %s %s" % (blurb(v), blurb(w)))
+      else:
+        pass
+        # log("# No tipwards %s" % (blurb(v),))
     return seen + seen2
   traverse(AB, AB.A.top)
   traverse(swap(AB), AB.B.top)
@@ -172,19 +177,17 @@ if __name__ == '__main__':
   parser.add_argument('--matches', help="the A-B matches list")
   args=parser.parse_args()
 
+  a_name = "A"; b_name = "B"
   a_path = args.A
   b_path = args.B
   m_path = args.matches
-  with util.stdopen(a_path) as a_file:
-    with util.stdopen(b_path) as b_file:
-      def doit(m_iter):
-        rows = exemplars(csv.reader(a_file),
-                         csv.reader(b_file),
-                         m_iter)
-        writer = csv.writer(sys.stdout)
-        for row in rows: writer.writerow(row)
+  with rows.open(a_path) as a_rows:
+    with rows.open(b_path) as b_rows:
       if m_path:
-        with open(m_path) as m_file:
-          doit(csv.reader(m_file))
+        with rows.open(m_path) as m_rows:
+          AB = ingest_workspace(a_rows.rows(), a_name, b_rows.rows(), b_name, m_rows.rows())
       else:
-        doit(None)
+        # compute name matches afresh
+        AB = ingest_workspace(a_rows.rows(), a_name, b_rows.rows(), b_name, None)
+      x_gen = generate_exemplars(AB)
+      util.write_rows(x_gen, sys.stdout)

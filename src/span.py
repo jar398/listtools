@@ -13,7 +13,7 @@ import theory
 from checklist import rows_to_checklist, checklist_to_rows, get_superior, \
   relation, get_children, set_children, get_synonyms, set_synonyms, \
   get_taxonomic_status, set_taxonomic_status, \
-  get_source, get_outject, blurb
+  get_source, get_outject, blurb, is_toplike
 import newick
 import checklist, match_records, workspace
 from checklist import monitor
@@ -55,7 +55,7 @@ def span(AB):
 
       # Normalize non-dominant w to dominant equivalent
       if theory.isinA(AB, w):
-        v_rel = theory.get_equivalent(w, None)
+        v_rel = theory.get_equivalent(AB, w)
         # N.b. w and v could be top
         if v_rel:    # in A
           # If w has an equivalent in B, synonymize the two
@@ -69,23 +69,24 @@ def span(AB):
         # q is another possible parent of w
         qy_rel = get_superior(y, None)
 
-        status = get_taxonomic_status(w) # taxonomic status = ???
-
         # If there are two possibilities, pick the smallest
         if qy_rel and p_rel:
           p = p_rel.record
           q = C.in_right(qy_rel.record)
-          ship = theory.cross_relation(C, p, q).relationship
+          ship = theory.compare(C, p, q).relationship
           blot = "%s %s %s" % (blurb(p), rcc5_symbol(ship), blurb(q))
           if ship == GT or ship == GE:
             sup = relation(qy_rel.relationship, q,
-                           note="%s, choosing right" % blot)
+                           note="%s, choosing right" % blot,
+                           span=qy_rel.span)
           elif ship == LT or ship == LE:
             sup = relation(p_rel.relationship, p,
-                           note="%s, choosing left" % blot)
+                           note="%s, choosing left" % blot,
+                           span=p_rel.span)
           elif theory.isinB(AB, w):
             sup = relation(qy_rel.relationship, q,
-                           note="%s, choosing dominant (on right)" % blot)
+                           note="%s, choosing dominant (on right)" % blot,
+                           span=qy_rel.span)
           elif ship == EQ:
             sup = relation(p_rel.relationship, p,
                            note="%s, choosing dominant (on left)" % blot)
@@ -110,16 +111,18 @@ def span(AB):
 
         # Normalize sup to dominant equivalent (transfer children and
         # synonyms over to dominant node)
-        r = sup.record
-        s_rel = theory.get_equivalent(r, None)
-        if s_rel and theory.isinB(AB, s_rel.record):
-          sup = relation(sup.relationship, s_rel.record,
-                         note=sup.note + " normalized")
+        if sup != None and sup.record != None:
+          r = sup.record
+          assert r, "foooo"
+          s_rel = theory.get_equivalent(AB, r)
+          if s_rel and theory.isinB(AB, s_rel.record):
+            sup = relation(sup.relationship, s_rel.record,
+                           note=sup.note + " normalized")
 
       #log("sup %s = %s" % (blurb(w), blurb(sup)))
 
-      assert isinstance(sup, checklist.Relative)
-      checklist.link_superior(w, sup) # adds w to children/synonyms list
+      if sup:                           # not top
+        checklist.link_superior(w, sup) # adds w to children/synonyms list
 
   traverse(AB)
   traverse(theory.swap(AB))
@@ -134,28 +137,26 @@ def span(AB):
 
 # AB.B could be priority, or not
 
-def cross_superior(AB, v0):
-  v = theory.increase_until_overlap(AB, v0)
-  if not v:
-    log("no overlap of %s with B" % blurb(v))
-    return None
-  # increase w until v0 < w
-  rel = theory.get_reflection(v)     # candidate in AB
+def cross_superior(AB, v):
+  # Smallest in opposite checklist that's >= v
+  rel = theory.get_estimate(v)     # candidate in AB
   assert rel
   w = rel.record
   while True:
-    rel = theory.cross_relation(AB, v0, w)
+    # Looking for least w such that v <= w0 < w
+    rel = theory.compare(AB, v, w)
     ship = rel.relationship
-    if ship == LT or ship == LE or ship == PERI:
+    if ship == LT or ship == LE:
       break
+    log("# foo %s %s" % (blurb(v), blurb(rel)))
     wsup = theory.local_sup(AB, w)
-    q = wsup.record
-    if not q:
+    if not wsup:
+      assert is_toplike(w)
       log("#  no node in B is bigger than %s" % blurb(v))
       return None
-    w = q
+    w = wsup.record
 
-  assert ship == LT or ship == LE or ship == PERI, \
+  assert ship == LT or ship == LE, \
     (blurb(v), rcc5_symbol(ship), blurb(w))
 
   return relation(ship, w, note=rel.note)

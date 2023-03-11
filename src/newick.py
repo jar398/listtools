@@ -1,73 +1,69 @@
 #!/usr/bin/env python3
 
-import sys, re, csv, argparse
-from util import MISSING, windex, log
+import sys, re, csv, argparse, util
+from util import windex, log, MISSING
 
 tokenize = re.compile("[^,()]+")
 
 # Given a Newick string, returns an iterable of rows.
 
 def parse_newick(newick):
-  rows = []
+  yield ("taxonID", "canonicalName",
+         "parentNameUsageID", "acceptedNameUsageID",
+         "taxonomicStatus")
 
-  rows.append(("taxonID", "canonicalName",
-               "parentNameUsageID", "acceptedNameUsageID",
-               "taxonomicStatus"))
-  counter = [0]
+  id_counter = [0]
+  def gen_id():
+    id_counter[0] += 1
+    return id_counter[0]
 
-  def gen():
-    counter[0] += 1
-    return counter[0]
+  cursor = [0]
 
-  def parse(n, sup):
-    id = gen()
+  def parse(superior):
+    if cursor[0] >= len(newick):
+      return
 
-    if n >= len(newick):
-      return n
+    id = gen_id()
 
-    inferiors = []
-
-    if newick[n] == '(':
-      n += 1
+    if newick[cursor[0]] == '(':
+      cursor[0] += 1
       while True:
-        n = parse(n, id)
-        if n >= len(newick):
+        yield from parse(id)
+        if cursor[0] >= len(newick):
           break
-        elif newick[n] == ')':
-          n += 1
+        elif newick[cursor[0]] == ')':
+          cursor[0] += 1
           break
-        elif newick[n] == ',':
-          n += 1
+        elif newick[cursor[0]] == ',':
+          cursor[0] += 1
         else:
           assert False
 
     name = MISSING
+    m = tokenize.match(newick, cursor[0])
+    if m: name = m[0]
+    cursor[0] += len(name)
 
-    m = tokenize.match(newick, n)
-    if m:
-      name = m[0]
-      if name.endswith('*'):
-        can = name[0:-1]
-        parent = MISSING
-        accepted = sup
-        status = 'synonym'
-      else:
-        can = name
-        parent = sup
-        accepted = MISSING
-        status = 'accepted'
-      n += len(name)
+    if name.endswith('*'):
+      can = name[0:-1]
+      parent = MISSING
+      accepted = superior
+      status = 'synonym'
+    else:
+      can = name
+      parent = superior
+      accepted = MISSING
+      status = 'accepted'
     # taxonID, canonicalName,
     #           parentNameUsageID, acceptedNameUsageID,
     #           taxonomicStatus
-    rows.append((str(id), can.strip(), str(parent), str(accepted), status))
+    yield (str(id), can.strip(), str(parent), str(accepted), status)
 
-    return n
-  n = parse(0, MISSING)
-  if n < len(newick):
-    print("! extra stuff after end of newick: %s" % newick[n:],
-          file=sys.stderr)
-  return rows
+  yield from parse(MISSING)
+  if False:
+    if cursor[0] < len(newick):
+      print("! extra stuff after end of newick: %s" % newick[cursor[0]:],
+            file=sys.stderr)
 
 # Consumes an iterable of rows, and returns a Newick string.
 
@@ -127,7 +123,11 @@ def compose_newick(rows):
 
 if __name__ == '__main__':
   parser = argparse.ArgumentParser(description="""
-    TBD
+    With the --newick argument, converts the command line newick
+    notation string into CSV, and writes the CSV to standard output.
+
+    Without it, converts CSV read from standard input to newick
+    notation, which is written to standard output.
     """)
   parser.add_argument('--newick',
                       default=None,
@@ -135,8 +135,8 @@ if __name__ == '__main__':
   args=parser.parse_args()
 
   if args.newick != None:
-    gen = parse_newick(args.newick)
     writer = csv.writer(sys.stdout)
-    for row in gen: writer.writerow(row)
+    for row in parse_newick(args.newick):
+      writer.writerow(row)
   else:
     print(compose_newick(csv.reader(sys.stdin)))

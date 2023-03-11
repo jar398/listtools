@@ -5,7 +5,7 @@
 #  - Makes sure all rows have the same number of fields
 
 import sys, csv, re, hashlib, argparse
-from util import csv_parameters, windex, stable_hash, MISSING
+from util import csv_parameters, windex, stable_hash, log, MISSING
 
 def start_csv(inport, params, outport, args):
   cleanp = args.clean
@@ -16,8 +16,8 @@ def start_csv(inport, params, outport, args):
   # Use built-in python csv sniffer ??
   if len(in_header) == 1:
     if "," in in_header[0] or "\t" in in_header[0]:
-      print("** start: Suspicious in_header", file=sys.stderr)
-      print("** start: in_header is %s" % (in_header,), file=sys.stderr)
+      log("** start: Suspicious in_header")
+      log("** start: in_header is %s" % (in_header,))
 
   def fix(h):
     if h[0] == '\ufeff': h = h[1:]
@@ -41,13 +41,13 @@ def start_csv(inport, params, outport, args):
   taxon_id_pos = windex(in_header, "taxonID")
 
   if taxon_id_pos == None:
-    print("** No taxonID column. Header is %s" % (in_header,), file=sys.stderr)
+    log("** No taxonID column. Header is %s" % (in_header,))
 
   out_header = in_header
 
   must_affix_pk = (pk_pos_in == None)
   if must_affix_pk:
-    print("-- Appending a %s column" % pk_col, file=sys.stderr)
+    log("-- Appending a %s column" % pk_col)
     out_header = in_header + [pk_col]
 
   # --managed taxonID --prefix GBIF:   must always be used together
@@ -60,10 +60,10 @@ def start_csv(inport, params, outport, args):
     assert managed_col_pos != None
     assert windex(in_header, "managed_id") == None
 
-    print("-- Appending a managed_id column", file=sys.stderr)
+    log("-- Appending a managed_id column")
     out_header = out_header + ["managed_id"]
 
-  # print("# Output header: %s" % (out_header,), file=sys.stderr)
+  # log("# Output header: %s" % (out_header,))
 
   # Do these after header modifications
   pk_pos_out = windex(out_header, pk_col)
@@ -88,10 +88,9 @@ def start_csv(inport, params, outport, args):
       row = row[0:len(in_header)]
       trimmed += 1
     elif len(row) < len(in_header):
-      print(("** start: Unexpected number of columns: have %s want %s" %
-             (len(row), len(in_header))),
-            file=sys.stderr)
-      print(("** start: Row is %s" % (row,)), file=sys.stderr)
+      log(("** start: Unexpected number of columns: have %s want %s" %
+             (len(row), len(in_header))))
+      log(("** start: Row is %s" % (row,)))
       assert False
 
     # Filter out senior synonyms
@@ -125,9 +124,8 @@ def start_csv(inport, params, outport, args):
     indication_1 = (au == MISSING or au == usage_id)
 
     if indication_1 != indication_2 and conflicts < 10:
-      print("-- %s has accepted %s but taxstatus %s" %
-             (usage_id, au, stat),
-            file=sys.stderr)
+      log("-- %s has accepted %s but taxstatus %s" %
+             (usage_id, au, stat))
     conflicts += 1
 
     # landmark_status is specific to EOL
@@ -169,9 +167,8 @@ def start_csv(inport, params, outport, args):
 
     # Set primary key if duplicate or mising
     if pk in seen_pks:
-      print("** %s is not a good primary key column.  Two or more rows with %s = %s\n" %
-            (pk_col, pk_col, pk),
-            file=sys.stderr)
+      log("** %s is not a good primary key column.  Two or more rows with %s = %s\n" %
+            (pk_col, pk_col, pk))
       pk = fresh_pk(row, out_header)
       out_row[pk_pos_out] = pk
     elif pk == MISSING:
@@ -185,24 +182,19 @@ def start_csv(inport, params, outport, args):
     writer.writerow(out_row)
     count += 1
     if count % 250000 == 0:
-      print("row %s id %s" % (count, row[taxon_id_pos]),
-            file=sys.stderr)
-  print("-- start: %s rows, %s columns, %s ids minted, %s accepteds normalized" %
-        (count, len(in_header), minted, accepteds_normalized),
-        file=sys.stderr)
-  print("-- start: %s names cleaned, %s ranks cleaned" %
-        (names_cleaned, ranks_cleaned),
-        file=sys.stderr)
+      log("row %s id %s" % (count, row[taxon_id_pos]))
+  log("-- start: %s rows, %s columns, %s ids minted, %s accepteds normalized" %
+        (count, len(in_header), minted, accepteds_normalized))
+  log("-- start: %s names cleaned, %s ranks cleaned" %
+        (names_cleaned, ranks_cleaned))
   if senior > 0:
-    print("-- start: filtered out %s senior synonyms" % senior,
-          file=sys.stderr)
+    log("-- start: filtered out %s senior synonyms" % senior)
   if managed > 0:
-    print("-- start: %s managed ids" % managed, file=sys.stderr)
+    log("-- start: %s managed ids" % managed)
   if trimmed > 0:
     # Ignoring extra values is appropriate behavior for DH 0.9.  But
     # elsewhere we might want ragged input to be treated as an error.
-    print("-- start: trimmed extra values from %s rows" % (trimmed,),
-          file=sys.stderr)
+    log("-- start: trimmed extra values from %s rows" % (trimmed,))
     
 def fresh_pk(row, out_header):
   try:
@@ -257,7 +249,7 @@ def clean_name(row, can_pos, sci_pos):
       # swap
       row[sci_pos] = MISSING
       row[can_pos] = s
-      # print("start: c := s", file=sys.stderr) - frequent in DH 1.1
+      # log("start: c := s") - frequent in DH 1.1
       mod = True
     elif c == s:
       if is_scientific(c):
@@ -265,20 +257,20 @@ def clean_name(row, can_pos, sci_pos):
         row[can_pos] = MISSING
       else:
         row[sci_pos] = MISSING
-      # print("start: flush s", file=sys.stderr) - frequent in DH 1.1
+      # log("start: flush s") - frequent in DH 1.1
       mod = True
   if sci_pos != None and row[sci_pos]:
-    repl = row[sci_pos].replace(' & ', ' and ') # frequent in DH 1.1
+    repl = row[sci_pos].replace(' and ', ' & ') # frequent in DH 1.1
     repl = repl.replace(',,', ',')    # kludge for MDD 1.0
     if repl != row[sci_pos]:
       row[sci_pos] = repl
       mod = True
   return mod
 
-sci_re = re.compile(" [1-2][0-9]{3}\\b")
+has_auth_re = regex.compile(u" (\()\p{Uppercase_Letter}[\p{Letter}-]+")
 
 def is_scientific(name):
-  return sci_re.search(name)
+  return auth_re.search(name)
 
 def clean_rank(row, rank_pos, can_pos):
   if rank_pos != None and row[rank_pos] == MISSING and \

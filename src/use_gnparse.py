@@ -4,14 +4,15 @@
 
 import sys, csv, argparse
 import regex
-import util
-from util import windex, MISSING
+import util, parse
+from util import windex, MISSING, log
 
 # was auth_re = re.compile("[A-Z][A-Za-z'-]+")
 auth_re = regex.compile(u"\p{Uppercase_Letter}[\p{Letter}-]+")
 year_re = regex.compile(' ([12][0-9]{3})\)?$')
 
 CANON_SAMPLE_LIMIT = 0    # for debugging
+ADD_TIPES = True
 
 def use_parse(gn_iter, check_iter):
 
@@ -46,7 +47,9 @@ def use_parse(gn_iter, check_iter):
   (out_canon_pos, add_canon) = ensure_column("canonicalName")
   (out_year_pos, add_year) = ensure_column("namePublishedInYear")
   (out_stem_pos, add_stem) = ensure_column("canonicalStem")
-  (out_tipe_pos, add_tipe) = ensure_column("tipe")
+  (out_auth_pos, add_auth) = ensure_column("scientificNameAuthorship")
+  if ADD_TIPES:
+    (out_tipe_pos, _) = ensure_column("tipe")
 
   # May need to consult the source record too
   status_pos = windex(checklist_header, "nomenclaturalStatus")
@@ -70,6 +73,15 @@ def use_parse(gn_iter, check_iter):
     gn_row = next(gn_iter)
     out_row = checklist_row + n_added_columns * [MISSING]
 
+    sci_name = row[out_scientific_pos]
+    if sci_name.startswith("Nil"):
+      sci_name = "?" + sci_name[3:]
+    (complete, authorship) = parse.split_protonymic(sci_name,
+                                              gn_row[canonical_full_pos],
+                                              gn_row[auth_pos])
+    (token, year, _) = parse.analyze_authorship(authorship)
+    assert year == gn_year
+
     # Fill in year if it's missing from source
     year = out_row[out_year_pos]
     if year == MISSING:
@@ -79,12 +91,15 @@ def use_parse(gn_iter, check_iter):
         year_count += 1
 
     # gnparser tries to parse Verbatim into
-    #   CanonicalSimple [+ FullJunk] [+ Authorship] [+ Year].
-    # where CanonicalFull = CanonicalSimple + FullJunk.
-    # We further parse CanonicalStem (if provided) to Pre_epithets + epithets
+    #   CanonicalFull [+ Junk] [+ Authorship].
+    # where Junk is whatever sits between the CanonicalFull and the year.
+    # We further parse CanonicalStem (if gnparse provides it) to Pre_epithets + epithets
     # and discard pre_epithets, otherwise just use all of Verbatim in key.
     # If Authorship is present parse it into Most + last, keep last, and discard
     # Most.  (The last epithet is most informative.)
+    # Challenge:
+    #   gnparser "Foo bar baz quux var. yow Jones, 2008"
+    # which yields an empty Authorship and Year and Quality = 5.
 
     stemmed = MISSING
     tipe = MISSING   # default, overridden if possible
@@ -112,34 +127,46 @@ def use_parse(gn_iter, check_iter):
       # do not trim non-epithet if year or auth is missing
       if gn_row[canonical_full_pos] == gn_row[canonical_simple_pos]:
         stemmed = gn_row[stem_pos]
+        (_, _, epithet) = parse.analyze_complete(complete)   # but want the epithet to be stemmed...
+        if not epithet.startswith(stemmed):
+          # There's extra stuff after the end of the canonicalFull and canonicalStemmed,
+          # so the end of canonicalStemmed is not going to give a solid match key.
+          log("# Substituting nonstandard %s for gnparse's %s" %
+              (epithet, stemmed))
+          stemmed = epithet
+
         # See https://github.com/gnames/gnparser/issues/238
         if stemmed.endswith('i') and canon.endswith('ii'):
           stemmed = stemmed[0:-1]
 
-      # Number of space-separated parts of name (e.g. Genus epithet = 2)
-      card = int(gn_row[cardinality_pos] or '0')
+      if ADD_TIPES:
+        # Number of space-separated parts of name (e.g. Genus epithet = 2)
+        card = int(gn_row[cardinality_pos] or '0')
 
-      # Figure out auth part of tipe... trim off authors after first
-      m = auth_re.search(gn_row[auth_pos])
-      auth = m[0] if m else MISSING
+        # Figure out auth part of tipe... trim off authors after first
+        authorship = gn_row[auth_pos]
+        m = auth_re.search(authorship)
+        token = m[0] if m else MISSING
 
-      if stemmed and year and auth and card > 1:
-        # Figure out epithet part of type
-        # e.g. 'specios' in 'Hygrophorus lucorum var. speciosus'
-        epithet = stemmed.split(' ')[-1]
-        tipe_count += 1
-        # Put them together
-        if ';' in epithet or ';' in auth:
-          print("!!! Warning: semicolon in tipe should be quoted somehow",
-                file=sys.stderr)
-        assert not ' ' in epithet
-        assert not ' ' in auth
-        tipe = "[? %s %s, %s]" % (epithet, auth, year)
+        if stemmed and year and token and card > 1:
+          # Figure out epithet part of type
+          # e.g. 'specios' in 'Hygrophorus lucorum var. speciosus'
+          epithet = stemmed.split(' ')[-1]
+          tipe_count += 1
+          # Put them together
+          if ';' in epithet or ';' in token:
+            print("!!! Warning: semicolon in tipe should be quoted somehow",
+                  file=sys.stderr)
+          assert not ' ' in epithet
+          assert not ' ' in token
+          tipe = "[? %s %s, %s]" % (epithet, token, year)
+
+        out_row[out_tipe_pos] = tipe
 
     else:
       status = (checklist_row[status_pos] if status_pos != None else '')
-      if False and (status == 'accepted' or status == 'valid' or status == ''):
-        # Happens very frequenctly with NCBI
+      if False and (status.startswith('accepted') or status == 'valid' or status == ''):
+        # Happens very frequently with NCBI.  Do our own parse?
         print("# Poor quality name: '%s' quality %s" %
               (gn_row[verbatim_pos], quality),
               file=sys.stderr)
@@ -147,7 +174,7 @@ def use_parse(gn_iter, check_iter):
     # Add extra columns to the original input
     if stemmed: stemmed_count += 1
     out_row[out_stem_pos] = stemmed
-    out_row[out_tipe_pos] = tipe
+    out_row[out_auth_pos] = authorship
     if len(out_row) != len(out_header):
       print("! %s %s" % (len(out_header), out_header,), file=sys.stderr)
       print("! %s %s" % (len(out_row), out_row,), file=sys.stderr)
@@ -156,7 +183,7 @@ def use_parse(gn_iter, check_iter):
 
     # Kill scientificNames that are redundant with their canonicalName
     if (out_row[out_canon_pos] != MISSING and
-        (out_row[out_canon_pos] == out_row[out_scientific_pos])):
+        (out_row[out_canon_pos] == sci_name)):
       out_row[out_scientific_pos] = MISSING
       lose_count += 1
 

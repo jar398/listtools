@@ -103,6 +103,7 @@ def eulerx_alignment(AB, al):
          (get_tag(A), get_tag(B),
           checklist_description(A), checklist_description(B)))
   for (v, rel) in al:
+    rel = maybe_graft(rel) # Mark grafts with ! per Nico's suggestion
     w = rel.record
     x = get_outject(v); y = get_outject(w)
     if not is_top(x) and not is_top(y):
@@ -126,7 +127,7 @@ def ok_for_eulerx(ship):
     if ship == EQ: return '='
     elif ship == LT: return '<'
     elif ship == GT: return '>'
-    elif ship == CONFLICT: return '><'
+    elif ship == OVERLAP: return '><'
     elif ship == DISJOINT: return '!'
     else: return False
   return True

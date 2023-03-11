@@ -2,6 +2,7 @@
 # Miscellaneous things used by more than one listtools module
 
 import sys, io, argparse, csv, hashlib
+from typing import NamedTuple, Any
 
 MISSING = ''  # property.MISSING
 
@@ -41,6 +42,11 @@ def read_rows(reader, key=lambda row: row[0]):
     all_rows[ky] = row
   # print("# read_rows: read %s non-header rows" % len(all_rows), file=sys.stderr)
   return all_rows
+
+def write_rows(gen, outfile):
+  writer = csv.writer(outfile)
+  for row in gen:
+    writer.writerow(row)
 
 def windex(header, fieldname):
   if fieldname in header:
@@ -94,24 +100,27 @@ def stable_hash(lst, without=None):
     del lst[without]
   return hashlib.sha1("^".join(lst).encode('utf-8')).hexdigest()[0:8]
 
-def write_rows(gen, outfile):
-  writer = csv.writer(outfile)
-  for row in gen:
-    writer.writerow(row)
-
 # Random.  Simplifies processing of command line args that are
 # filename or - (for stdin); lets you use 'with' without having to
 # discriminate between the two argument forms.
 
-class Stdin:
-  def __enter__(self): return sys.stdin
+class Trivial:
+  def __init__(self, what): 
+    print("%s" % what, file=sys.stderr)
+    self.what = what
+  def __enter__(self): return self.what
   def __exit__(self, exc_type, exc_val, exc_tb): return
 
-def stdopen(x):
+def stdopen(x, mode='r'):
   if x == '-' or not x:
-    return Stdin()
+    if 'w' in mode:
+      print('in %s' % mode, file=sys.stderr)
+      return Trivial(sys.stdout)
+    else:
+      print('out %s' % mode, file=sys.stderr)
+      return Trivial(sys.stdin)
   else:
-    return open(x)
+    return open(x, mode)
 
 # 
 

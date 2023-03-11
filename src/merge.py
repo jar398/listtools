@@ -118,7 +118,7 @@ def process_lineage(AB, z):
       t = (z, ry, note, rp, rq)
     elif ship == LT or ship == SYNONYM:
       t = (z, rx, note, rp, ry)
-    elif ship == CONFLICT:
+    elif ship == OVERLAP:
       # x conflicts with y.  Delete x, take min(p, q) as parent
       # Parent of z is y, not x; skip x and go right to p
       propose_deprecation(AB, z, rx.record, ry.record)
@@ -149,8 +149,8 @@ def relationship_per_heuristics(AB, x, y):
     ans = (LT, "types(x) ⊂ types(y)")
   elif ship == GT:          # different tipe sets
     ans = (GT, "types(y) ⊂ types(x)")
-  elif ship == CONFLICT:
-    ans = (CONFLICT, "types(x) >< types(y)")
+  elif ship == OVERLAP:
+    ans = (OVERLAP, "types(x) >< types(y)")
   # *** ship is COMPARABLE at this point ***
   elif (rp and rq and
         get_block(x, BOTTOM_BLOCK) != get_block(rp.record, BOTTOM_BLOCK) and   # in different blocks?

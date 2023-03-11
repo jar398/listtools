@@ -33,6 +33,7 @@ from functools import reduce
 from util import ingest_csv, windex, MISSING, \
                  correspondence, precolumn, stable_hash, log
 from rcc5 import *
+import rows
 
 # 20 : 8 : 20 : 8
 
@@ -41,79 +42,57 @@ silly = 16
 
 unweights = None
 
-default_index_by = ["scientificName",
+default_index_by = ("scientificName",
                     "canonicalName", "canonicalStem", "tipe",
-                    "managed_id"]
-#default_discriminators = ["namePublishedInYear", "nomenclaturalStatus"]
-default_discriminators = []
+                    "managed_id")
+#default_discriminators = ("namePublishedInYear", "nomenclaturalStatus")
+default_discriminators = ()
 
 TOP = MISSING
 
 # Row iterables -> row iterable
 
-def match_records(a_reader, b_reader, pk_col="taxonID",
+def match_records(a_gen, b_gen, pk_col="taxonID",
                   index_by=None,
                   discriminators=None):
   if index_by == None: index_by = default_index_by
   if discriminators == None: discriminators = default_discriminators
   assert index_by != None, index_by
+  assert not None in index_by
   assert discriminators != None, discriminators
 
-  a_table = ingest_csv(a_reader, pk_col)
-  b_table = ingest_csv(b_reader, pk_col)
+  # A 'table' here is an index of the rows by the primary key
+  a_table = ingest_csv(a_gen, pk_col)  # gobbles entire generator
+  b_table = ingest_csv(b_gen, pk_col)
   # match_checklists returns a generator
   cop = match_checklists(a_table, b_table, pk_col, index_by, discriminators)
   yield from generate_match_report(cop, pk_col)
 
-# Sum -> row iterable, suitable for writing to output CSV file.
-# B is priority, so treat A matches as annotations on it
-# Part of this module's API.
-# coproduct arg is a generator, result is a generator.
-
-def generate_match_report(coproduct, pk_col):
-  yield [pk_col, "relationship", "match_id", "direction", "kind", "basis_of_match"]
-  kind_counters = {}
-  for (key1, ship, key2, direction, kind, basis_of_match) in coproduct:
-
-    dk = (direction, kind)
-    counter = kind_counters.get(dk)
-    if not counter:
-      counter = [0]
-      kind_counters[dk] = counter
-    counter[0] += 1
-
-    if kind != "no match":
-      ship_sym = rcc5_symbol(ship)
-      yield (key1, ship_sym, key2, direction, kind, basis_of_match)
-
-  for (dk, counter) in kind_counters.items():
-    (direction, kind) = dk
-    log("-- match: %s %s: %s" % (direction, kind, counter[0]))
-
-# table * table -> sum (cf. delta.py ?)
+# table * table -> coproduct (cf. delta.py ?)
 
 def match_checklists(a_table, b_table, pk_col_arg, index_by, discriminators):
   global header1, header2, pk_col, pk_pos1, pk_pos2
   pk_col = pk_col_arg
   (header1, all_rows1) = a_table   # dict all_rows1: key -> row
   (header2, all_rows2) = b_table
-  pk_pos1 = windex(header1, pk_col)
-  assert pk_pos1 != None 
+  pk_pos1 = windex(header1, pk_col) # global
   pk_pos2 = windex(header2, pk_col)
+  assert pk_pos1 != None 
   assert pk_pos2 != None
 
   assert len(index_by) + len(discriminators) < index_by_limit
 
-  prepare_rows(header1, all_rows1)
-  prepare_rows(header2, all_rows2)
+  # For Norway/Sweden comparison... maybe not needed? with better algo?
+  # prepare_rows(header1, all_rows1)
+  # prepare_rows(header2, all_rows2)
 
   (best_results2, best_results1) = \
     find_best_matches(header1, header2, all_rows1, all_rows2, 
                       index_by, discriminators)
 
-  # -----
+  # ----- Emit rows
 
-  log("-- match: %s rows1, %s with matches" % (len(all_rows1), len(best_results2)))
+  log("-- match: %s A rows with matches, %s best" % (len(all_rows1), len(best_results2)))
 
   for (key1, row1) in all_rows1.items():
     (rows2, kind1, rel1, basis1) = \
@@ -127,7 +106,7 @@ def match_checklists(a_table, b_table, pk_col_arg, index_by, discriminators):
     else:
       yield (key1, rel1, key2, "A->B", kind1, basis1)
 
-  log("# %s rows1, %s with matches" % (len(all_rows2), len(best_results1)))
+  log("# %s A rows, %s with matches" % (len(all_rows2), len(best_results1)))
 
   for (key2, row2) in all_rows2.items():
     (rows1, kind2, rel2, basis2) = \
@@ -142,8 +121,9 @@ def match_checklists(a_table, b_table, pk_col_arg, index_by, discriminators):
 
 no_result = (-1, [])
 
-# Returns (relationship, string, comment)
+# Returns (relationship, kind, ship, comment)
 def analyze_matches(row_a, best_results_b, best_results_a, key_a_in_A):
+  global pk_pos1, pk_pos2
   pk_pos_a = pk_pos1 if key_a_in_A else pk_pos2
   pk_pos_b = pk_pos2 if key_a_in_A else pk_pos1
   key_a = row_a[pk_pos_a]
@@ -222,6 +202,7 @@ def find_best_matches(header1, header2, all_rows1, all_rows2,
     result2_so_far = best_results2.get(key1, None) or no_result
 
     # Compare matching rows in rows2 to row1.
+    log("# positions in B: %s" % positions)
     for prop in row_properties(row1, header1, positions):
       if prop_count > 0 and prop_count % 500000 == 0:
         log("# %s property values..." % prop_count)
@@ -235,8 +216,8 @@ def find_best_matches(header1, header2, all_rows1, all_rows2,
         result1_so_far = best_results1.get(key2, None) or no_result
 
         score = compute_score(row1, row2, corr_12, a_weights)
-        if False:
-          log("# compare %s to %s (%s) because %s" % (key1, key2, score, prop))
+        if True:
+          log("# score(%s, %s) = %s because %s" % (key1, key2, score, prop))
 
         # Does row2 improve on existing result for row1?
         (score2_so_far, rows2) = result2_so_far # keyed by row1
@@ -264,8 +245,8 @@ def find_best_matches(header1, header2, all_rows1, all_rows2,
 
   #log("# match_records: indexed %s property values" % prop_count)
   if len(all_rows1) > 0 and len(all_rows2) > 0:
-    assert len(best_results1) > 0
-    assert len(best_results2) > 0
+    if len(best_results1) == 0 or len(best_results2) == 0:
+      log("# No best results!")
   return (best_results2,           # Keyed by key1
           best_results1)           # Keyed by key2
 
@@ -311,8 +292,8 @@ def get_weights(header_a, header_b, index_by, discriminators):
     if pos_a != None and pos_b != None:
       weight = 1 << (silly + len(all) - i)
       a_weights[pos_a] = weight
-    if i < len(index_by):
-      unweights.append((weight, col))
+      if i < len(index_by):
+        unweights.append((weight, col))
   return (a_weights, unweights)
 
 LIMIT=10
@@ -343,11 +324,16 @@ def index_rows_by_property(all_rows, header, index_by):
 def get_positions(header, index_by):
   p = []
   for col in index_by:
+    assert col
     w = windex(header, col)
     if w != None:
       p.append(w)
+      # log("* %s column present in %s; indexing %s" % (col, header, index_by))
+      pass
     else:
-      log("* No %s column present" % col)
+      # e.g. data set doesn't contain a scientificName column
+      # log("* No %s column present in %s; indexing %s" % (col, header, index_by))
+      pass
   return p
 
 # Generate all the (propertyname, value) pairs selected from row at
@@ -359,6 +345,32 @@ def row_properties(row, header, positions):
   for pos in positions:
     if row[pos] != MISSING and row[pos] != "NA":
       yield (header[pos], row[pos])
+
+# Sum -> row iterable, suitable for writing to output CSV file.
+# B is priority, so treat A matches as annotations on it
+# Part of this module's API.
+# coproduct arg is a generator, result is a generator.
+
+def generate_match_report(coproduct, pk_col):
+  yield [pk_col, "relationship", "match_id", "direction", "kind", "basis_of_match"]
+  kind_counters = {}
+  for (key1, ship, key2, direction, kind, basis_of_match) in coproduct:
+
+    dk = (direction, kind)
+    counter = kind_counters.get(dk)
+    if not counter:
+      counter = [0]
+      kind_counters[dk] = counter
+    counter[0] += 1
+
+    if kind != "no match":
+      ship_sym = rcc5_symbol(ship)
+      yield (key1, ship_sym, key2, direction, kind, basis_of_match)
+
+  for (dk, counter) in kind_counters.items():
+    (direction, kind) = dk
+    log("-- %s matches with direction %s and kind %s" %
+        (counter[0], direction, kind))
 
 # Had to do this for the Norway/Sweden comparison...
 # Want various ways of expressing 'accepted' to be = in the score computation.
@@ -392,18 +404,11 @@ def test():
 # -----------------------------------------------------------------------------
 # Command line interface
 
-def main(inport1, inport2, pk_col, index_by, outport):
-  gen = match_records(csv.reader(inport1), csv.reader(inport2),
-                      pk_col=pk_col, index_by=index_by)
-  writer = csv.writer(outport)
-  for row in gen: writer.writerow(row)
-
-
 if __name__ == '__main__':
   parser = argparse.ArgumentParser(description="""
     Standard input is the 'left' or 'A' usage records.
-    Standard output is the record-level sum A+B of the two inputs,
-    with rows of the form [id-in-A+B, id-in-A, id-in-B, remark].
+    Standard output is the record-level coproduct A&B of the two inputs,
+    with rows of the form [id-in-A, id-in-coproduct, remark].
     """)
   parser.add_argument('--A',
                       help="name of file containing 'left' or 'A' usages")
@@ -417,9 +422,20 @@ if __name__ == '__main__':
                       default=None,
                       help='names of columns to match on')
   args=parser.parse_args()
-  with open(args.A, "r") as inport1:
-    with open(args.B, "r") as inport2:
-      main(inport1, inport2, args.pk,
-           args.index.split(",") if args.index else None,
-           sys.stdout)
 
+  a_path = args.A
+  b_path = args.B
+
+  with rows.open(a_path) as a_rows:
+    with rows.open(b_path) as b_rows:
+      writer = csv.writer(sys.stdout)
+      if args.index:
+        cols = args.index.split(",")
+        assert not None in cols, args.index
+      else:
+        cols = None
+      matches = list(match_records(a_rows.rows(), b_rows.rows(),
+                                   pk_col=args.pk, index_by=cols))
+      log("# match_records: %s records" % len(matches))
+      for row in matches:
+        writer.writerow(row)

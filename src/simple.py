@@ -10,50 +10,64 @@ from checklist import *
 
 # Returns a Relation explaining justification
 
-def simple_relationship(x, y):             # Within a single tree
-  if x == y:
-    return relation(EQ, y, note="identical")
+def compare_in_checklist(x, y):             # Within a single checklist
   x1 = get_accepted(x)
   y1 = get_accepted(y)
   if x1 == y1:                    # same accepted
-    (ship, note) = sibling_relationship(x, y)
-    return relation(ship, y, note=note)
+    return compare_siblings(x, x1, y1, y)
+  return compare_accepted_in_checklist(x, y)
 
-  (x2, y2) = find_peers(x1, y1)    # Decrease levels as needed
-  if x2 == y2:     # x <= x2 = y2 >= y1
-    if x2 == x1:     # x = x2 = y2 > y, so x > y
-      return relation(GE, y, note="x = x2 = y2 >= y")
-    elif y2 == y1:
-      return relation(LE, y, note="x <= x2 = y2 = y")
+def compare_accepted_in_checklist(x, y):
+  (x_peer, y_peer) = find_peers(x, y)    # Decrease levels as needed
+  if x_peer == y_peer:     # x <= x_peer = y_peer >= y
+    if x_peer == x:     # x = x_peer = y_peer > y, so x > y
+      sup = get_superior(y)
+      if sup and x == sup.record:
+        return reverse_relation(sup, y)
+      else:
+        return relation(GT, y, note="x = xp = yp > y")
+    elif y_peer == y:
+      # if x_peer is parent of y, then use sup relation
+      sup = get_superior(x)
+      if sup and y == sup.record:
+        return sup
+      else:
+        return relation(LT, y, note="x < xp = yp = y")
     else:
-      assert False  # can't happen
+      return relation(EQ, y)   # x = x_peer = y_peer = y
   else:
-    return relation(COMPARABLE, y, note="x <= x2 != y2 >= y")
+    log("# peers: %s <= %s != %s >= %s" %
+        (blurb(x), blurb(x_peer), blurb(y_peer), blurb(y)))
+    return relation(DISJOINT, y, note="x < xp = yp > y")
 
-# Compare x1 to y1 as siblings under assumption that x1 = y1
-# Requires review
-# x and y might be in different checklists!
-def sibling_relationship(x, y):
-  x1 = get_accepted(x)
-  y1 = get_accepted(y)
-  if x1 != x and y1 != y:
-    # x and y are both synonyms
-    r1 = get_superior(x).relationship
-    r2 = get_superior(y).relationship
-    if r1 == SYNONYM or r2 == SYNONYM or r1 != r2:
-      return (NOINFO, "sibling synonyms")
-    elif r1 == LT:                                 # ?
-      return (NEQ, "sibling heterotypic synonyms") # ?
+# previous name
+def simple_relationship(x, y):             # Within a single tree
+  return compare_in_checklist(x, y)
+
+# Compare x to y under the assumption that accepted(x) = accepted(y).
+# x and y might be in different checklists.
+# Requires review.
+
+def compare_siblings(x, x1, y1, y):
+  if x != x1 and y != y1:       # x <= x1 = y1 >= y
+    if known_different_exemplars(x, y):
+      return relation(NEQ, y, "sibling heterotypic synonyms", span=2)
+    elif known_same_exemplar(x, y):                # Need fuzzy protonym compare
+      return relation (EQ, y, "sibling homotypic synonyms", span=2)
     else:
-      return (EQ, "sibling homotypic synonyms")
-  elif x1 != x:
-    r1 = get_superior(x).relationship
-    return (r1, "synonym of") # could say heterotypic, homotypic, none
-  elif y1 != y:
-    r2 = get_superior(y).relationship
-    return (reverse_relationship(r2), "has synonym")
+      return relation(NOINFO, y, "sibling synonyms", span=2)
+  elif x != x1:
+    # LT -> heterotypic, EQ -> homotypic (?), SYNONYM -> unknown
+    return relation(synonym_relationship(x, x1), y, "synonym of", span=1)
+  elif y != y1:
+    return relation(reverse_relationship(synonym_relationship(y, y1)),
+                    y, "has synonym", span=1)
   else:
-    return (EQ, "identical" if x == y else "equivalent")
+    # Provide match info ??
+    return relation(EQ, y, MISSING if x == y else "equivalent", span=0)
+
+# (ship, note) =     return relation(ship, y, note=note)
+
 
 # Assumes already 'nipped'
 

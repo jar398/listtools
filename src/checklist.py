@@ -8,6 +8,7 @@ from typing import NamedTuple, Any
 import property as prop
 from util import log, MISSING
 from rcc5 import *
+import parse
 
 # Strings (field values)
 primary_key_prop = prop.declare_property("taxonID")
@@ -85,13 +86,53 @@ get_basis_of_match = prop.getter(prop.declare_property("basis_of_match", inherit
 class Relative(NamedTuple):
   relationship : Any    # < (LT, HAS_PARENT), <= (LE), =, NOINFO, maybe others
   record : Any       # the record that we're relating this one to
-  note : str = ''   # further comments justifying this relationship
+  span : int
+  note : Any          # comments justifying this relationship
 
-def relation(ship, record, note=''):
+def relation(ship, record, note=MISSING, span=None):
   assert isinstance(ship, int), ship
+  assert note != None
   assert ((ship == NOINFO and not record) or \
           isinstance(record, prop.Record)), blurb(record)
-  return Relative(ship, record, note=note)
+  if span == None:
+    if ship == EQ: span = 0
+    #elif ship == SYNONYM or MYNONYS: span = 1
+    else: span = 2
+  return Relative(ship, record, span, note)
+
+def reverse_relation(rel, starting):
+  return Relative(reverse_relationship(rel.relationship),
+                  starting,
+                  rel.span,
+                  reverse_note(rel.note))
+
+def compose_relations(rel1, rel2):
+  if is_identity(rel1): return rel2
+  if is_identity(rel2): return rel1
+  return Relative(compose_relationships(rel1.relationship, rel2.relationship),
+                  rel2.record,
+                  rel1.span + rel2.span,
+                  compose_notes(rel1.note, rel2.note))
+
+def is_identity(rel):
+  return rel.relationship == EQ and rel.note == MISSING
+
+# Algebra of 'notes'
+
+def reverse_note(note):
+  if note:
+    if note.startswith("←"):
+      return note[-1:]
+    else:
+      return "←" + note
+  else:
+    return note
+
+def compose_notes(note1, note2):
+  if note1 == MISSING: return note2
+  if note2 == MISSING: return note1
+  if note1 == note2: return note1     # for LT/GT chains
+  return "%s; %s" % (note1, note2)
 
 # -----------------------------------------------------------------------------
 # Source checklists
@@ -185,7 +226,7 @@ def resolve_superior_link(S, record):
   if accepted_key:
     # set_accepted(record, False)
     accepted = look_up_record(S, accepted_key, record)
-    if accepted:
+    if accepted:                        # Is there an accepted record (parent)?
       status = get_taxonomic_status(record, "synonym")    # default = synonym?
       if status == "equivalent":
         rel = relation(EQ, record, note="input")
@@ -195,7 +236,8 @@ def resolve_superior_link(S, record):
         if monitor(record):
           log("# %s %s %s %s" %
               (blurb(record), taxonID, accepted_key, blurb(accepted)))
-        sup = relation(synonym_relationship(record, accepted), accepted, note="declared")
+        sup = relation(synonym_relationship(record, accepted), accepted,
+                       note="declared", span=1)
     else:
       log("# Synonym %s with unresolvable accepted: %s -> %s" %
           (get_tag(S), blurb(record), accepted_key))
@@ -203,19 +245,14 @@ def resolve_superior_link(S, record):
     # Accepted
     # set_accepted(record, True)
     parent_key = get_parent_key(record, None)
-    if parent_key:
-      parent = look_up_record(S, parent_key, record)
-      if parent:
-        sup = relation(HAS_PARENT, parent, note="declared")
-      else:
-        log("# accepted in %s but has unresolvable parent: %s -> %s" %
-            (get_tag(S), blurb(record), parent_key))
-        sup = relation(HAS_PARENT, S.top, note="unresolved parent id")
+    parent = look_up_record(S, parent_key, record)
+    if parent:
+      assert parent, blurb(record)
+      sup = relation(HAS_PARENT, parent, note="declared")
     else:
-      # This is a root.  Hang on to it so that preorder can see it.
-      #log("# No accepted, no parent: %s '%s' '%s'" %
-       #   (blurb(record), parent_key, accepted_key))
-      sup = relation(HAS_PARENT, S.top, note="no parent")
+      log("# accepted in %s but has unresolvable parent: %s = %s" %
+          (get_tag(S), blurb(record), parent_key))
+      sup = relation(HAS_PARENT, S.top, note="unresolved parent id")
 
   if sup:
     set_superior_carefully(record, sup)
@@ -225,14 +262,22 @@ def resolve_superior_link(S, record):
     log("# No superior: %s" % blurb(record))
 
 def synonym_relationship(record, accepted):
-  t1 = get_tipe(record, None)
-  t2 = get_tipe(accepted, None)
+  if known_different_exemplars(record, accepted):
+    return LT
+  elif known_same_exemplar(record, accepted):
+    return EQ
+  else:
+    return SYNONYM                # LE
+
+def known_different_exemplars(x, y):
+  t1 = get_tipe(x, None)   # same_exemplar
+  t2 = get_tipe(y, None)
   if t1 and t2:
-    if t1 == t2:
-      return EQ
-    else:
-      return LT
-  return SYNONYM                # LE
+    return t1 != t2
+  return False
+
+def known_same_exemplar(x, y):
+  return False
 
 def set_superior_carefully(x, sup):
   assert isinstance(x, prop.Record)
@@ -388,9 +433,8 @@ def get_tag(check):          # applied to a Source checklist
   return check.meta['tag']
 
 def make_top(C):
-  top = make_record(TOP_NAME, C)     # key is TOP_NAME, source is C
-  # registrar(primary_key_prop)(top)  # Hmmph
-  set_canonical(top, TOP_NAME)
+  top = make_record(TOP_NAME, C) # primary key is TOP_NAME, source is C
+  set_canonical(top, TOP_NAME)   # name = key
   return top
 
 TOP_NAME = "⊤"
@@ -415,7 +459,19 @@ def is_accepted(x):             # exported
           status.startswith("valid") or
           status.startswith("doubtful"))
 
+def get_accepted_relation(x):
+  if is_accepted(x):
+    return relation(EQ, x, MISSING)
+  else:
+    sup = get_superior(x, None)
+    if sup:
+      assert is_accepted(sup.record), blurb(x)
+      return sup
+    else:
+      return relation(EQ, x, MISSING) # top
+
 def get_accepted(x):            # Doesn't return falsish
+  # return get_accepted_relation.record
   if is_accepted(x):
     return x
   else:
@@ -703,14 +759,17 @@ u1 -> v1 -> u2 -> v3
 ...
 """
 
-def xblurb(u):
-  name = get_scientific(u) or get_canonical_name(u) or get_managed_id(u)
-  if not is_accepted(u):
+def get_proto(x):
+  return parse.parse_protonymic(get_scientific(x, None) or get_canonical(x))
+
+def xblurb(x):
+  name = get_scientific(x) or get_canonical_name(x) or get_managed_id(x)
+  if not is_accepted(x):
     name = name + "*"
-  stuff = [blurb(u)]
-  stuff.append(get_primary_key(u))
-  if get_nomenclatural_status(u, None):
-    stuff.append(get_nomenclatural_status(u))
+  stuff = [blurb(x)]
+  stuff.append(get_primary_key(x))
+  if get_nomenclatural_status(x, None):
+    stuff.append(get_nomenclatural_status(x))
   return ' '.join(stuff)
 
 if __name__ == '__main__':

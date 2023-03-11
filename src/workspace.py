@@ -5,10 +5,23 @@ from typing import NamedTuple, Any
 
 import property as prop
 import checklist
+import match_records
 
 from util import log, MISSING
 from checklist import *
 from coproduct import *
+
+def ingest_workspace(A_gen, A_name, B_gen, B_name, matches_gen):
+  A = rows_to_checklist(A_gen, {'tag': A_name or "A"})  # meta
+  B = rows_to_checklist(B_gen, {'tag': B_name or "B"})  # meta
+  AB = make_workspace(A, B, {'tag': "AB"})
+  if not matches_gen:
+    matches_gen = match_records.match_records(checklist_to_rows(AB.A),
+                                              checklist_to_rows(AB.B))
+  mm = list(matches_gen)
+  log("# ingest: %s matches" % len(mm))
+  checklist.load_matches(iter(mm), AB)  # matches_gen
+  return AB
 
 # -----------------------------------------------------------------------------
 # Sum / coproduct / merged checklist / theory workspace
@@ -49,10 +62,10 @@ def make_workspace(A, B, meta=None):
     return z
 
   def _in_left(x):
-    assert get_source(x) == A, get_source_tag(x)
+    assert get_source(x) == A, ("expected left", get_source_tag(x))
     return ensure_injected(x)
   def _in_right(y):
-    assert get_source(y) == B, get_source_tag(y)
+    assert get_source(y) == B, ("expected right", get_source_tag(y))
     return ensure_injected(y)
   def _case(z, when_left, when_right):
     w = get_outject(z, None)
@@ -125,13 +138,17 @@ def separated(x, y):
 #  and syn is true iff p is a synonym
 
 def local_sup(AB, v):
+  assert v, 'local_sup'
+  assert get_outject(v)
   loc = get_superior(get_outject(v), None)
   if not loc:
     return None
   if isinA(AB, v):
-    return relation(loc.relationship, AB.in_left(loc.record), note=loc.note)
+    return relation(loc.relationship, AB.in_left(loc.record),
+                    note=loc.note, span=loc.span)
   else:
-    return relation(loc.relationship, AB.in_right(loc.record), note=loc.note)
+    return relation(loc.relationship, AB.in_right(loc.record),
+                    note=loc.note, span=loc.span)
 
 def local_accepted(AB, v):
   y = get_accepted(get_outject(v))
