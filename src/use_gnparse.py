@@ -77,8 +77,8 @@ def use_parse(gn_iter, check_iter):
     if sci_name.startswith("Nil"):
       sci_name = "?" + sci_name[3:]
     (complete, authorship) = parse.split_protonymic(sci_name,
-                                              gn_row[canonical_full_pos],
-                                              gn_row[auth_pos])
+                                                    gn_row[canonical_full_pos],
+                                                    gn_row[auth_pos])
     (token, year, _) = parse.analyze_authorship(authorship)
     assert year == gn_year
 

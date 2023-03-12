@@ -334,6 +334,8 @@ def link_superior(w, sup):      # w is inferior Record, sup is Relative
       set_synonyms(sup.record, [w])
   #else: assert False
 
+# What is comes_from for?  Potential debugging?
+
 def look_up_record(C, key, comes_from=None):
   if not key: return None
   col = prop.get_column(primary_key_prop, C.context) # we could cache this

@@ -21,6 +21,14 @@ class Protonymic(NamedTuple):
 # -----------------------------------------------------------------------------
 # Parsing: string -> Protonymic
 
+def parse_protonymic(verbatim, **more):     # returns a 'proto'
+  (c, a) = split_protonymic(verbatim, **more)
+  (g, _, e) = analyze_complete(c)
+  (t, y, moved) = analyze_authorship(a)
+  cg = g
+  if moved: g = None                # moved
+  return Protonymic(g, e, t, y, cg)
+
 # This may not agree with gnparse exactly...
 # [1] is complete canonical; [2] is paren or empty; [3] is authorship part (name(s) + maybe year)
 LP = "\\("
@@ -52,7 +60,7 @@ def split_protonymic(verbatim, gn_full=None, gn_authorship=None, gn_stemmed=None
 
   # For low-quality names, gnparser may throw away authorship entirely.
 
-  # 2. Provisional verbatim split using regex
+  # 2. Provisional verbatim split using gnparse (preferred)
   if gn_full != None and gn_authorship != None:
 
     # Recover parts that gnparse stripped off, from verbatim
@@ -93,14 +101,6 @@ def analyze_complete(complete, stemmed=None):
     return (g, ' '.join(parts[1:-1]), parts[-1])
   else:
     return (g, None, parts[0])       # could be genus, family etc.
-
-def parse_protonymic(verbatim):     # returns a 'proto'
-  (c, a) = split_protonymic(verbatim)
-  (g, _, e) = analyze_complete(c)
-  (t, y, moved) = analyze_authorship(a)
-  cg = g
-  if moved: g = None                # moved
-  return Protonymic(g, e, t, y, cg)
 
 def analyze_authorship(authorship):
   if not authorship: return (None, None, False)
