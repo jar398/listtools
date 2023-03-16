@@ -9,7 +9,7 @@
 # Actually, would it be worthwhile to be able to do that with a workspace ...
 
 import argparse, sys
-import theory
+import theory, rows
 from checklist import rows_to_checklist, checklist_to_rows, get_superior, \
   relation, get_children, set_children, get_synonyms, set_synonyms, \
   get_taxonomic_status, set_taxonomic_status, \
@@ -166,13 +166,11 @@ def cross_superior(AB, v):
 def test():
   def testit(m, n):
     log("\n-- Test: %s + %s --" % (m, n))
-    B = rows_to_checklist(newick.parse_newick(n),
-                          {'tag': "B"})  # meta
-    A = rows_to_checklist(newick.parse_newick(m),
-                          {'tag': "A"})  # meta
-    matches_iter = match_records.match_records(checklist_to_rows(A), checklist_to_rows(B))
-    AB = workspace.make_workspace(A, B, {'tag': "AB"})
-    theory.load_matches(matches_iter, AB)
+    a_iter = newick.parse_newick(m)
+    b_iter = newick.parse_newick(n)
+    AB = ingest_workspace(a_iter, "A",
+                          b_iter, "B",
+                          None)
     theory.theorize(AB)
     S = span(AB)
     print(newick.compose_newick(checklist.preorder_rows(S)))
@@ -195,8 +193,9 @@ if __name__ == '__main__':
     a_path = args.A
     b_path = args.B
     assert a_path != b_path
-    with util.stdopen(a_path) as a_file:
-      with util.stdopen(b_path) as b_file:
-        report = span(csv.reader(a_file),
-                      csv.reader(b_file))
+    with rows.open(a_path) as a_rows:
+      with rows.open(b_path) as b_rows:
+        # compute name matches afresh
+        AB = ingest_workspace(a_rows.rows(), "A", b_rows.rows(), "B", None)
+        report = span(AB)
         util.write_rows(report, sys.stdout)

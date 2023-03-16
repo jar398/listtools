@@ -98,7 +98,7 @@ def category(v, ship, w):
   elif ship == OVERLAP:        # Euler/X calls it 'overlaps'
     action = 'overlap'          # ('reorganize' if mat else ...)
   # Non-RCC5
-  elif ship == TOUCH:
+  elif ship == INTERSECT:
     action = 'intersect in some way'
   elif ship == NOINFO:
     action = 'no information'

@@ -66,6 +66,7 @@ def match_records(a_gen, b_gen, pk_col="taxonID",
   b_table = ingest_csv(b_gen, pk_col)
   # match_checklists returns a generator
   cop = match_checklists(a_table, b_table, pk_col, index_by, discriminators)
+  # Rows: (key1, rel1, key2, "A<->B", kind1, basis1)
   yield from generate_match_report(cop, pk_col)
 
 # table * table -> coproduct (cf. delta.py ?)

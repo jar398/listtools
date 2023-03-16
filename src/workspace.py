@@ -5,22 +5,25 @@ from typing import NamedTuple, Any
 
 import property as prop
 import checklist
-import match_records
+import match_records, linkage
 
 from util import log, MISSING
 from checklist import *
 from coproduct import *
 
-def ingest_workspace(A_gen, A_name, B_gen, B_name, matches_gen):
+def ingest_workspace(A_gen, A_name, B_gen, B_name, matches_gen=None):
   A = rows_to_checklist(A_gen, {'tag': A_name or "A"})  # meta
   B = rows_to_checklist(B_gen, {'tag': B_name or "B"})  # meta
   AB = make_workspace(A, B, {'tag': "AB"})
-  if not matches_gen:
-    matches_gen = match_records.match_records(checklist_to_rows(AB.A),
-                                              checklist_to_rows(AB.B))
-  mm = list(matches_gen)
-  log("# ingest: %s matches" % len(mm))
-  checklist.load_matches(iter(mm), AB)  # matches_gen
+  if True:
+    linkage.find_links(AB)  # does set_link
+  else:
+    if not matches_gen:
+      matches_gen = match_records.match_records(checklist_to_rows(AB.A),
+                                                checklist_to_rows(AB.B))
+    mm = list(matches_gen)
+    log("# ingest: %s matches" % len(mm))
+    checklist.load_matches(iter(mm), AB)  # matches_gen
   return AB
 
 # -----------------------------------------------------------------------------

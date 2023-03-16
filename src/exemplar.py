@@ -28,80 +28,49 @@ def generate_exemplars(AB):
            pnym)
   log("# exemplar report rows: %s" % count)
 
-# Returns generator of (id, v, w, protonymic).
-# Called from 
+# Returns generator of (id, v, w, parts).      !!!!!!!!!
+# Called from theory.theorize.
+# Each exemplar has a representative in A and one in B.
 
 def choose_exemplars(AB):
   analyze_tipwards(AB)
   seen = prop.mep()             # set of Record
   counter = [0]
   def do_exemplars(AB, inB):
-    def traverse(x, species_exem):      # x in A
+    def traverse(x, species):      # x in A
       # log("# considering %s" % (blurb(x)))
-      x_exem = get_proto(x)
-      inf_exem = (x_exem
-                  if get_rank(x, None) == 'species'
-                  else species_exem)
+      if get_rank(x, None) == 'species':
+        species = x
       for c in get_inferiors(x): # Generator
-        # One child of c, together with its homotypic synonyms, will have the same protonym
-        yield from traverse(c, inf_exem)
-      v = AB.in_left(x)
-      rel = get_tipward(v, None)
-      log("# tipward? %s %s" % (blurb(v), blurb(rel)))
+        # One child of c, together with its homotypic synonyms,
+        # will have the same exemplar
+        yield from traverse(c, species)
+      u = AB.in_left(x)
+      rel = get_tipward(u, None)
+      log("# tipward? %s %s" % (blurb(u), blurb(rel)))
       if rel:
-        w = rel.record          # in other checklist. not nec. tipward
-        y = get_outject(w)
-        if x_exem:              # Passed down from ancestor species
-          (_, _, _, x_proto) = x_exem
-          proto = parse.unify_protos(x_proto, get_proto(y))
+        v = rel.record          # in other checklist. not nec. tipward
+        have = mep_get(seen, u)
+        if have:              # Passed down from ancestor species
+          assert have[1] == v
         else:
-          proto = x_proto
-        nymic = parse.unparse_proto(proto) if proto else MISSING
-        if have == None:
           id = counter[0]; counter[0] += 1
-          have = [id, None, None, nymic]
-          log("# exemplar %s" % have)
-        [_, v, w, _] = have
-        if not mep_get(seen, v, False):
-          have[1] = v
+          have = [id, u, v]
+          log("# exemplar %s" % (id, blurb(u), blurb(w)))
           mep_set(seen, v, have)
-        if not mep_get(seen, w, False):
-          have[2] = w
-          mep_set(seen, w, have)
-        if v and w:
           yield have
-    yield from traverse(AB.A.top, None, None)
+      elif (species and
+            are_homotypic(u, species)):
+        # Homotypic synonyms all have same exemplar
+
+
+    yield from traverse(AB.A.top, None)
   yield from do_exemplars(AB, False)
   yield from do_exemplars(swap(AB), True)
   log("# exemplars: %s exemplar records" % counter[0])
 
-def unify_protonymics(x, y):          # x and y match uniquely
-  e1 = get_epithet(x)
-  e2 = get_epithet(y)
-  if e1 and e2:
-    return min(e1, e2)
-  if e1 or e2:
-    return e1 or e2
-  else:
-    assert get_canonical(x) and get_canonical(y)
-    return min(get_canonical(x), get_canonical(y)) # ??
 
 def exemplar_id(ex): return ex[0]
-
-# Selecting the 'best' name for an epithet.
-
-def has_better_epithet(x, y):
-  if y == None: return True
-  if is_accepted(x) and not is_accepted(y): return True
-  if rank(x) > rank(y): return True
-  else: return False
-
-def rank(x):
-  r = get_rank(x)
-  if r == 'species': return 5
-  if r == 'subspecies': return 4
-  if r == 'variety': return 3
-  else: return 0
 
 # Find tipward record matches (TRMs)
 

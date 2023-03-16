@@ -1,74 +1,106 @@
 #!/usr/bin/env python3
 
 # Combine existing info from start.py output with parsed info from gnparse
-# to obtain protonym parts.
+# to obtain meaningful parts.
 # Intended mainly for protonym sameness checks, which are for exemplar selection.
 
-# Synthesize a string ('unparse') from protonym parts in inverse operation.
+# Synthesize a string ('unparse') from parts in inverse operation.
 
 import util, regex
+from typing import NamedTuple, Any
 from util import MISSING, log
 
 class Parts(NamedTuple):
-  complete  : Any               # for comparisons  ... ?
-  genus     : Any
-  epithet   : Any
-  authority : Any               # for comparisons ... ?
-  token     : Any
-  year      : Any
-  moved     : Any
-
-class Protonymic(NamedTuple):
-  epithet : Any               # None means taxon is a genus
-  seenInGenus : Any           # might be same as .genus
-  token   : Any
-  year    : Any
-  # maybe others
-  protoGenus   : Any          # Genus of original coinage
+  canonical  : Any              # genus + middle + unstemmed
+  genus      : Any
+  epithet    : Any              # stemmed
+  authorship : Any              # includes initials, all authors, etc
+  token      : Any              # just Lastname of first author
+  year       : Any
+  moved      : Any              # none means don't know (no authorship)
 
 # -----------------------------------------------------------------------------
-# Parsing: string -> Protonymic
+# Parsing: string -> Parts
 
-def parse_name(verbatim, **more):
-  (c, a) = split_name(verbatim, **more)
-  (g, _, e) = analyze_canonical(c)
-  (t, y, moved) = analyze_authorship(a)
-  return Parts(c, g, e, a, t, y, moved)
-
-def parse_protonymic(verbatim, **more):     # returns a 'proto'
-  (_, g, e, _, t, y, moved) = parse_name(verbatim, **more)
-  cg = g
-  if moved: g = None                # moved
-  return Protonymic(g, e, t, y, cg)
-
-# Returns (complete, authorship)
-
-def split_name(verbatim, gn_full=None, gn_authorship=None, gn_stemmed=None):
-  assert verbatim
-
-  # There are two ways to split the verbatim name into complete + authorship.
-  # One is by using the gnparse output, filling in missing in-between
-  # segment from verbatim.  The other is by using a regular expression
-  # to parse verbatim directly.
-
-  (hack_canonical, hack_auth) = hack_split(verbatim)
-
-  # For low-quality names, gnparser may throw away authorship entirely.
-
-  # 2. Provisional verbatim split using gnparse (preferred)
-  if gn_full != None and gn_authorship != None:
-
-  (gn_canonical, gn_auth) = gn_split(verbatim, gn_full, gn_stemmed, gn_auth)
-
-  # May need to revise this.
-  assert (gn_auth != None) == (hack_auth != None)
-
+def parse_name(verbatim, gn_full=None, gn_stemmed=None, gn_authorship=None):
+  (canonical0, auth0) = split_name(verbatim)
   if gn_full != None:
-    return (gn_canonical, gn_auth)
+    # Epithet will be stemmed
+    (canonical, g, e) = recover_canonical(gn_full, gn_stemmed, canonical0)
+    auth = gn_authorship        # override
   else:
-    return (hack_canonical, hack_auth)
+    canonical = canonical0
+    auth = auth0
+    # Epithet will not be stemmed
+    chunks = canonical.split(' ')
+    if len(chunks) == 1:
+      g = chunks[0]
+      e = ''
+    else:
+      g = chunks[0]
+      e = chunks[-1]              # do our own stemming !? no
+  if e == '?': e = None
+  if g == '?' or g == 'Nil': g = None # cf. use_gnparse.py
+  (t, y, moved) = analyze_authorship(auth)
+  return Parts(canonical, g, e, auth, t, y, moved)
 
-def hack_split(verbatim):
+# This ought to be trivial but the problem is that gnparser drops
+# tokens that occur after the last alphabetic epithet.  So we have to
+# recover them from the original non-GN scientific name ('verbatim').
+
+def recover_canonical(gn_full, gn_stemmed, hack_canonical):
+  # Recover parts that gnparse stripped off, from verbatim
+  hack_canonical = hack_canonical.strip()
+  hack_canonical_chunks = hack_canonical.split(' ')
+  n_hack_canonical_chunks = len(hack_canonical_chunks)
+
+  n_full_chunks = gn_full.count(' ')
+  n_auth_chunks = gn_auth.count(' ')
+  assert n_full_chunks + n_auth_chunks <= n_hack_canonical_chunks
+
+  # TBD: Should interpolate chunks that are in full but missing
+  # from stemmed into stemmed  (wait, why?  have worked around this)
+  assert gn_stemmed
+  extra = hack_canonical_chunks[n_full_chunks:]
+  stemmed_chunks = gn_stemmed.split(' ')
+  if len(extra) != 0:
+    e = extra[-1]
+    c = hack_canonical
+  elif ' ' in gn_stemmed:
+    e = stemmed_chunks[-1]
+    c = gn_full
+  else:
+    e = ''
+    c = gn_full
+  g = stemmed_chunks[0]
+  return (c, g, e)
+
+# Split complete into genus, middle, epithet
+
+def analyze_authorship(auth):
+  if not auth: return (None, None, None) # moved? don't know
+  moved = (auth[0] == '(' and auth[-1] == ')')
+  if moved:
+    auth = auth[1:-1]
+  t_match = token_re.search(auth)
+  tok = t_match[0] if t_match else None
+  if tok == 'Someone': tok = None
+  y_match = year_re.search(auth)
+  year = y_match[1] if y_match else None
+  if year == '1111': year = None
+  return (tok, year, moved)
+
+# This may not agree with gnparse exactly...
+# [1] is complete canonical; [2] is paren or empty; [3] is authorship part (name(s) + maybe year)
+LP = "\\("
+split_re = \
+  regex.compile(u"(.+?) (((%s)?)\p{Uppercase_Letter}[\p{Letter}-]+.*)$" % LP)
+token_re = regex.compile(u"\p{Uppercase_Letter}[\p{Letter}-]+")
+year_re = regex.compile(' ([12][0-9]{3})\)?$')
+starts_auth_re = \
+  regex.compile(u"((%s)?)\p{Uppercase_Letter}\p{Letter}" % LP)
+
+def split_name(verbatim):
   # 1. Provisional verbatim split using regex
   m = split_re.search(verbatim)
   if m:
@@ -79,77 +111,25 @@ def hack_split(verbatim):
     hack_auth = None      # Not present
   return (hack_canonical, hack_auth)
 
-def gn_split(verbatim, gn_full, gn_stemmed, gn_auth):
-
-  # Recover parts that gnparse stripped off, from verbatim
-  n_full_parts = gn_full.count(' ')
-  verbatim = verbatim.strip()
-  verbatim_parts = verbatim.split(' ')
-  n_verbatim_parts = len(verbatim_parts)
-  n_auth_parts = gn_auth.count(' ')
-  assert n_full_parts + n_auth_parts <= n_verbatim_parts
-  middle = verbatim_parts[n_full_parts: auth_pos]
-  # TBD: Should map from full to stemmed
-  if gn_stemmed:
-    n_stemmed_parts = gn_stemmed.count(' ')
-    if n_full_parts == n_stemmed_parts:
-      stemmed = gn_full
-    else:
-      assert "elaborating canonicalStem from canonicalFull NYI", gn_full
-
-  gn_canonical = ' '.join([stemmed] + middle)
-  assert auth_pos == n_verbatim_parts - n_auth_parts
-  assert starts_auth_re.match(parts[auth_pos])
-  return (gn_canonical, gn_auth)
-
-# Split complete into genus, middle, epithet
-
-def analyze_canonical(complete, stemmed=None):
-  parts = complete.split(' ')
-  g = parts[0]
-  if len(parts) > 1:
-    if g == '?' or g == 'Nil': g = None
-    return (g, ' '.join(parts[1:-1]), parts[-1])
-  else:
-    return (g, None, parts[0])       # could be genus, family etc.
-
-def analyze_authorship(auth):
-  if not auth: return (None, None, True)
-  moved = (auth[0] == '(' and auth[-1] == ')')
-  if moved:
-    auth = auth[1:-1]
-  t = token_re.search(auth)
-  token = t[1] if t else None
-  if token == "Someone": token = None
-  y = year_re.search(auth)
-  year = y[1] if y else None
-  return (token, year, moved)
-
-# This may not agree with gnparse exactly...
-# [1] is complete canonical; [2] is paren or empty; [3] is authorship part (name(s) + maybe year)
-LP = "\\("
-split_re = \
-  regex.compile(u"(.+?) (((%s)?)\p{Uppercase_Letter}[\p{Letter}-]+.*)$" % LP)
-token_re = regex.compile(u"(\p{Uppercase_Letter}[\p{Letter}-]+)")
-year_re = regex.compile(' ([12][0-9]{3})\)?$')
-starts_auth_re = \
-  regex.compile(u"((%s)?)\p{Uppercase_Letter}\p{Letter}" % LP)
-
 # -----------------------------------------------------------------------------
-# Unparsing = inverse of parsing = string from protonymic
+# Unparsing = inverse of parsing = string from parts
 
 # '' and None are both falsish, so be a bit careful
 
-def unparse_proto(proto):
-  (g, ep, tok, y) = proto
-  assert ep
+# Umm... really ought to just combine canonical and authorship
+
+def unparse_parts(parts):
+  (c, g, e, a, tok, y, moved) = parts
+  assert g
 
   # Species name
-  assert g != None
   if ep == None:
-    canon = g
+    # Unknown genus
+    canon = "%s ?" % g
+  elif ep == '':
+    # Higher taxon, genus or above
+    canon = g  # Genus epithet
   else:
-    assert ep
     canon = "%s %s" % (g, ep)  # Genus epithet
 
   # Authorship
@@ -160,17 +140,18 @@ def unparse_proto(proto):
     if tok == None:
       tok = "Someone"
     if y == None:
-      auth = t                  # Jones
+      auth = tok                  # Jones
     else:
       auth = "%s, %s" % (tok, y) # Jones, 2088
+    if moved: auth = "(%s)" % auth
 
   all = "%s %s" % (canon, auth) if auth != None else canon
-  return "(%s)" if g == None else all
+  return all
 
 # -----------------------------------------------------------------------------
-# Protonymic - description of protonyms with wildcard and so on -
+# Parts - description of names or whatever with wildcard and so on -
 
-def unify_protos(p1, p2):
+def unify_parts(p1, p2):
   tup = tuple((unify_values(x, y) for (x, y) in zip(p1, p2)))
   return None if False in tup else tup
 
@@ -182,11 +163,15 @@ def unify_values(x, y):
 
 if __name__ == '__main__':
   import sys
-  proto = parse_protonymic(sys.argv[1])
-  (g, ep, tok, y) = proto
-  print(" genus '%s'" % (g or '?'))
-  print(" epithet '%s'" % ep)
-  print(" token '%s'" % (tok or 'Someone'))  
-  print(" year '%s'" % (y or "no year"))
-  print(" seenInGenus '%s'" % (y or "no year"))
-  print("protonymic '%s'" % unparse_proto(proto))
+  def qu(x): return "?" if x == None else "'%s'" % x
+
+  parts = parse_name(sys.argv[1])
+  (c, g, ep, a, tok, y, moved) = parts
+  print("canonical %s" % qu(c))
+  print(" genus %s" % qu(g))
+  print(" epithet %s" % qu(ep))
+  print("authorship %s" % qu(a))
+  print(" token %s" % qu(tok))
+  print(" year %s" % qu(y))
+  print(" moved %s" % moved)
+  print("recovered namestring '%s'" % unparse_parts(parts))

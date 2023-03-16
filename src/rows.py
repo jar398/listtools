@@ -2,7 +2,7 @@
 
 # Sources and sinks of CSV rows
 
-import sys, csv, newick
+import sys, io, csv, newick
 
 def open(specifier, mode='r'):
   if not specifier: specifier = '-'
@@ -21,7 +21,7 @@ class Rows:
         self.file = sys.stdout if 'w' in mode else sys.stdin
       else:
         self.close_required = True
-        self.file = open(x, mode)
+        self.file = io.open(x, mode)
     self.open = True
 
   def __enter__(self):

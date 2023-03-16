@@ -24,12 +24,18 @@ LT = def_rcc5_symbol(1 << 1, '<')
 GT = def_rcc5_symbol(1 << 2, '>')
 DISJOINT = def_rcc5_symbol(1 << 3, '!')
 OVERLAP = def_rcc5_symbol(1 << 4, '><')
+rcc5_relationships['*'] = OVERLAP # for composition table
 
+# Disjunctions
 LE = def_rcc5_symbol(LT|EQ, '<=', '{< =}')       # ≤, synonym
 GE = def_rcc5_symbol(GT|EQ, '>=', '{> =}')       # ≥, accepted
 COMPARABLE = def_rcc5_symbol(LT|GT, '<>', '{< >}')
+INTERSECT = def_rcc5_symbol(LT|GT|EQ|OVERLAP, 'not!', '{< = > ><}')  # ∩
+rcc5_relationships['∩'] = INTERSECT
+# bottom
 NOINFO = def_rcc5_symbol(LT|GT|EQ|OVERLAP|DISJOINT, '?', '{< = > >< !}')
-TOUCH = def_rcc5_symbol(LT|GT|EQ|OVERLAP, 'not!', '{< = > ><}')  # ∩, equivalent, similar
+# top (unicode ⋕ is 'equal and parallel to')
+INCONSISTENT = def_rcc5_symbol(0, '⋕', '{}')
 
 HAS_PARENT = LT
 SYNONYM = LE
@@ -66,7 +72,6 @@ def rcc5_symbol(ship):
 def rcc5_eulerx(ship):
   return rcc5_eulerxs[ship]
 
-rcc5_relationships['*'] = OVERLAP # for composition table
 def rcc5_relationship(name):
   if name.startswith('{'):
     ship = 0

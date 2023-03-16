@@ -39,7 +39,7 @@ equated_prop = prop.declare_property("equated", inherit=False)    # value is a R
 
 # For record matches made by name(s)
 match_prop = prop.declare_property("match", inherit=False)
-get_match_relationship = prop.getter(prop.declare_property("relationship", inherit=False))
+link_prop = prop.declare_property("link", inherit=False)
 
 # For workspaces
 inject_prop = prop.declare_property("inject") # Contextual only!
@@ -61,6 +61,8 @@ outject_prop = prop.declare_property("outject")
 (get_taxonomic_status, set_taxonomic_status) = \
   prop.get_set(taxonomic_status_prop)
 
+# One column from the matches table?
+(get_link, set_link) = prop.get_set(link_prop)
 (get_match, set_match) = prop.get_set(match_prop)
 
 # Links
@@ -76,10 +78,12 @@ get_equated_key = prop.getter(equated_key_prop)
 get_equated_note = prop.getter(equated_note_prop)
 (get_equated, set_equated) = prop.get_set(equated_prop)
 
+# Records in the matches table
 get_match_key = prop.getter(prop.declare_property("match_id", inherit=False))
 get_match_direction = prop.getter(prop.declare_property("direction", inherit=False))
 get_match_kind = prop.getter(prop.declare_property("kind", inherit=False))
 get_basis_of_match = prop.getter(prop.declare_property("basis_of_match", inherit=False))
+get_match_relationship = prop.getter(prop.declare_property("relationship", inherit=False))
 
 (get_outject, set_outject) = prop.get_set(outject_prop)
 
@@ -761,11 +765,17 @@ u1 -> v1 -> u2 -> v3
 ...
 """
 
-def get_proto(x):
-  return parse.parse_protonymic(get_scientific(x, None) or get_canonical(x))
+def get_parts(x):
+  return parse.parse_name(get_best_name(x))
+
+def get_best_name(x):
+  name = (get_scientific(x, None) or get_canonical_name(x, None) or
+          get_managed_id(x, None))
+  assert name
+  return name
 
 def xblurb(x):
-  name = get_scientific(x) or get_canonical_name(x) or get_managed_id(x)
+  name = get_best_name(x)
   if not is_accepted(x):
     name = name + "*"
   stuff = [blurb(x)]
