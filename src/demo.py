@@ -246,10 +246,10 @@ if __name__ == '__main__':
     """)
   parser.add_argument('--A', help="the A checklist, as path name or -",
                       default='-')
-  parser.add_argument('--Aname', help="short name of the A checklist",
-                      default='A')
   parser.add_argument('--B', help="the B checklist, as path name or -",
                       default='-')
+  parser.add_argument('--Aname', help="short name of the A checklist",
+                      default='A')
   parser.add_argument('--Bname', help="short name of the B checklist",
                       default='B')
   parser.add_argument('--eulerx', help="where to put the Euler/X version of the alignment",
@@ -271,11 +271,11 @@ if __name__ == '__main__':
     d_path = args.short         # diff
     l_path = args.long
     assert a_path != b_path
-    with rows.open(a_path) as a_gen:
-      with rows.open(b_path) as b_gen:
-        AB = ingest_workspace(a_gen.rows(), aname, 
-                              b_gen.rows(), bname,
-                              None)
+    with rows.open(a_path) as a_rows:
+      with rows.open(b_path) as b_rows:
+        AB = ingest_workspace(a_rows.rows(), b_rows.rows(),
+                              A_name=a_name, B_name=b_name)
+        find_links(AB)
         al = list(align.generate_alignment(AB))
     if l_path or (not d_path and not e_path):
       with rows.open(l_path, "w") as l_gen:

@@ -196,6 +196,8 @@ if __name__ == '__main__':
     with rows.open(a_path) as a_rows:
       with rows.open(b_path) as b_rows:
         # compute name matches afresh
-        AB = ingest_workspace(a_rows.rows(), "A", b_rows.rows(), "B", None)
-        report = span(AB)
+        AB = ingest_workspace(a_rows.rows(), b_rows.rows())
+        find_links(AB, matches_iter)
+        find_links(AB)
+        report = span(AB)       # without alignment!!??  no way.
         util.write_rows(report, sys.stdout)

@@ -19,9 +19,9 @@ def def_rcc5_symbol(n, name, exname=None):
   rcc5_relationships[exname] = n
   return n
 
-EQ = def_rcc5_symbol(1 << 0, '=')
-LT = def_rcc5_symbol(1 << 1, '<')
-GT = def_rcc5_symbol(1 << 2, '>')
+LT = def_rcc5_symbol(1 << 0, '<')
+GT = def_rcc5_symbol(1 << 1, '>')
+EQ = def_rcc5_symbol(1 << 2, '=')
 DISJOINT = def_rcc5_symbol(1 << 3, '!')
 OVERLAP = def_rcc5_symbol(1 << 4, '><')
 rcc5_relationships['*'] = OVERLAP # for composition table
@@ -30,10 +30,10 @@ rcc5_relationships['*'] = OVERLAP # for composition table
 LE = def_rcc5_symbol(LT|EQ, '<=', '{< =}')       # ≤, synonym
 GE = def_rcc5_symbol(GT|EQ, '>=', '{> =}')       # ≥, accepted
 COMPARABLE = def_rcc5_symbol(LT|GT, '<>', '{< >}')
-INTERSECT = def_rcc5_symbol(LT|GT|EQ|OVERLAP, 'not!', '{< = > ><}')  # ∩
+INTERSECT = def_rcc5_symbol(LT|GT|EQ|OVERLAP, 'not!', '{< > = ><}')  # ∩
 rcc5_relationships['∩'] = INTERSECT
 # bottom
-NOINFO = def_rcc5_symbol(LT|GT|EQ|OVERLAP|DISJOINT, '?', '{< = > >< !}')
+NOINFO = def_rcc5_symbol(LT|GT|EQ|OVERLAP|DISJOINT, '?', '{< > = >< !}')
 # top (unicode ⋕ is 'equal and parallel to')
 INCONSISTENT = def_rcc5_symbol(0, '⋕', '{}')
 

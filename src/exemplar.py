@@ -2,14 +2,13 @@
 
 import sys, argparse, regex
 import property as prop
-import util, workspace
+import util, workspace, linkage
 import rows
 
-from util import log
+from util import log, MISSING
 from property import mep_get, mep_set
 from checklist import * 
 from workspace import * 
-from match_records import match_records
 
 # Exemplars (representing individual specimens or occurrences with
 # known classification in BOTH checklists) are chosen heuristically
@@ -18,57 +17,81 @@ from match_records import match_records
 # has no tipward accepted descendant taxon.
 
 def generate_exemplars(AB):
-  yield ("exemplar", "A_taxonID", "B_taxonID")
+  yield ("exemplar", "A_rep", "B_rep") # representatives
   count = 0
-  for (id, vs, rels, pnym) in choose_exemplars(AB):
+  for (id, u, v) in choose_exemplars(AB):
     count += 1
     yield (id,
-           get_primary_key(get_outject(v)),
-           get_primary_key(get_outject(rel.record)),
-           pnym)
+           get_primary_key(get_outject(u)) if u else MISSING,
+           get_primary_key(get_outject(v)) if v else MISSING,
+           blurb(u) if u else blurb(v))
   log("# exemplar report rows: %s" % count)
 
-# Returns generator of (id, v, w, parts).      !!!!!!!!!
+# Returns list of (id, v, w) ...
 # Called from theory.theorize.
 # Each exemplar has a representative in A and one in B.
 
 def choose_exemplars(AB):
   analyze_tipwards(AB)
-  seen = prop.mep()             # set of Record
-  counter = [0]
+
+  generateme = []
+  def emit(id, u, v):
+    if (isinA(AB, u) if u else isinB(AB, v)):
+      generateme.append((id, u, v))
+    else:
+      generateme.append((id, v, u))
+
+  id_counter = [1]
   def do_exemplars(AB, inB):
-    def traverse(x, species):      # x in A
+    def traverse(x, species, demand):      # x in A
       # log("# considering %s" % (blurb(x)))
+      u = AB.in_left(x)
       if get_rank(x, None) == 'species':
-        species = x
+        species = u
+        demand = [None]
+      def get_species_xid():
+        if demand[0] == None:
+          demand[0] = id_counter[0]; id_counter[0] += 1
+        return demand[0]
+
+      hom = het = None
       for c in get_inferiors(x): # Generator
         # One child of c, together with its homotypic synonyms,
         # will have the same exemplar
-        yield from traverse(c, species)
-      u = AB.in_left(x)
-      rel = get_tipward(u, None)
-      log("# tipward? %s %s" % (blurb(u), blurb(rel)))
-      if rel:
-        v = rel.record          # in other checklist. not nec. tipward
-        have = mep_get(seen, u)
-        if have:              # Passed down from ancestor species
-          assert have[1] == v
-        else:
-          id = counter[0]; counter[0] += 1
-          have = [id, u, v]
-          log("# exemplar %s" % (id, blurb(u), blurb(w)))
-          mep_set(seen, v, have)
-          yield have
-      elif (species and
-            are_homotypic(u, species)):
-        # Homotypic synonyms all have same exemplar
+        (more_hom, more_het) = traverse(c, species, demand)
+        hom = hom or more_hom
+        het = het or more_het
 
+      # Invent a record-less exemplar for species that need them
+      v = get_tipward(u, None)
+      if v:
+        if not get_exemplar(v, None):
+          # Not seen in other checklist
+          if hom:
+            # Need a species for all the homotypics
+            id = get_species_xid()
+          else:
+            id = id_counter[0]; id_counter[0] += 1
+          set_exemplar(v, id)
+          set_exemplar(u, id)
+          emit(id, u, v)
+        hom = (species and homotypic_synonyms(u, species))
+        het = not hom
 
-    yield from traverse(AB.A.top, None)
-  yield from do_exemplars(AB, False)
-  yield from do_exemplars(swap(AB), True)
-  log("# exemplars: %s exemplar records" % counter[0])
+      # Species need special dispensation ... ?
+      # Really, do this for every good match perhaps other than synonyms?
+      elif (get_rank(u, None) == 'species' and
+            het and not hom):
+        set_exemplar(u, get_species_xid())
+        emit(id, u, None)
 
+      return (hom, het)
+
+    traverse(AB.A.top, None, None)
+  do_exemplars(AB, False)
+  do_exemplars(swap(AB), True)
+
+  return generateme
 
 def exemplar_id(ex): return ex[0]
 
@@ -93,32 +116,28 @@ def find_tipwards(AB):
       seen2 += traverse(AB, c)
     if seen == 0:
       # not seen means that this node could be tipward
-      v = AB.in_left(x)            # v is tipward...
-      rel = get_match(v, None)  # rel is a Relative...
-      if monitor(x): log("# exemplars: tipwards %s %s" % (blurb(x), blurb(rel)))
-      if rel and rel.relationship == EQ:
-        assert separated(v, rel.record)
-        # v is tipward and has a match, not necessarily tipward ...
-        w = rel.record
-        # v in get_matches(w) ... ??? no
-        rel2 = get_matched(w)
-        if not rel2 or rel2.record != v:
+      u = AB.in_left(x)            # u is tipward...
+      v = get_link(u, None)
+      if monitor(v): log("# exemplars: tipwards %s %s" % (blurb(u), blurb(v)))
+      if v:
+        assert separated(u, v)
+        # u is tipward and has a match, not necessarily tipward ...
+        u2 = get_link(v)
+        if not u2 or u2 != u:
           pass
-          log("# Nonreciprocal tipwards %s %s" % (blurb(w), blurb(rel2)))
-          # diagnose_match(v)
+          log("# Nonreciprocal tipwards %s %s" % (blurb(u), blurb(v)))
+          # diagnose_match(u)
         else:
-          set_tipward(v, rel)
-          set_tipward(w, rel2)
+          set_tipward(u, v)
+          set_tipward(v, v)
         seen = 1
-        # log("# Tipwards %s %s" % (blurb(v), blurb(w)))
-      else:
-        pass
-        # log("# No tipwards %s" % (blurb(v),))
+        # log("# Tipwards %s %s" % (blurb(u), blurb(v)))
+
     return seen + seen2
   traverse(AB, AB.A.top)
   traverse(swap(AB), AB.B.top)
 
-# exemplar_records
+# exemplars
 
 def read_exemplars(inpath, AB):
   exemplars = {}
@@ -143,20 +162,16 @@ if __name__ == '__main__':
                       default='-')
   parser.add_argument('--B', help="the B checklist, as path name or -",
                       default='-')
-  parser.add_argument('--matches', help="the A-B matches list")
   args=parser.parse_args()
 
-  a_name = "A"; b_name = "B"
+  a_name = 'A'; b_name = 'B'
   a_path = args.A
   b_path = args.B
-  m_path = args.matches
   with rows.open(a_path) as a_rows:
     with rows.open(b_path) as b_rows:
-      if m_path:
-        with rows.open(m_path) as m_rows:
-          AB = ingest_workspace(a_rows.rows(), a_name, b_rows.rows(), b_name, m_rows.rows())
-      else:
-        # compute name matches afresh
-        AB = ingest_workspace(a_rows.rows(), a_name, b_rows.rows(), b_name, None)
-      x_gen = generate_exemplars(AB)
-      util.write_rows(x_gen, sys.stdout)
+      # compute name matches afresh
+      AB = ingest_workspace(a_rows.rows(), b_rows.rows(),
+                            A_name=a_name, B_name=b_name)
+      linkage.find_links(AB)
+      util.write_rows(util.write_rows(x_gen, sys.stdout),
+                      sys.stdout)

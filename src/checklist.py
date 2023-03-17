@@ -65,6 +65,11 @@ outject_prop = prop.declare_property("outject")
 (get_link, set_link) = prop.get_set(link_prop)
 (get_match, set_match) = prop.get_set(match_prop)
 
+# Exemplar record = (u_pk, v_pk, id)
+(get_exemplar, set_exemplar) = \
+   prop.get_set(prop.declare_property("exemplar"))
+
+
 # Links
 (get_parent_key, set_parent_key) = prop.get_set(parent_key_prop)
 (get_accepted_key, set_accepted_key) = prop.get_set(accepted_key_prop)
@@ -663,8 +668,12 @@ def blurb(r):
     return "'%s'" % r           # kludge
   elif r:
     return "[not a record]"
-  else:
+  elif r == None:
     return "[no match]"
+  elif r == False:
+    return "[inconsistent]"     # linkage.py
+  else:
+    return "[?]"
 
 def monitor(x):
   if not x: return False
@@ -769,7 +778,7 @@ def get_parts(x):
   return parse.parse_name(get_best_name(x))
 
 def get_best_name(x):
-  name = (get_scientific(x, None) or get_canonical_name(x, None) or
+  name = (get_scientific(x, None) or get_canonical(x, None) or
           get_managed_id(x, None))
   assert name
   return name

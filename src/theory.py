@@ -15,17 +15,25 @@ import exemplar
 def theorize(AB):
   # ... exemplar.exemplars(A_iter, B_iter, m_iter) ...
   # TBD: option to read them from a file
-  AB.exemplar_records = list(exemplar.choose_exemplars(AB)) #list of (id, vs, ws)
-  for ex in AB.exemplar_records:
-    (_, vs, ws) = ex
-    for v in vs: set_exemplar_record(v, ex)
-    for w in ws: set_exemplar_record(w, ex)
-  analyze_blocks(AB)                  # sets of examplars
+  exemplar_records = {}
+  for (xid, u, v) in exemplar.choose_exemplars(AB):
+    if u and v:
+      set_exemplar(u, xid)
+      set_exemplar(v, xid)
+      exemplar_records[xid] = (u, v)
+    elif u:
+      set_exemplar(u, xid)
+      if not xid in exemplar_records:
+        exemplar_records[xid] = (u, v)
+    elif v:
+      set_exemplar(v, xid)
+      if not xid in exemplar_records:
+        exemplar_records[xid] = (u, v)
+    
+  AB.exemplar_records = exemplar_records
+  analyze_blocks(AB)                  # sets of exemplars
   compute_cross_mrcas(AB)
   find_estimates(AB)
-
-(get_exemplar_record, set_exemplar_record) = \
-   prop.get_set(prop.declare_property("exemplar_record"))
 
 #-----------------------------------------------------------------------------
 # compare: The implementation of the RCC-5 theory of AB (A+B).
@@ -457,7 +465,7 @@ def compute_cross_mrcas(AB):
   def do_cross_mrcas(AB):
     def traverse(x):            # arg in A, result in B
       v = AB.in_left(x)         # in AB
-      probe = get_exemplar_record(v, None)       # in AB
+      probe = get_exemplar(v, None)       # in AB
       if probe:
         w_rel = get_matched(v)
         assert w_rel
@@ -500,7 +508,8 @@ def compute_cross_mrcas(AB):
 # Precompute 'blocks' (exemplar sets, implemented in one of various ways).
 # A block is represented as a set of exemplar ids.
 # Blocks are stored on nodes in AB.
-# Assumes exemplars have already been chosen and are available via `get_exemplar_record`.
+# Assumes exemplars have already been chosen and are available
+# via `get_exemplar`.  NOT.
 
 def analyze_blocks(AB):
   def traverse(x, in_left, inB):
@@ -517,16 +526,15 @@ def analyze_blocks(AB):
       log("# analyze_blocks: %s has %s exemplars" % (blurb(x), len(e)))
 
     v = in_left(x)              # in A (or B if in B)
-    exem = get_exemplar_record(v, None) # (id, v, w)
-    if exem: e = adjoin_exemplar(exem[0], e)
+    xid = get_exemplar(v, None)
+    if xid: e = adjoin_exemplar(xid, e)
+    # **************** TBD
     if e != BOTTOM_BLOCK:
       set_block(v, e)
     #log("# theory: block(%s) = %s" % (blurb(x), e))
     return e
   traverse(AB.A.top, AB.in_left, False)
   traverse(AB.B.top, AB.in_right, True)
-
-def exemplar_id(ex): return ex[0]
 
 # For debugging
 

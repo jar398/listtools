@@ -3,7 +3,7 @@
 import sys, csv, argparse
 import util, property as prop
 import checklist, workspace, match_records
-import theory, span, rows
+import theory, span, rows, linkage
 
 from util import windex, MISSING
 from property import mep_get, mep_set
@@ -13,8 +13,10 @@ from workspace import *
 from theory import local_sup, get_equivalent
 from simple import simple_relationship
 
-def align(A_iter, A_name, B_iter, B_name, matches_iter):
-  AB = ingest_workspace(A_iter, A_name, B_iter, B_name, matches_iter)
+def align(A_iter, B_iter, A_name='A', B_name='B', matches_iter=None):
+  AB = ingest_workspace(a_rows.rows(), b_rows.rows(),
+                        A_name=A_name, B_name=B_name)
+  find_links(AB, matches_iter)
   al = generate_alignment(AB)
   return generate_alignment_report(al, AB)
 
@@ -155,9 +157,8 @@ def sort_key(c):
 def test():
   def testit(m, n):
     log("\n-- Test: %s + %s --" % (m, n))
-    report = align(newick.parse_newick(n), "A",
-                   newick.parse_newick(m), "B",
-                   None)        # no matches
+    report = align(newick.parse_newick(n),
+                   newick.parse_newick(m))
     util.write_rows(report, sys.stdout)
   testit("a", "a")              # A + B
   testit("(c,d)a", "(c,e)b")
@@ -181,6 +182,10 @@ if __name__ == '__main__':
                       default='-')
   parser.add_argument('--B', help="the B checklist, as path name or -",
                       default='-')
+  parser.add_argument('--Aname', help="short name of the A checklist",
+                      default='A')
+  parser.add_argument('--Bname', help="short name of the B checklist",
+                      default='B')
   parser.add_argument('--test', action='store_true', help="run smoke tests")
   args=parser.parse_args()
   if args.test:
@@ -192,7 +197,9 @@ if __name__ == '__main__':
     with rows.open(a_path) as a_rows:
       with rows.open(b_path) as b_rows:
         # compute name matches afresh
-        AB = ingest_workspace(a_rows.rows(), "A", b_rows.rows(), "B", None)
+        AB = ingest_workspace(a_rows.rows(), b_rows.rows(),
+                              A_name=args.Aname, B_name=args.Bname)
+        linkage.find_links(AB)
         al = generate_alignment(AB)
         report = simple_report(al)
         util.write_rows(report, sys.stdout)

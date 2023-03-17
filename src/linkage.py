@@ -5,116 +5,133 @@
 
 import util
 import property as prop
-import parser
-from parse import parse_name
+import parser, rows
+import simple
 from checklist import *
+from workspace import *
+from rcc5 import EQ, NEQ
+from parse import parse_name
+
+HOMOTYPIC   = EQ           # Hmm, not sure about this
+HETEROTYPIC = NEQ
+REVIEW      = HOMOTYPIC | HETEROTYPIC
 
 NEUTRAL = 0
 
-get_link = get_match
-set_link = set_match
-
 # For each record, get list of matching records.... hmm
+# Future: read exceptions or whole thing from a file
 
-def find_links(AB):
-  # This sets the 'link' property of ... all? ... nodes.
-  subproblems = find_subproblems(AB.A, AB.B)
+def find_links(AB, m_iter=None):
+  assert not m_iter, 'NYI'
+  # This sets the 'link' property of ... some ... records.
+  subproblems = find_subproblems(AB)
+  # AB.subproblems = subproblems  ... might be handy for diagnosis ...
   count = 0
-  for (xs, ys) in subproblems.values():
-    # classify as A1, A2, A3 (NEQ, NOINFO, EQ)
-    for x in xs:
-      for y in ys:
-        have1 = get_link(x, False)
-        have2 = get_link(y, False)
+  for (us, vs) in subproblems.values():
+    # classify as A1, A2, A3 (HETEROTYPIC, REVIEW, HOMOTYPIC)
+    for u in us:
+      for v in vs:
+        have1 = get_link(u, None)
+        have2 = get_link(v, None)
         if have1 == None or have2 == None:
-          score = compute_score(x, y)
-          count += improve_link(x, y, score)
-          count += improve_link(y, x, score)
-  return count
+          score = compute_score(u, v)
+          log("# for (%s, %s) have (%s, %s) score %s" %
+              (blurb(u), blurb(v),
+               blurb(have1) if have1 else '-',
+               blurb(have2) if have2 else '-',
+               score))
+          count += improve_link(u, v, score)
+          count += improve_link(v, u, score)
+          #log("#  Improved: %s %s" % (blurb(u), blurb(get_link(u))))
+  log("# %s links forged" % count)
 
-def improve_link(x, y, score):
+def improve_link(u, v, score):
   log(explain(score))
-  ship = score_to_ship(score)
-  if ship != EQ:
+  if score_to_ship(score) != HOMOTYPIC:
     return 0
   else:
-    have_rel = get_link(x, None)
-    if have_rel and have_rel.relationship == EQ:
-      have_y = have_rel.record
-      mrca = simple.mrca(have_y, y)
-      if have_y == mrca:
-        # y < have_y.  prefer it. ???
-        set_link(x, relation(ship, y, "more specific"))
-        return 0
-      elif y == mrca:
-        # have_y < y.  Leave it alone.
+    have_v = get_link(u, None) # (v0, score) Anything to improve on?
+    if have_v:
+      mrca = simple.mrca(have_v, v)
+      # We want the one that is... more protonymical (fewer () )
+      if have_v == mrca:
+        # v < have_v.  prefer v ??
+        set_link(u, v)
+        return 0                # Replacing
+      elif v == mrca:
+        # have_v < v.  Leave it alone.
         return 0
       else:
-        # inconsistent.  wait until later to figure this out.
-        set_link(x, False)
-        return -1
-    elif have_rel != None:
-      return 0
-    set_link(x, relation(ship, y, "score %s" % score))
+        # ambiguous.  wait until later to figure this out.
+        set_link(u, False)
+        return -1               # Retracting
+    # Adding
+    set_link(u, v)
     return 1
 
 def score_to_ship(score):
-  if score >= THRESH:     return EQ
-  elif score <= NOTHRESH: return NEQ
-  else: return NOINFO
+  if score >= THRESH:     return HOMOTYPIC
+  elif score <= NOTHRESH: return HETEROTYPIC
+  else: return REVIEW
 
+def homotypic_synonyms(u, species):
+  score = compute_score(u, species, 10)
+  if score >= THRESH2: return HOMOTYPIC
+  else: return REVIEW
 
 # Find blocks/chunks, one per epithet
 
-def find_subproblems(A, B):
+def find_subproblems(AB):
+  sswap(AB).A
   (A_index, B_index) = \
-    map(lambda C: \
-        index_by_some_key(C,
+    map(lambda CD: \
+        index_by_some_key(CD,
                           # should use genus if epithet is missing
                           get_subproblem_key),
-        (A, B))
+        (AB, sswap(AB)))
   subprobs = {}
-  for (val, xs) in A_index.items():
-    ys = B_index.get(val, None)
-    if ys != None:
-      subprobs[val] = (xs, ys)
-      # for x in xs: set_subproblem(x, subprob)
-      # for y in ys: set_subproblem(y, subprob)
+  for (val, us) in A_index.items():
+    vs = B_index.get(val, None)
+    if vs != None:
+      subprobs[val] = (us, vs)
+      # for u in us: set_subproblem(u, subprob)
+      # for v in vs: set_subproblem(v, subprob)
   return subprobs
-
-# Each subproblem covers a single associated partial name
-
-def get_subproblem_key(x):
-  parts = get_parts(x)
-  ep = parts.epithet
-  assert ep != None
-  return parts.genus if ep == '' else ep
 
 # Returns dict value -> key
 
-def index_by_some_key(A, fn):
+def index_by_some_key(AB, fn):
   index = {}
-  for x in postorder_records(A):
-    key = fn(x)
+  for x in postorder_records(AB.A):
+    u = AB.in_left(x)
+    key = fn(u)
     assert key
     have = index.get(key, None)
     if have:
-      have.append(x)
+      have.append(u)
     else:
-      index[key] = [x]
+      index[key] = [u]
   return index
+
+# Each subproblem covers a single associated partial name
+
+def get_subproblem_key(z):
+  parts = get_parts(z)
+  ep = parts.epithet
+  assert ep != None
+  return parts.genus if ep == '' else ep
 
 # -----------------------------------------------------------------------------
 # Score potentially contipic taxa.
 # If distance is close, give a pass on genus mismatch.
 
-def compute_score(x, y, nearness=None):
-  return compute_parts_score(get_parts(x),
-                             get_parts(y),
-                             nearness)
+def z_compute_score(u, v, nearness=None):
+  return compute_score(u, v, nearness)
 
-def get_parts(x):
-  return parse_name(get_scientific(x, None) or get_canonical(x))
+def compute_score(u, v, nearness=None):
+  return compute_parts_score(get_parts(u),
+                             get_parts(v),
+                             nearness)
 
 # Score potentially contipic names from 0 to 100
 
@@ -153,17 +170,26 @@ def explain(score):
   def explode(things):
     return ', '.join((z
                       for (i, z)
-                      in zip(range(0, 4),
-                                  ("year", "token", "genus", "nearness", "epithet"))
-                      if things & 1<<i != 0))
+                      in zip(range(0, 5),
+                             (
+                              "nearness", # 1  = 1 << 0
+                              "year",     # 2
+                              "token",    # 4
+                              "genus",    # 8
+                              "epithet",  # 16
+                                         ))
+                      if (things & (1<<i)) != 0))
   if score == NEUTRAL:
-    return "neutral"
+    word = "neutral"
+    bits = 0
   if score > NEUTRAL:
-    return "same(%s)" % explode(score - NEUTRAL)
+    word = "link" if score >= THRESH else "similar, review"
+    bits = score - NEUTRAL
   else:
-    return "different(%s)" % explode(NEUTRAL - score)
+    word = "nolink" if score < NOTHRESH else "dissimilar, review"
+    bits = NEUTRAL - score
+  return "%s(%s)" % (word, explode(bits))
     
-  
 
 # Calibration
 
@@ -179,13 +205,43 @@ NOTHRESH = compute_parts_score(parse_name("Foo bar Jones, 1927"),
                                parse_name("Foo bar Smith, 1927"))
 log("# Unmatch predicted if score <= %s" % NOTHRESH)
 
+THRESH2 = compute_parts_score(parse_name("Foo bar Jones, 1927"),
+                              parse_name("Quux bar (Jones, 1927)"),
+                              10)
+log("# For synonym analysis: %s" % THRESH2)
+
+# -----------------------------------------------------------------------------
+# Plumbing
+
+def generate_linkage_report(AB):
+  yield ('from', 'to', 'score')
+  for x in all_records(AB.A):
+    u = AB.in_left(x)
+    v = get_link(u, None)
+    if v:
+      yield (blurb(u), blurb(v), compute_score(u, v))
+    elif v == False:
+      yield (blurb(u), 'ambiguous', MISSING)
 
 import argparse
 if __name__ == '__main__':
-  parser = argparse.ArgumentParser()
-  parser.add_argument("name1")
-  parser.add_argument("name2")
+  parser = argparse.ArgumentParser(description="""
+    Generate list of exemplars proposed for two checklists
+    """)
+  parser.add_argument('--A', help="the A checklist, as path name or -",
+                      default='-')
+  parser.add_argument('--B', help="the B checklist, as path name or -",
+                      default='-')
   args=parser.parse_args()
-  log("Comparing '%s' to '%s'" % (args.name1, args.name2))
-  s = compute_parts_score(parse_name(args.name1), parse_name(args.name2))
-  log("Score = %s, relationship is %s" % (s, rcc5_symbol(score_to_ship(s))))
+
+  a_name = 'A'; b_name = 'B'
+  a_path = args.A
+  b_path = args.B
+  with rows.open(a_path) as a_rows: # rows object
+    with rows.open(b_path) as b_rows:
+      # compute name matches afresh
+      AB = ingest_workspace(a_rows.rows(), b_rows.rows(),
+                            A_name=a_name, B_name=b_name)
+      find_links(AB)
+      report_gen = generate_linkage_report(AB)
+      util.write_rows(report_gen, sys.stdout)
