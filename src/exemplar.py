@@ -16,47 +16,37 @@ from workspace import *
 # are 'tipward' do.  'Tipward' means that at least one of the two taxa
 # has no tipward accepted descendant taxon.
 
-def generate_exemplars(AB):
-  yield ("exemplar", "A_rep", "B_rep") # representatives
-  count = 0
-  for (id, u, v) in choose_exemplars(AB):
-    count += 1
-    yield (id,
-           get_primary_key(get_outject(u)) if u else MISSING,
-           get_primary_key(get_outject(v)) if v else MISSING,
-           blurb(u) if u else blurb(v))
-  log("# exemplar report rows: %s" % count)
-
 # See AB.exemplars for map {id: [id, v, w], ...}
 # Called from theory.theorize.
 # Each exemplar has a representative in A and one in B.
 
-def choose_exemplars(AB):
+def analyze_exemplars(AB):
   analyze_tipwards(AB)
   AB.exemplar_counter = 0
   AB.exemplars = {}
 
-  def do_exemplars(CD, species):
-    def traverse(x, species_uf):      # x in A
-      # log("# considering %s" % (blurb(x)))
+  def do_exemplars(CD):
+    def traverse(x, species):      # x in A
       u = CD.in_left(x)
       
-      if get_rank(u, None) == 'species':
-        species = u
-
       if species:
         if homotypic(u, species):
           equate_exemplars(species, u)
 
+      if get_rank(u, None) == 'species':
+        species = u
+
       v = get_tipward(u, None)
       if v:
+        log("# Looking at %s -> %s" % (blurb(u), blurb(v)))
         equate_exemplars(u, v)
 
       for c in get_inferiors(x):
         traverse(c, species)
+    traverse(CD.A.top, None)
 
-  do_exemplars(AB, None)
-  do_exemplars(swap(AB), None)
+  do_exemplars(AB)
+  do_exemplars(swap(AB))
   equate_exemplars(AB.in_left(AB.A.top),
                    AB.in_right(AB.B.top))
 
@@ -65,22 +55,29 @@ def choose_exemplars(AB):
 #   2. choice of name
 
 def equate_exemplars(u, v):     # opposite checklists. u might be species
-  uf = get_exemplar_info(u)
-  vf = get_exemplar_info(v)
-  merge_representatives(uf.find(), vf.find())
-  uf.absorb(vf)
+  if u != v:
+    uf = get_exemplar_uf(u)
+    vf = get_exemplar_uf(v)
+    merge_representatives(uf.find(), vf.find())
+    uf.absorb(vf)
 
 def merge_representatives(uf, vf): # absorb into uf
-  exem = uf.id()
-  (_, u1, v1) = exem
-  (_, u2, v2) = vf.id()
-  exem[1] = pick_preferred(u1, u2)
-  exem[2] = pick_preferred(v1, v2)
+  r = uf.payload()
+  (i1, u1, v1) = r
+  (i2, u2, v2) = vf.payload()
+  r[1] = unify_records(u1, u2)
+  r[2] = unify_records(v1, v2)
+  if r[1] and r[2]:
+    log("# Same exemplar: e(%s) = e(%s)" % (blurb(r[1]), blurb(r[2])))
+  if i1 and i2:
+    r[0] = min(i1, i2)
+  else:
+    r[0] = i1 or i2
 
-def pick_preferred(u1, u2):
+def unify_records(u1, u2):
   if not u2: return u1
   if not u1: return u2
-  rel = compare_per_checklist(u1, u2)
+  rel = simple.compare_per_checklist(u1, u2)
   if rel.relationship == GT:
     return u2                   # Prefer more tipward
   if (rel.relationship == EQ and
@@ -90,33 +87,37 @@ def pick_preferred(u1, u2):
   else:
     return u1
 
-def get_exemplar_info(u):
-  probe = really_get_exemplar_info(u, None)
+def get_exemplar_uf(u):
+  #log("# Thinking about exemplar for %s" % blurb(u))
+  probe = really_get_exemplar_uf(u, None)
   if probe: return probe
   AB = get_workspace(u)
   uf = UnionFindable([None, u, None] if isinA(AB, u) else [None, None, u])
-  set_exemplar_info(u, uf)
+  set_exemplar_uf(u, uf)
   return uf
 
-(really_get_exemplar_info, set_exemplar_info) = \
-  prop.get_set(prop.declare_property("exemplar_info"))
+(really_get_exemplar_uf, set_exemplar_uf) = \
+  prop.get_set(prop.declare_property("exemplar_uf"))
 
-# Returns exemplar id or None
+# Returns exemplar record or None.  TO BE USED ONLY AFTER
+# analyze_exemplars HAS FINISHED ITS WORK.
 
 def get_exemplar(u):
-  uf = really_get_exemplar_info(u)
+  uf = really_get_exemplar_uf(u, None)
   if uf:
-    (id, u, v) = uf.id()
+    r = uf.payload()
+    (id, u, v) = r
     if u and v:
       if not id:
         # Create id on demand
         ws = get_workspace(u)
         ws.exemplar_counter += 1
-        uf[0] = ws.exemplar_counter
-        ws.exemplars[id] = uf
-        log("# Exemplar %s %s %s" % (id, blurb(uf[1]), blurb(uf[2])))
         id = ws.exemplar_counter
-      return uf
+        r[0] = id
+        ws.exemplars[id] = r
+        #log("# Exemplar %s: e(%s) = (%s)" % (id, blurb(u), blurb(v)))
+        id = ws.exemplar_counter
+      return r
   return None
 
 # -----------------------------------------------------------------------------
@@ -143,15 +144,9 @@ def analyze_tipwards(AB):
       if v:
         assert separated(u, v)
         # u is tipward and has link, but link not necessarily tipward ...
-        u2 = get_link(v)
-        if u2:
-          assert u2 == u
-          log("# Nonreciprocal tipwards %s %s" % (blurb(u), blurb(v)))
-          # diagnose_match(u)
-          set_tipward(u, v)
+        set_tipward(u, v)
         seen = 1
-        # log("# Tipwards %s %s" % (blurb(u), blurb(v)))
-
+        log("# Set tipward %s -> %s" % (blurb(u), blurb(v)))
     return seen + seen2
   traverse(AB, AB.A.top)
   traverse(swap(AB), AB.B.top)
@@ -173,6 +168,27 @@ def read_exemplars(inpath, AB):
          checklist.look_up_record(AB,B, row[b_col]))
   return exemplars
 
+# could do this as a generator + write_rows
+
+def write_exemplar_list(AB, out=sys.stdout):
+  util.write_rows(generate_exemplars(AB), out)
+
+def generate_exemplars(AB):
+  yield ("exemplar", "A_taxonID", "B_taxonID", "A_blurb", "B_blurb") # representatives
+  count = 0
+  seen = {}
+  for x in preorder_records(AB.A):
+    z = AB.in_left(x)
+    r = get_exemplar(z)
+    if r:
+      (id, u, v) = r
+      if u == z:
+        u_key = get_primary_key(get_outject(u))
+        v_key = get_primary_key(get_outject(v))
+        yield (id, u_key, v_key, blurb(u), blurb(v))
+        count += 1
+  log("# exemplar report rows: %s" % count)
+
 if __name__ == '__main__':
   parser = argparse.ArgumentParser(description="""
     Generate list of exemplars proposed for two checklists
@@ -192,9 +208,5 @@ if __name__ == '__main__':
       AB = ingest_workspace(a_rows.rows(), b_rows.rows(),
                             A_name=a_name, B_name=b_name)
       linkage.find_links(AB)
-      choose_exemplars(AB)
-      writer = csv.writer(sys.stdout)
-      writer.writerow(("exemplar_id", "A_taxonID", "B_taxonID"))
-      for (id, exem) in AB.exemplars.items():
-        (_, u, v) = exem
-        writer.writerow((id, get_primary_key(u), get_primary_key(v)))
+      analyze_exemplars(AB)
+      write_exemplar_list(AB)

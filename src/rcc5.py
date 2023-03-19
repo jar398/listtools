@@ -56,7 +56,7 @@ def reverse_relationship(ship):
 # Take apart a conjunction into its parts
 
 def explode_rcc5(ship):
-  for r in (EQ, LT, GT, DISJOINT, OVERLAP):
+  for r in (LT, GT, EQ, DISJOINT, OVERLAP):
     if ship & r > 0:
       yield r
 

@@ -34,11 +34,6 @@ def find_links(AB, m_iter=None):
         have2 = get_link(v, None)
         if have1 == None or have2 == None:
           score = compute_score(u, v)
-          log("# for (%s, %s) have (%s, %s) score %s" %
-              (blurb(u), blurb(v),
-               blurb(have1) if have1 else '-',
-               blurb(have2) if have2 else '-',
-               score))
           count += improve_link(u, v, score)
           count += improve_link(v, u, score)
           #log("#  Improved: %s %s" % (blurb(u), blurb(get_link(u))))
@@ -46,7 +41,6 @@ def find_links(AB, m_iter=None):
   log("# %s links forged" % count)
 
 def improve_link(u, v, score):
-  log(explain(score))
   if score_to_ship(score) != HOMOTYPIC:
     return 0
   else:
@@ -57,6 +51,7 @@ def improve_link(u, v, score):
       if have_v == mrca:
         # v < have_v.  prefer v ??
         set_link(u, v)
+        log("# Improving link %s ~ %s" % (blurb(u), blurb(v)))
         return 0                # Replacing
       elif v == mrca:
         # have_v < v.  Leave it alone.
@@ -64,9 +59,11 @@ def improve_link(u, v, score):
       else:
         # ambiguous.  wait until later to figure this out.
         set_link(u, False)
+        log("# Ambiguous: %s" % (blurb(u),))
         return -1               # Retracting
     # Adding
     set_link(u, v)
+    log("# Set link %s ~ %s" % (blurb(u), blurb(v)))
     return 1
 
 def score_to_ship(score):
@@ -188,7 +185,7 @@ def explain(score):
   else:
     word = "nolink" if score < NOTHRESH else "dissimilar, review"
     bits = NEUTRAL - score
-  return "%s(%s)" % (word, explode(bits))
+  return "%s %s(%s)" % (word, explode(bits))
     
 
 # Calibration

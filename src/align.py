@@ -105,7 +105,7 @@ def taxon_articulators(AB, u):
     if True or rel.relationship != EQ:
       for c in get_inferiors(get_outject(v)):
         yield AB.in_right(c)
-  v = get_link(u)
+  v = get_link(u, None)
   if v:
     yield v
 

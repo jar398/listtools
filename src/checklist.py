@@ -65,11 +65,6 @@ outject_prop = prop.declare_property("outject")
 (get_link, set_link) = prop.get_set(link_prop)
 (get_match, set_match) = prop.get_set(match_prop)
 
-# Exemplar record = (u_pk, v_pk, id)
-(get_exemplar, set_exemplar) = \
-   prop.get_set(prop.declare_property("exemplar"))
-
-
 # Links
 (get_parent_key, set_parent_key) = prop.get_set(parent_key_prop)
 (get_accepted_key, set_accepted_key) = prop.get_set(accepted_key_prop)
@@ -121,6 +116,17 @@ def compose_relations(rel1, rel2):
   if is_identity(rel1): return rel2
   if is_identity(rel2): return rel1
   return Relative(compose_relationships(rel1.relationship, rel2.relationship),
+                  rel2.record,
+                  rel1.span + rel2.span,
+                  compose_notes(rel1.note, rel2.note))
+
+def compose_path_relations(rel1, rel2):
+  assert rel1
+  assert rel2
+  if is_identity(rel1): return rel2
+  if is_identity(rel2): return rel1
+  return Relative(compose_path_relationships(rel1.relationship,
+                                             rel2.relationship),
                   rel2.record,
                   rel1.span + rel2.span,
                   compose_notes(rel1.note, rel2.note))
@@ -248,7 +254,7 @@ def resolve_superior_link(S, record):
           log("# %s %s %s %s" %
               (blurb(record), taxonID, accepted_key, blurb(accepted)))
         sup = relation(synonym_relationship(record, accepted), accepted,
-                       note="declared", span=1)
+                       note="checklist (synonym)", span=1)
     else:
       log("# Synonym %s with unresolvable accepted: %s -> %s" %
           (get_tag(S), blurb(record), accepted_key))
@@ -259,7 +265,7 @@ def resolve_superior_link(S, record):
     parent = look_up_record(S, parent_key, record)
     if parent:
       assert parent, blurb(record)
-      sup = relation(HAS_PARENT, parent, note="declared")
+      sup = relation(HAS_PARENT, parent, note="checklist (child)")
     else:
       log("# accepted in %s but has unresolvable parent: %s = %s" %
           (get_tag(S), blurb(record), parent_key))

@@ -64,11 +64,15 @@ def generate_short_report(al, AB):
                 witness_comment(AB, v, rel),
                 match_comment(AB, v, rel))
 
-def plausible(AB, v, ship, w):
-  if (ship == DISJOINT and
-      get_equivalent(AB, get_superior(v).record) == get_equivalent(AB, get_superior(v).record)):
-    #log("# unsurprising! %s %s" % (blurb(v), blurb(w)))
-    return True
+def plausible(AB, u, ship, v):
+  if (ship == DISJOINT):
+    eq1 = get_equivalent(AB, get_superior(u).record)
+    eq2 = get_equivalent(AB, get_superior(v).record)
+    r1 = eq1.record if eq1 else None
+    r2 = eq2.record if eq2 else None
+    if (r1 == r2):
+      #log("# unsurprising! %s %s" % (blurb(u), blurb(v)))
+      return True
   return False
 
 # This column is called "category" for consistency with MDD.

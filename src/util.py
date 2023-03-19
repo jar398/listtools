@@ -139,7 +139,7 @@ def log(mess):
 class UnionFindable:
 
   def __init__(self, id):
-    self.identifier = id
+    self.the_payload = id
     self.absorbed_into = None
 
   def find(self):
@@ -158,7 +158,7 @@ class UnionFindable:
       a.absorbed_into = s # ?
       return a
 
-  def id(self): return self.find().identifier
+  def payload(self): return self.find().the_payload
 
 
 if __name__ == '__main__':
@@ -166,8 +166,8 @@ if __name__ == '__main__':
   y = UnionFindable(2)
   z = UnionFindable(3)
   w = UnionFindable(4)
-  print([x.id(), y.id(), z.id()])
+  print([x.payload(), y.payload(), z.payload()])
   xy = x.unite(y)
-  print([x.id(), y.id(), z.id()])
+  print([x.payload(), y.payload(), z.payload()])
   xyz = z.unite(xy)
-  print([x.id(), y.id(), z.id()])
+  print([x.payload(), y.payload(), z.payload()])
