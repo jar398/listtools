@@ -101,8 +101,8 @@ class Relative(NamedTuple):
 def relation(ship, record, note=MISSING, span=None):
   assert isinstance(ship, int), ship
   assert note != None
-  assert ((ship == NOINFO and not record) or \
-          isinstance(record, prop.Record)), blurb(record)
+  #assert ((ship == NOINFO and not record) or \ ...)
+  assert isinstance(record, prop.Record), blurb(record)
   if span == None:
     if ship == EQ: span = 0
     #elif ship == SYNONYM or MYNONYS: span = 1
@@ -116,6 +116,8 @@ def reverse_relation(rel, starting):
                   reverse_note(rel.note))
 
 def compose_relations(rel1, rel2):
+  assert rel1
+  assert rel2
   if is_identity(rel1): return rel2
   if is_identity(rel2): return rel1
   return Relative(compose_relationships(rel1.relationship, rel2.relationship),
@@ -669,7 +671,7 @@ def blurb(r):
   elif r:
     return "[not a record]"
   elif r == None:
-    return "[no match]"
+    return "[none]"
   elif r == False:
     return "[inconsistent]"     # linkage.py
   else:

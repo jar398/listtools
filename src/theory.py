@@ -4,7 +4,7 @@ import types, functools
 import property as prop, checklist, workspace, simple
 
 from util import log
-from simple import BOTTOM, compare_in_checklist, compare_siblings
+from simple import BOTTOM, compare_per_checklist, compare_siblings
 from checklist import *
 from workspace import *
 
@@ -15,23 +15,8 @@ import exemplar
 def theorize(AB):
   # ... exemplar.exemplars(A_iter, B_iter, m_iter) ...
   # TBD: option to read them from a file
-  exemplar_records = {}
-  for (xid, u, v) in exemplar.choose_exemplars(AB):
-    if u and v:
-      set_exemplar(u, xid)
-      set_exemplar(v, xid)
-      exemplar_records[xid] = (u, v)
-    elif u:
-      set_exemplar(u, xid)
-      if not xid in exemplar_records:
-        exemplar_records[xid] = (u, v)
-    elif v:
-      set_exemplar(v, xid)
-      if not xid in exemplar_records:
-        exemplar_records[xid] = (u, v)
-    
-  AB.exemplar_records = exemplar_records
-  analyze_blocks(AB)                  # sets of exemplars
+  exemplar.choose_exemplars(AB) # set_exemplar(...)
+  analyze_blocks(AB)            # set_block(...)
   compute_cross_mrcas(AB)
   find_estimates(AB)
 
@@ -42,7 +27,7 @@ def compare(AB, v, w):
   if separated(v, w):
     return cross_compare(AB, v, w)
   else:
-    return compare_in_checklist(get_outject(v), get_outject(w))
+    return compare_per_checklist(get_outject(v), get_outject(w))
 
 # v and w are Records in AB, not in A or B
 # Returns a Relative to w
@@ -78,6 +63,7 @@ def compare_accepted(AB, v, w):
   assert separated(v1, w1)
   # Compare v1 and w1, which are central, in opposite checklists
   rel2 = compare_centrally(AB, v1, w1)   # v1 ? w1
+  assert rel2
   # v -> v1 -> w1 -> w
   return compose_final(rel1, rel2, rel3)
 
@@ -101,6 +87,7 @@ def is_graft(start, rel):
           is_empty_block(get_block(start)) != is_empty_block(rel.record))
 
 # Compare taxa that are known to have nonempty exemplar sets.
+# Returns non-None as long as there are any exemplars.
 
 def compare_centrally(AB, v, w):
   assert separated(v, w)
@@ -124,25 +111,35 @@ def compare_within_block(AB, v, w):
 
   # Set up a v/m/w/n diagram and see how well it commutes.
 
+  ship1 = ship2 = None
+
   # Path 1: v = m ? w
   rel_vm = get_estimate(v, None)      # v <= m   in same checklist
-  assert rel_vm
+  assert rel_vm 
+  assert rel_vm.record
   m = rel_vm.record
   assert separated(v, m)
-  rel_mw = compare_in_checklist(get_outject(m), get_outject(w)) # in A or B
+  rel_mw = compare_per_checklist(get_outject(m), get_outject(w)) # in A or B
   rel_vw = compose_relations(rel_vm, rel_mw)
   ship1 = rel_vw.relationship   # v <= m ? w
 
   # Path 2: v ? n = w   (starting with w)
   rel_wn = get_estimate(w, None)     # n = w
   assert rel_wn
-  n = rel_wn.record
-  assert separated(w, n)
-  rel_nv = compare_in_checklist(get_outject(n), get_outject(v))
-  rel_wv = compose_relations(rel_wn, rel_nv)
-  rship2 = rel_wv.relationship   # v ? w
+  if rel_wn and rel_wn.record:
+    n = rel_wn.record
+    assert separated(w, n)
+    rel_nv = compare_per_checklist(get_outject(n), get_outject(v))
+    rel_wv = compose_relations(rel_wn, rel_nv)
+    rship2 = rel_wv.relationship   # v ? w
+    ship2 = reverse_relationship(rship2)
 
-  ship2 = reverse_relationship(rship2)
+  if ship1==None and ship2==None:
+    return None                 # can't get there from here
+  if ship1!=None and ship2==None:
+    return rel_vw
+  if ship2!=None and ship1==None:
+    return reverse_relation(w, rel_nv)
 
   # Take intersection to see where they agree
   ship = parallel_relationship(ship1, ship2)
@@ -195,14 +192,11 @@ def cross_le(AB, v, w):
 (really_get_estimate, set_estimate) = prop.get_set(prop.declare_property("estimate"))
 
 def get_estimate(v, default=-17):
-  if is_toplike(v):
-    return None                 # genuine, there is no such w
+  if default == -17:
+    probe = really_get_estimate(v)
   else:
-    if default == -17:
-      probe = really_get_estimate(v)
-    else:
-      probe = really_get_estimate(v, default)
-    return probe
+    probe = really_get_estimate(v, default)
+  return probe
 
 def find_estimates(AB):
   count = 1
@@ -220,17 +214,18 @@ def find_estimates_from(AB, v):
   vo = increase_until_overlap(AB, v)
   if not vo: return None        # very peripheral
   rel = find_estimates_when_central(AB, vo)
-  assert rel
-  w = rel.record
-  assert separated(vo, w)
-  if vo != v:
+  if rel:
     w = rel.record
-    # v is peripheral and can be grafted at w.
-    # v might be a synonym of w.
-    rel = relation(LT, w, note="peripheral")
-    rel = optimize_relation(AB, v, rel)
-  set_estimate(v, rel)
-  return rel
+    assert separated(vo, w)
+    if vo != v:
+      w = rel.record
+      # v is peripheral and can be grafted at w.
+      # v might be a synonym of w.
+      rel = relation(LT, w, note="peripheral")
+      rel = optimize_relation(AB, v, rel)
+    set_estimate(v, rel)
+    return rel
+  return None
 
 # Find estimates (>= in opposite checklist) in the case where v is not peripheral.
 # 'Central' = 'has a nonempty block' i.e. nonperipheral
@@ -239,13 +234,15 @@ def find_estimates_when_central(AB, v):
   probe = get_estimate(v, None)
   if probe != None: return probe
   w = get_cross_mrca(v, None)   # v <= w
+  assert w
 
   # increase w until its block is >= v's block
   b = get_block(v)
-  while not block_le(v, get_block(w)):
+  while not block_le(b, get_block(w)):
     sup = get_superior(w)
     assert sup, (blurb(w), "at top")
     w = sup.record
+  assert w
 
   # v's block <= w's block
 
@@ -261,83 +258,78 @@ def find_estimates_when_central(AB, v):
   # "ladder" - lineage from v (bottom of block) up to top of block,
   # and from w (bottom of block) up to top of block.
   else:
-    v1 = v
-    w1 = w
-    while v1:   # w still in v's block ... ?
-      rel = None
-      m_rel = get_match_in_block(v1, None)
-      if m_rel:
-        while w1:
-          n_rel = get_match_in_block(w1, None)
-          if not n_rel:
-            continue
-
-          # Yes, v1 matches something, call it m!
-          m = m_rel.record
-          if m == w1:
-            # v1 matches m = w1!  Match is symmetric, so w1 also matches v.
-            assert n_rel and n_rel.record == v
-            rel = relation(EQ, w1, note="match in block")
-          else:
-            rel = relation(NEQ, None, note="mismatch in block")
-          w1 = get_superior_in_block(w1)
-          # End w1 loop
-
-      if not rel:
-        # No match for v1, no information on upper bound (!?).   Tombstone for caching.
-        rel = relation(NOINFO, None, "no match in block")
-      set_estimate(v1, rel)
-      v1 = get_superior_in_block(v1)
-
     # End of v1 loop - go back to the original v
     rel = get_estimate(v, None)
-    assert rel
-    if rel.record: assert separated(v, rel.record)
+    if not rel:
+      analyze_ladder(v, w)
+      rel = get_estimate(v, None)
+    if rel and rel.record: assert separated(v, rel.record)
 
-  return optimize_relation(AB, v, rel)
+    if rel:
+      return optimize_relation(AB, v, rel)
+    return None
+
+# Zip up parallel lineages in the two checklists
+
+def analyze_ladder(v, w):
+  v1 = v
+  w1 = w
+  assert w1
+  while v1:   # w still in v's block ... ?
+    rel = None
+    m = get_match_in_block(v1)
+    if m:
+      while w1:
+        n = get_match_in_block(w1)
+        if not n:
+          continue
+
+        # Yes, v1 matches something, call it m!
+        if m == w1:
+          # v1 matches m = w1!  Match is symmetric, so w1 also matches v.
+          assert n == v
+          rel = relation(EQ, w1, note="match in block")
+        else:
+          rel = relation(NEQ, w1, note="mismatch in block")
+        w1 = get_superior_in_block(w1)
+        # End w1 loop
+
+    if not rel:
+      # No match for v1, no information on upper bound (!?).   Tombstone for caching.
+      rel = False   # relation(NOINFO, None, "no match in block")
+    set_estimate(v1, rel)
+    v1 = get_superior_in_block(v1)
 
 # v assumed central
 
-def get_superior_in_block(v):
-  sup = local_sup(v1, None)
+def get_superior_in_block(u):
+  assert u
+  AB = get_source(u)
+  sup = local_sup(AB, u)
   if not sup: return None
-  v1 = sup.record
-  if same_block(get_block(v1), get_block(v)):
-    return v1
+  u1 = sup.record
+  if same_block(get_block(u1), get_block(u)):
+    return u1
   else:
     return None
 
-def get_match_in_block(v):
-  rel = get_match(v, None)     # returns relation in AB
-  if rel:
-    w = rel1.record
-    if w and same_block(get_block(w), b):
-      return w
+def get_match_in_block(u):
+  v = get_link(u, None)     # returns relation in AB
+  if v and same_block(get_block(v), get_block(u)):
+    return v
   return None
 
 # This performs a bit better but there are still lapses.
 # Not consistent with what get_estimate does.
 
-def get_match_in_block_hairy(v):
-  b = get_block(v, None)
+def get_match_in_block_hairy(u):
+  b = get_block(u, None)
   if b == None: return None     # peripheral
-  ms0 = get_matches(v)
-  ms = [m for m in ms0 if get_block(m, None) == b]
-  if len(ms) == 1:
-    m = ms[0]
-    ns0 = get_matches(m)
-    ns = [n for n in ns0 if get_block(n, None) == b]
-    #log("#   %s matches: %s" % (blurb(m), "; ".join(map(blurb, ns))))
-    if len(ns) == 1:
-      n = ns[0]
-      if n == v:
-        if len(ms) < len(ms0):
-          log("# Used block to disambiguate %s between %s" %
-              (blurb(v), ";".join(map(blurb, ms))))
-        if len(ns) < len(ns0):
-          log("# Used block to disambiguate %s between %s (return)" %
-              (blurb(m), ";".join(map(blurb, n))))
-        return m
+  m = get_link(u)
+  if m:
+    n = get_link(m)
+    if n and get_block(n, None) == b:
+      return m
   return None
 
 # Given v, find unique node w in opposite checklist such that w = v.
@@ -467,9 +459,7 @@ def compute_cross_mrcas(AB):
       v = AB.in_left(x)         # in AB
       probe = get_exemplar(v, None)       # in AB
       if probe:
-        w_rel = get_matched(v)
-        assert w_rel
-        w = w_rel.record
+        w = get_link(v)
         m = get_outject(w)
       else:
         m = BOTTOM                # identity for mrca
@@ -525,16 +515,23 @@ def analyze_blocks(AB):
     if False and len(e) > 1000:
       log("# analyze_blocks: %s has %s exemplars" % (blurb(x), len(e)))
 
-    v = in_left(x)              # in A (or B if in B)
-    xid = get_exemplar(v, None)
-    if xid: e = adjoin_exemplar(xid, e)
+    u = in_left(x)              # in A (or B if in B)
+    exem = get_exemplar(u, None)
+    if exem:
+      e = adjoin_exemplar(exem[0], e)
     # **************** TBD
     if e != BOTTOM_BLOCK:
-      set_block(v, e)
+      set_block(u, e)
     #log("# theory: block(%s) = %s" % (blurb(x), e))
     return e
   traverse(AB.A.top, AB.in_left, False)
   traverse(AB.B.top, AB.in_right, True)
+
+  # Sanity check
+  b1 = get_block(AB.in_left(AB.A.top), BOTTOM_BLOCK)
+  b2 = get_block(AB.in_right(AB.B.top), BOTTOM_BLOCK)
+  assert b1 != BOTTOM_BLOCK
+  assert b1 == b2
 
 # For debugging
 

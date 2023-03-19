@@ -64,10 +64,11 @@ def make_workspace(A, B, meta=None):
     assert w, blurb(z)
     if get_source(w) == A:
       return when_left(w)
-    else:
-      assert get_source(w) == B
+    elif get_source(w) == B:
       return when_right(w)
+    else: assert False
   AB = Coproduct(_in_left, _in_right, _case)
+  AB.workspace = AB
   AB.context = Q
 
   AB.meta = meta
@@ -75,13 +76,19 @@ def make_workspace(A, B, meta=None):
   AB.A = A
   AB.B = B
 
-  # Force local copies of all source records
+  # Force local copies of all source records  -- really?
   for y in all_records(B): AB.in_right(y) # not including top
   for x in all_records(A): AB.in_left(x)  # not including top
   # AB.top is not set at this point.  Needs to be determined independently
   #log("# taxonID counter: %s" % pk_counter[0])
 
+  AB.exemplar_counter = [0]     # shared with swapped form
   return AB
+
+def fresh_exemplar_id(AB):
+  AB.exemplar_counter[0] += 1
+  return AB.exemplar_counter[0]
+  
 
 # Is given synonym usage a senior synonym of its accepted usage?
 # In the case of splitting, we expect the synonym to be a senior
@@ -123,38 +130,43 @@ def isinB(AB, z):
   return AB.case(z, lambda x: False, lambda x: True)
 
 def separated(x, y):
+  assert x
+  assert y
   AB = get_source(x)
   return isinA(AB, x) != isinA(AB, y)
 
 # Returns <p, syn> where p in AB is superior in A (or B) of v,
 #  and syn is true iff p is a synonym
 
-def local_sup(AB, v):
-  assert v, 'local_sup'
-  assert get_outject(v)
-  loc = get_superior(get_outject(v), None)
+def local_sup(AB, u):
+  assert u, 'local_sup'
+  assert get_outject(u)
+  loc = get_superior(get_outject(u), None)
   if not loc:
     return None
-  if isinA(AB, v):
+  if isinA(AB, u):
     return relation(loc.relationship, AB.in_left(loc.record),
                     note=loc.note, span=loc.span)
   else:
     return relation(loc.relationship, AB.in_right(loc.record),
                     note=loc.note, span=loc.span)
 
-def local_accepted(AB, v):
-  y = get_accepted(get_outject(v))
-  if isinA(AB, v):
+def local_accepted(AB, u):
+  y = get_accepted(get_outject(u))
+  if isinA(AB, u):
     return AB.in_left(y)
   else:
     return AB.in_right(y)
 
-def sswap(AB): return swap(AB)
 def swap(AB):
   BA = AB.swap()
   BA.A = AB.B
   BA.B = AB.A
+  BA.workspace = AB.workspace
   return BA
+
+def get_workspace(u):
+  return get_source(u).workspace
 
 # -----------------------------------------------------------------------------
 

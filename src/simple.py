@@ -10,7 +10,7 @@ from checklist import *
 
 # Returns a Relation explaining justification
 
-def compare_in_checklist(x, y):             # Within a single checklist
+def compare_per_checklist(x, y):             # Within a single checklist
   x1 = get_accepted(x)
   y1 = get_accepted(y)
   if x1 == y1:                    # same accepted
@@ -39,10 +39,6 @@ def compare_accepted_in_checklist(x, y):
     log("# peers: %s <= %s != %s >= %s" %
         (blurb(x), blurb(x_peer), blurb(y_peer), blurb(y)))
     return relation(DISJOINT, y, note="x < xp = yp > y")
-
-# previous name
-def simple_relationship(x, y):             # Within a single tree
-  return compare_in_checklist(x, y)
 
 # Compare x to y under the assumption that accepted(x) = accepted(y).
 # x and y might be in different checklists.

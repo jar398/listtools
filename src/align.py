@@ -11,7 +11,6 @@ from rcc5 import *
 from checklist import *
 from workspace import *
 from theory import local_sup, get_equivalent
-from simple import simple_relationship
 
 def align(A_iter, B_iter, A_name='A', B_name='B', matches_iter=None):
   AB = ingest_workspace(a_rows.rows(), b_rows.rows(),
@@ -98,7 +97,7 @@ def obvious(AB, v, ship, w):
 def taxon_articulators(AB, u):
   assert isinA(AB, u)
   rel = theory.get_estimate(u, None)
-  if rel:
+  if rel and rel.record:
     v = rel.record
     assert isinB(AB, v)
     assert separated(u, v)
@@ -106,8 +105,9 @@ def taxon_articulators(AB, u):
     if True or rel.relationship != EQ:
       for c in get_inferiors(get_outject(v)):
         yield AB.in_right(c)
-  for m in get_matches(u):
-    yield m
+  v = get_link(u)
+  if v:
+    yield v
 
 def is_species(v):              # z local
   z = get_outject(v)

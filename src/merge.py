@@ -7,6 +7,7 @@ from util import log, stdopen
 from checklist import *
 from workspace import *
 from theory import *
+from simple import compare_per_checklist
 from match_records import match_records
 from rcc5 import rcc5_symbol
 
@@ -352,7 +353,7 @@ def post_hoc_relationship(AB, x, y):
 
   rel = relationship_per_blocks(AB, x, y)
   if rel == COMPARABLE:
-    return simple_relationship(x, y) # ordering within block
+    return compare_per_checklist(x, y) # ordering within block
   else:
     return rel
 

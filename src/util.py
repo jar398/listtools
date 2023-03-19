@@ -133,3 +133,41 @@ def log(mess):
   elif log_allowance == 0:
     print("*** logging truncated ***", file=sys.stderr)
   log_allowance -= 1
+
+# ------------------------------
+
+class UnionFindable:
+
+  def __init__(self, id):
+    self.identifier = id
+    self.absorbed_into = None
+
+  def find(self):
+    if self.absorbed_into != None:
+      self.absorbed_into = self.absorbed_into.find()
+      return self.absorbed_into
+    else:
+      return self
+
+  def absorb(self, a):
+    a = a.find()
+    s = self.find()
+    if a == s:
+      return a
+    else:
+      a.absorbed_into = s # ?
+      return a
+
+  def id(self): return self.find().identifier
+
+
+if __name__ == '__main__':
+  x = UnionFindable(1)
+  y = UnionFindable(2)
+  z = UnionFindable(3)
+  w = UnionFindable(4)
+  print([x.id(), y.id(), z.id()])
+  xy = x.unite(y)
+  print([x.id(), y.id(), z.id()])
+  xyz = z.unite(xy)
+  print([x.id(), y.id(), z.id()])

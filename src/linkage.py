@@ -25,7 +25,6 @@ def find_links(AB, m_iter=None):
   assert not m_iter, 'NYI'
   # This sets the 'link' property of ... some ... records.
   subproblems = find_subproblems(AB)
-  # AB.subproblems = subproblems  ... might be handy for diagnosis ...
   count = 0
   for (us, vs) in subproblems.values():
     # classify as A1, A2, A3 (HETEROTYPIC, REVIEW, HOMOTYPIC)
@@ -43,6 +42,7 @@ def find_links(AB, m_iter=None):
           count += improve_link(u, v, score)
           count += improve_link(v, u, score)
           #log("#  Improved: %s %s" % (blurb(u), blurb(get_link(u))))
+  assert get_link(AB.in_left(AB.A.top)) == AB.in_right(AB.B.top)
   log("# %s links forged" % count)
 
 def improve_link(u, v, score):
@@ -74,7 +74,7 @@ def score_to_ship(score):
   elif score <= NOTHRESH: return HETEROTYPIC
   else: return REVIEW
 
-def homotypic_synonyms(u, species):
+def homotypic(u, species):
   score = compute_score(u, species, 10)
   if score >= THRESH2: return HOMOTYPIC
   else: return REVIEW
@@ -82,13 +82,12 @@ def homotypic_synonyms(u, species):
 # Find blocks/chunks, one per epithet
 
 def find_subproblems(AB):
-  sswap(AB).A
   (A_index, B_index) = \
     map(lambda CD: \
         index_by_some_key(CD,
                           # should use genus if epithet is missing
                           get_subproblem_key),
-        (AB, sswap(AB)))
+        (AB, swap(AB)))
   subprobs = {}
   for (val, us) in A_index.items():
     vs = B_index.get(val, None)
@@ -96,6 +95,7 @@ def find_subproblems(AB):
       subprobs[val] = (us, vs)
       # for u in us: set_subproblem(u, subprob)
       # for v in vs: set_subproblem(v, subprob)
+  AB.subproblems = subprobs
   return subprobs
 
 # Returns dict value -> key
