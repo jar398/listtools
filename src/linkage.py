@@ -63,7 +63,7 @@ def improve_link(u, v, score):
         return -1               # Retracting
     # Adding
     set_link(u, v)
-    log("# Set link %s ~ %s" % (blurb(u), blurb(v)))
+    #log("# Set link %s ~ %s" % (blurb(u), blurb(v)))
     return 1
 
 def score_to_ship(score):

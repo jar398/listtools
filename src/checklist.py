@@ -267,8 +267,9 @@ def resolve_superior_link(S, record):
       assert parent, blurb(record)
       sup = relation(HAS_PARENT, parent, note="checklist (child)")
     else:
-      log("# accepted in %s but has unresolvable parent: %s = %s" %
-          (get_tag(S), blurb(record), parent_key))
+      if parent_key:
+        log("# accepted in %s but has unresolvable parent: %s = %s" %
+            (get_tag(S), blurb(record), parent_key))
       sup = relation(HAS_PARENT, S.top, note="unresolved parent id")
 
   if sup:
@@ -787,7 +788,7 @@ def get_parts(x):
 
 def get_best_name(x):
   name = (get_scientific(x, None) or get_canonical(x, None) or
-          get_managed_id(x, None))
+          get_managed_id(x, None) or get_primary_key(x))
   assert name
   return name
 

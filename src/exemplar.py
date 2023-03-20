@@ -38,7 +38,7 @@ def analyze_exemplars(AB):
 
       v = get_tipward(u, None)
       if v:
-        log("# Looking at %s -> %s" % (blurb(u), blurb(v)))
+        #log("# Looking at %s -> %s" % (blurb(u), blurb(v)))
         equate_exemplars(u, v)
 
       for c in get_inferiors(x):
@@ -68,7 +68,8 @@ def merge_representatives(uf, vf): # absorb into uf
   r[1] = unify_records(u1, u2)
   r[2] = unify_records(v1, v2)
   if r[1] and r[2]:
-    log("# Same exemplar: e(%s) = e(%s)" % (blurb(r[1]), blurb(r[2])))
+    #log("# Same exemplar: e(%s) = e(%s)" % (blurb(r[1]), blurb(r[2])))
+    pass
   if i1 and i2:
     r[0] = min(i1, i2)
   else:
@@ -82,7 +83,7 @@ def unify_records(u1, u2):
     return u2                   # Prefer more tipward
   if (rel.relationship == EQ and
       get_parts(u1).moved and not get_parts(u2).moved):
-    log("# preferring protonym %s %s" % (blurb(u1), blurb(u2)))
+    log("# preferring protonym %s to %s" % (blurb(u2), blurb(u1)))
     return u2                   # Prefer protonym
   else:
     return u1
@@ -140,13 +141,15 @@ def analyze_tipwards(AB):
       # not seen means that this node could be tipward
       u = AB.in_left(x)            # u is tipward...
       v = get_link(u, None)
-      if monitor(v): log("# exemplars: tipwards %s %s" % (blurb(u), blurb(v)))
+      if monitor(v):
+        log("# exemplars: tipwards %s %s" % (blurb(u), blurb(v)))
       if v:
         assert separated(u, v)
         # u is tipward and has link, but link not necessarily tipward ...
         set_tipward(u, v)
         seen = 1
-        log("# Set tipward %s -> %s" % (blurb(u), blurb(v)))
+        if monitor(u):
+          log("# Set tipward %s -> %s" % (blurb(u), blurb(v)))
     return seen + seen2
   traverse(AB, AB.A.top)
   traverse(swap(AB), AB.B.top)
@@ -187,7 +190,7 @@ def generate_exemplars(AB):
         v_key = get_primary_key(get_outject(v))
         yield (id, u_key, v_key, blurb(u), blurb(v))
         count += 1
-  log("# exemplar report rows: %s" % count)
+  log("# %s rows in exemplar report" % count)
 
 if __name__ == '__main__':
   parser = argparse.ArgumentParser(description="""
