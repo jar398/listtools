@@ -327,7 +327,7 @@ def find_estimates_when_central(AB, u):
 
     # Check to make sure it got cached
     rel = get_estimate(u, None)
-    assert rel, (blurb(u), "not cached")
+    assert rel != None, (blurb(u), "not cached")
     log("#  ... ladder: %s %s" % (blurb(u), blurb(rel)))
 
   assert rel, blurb(u)

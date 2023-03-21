@@ -124,7 +124,7 @@ def stdopen(x, mode='r'):
 
 # 
 
-log_allowance = 100
+log_allowance = 50
 
 def log(mess):
   global log_allowance

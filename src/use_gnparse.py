@@ -76,13 +76,13 @@ def use_parse(gn_iter, check_iter):
       gn_full = '?' + gn_full[8:]
 
     gn_stem = gn_row[canonical_stem_pos]
-    if not ' ' in gn_stem:
-      gn_stem = MISSING
     if gn_stem.startswith('Wildcard '):
       gn_stem = '?' + gn_stem[8:]
     if gn_full.endswith('ii') and gn_stem.endswith('i'):
       # Fixed in gnparse, but I'm still using older version
       gn_stem = gn_stem[0:-1]
+    if gn_stem == gn_full:
+      gn_stem = MISSING         # kludge to make csv a little easier to read
 
     parts = parse.parse_name(sci_name,
                              gn_full=gn_full,

@@ -48,14 +48,16 @@ def improve_link(u, v, score, key):
   else:
     have_v = get_link(u, None) # (v0, score) Anything to improve on?
     if have_v:
-      mrca = simple.mrca(have_v, v)
+      have_out = get_outject(have_v)
+      out = get_outject(v)
+      mrca = simple.mrca(have_out, out)
       # We want the one that is... more protonymical (fewer () )
-      if have_v == mrca:
+      if have_out == mrca:
         # v < have_v.  prefer v ??
         set_link(u, v)
         log("# Improving link %s ~ %s" % (blurb(u), blurb(v)))
         return 0                # Replacing
-      elif v == mrca:
+      elif out == mrca:
         # have_v < v.  Leave it alone.
         return 0
       else:
@@ -162,7 +164,7 @@ def compute_parts_score(p, q, nearness=None):
       #log("# 2 comparing %s, %s" % (p.genus, q.genus))
       hits += 8
     elif p.moved == False and q.moved == False:
-      log("# 4 comparing %s, %s -> miss" % (p.genus, q.genus))
+      #log("# 4 comparing %s, %s -> miss" % (p.genus, q.genus))
       misses += 8
     else:
       #log("# 3 comparing %s, %s -> ?" % (p.genus, q.genus))

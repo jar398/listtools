@@ -26,12 +26,13 @@ class Parts(NamedTuple):
 # Another way to split would be using the canonicalName and authorship
 # columns of the original DwC - if they're present.
 
-def parse_name(verbatim, gn_full=None, gn_stem=None, gn_authorship=None):
+def parse_name(verbatim, gn_full=MISSING, gn_stem=MISSING, gn_auth=MISSING):
   (canonical0, auth0) = split_name(verbatim)
-  if gn_full != None:
+  if gn_full != MISSING:
+    if gn_stem == MISSING: gn_stem = gn_full # Space saving kludge
     # Epithet will be stemmed
-    (canonical, g, e) = recover_canonical(gn_full, gn_stem, canonical0)
-    auth = gn_authorship
+    (canonical, g, e) = recover_canonical(gn_full, gn_stem, gn_auth, canonical0)
+    auth = gn_auth
   else:
     canonical = canonical0
     auth = auth0
@@ -43,6 +44,7 @@ def parse_name(verbatim, gn_full=None, gn_stem=None, gn_authorship=None):
     else:
       g = canonical
       e = ''
+
   if e == '?': e = None
   if g == '?': g = None         # cf. use_gnparse.py, but careful MSW3
   (t, y, moved) = analyze_authorship(auth)
@@ -52,20 +54,23 @@ def parse_name(verbatim, gn_full=None, gn_stem=None, gn_authorship=None):
 # tokens that occur after the last alphabetic epithet.  So we have to
 # recover them from the original non-GN scientific name ('verbatim').
 
-def recover_canonical(gn_full, gn_stem, hack_canonical):
+def recover_canonical(gn_full, gn_stem, gn_auth, hack_canonical):
   # Recover parts that gnparse stripped off, from verbatim
   hack_canonical = hack_canonical.strip()
   hack_canonical_chunks = hack_canonical.split(' ')
   n_hack_canonical_chunks = len(hack_canonical_chunks)
 
   n_full_chunks = gn_full.count(' ')
-  assert n_full_chunks <= n_hack_canonical_chunks
-
-  # TBD: Should interpolate chunks that are in full but missing
-  # from stemmed into stemmed  (wait, why?  have worked around this)
-  extra = hack_canonical_chunks[n_full_chunks:]
+  # gnparser "Cryptotis avia  G. M. Allen, 1923 as C. thomasi & C. avia."
+  if n_full_chunks > n_hack_canonical_chunks:
+    log("** Ill formed canonical name: %s" % gn_full)
+    extra = []
+  else:
+    # TBD: Should interpolate chunks that are in full but missing
+    # from stemmed into stemmed  (wait, why?  have worked around this)
+    extra = hack_canonical_chunks[n_full_chunks:]
   stem_chunks = gn_stem.split(' ')
-  if len(extra) != 0:
+  if len(extra) > 0:
     e = extra[-1]
     c = hack_canonical
   elif ' ' in gn_stem:
