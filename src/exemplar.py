@@ -30,7 +30,7 @@ def analyze_exemplars(AB):
       u = CD.in_left(x)
       
       if species:
-        if homotypic(u, species):
+        if linkage.homotypic(u, species):
           equate_exemplars(species, u)
 
       if get_rank(u, None) == 'species':

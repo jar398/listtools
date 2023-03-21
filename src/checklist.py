@@ -73,6 +73,10 @@ get_superior_note = prop.getter(superior_note_prop)
 (get_children, set_children) = prop.get_set(prop.declare_property("children", inherit=False))
 (get_synonyms, set_synonyms) = prop.get_set(prop.declare_property("synonyms", inherit=False))
 
+get_gn_full = prop.getter(prop.declare_property("gn_canonical_full", inherit=False))
+get_gn_stem = prop.getter(prop.declare_property("gn_canonical_stem", inherit=False))
+get_gn_auth = prop.getter(prop.declare_property("gn_authorship", inherit=False))
+
 # Merge related links
 get_equated_key = prop.getter(equated_key_prop)
 get_equated_note = prop.getter(equated_note_prop)
@@ -784,7 +788,10 @@ u1 -> v1 -> u2 -> v3
 """
 
 def get_parts(x):
-  return parse.parse_name(get_best_name(x))
+  return parse.parse_name(get_best_name(x),
+                          gn_full = get_gn_full(x, MISSING),
+                          gn_stem = get_gn_stem(x, MISSING),
+                          gn_authorship = get_gn_auth(x, MISSING))
 
 def get_best_name(x):
   name = (get_scientific(x, None) or get_canonical(x, None) or

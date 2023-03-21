@@ -23,7 +23,7 @@ for row in reader:
   if status_pos != None and 'common' in row[status_pos]:
     name = MISSING  #name.lower()   # force Quality = 0
   name = name.strip()
-  if name.startswith("? "):
-    name = "Nil" + name[1:]     # Undone in use_gnparse.py
+  if name.startswith('? ') or  name == '?':
+    name = 'Wildcard' + name[1:]     # Undone in use_gnparse.py
   print(name, file=sys.stdout)
 print("# Found %s scientific names" % sci_count, file=sys.stderr)

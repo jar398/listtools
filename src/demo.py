@@ -3,7 +3,7 @@
 # Report generation for alignment procedure
 
 import sys, csv, argparse
-import util, workspace, align
+import util, workspace, align, linkage
 import rows
 
 from checklist import *
@@ -267,8 +267,8 @@ if __name__ == '__main__':
   if args.test:
     test()
   else:
-    aname = args.Aname
-    bname = args.Bname
+    a_name = args.Aname
+    b_name = args.Bname
     a_path = args.A
     b_path = args.B
     e_path = args.eulerx
@@ -279,7 +279,7 @@ if __name__ == '__main__':
       with rows.open(b_path) as b_rows:
         AB = ingest_workspace(a_rows.rows(), b_rows.rows(),
                               A_name=a_name, B_name=b_name)
-        find_links(AB)
+        linkage.find_links(AB)
         al = list(align.generate_alignment(AB))
     if l_path or (not d_path and not e_path):
       with rows.open(l_path, "w") as l_gen:

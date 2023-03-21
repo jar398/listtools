@@ -21,26 +21,28 @@ NEUTRAL = 0
 # For each record, get list of matching records.... hmm
 # Future: read exceptions or whole thing from a file
 
-def find_links(AB, m_iter=None):
+def find_links(AB, m_iter=None, nearness=None):
   assert not m_iter, 'NYI'
   # This sets the 'link' property of ... some ... records.
   subproblems = find_subproblems(AB)
   count = 0
-  for (us, vs) in subproblems.values():
+  for (key, (us, vs)) in subproblems.items():
     # classify as A1, A2, A3 (HETEROTYPIC, REVIEW, HOMOTYPIC)
     for u in us:
       for v in vs:
         have1 = get_link(u, None)
         have2 = get_link(v, None)
         if have1 == None or have2 == None:
-          score = compute_score(u, v)
-          count += improve_link(u, v, score)
-          count += improve_link(v, u, score)
+          # **** COMPUTE NEARNESS ****
+          near = nearness(u, v) if nearness else None
+          score = compute_score(u, v, near)
+          count += improve_link(u, v, score, key)
+          count += improve_link(v, u, score, key)
           #log("#  Improved: %s %s" % (blurb(u), blurb(get_link(u))))
   assert get_link(AB.in_left(AB.A.top)) == AB.in_right(AB.B.top)
   log("# %s links forged" % count)
 
-def improve_link(u, v, score):
+def improve_link(u, v, score, key):
   if score_to_ship(score) != HOMOTYPIC:
     return 0
   else:
@@ -58,9 +60,11 @@ def improve_link(u, v, score):
         return 0
       else:
         # ambiguous.  wait until later to figure this out.
-        set_link(u, False)
-        log("# Ambiguous: %s" % (blurb(u),))
-        return -1               # Retracting
+        if get_link(u, None) != False: # doesn't help
+          log("# Ambiguous (%s): %s -> %s & %s" %
+              (key, blurb(u), blurb(have_v), blurb(v)))
+          set_link(u, False)
+          return -1               # Retracting
     # Adding
     set_link(u, v)
     #log("# Set link %s ~ %s" % (blurb(u), blurb(v)))
@@ -102,7 +106,7 @@ def index_by_some_key(AB, fn):
   for x in postorder_records(AB.A):
     u = AB.in_left(x)
     key = fn(u)
-    assert key
+    #assert key  - MSW has scientificName = ?
     have = index.get(key, None)
     if have:
       have.append(u)
@@ -115,8 +119,9 @@ def index_by_some_key(AB, fn):
 def get_subproblem_key(z):
   parts = get_parts(z)
   ep = parts.epithet
-  assert ep != None
-  return parts.genus if ep == '' else ep
+  key = ep if ep else parts.genus
+  # assert key, parts    MSW has scientificName = '?'
+  return key
 
 # -----------------------------------------------------------------------------
 # Score potentially contipic taxa.
@@ -205,7 +210,7 @@ log("# Unmatch predicted if score <= %s" % NOTHRESH)
 THRESH2 = compute_parts_score(parse_name("Foo bar Jones, 1927"),
                               parse_name("Quux bar (Jones, 1927)"),
                               10)
-log("# For synonym analysis: %s" % THRESH2)
+log("# For genus motion analysis: %s" % THRESH2)
 
 # -----------------------------------------------------------------------------
 # Plumbing

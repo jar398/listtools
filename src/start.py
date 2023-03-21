@@ -4,7 +4,7 @@
 #  - Normalizes tsv to csv
 #  - Makes sure all rows have the same number of fields
 
-import sys, csv, re, hashlib, argparse
+import sys, csv, regex, hashlib, argparse
 from util import csv_parameters, windex, stable_hash, log, MISSING
 
 def start_csv(inport, params, outport, args):
@@ -270,7 +270,7 @@ def clean_name(row, can_pos, sci_pos):
 has_auth_re = regex.compile(u" (\()\p{Uppercase_Letter}[\p{Letter}-]+")
 
 def is_scientific(name):
-  return auth_re.search(name)
+  return has_auth_re.search(name)
 
 def clean_rank(row, rank_pos, can_pos):
   if rank_pos != None and row[rank_pos] == MISSING and \
@@ -279,7 +279,7 @@ def clean_rank(row, rank_pos, can_pos):
     return True
   return False
 
-binomial_re = re.compile("[A-Z][a-z]+ [a-z]{2,}")
+binomial_re = regex.compile("[A-Z][a-z]+ [a-z]{2,}")
 
 
 if __name__ == '__main__':

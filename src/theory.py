@@ -238,7 +238,7 @@ def find_estimates_from(AB, u):
   if probe != None: return probe
   # Nearest opposite non-peripheral
   u_central = get_central(AB, u).record
-  log("# Central of %s is %s" % (blurb(u), blurb(u_central)))
+  #log("# Central of %s is %s" % (blurb(u), blurb(u_central)))
   assert is_central(u_central)
   assert get_cross_mrca(u_central, None), \
     (blurb(u_central), get_block(u_central))
@@ -250,7 +250,7 @@ def find_estimates_from(AB, u):
     # u is peripheral and can be grafted at u_central -> v.
     # E.g. u might be a synonym of v.
     rel = optimize_relation(AB, u, relation(LT, v, note="peripheral"))
-    log("# Peripheral %s estimate %s." % (blurb(u), blurb(rel)))
+    #log("# Peripheral %s estimate %s." % (blurb(u), blurb(rel)))
     set_estimate(u, rel)
 
 # Find estimates (>= in opposite checklist) in the case where u is not peripheral.
@@ -259,7 +259,7 @@ def find_estimates_from(AB, u):
 # Possibly some of u's ancestors too.
 
 def find_estimates_when_central(AB, u):
-  log("# Estimating central %s ..." % blurb(u))
+  #log("# Estimating central %s ..." % blurb(u))
   probe = get_estimate(u, None)
   if probe != None:
     log("#  ... cached: %s", (blurb(probe)))
@@ -273,15 +273,15 @@ def find_estimates_when_central(AB, u):
 
   # overshoot is OK.  done.
   if not same_block(get_block(u), get_block(v)):
-    rel = relation(LT, v, "in smaller block")
+    rel = relation(LT, v, "block is smaller")
     rel = optimize_relation(AB, u, rel)
-    log("#  ... in smaller block: %s" % blurb(rel))
+    log("# Estimate: %s %s" % (blurb(u), blurb(rel)))
     set_estimate(u, rel)
 
   # If no choice, go ahead and match.  Might still be unsound...
   elif at_top_of_chain(AB, u) and at_top_of_chain(AB, v):
     rel = relation(EQ, v, note="unique same-block match")
-    log("#  ... chain top: %s" % blurb(rel))
+    #log("#  ... chain top: %s" % blurb(rel))
     set_estimate(u, rel)
 
   # "ladder" - lineage from u (bottom of block) up to top of block,
@@ -300,35 +300,6 @@ def find_estimates_when_central(AB, u):
 
 
 # Zip up parallel lineages in the two checklists.
-# u1 starts at u and goes upward until top of block is reached.
-# v1 starts at v and goes upward until top of block is reached.
-
-def analyze_ladder_1(u, v):
-  assert v
-  u1 = u
-  v1 = v
-  while u1:   # v still in u's block ... ?
-    rel = None
-    m = get_match_in_block(u1)  # a relation
-    if m:
-      # Yes, u1 matches something.  Call it m 
-      while v1:
-        if m == v1:
-          rel = relation(EQ, v1, note="match in block")
-          break
-        n = get_match_in_block(v1)
-        if n:
-          if n == u1:
-            rel = relation(NEQ, v1, note="mismatch in block")
-            break
-        v1 = get_superior_in_block(v1)
-        # End v1 loop
-
-      assert rel
-      log("# Ladder: setting %s estimate %s" % (blurb(u1), blurb(rel)))
-      set_estimate(u1, rel)
-      u1 = get_superior_in_block(u1)
-
 
 def analyze_ladder(u, v):
 
