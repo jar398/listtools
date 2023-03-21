@@ -666,8 +666,10 @@ def blurb(r):
             get_managed_id(r, None) or
             get_primary_key(r, None) or
             "[no identifier]")
+    if '(' in get_scientific(r, MISSING):
+      name = name + '()'
     if not is_accepted(r):
-      return name + "*"
+      return name + '*'
     else:
       return name
   elif isinstance(r, Relative):
@@ -691,7 +693,7 @@ def blurb(r):
 def monitor(x):
   if not x: return False
   name = get_canonical(x, '')
-  return (False  #name == "Craseomys regulus"
+  return (name.startswith("Tursiops australis")
           )
 
 # -----------------------------------------------------------------------------

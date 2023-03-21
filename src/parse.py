@@ -23,6 +23,9 @@ class Parts(NamedTuple):
 # -----------------------------------------------------------------------------
 # Parsing: string -> Parts
 
+# Another way to split would be using the canonicalName and authorship
+# columns of the original DwC - if they're present.
+
 def parse_name(verbatim, gn_full=None, gn_stem=None, gn_authorship=None):
   (canonical0, auth0) = split_name(verbatim)
   if gn_full != None:
@@ -33,15 +36,15 @@ def parse_name(verbatim, gn_full=None, gn_stem=None, gn_authorship=None):
     canonical = canonical0
     auth = auth0
     # Epithet will not be stemmed
-    chunks = canonical.split(' ')
-    if ' ' in chunks:
+    if ' ' in canonical:
+      chunks = canonical.split(' ')
       g = chunks[0]
       e = chunks[-1]              # do our own stemming !? no
     else:
       g = canonical
       e = ''
   if e == '?': e = None
-  if g == '?' or g == 'Nil': g = None # cf. use_gnparse.py
+  if g == '?': g = None         # cf. use_gnparse.py, but careful MSW3
   (t, y, moved) = analyze_authorship(auth)
   return Parts(verbatim, canonical, g, e, auth, t, y, moved)
 
@@ -83,10 +86,10 @@ def analyze_authorship(auth):
     auth = auth[1:-1]
   t_match = token_re.search(auth)
   tok = t_match[0] if t_match else None
-  if tok == 'Someone': tok = None
+  if tok == 'Someone': tok = None         # Wild card
   y_match = year_re.search(auth)
   year = y_match[1] if y_match else None
-  if year == '1111': year = None
+  if year == '1111': year = None       # Wild card
   return (tok, year, moved)
 
 # This may not agree with gnparse exactly...

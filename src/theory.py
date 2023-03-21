@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-import types, functools
+import math, types, functools
 import property as prop, checklist, workspace, simple
 
 from util import log
@@ -16,7 +16,7 @@ import exemplar
 def theorize(AB):
   # ... exemplar.exemplars(A_iter, B_iter, m_iter) ...
   # TBD: option to read them from a file
-  # Assumes links found already
+  # Assumes links found already  - find_links(AB)
   exemplar.analyze_exemplars(AB)   # does set_exemplar(...)
   analyze_blocks(AB)               # does set_block(...)
   compute_cross_mrcas(AB)          # does set_cross_mrca(...)
@@ -215,6 +215,41 @@ def cross_le(AB, u, w):
   return ship == LT or ship == LE or ship == PERI or ship == EQ
 
 # -----------------------------------------------------------------------------
+
+# 'nearness' - reciprocal of distance, approximately - it's thresholded,
+# so only matters whether it's small or large
+
+# For mammals, tip to root is expected to be about 13... -> nearness 3
+# For 2M species, tip to root is expected to be about 20... -> nearness 2
+
+def compute_nearness(u, v):
+  return 40.0/(compute_half_nearness(u, v) +
+               compute_half_nearness(v, u))
+
+def compute_half_nearness(u, v):
+  # u < u1 <= (v1 < m > v)
+  u1 = get_center(u)
+  v1 = get_cross_mrca(u1)
+  m = simple.mrca(v1, v)
+  dist = (distance_on_lineage(u, u1) +
+          distance_on_lineage(v1, m) +
+          distance_on_lineage(v, m))
+  return dist
+
+def distance_on_lineage(u1, u2):
+  if u1 == u2:
+    return 0
+  return distance_to_parent(u) + distance_on_lineage(get_superior(u).record, u2)
+
+def distance_to_parent(u):
+  sup = get_superior(u)
+  lg(len(get_children(sup.record)))
+
+def lg(x):
+  return math.log(x)/log2
+log2 = math.log(2)
+
+# -----------------------------------------------------------------------------
 # TBD: Cache this  (and do not cache equivalents)
 # def find_estimates(AB): ...
 
@@ -310,6 +345,7 @@ def analyze_ladder(u, v):
   if not u_up and not v_up:
     # Top of chain, last resort
     set_estimate(u, relation(EQ, v, note="tops of chains"))
+    set_estimate(v, relation(EQ, u, note="tops of chains"))
     log("#    ... top: %s | %s" % (blurb(u), blurb(v)))
     (u2, v2) = (u, v)
 
@@ -333,6 +369,7 @@ def analyze_ladder(u, v):
         assert n == u
         log("#    ... match: %s | %s" % (blurb(u), blurb(v)))
         set_estimate(u, relation(EQ, v, note="match in block"))
+        set_estimate(v, relation(EQ, u, note="match in block"))
         (u2, v2) = (u, v)
       else:
         set_estimate(u, relation(LT, v2, note="left mismatch"))

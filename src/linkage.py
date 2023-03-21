@@ -127,23 +127,19 @@ def get_subproblem_key(z):
 # Score potentially contipic taxa.
 # If distance is close, give a pass on genus mismatch.
 
-def z_compute_score(u, v, nearness=None):
-  return compute_score(u, v, nearness)
-
 def compute_score(u, v, nearness=None):
-  return compute_parts_score(get_parts(u),
-                             get_parts(v),
-                             nearness)
+  score = compute_parts_score(get_parts(u),
+                              get_parts(v),
+                              nearness)
+  if monitor(u) or monitor(v):
+    log("# Score %s, %s = %s" % (blurb(u), blurb(v), score))
+    log("# %s" % (get_parts(u),))
+    log("# %s" % (get_parts(v),))
+  return score
 
 # Score potentially contipic names from 0 to 100
 
 def compute_parts_score(p, q, nearness=None):
-  # First, normalize moving genera
-  g1 = p.genus; g2 = q.genus
-  if (g1 != None and g2 != None and g1 != g2):
-    if p.moved: g1 = None
-    if q.moved: g2 = None
-
   hits = misses = 0
   if nearness != None:
     # -1 = too far apart to link
@@ -159,9 +155,19 @@ def compute_parts_score(p, q, nearness=None):
   if p.token != None and q.token != None:
     if p.token == q.token: hits += 4
     else: misses += 4
-  if g1 != None and g2 != None:
-    if g1 == g2: hits += 8
-    else: misses += 8
+
+  if p.genus != None and q.genus != None:
+    #log("# 1 comparing %s, %s (%s, %s)" % (p.genus, q.genus, p.moved, q.moved))
+    if p.genus == q.genus:
+      #log("# 2 comparing %s, %s" % (p.genus, q.genus))
+      hits += 8
+    elif p.moved == False and q.moved == False:
+      log("# 4 comparing %s, %s -> miss" % (p.genus, q.genus))
+      misses += 8
+    else:
+      #log("# 3 comparing %s, %s -> ?" % (p.genus, q.genus))
+      pass
+
   if p.epithet != None and q.epithet != None:
     if p.epithet != q.epithet: misses += 16
     else: hits += 16
@@ -201,16 +207,21 @@ THRESH = compute_parts_score(parse_name("Foo bar"),
                              parse_name("Foo bar"))
 log("# Match predicted if score >= %s" % THRESH)
 
+THRESH2 = compute_parts_score(parse_name("Foo bar Jones, 1927"),
+                              parse_name("Quux bar (Jones, 1927)"),
+                              10)
+log("# For possible genus motion: %s" % THRESH2)
+
+THRESH_Q = compute_parts_score(parse_name("Foo bar Jones, 1927"),
+                               parse_name("Quux bar Jones, 1927"),
+                               10)
+log("# For definite genus motion: %s" % THRESH_Q)
+
 # The most similar things that are dissimilar.  Distinguish records that 
 # are this different (minimally different) or more so.
 NOTHRESH = compute_parts_score(parse_name("Foo bar Jones, 1927"),
                                parse_name("Foo bar Smith, 1927"))
 log("# Unmatch predicted if score <= %s" % NOTHRESH)
-
-THRESH2 = compute_parts_score(parse_name("Foo bar Jones, 1927"),
-                              parse_name("Quux bar (Jones, 1927)"),
-                              10)
-log("# For genus motion analysis: %s" % THRESH2)
 
 # -----------------------------------------------------------------------------
 # Plumbing
