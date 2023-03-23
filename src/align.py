@@ -28,15 +28,15 @@ def make_alignment(AB):
   log("-- %s articulations in alignment" % len(unsorted))
   return sorted(unsorted, key=articulation_order)
 
-# B has priority.  v in A part of AB, w in B part
+# B has priority.  u in A part of AB, v in B part
 def articulation_order(art):
-  (v, rel) = art
-  w = rel.record
+  (u, rel) = art
+  v = rel.record
   ship = rel.relationship
-  if is_species(w) or not is_species(v):
-    return (blurb(w), ship)
-  else:
+  if is_species(v) or not is_species(u):
     return (blurb(v), ship)
+  else:
+    return (blurb(u), ship)
 
 # Return generator for alignment; each row is an articulation
 
@@ -48,66 +48,77 @@ def generate_alignment(AB, matches=None):
   seen = {}
 
   def doit(AB, swapped):
-    def traverse(z):            # u in AB
+    def traverse(x):            # u in AB
+      assert is_accepted(x)
       count = [0, -1]
-      u = AB.in_left(z)
+      u = AB.in_left(x)
+      assert is_accepted_locally(AB, u)
       arts = list(taxon_articulators(AB, u))
-      if len(arts) == 0:
-        log("# no articulators for %s" % (blurb(u)))
-      for w in arts: # Normalized
-        v = get_acceptable(AB, u)        # Compare v to w
-        if swapped: (v, w) = (w, v)
+      assert len(arts) > 0, blurb(u)
+      for art in arts: # Normalized
+        v = get_acceptable(AB, art)        # Compare v to art
+        assert separated(u, v)
+        assert is_accepted_locally(AB, v)
+        if swapped: (u, v) = (v, u)
         count[0] += 1
         count[1] = max(count[0], count[1])
-        if monitor(u):
+        if monitor(u) or monitor(v):
           if count[0] % 100 == 0:
-            log("# articulator %s: %s, %s" % (blurb(v), blurb(w), count[1]))
-        key = (get_primary_key(v), get_primary_key(w))
+            log("# articulator %s: %s, %s" % (blurb(art), blurb(v), count[1]))
+        key = (get_primary_key(u), get_primary_key(v))
         if key in seen:
           pass
         else:
           seen[key] = True
-          rel = theory.cross_compare(AB, v, w)
+          assert separated(u, v)
+          rel = theory.cross_compare(AB, u, v)
 
           # Suppress if entailed by either checklist
           ship = rel.relationship
-          if obvious(AB, v, rel.relationship, w):
+          if obvious(AB, u, rel.relationship, v):
             pass
           else:
-            yield (v, rel)
+            yield (u, rel)
       if not is_species(u):
-        for c in get_children(z, ()): # subspecies and synonyms
+        for c in get_children(x, ()): # subspecies and synonyms
           yield from traverse(c)
     yield from traverse(AB.A.top) # B has priority
 
-  yield from doit(AB.swap(), True) # B has priority
+  yield from doit(swap(AB), True) # B has priority
   yield from doit(AB, False)
 
-def obvious(AB, v, ship, w):
-  if is_toplike(v) or is_toplike(w):
+def obvious(AB, u, ship, v):
+  if is_toplike(u) or is_toplike(v):
     return True
-  if ((get_equivalent(AB, v) or get_equivalent(AB, w)) and
+  if ((get_equivalent(AB, u) or get_equivalent(AB, v)) and
       (ship == LT or ship == GT or ship == DISJOINT)):
     return True
 
-# Returns generator of (v, w) record pairs.
-# u is in the left checklist, v in right.
+# Returns generator of records v to compare to u.
+# u and v are in different checklists.
 # There may be duplicates.
-# Filter out articulations involving synonyms.
+# Need to filter out articulations involving synonyms.
 
 def taxon_articulators(AB, u):
   assert isinA(AB, u)
+  assert get_workspace(u)
   rel = theory.get_estimate(u, None)
+  assert get_workspace(rel.record)
+  assert is_accepted(get_outject(u))
   if rel and rel.record:
     v = rel.record
-    assert isinB(AB, v)
     assert separated(u, v)
+    assert is_accepted_locally(AB, v)
     yield v                   # u <= v
     if True or rel.relationship != EQ:
-      for c in get_inferiors(get_outject(v)):
-        yield AB.in_right(c)
-  v = get_link(u, None)
+      for c in get_children(get_outject(v), ()):
+        assert is_accepted(c)
+        v2 = AB.in_right(c)
+        if not get_equivalent(AB, v2):
+          yield v2
+  v = get_link(u, None)         # Match by name
   if v:
+    assert is_accepted_locally(AB, v)
     yield v
 
 def is_species(v):              # z local

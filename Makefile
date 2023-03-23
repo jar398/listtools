@@ -66,7 +66,8 @@ EXEMPLARS=work/$(shell basename $A)-$(shell basename $B)-exemplars.csv
 demo: $(DEMO)
 
 $(DEMO): $P/demo.py $P/align.py $P/theory.py $P/simple.py $P/workspace.py \
-	   $P/checklist.py $P/match_records.py $P/rcc5.py $A.csv $B.csv
+	   $P/checklist.py $P/match_records.py $P/rcc5.py $P/eulerx.py \
+	   $A.csv $B.csv
 	@echo
 	@echo "--- PREPARING DEMO ---"
 	$P/demo.py --A $A.csv --B $B.csv --Aname $(ANAME) --Bname $(BNAME) \

@@ -43,7 +43,7 @@ def generate_reports(AB, mode):
         s = [0, 0]      # [all, species only]
         stats[stat] = s
       s[0] += 1
-      if rank == 'species' and is_accepted(y):
+      if rank == 'species' and is_accepted_locally(AB, y):
         s[1] += 1
 
     for z in all_records(AB):

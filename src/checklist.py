@@ -267,7 +267,7 @@ def resolve_superior_link(S, record):
           (get_tag(S), blurb(record), accepted_key))
   else:
     # Accepted
-    # set_accepted(record, True)
+    assert is_accepted(record)
     parent_key = get_parent_key(record, None)
     parent = look_up_record(S, parent_key, record)
     if parent:
@@ -381,17 +381,17 @@ def validate(C):
   log("# %s records reachable from top" % len(seen))
 
   count = 0
-  for x in all_records(C):
+  for z in all_records(C):
     count += 1
-    if not prop.mep_get(seen, x, False):
-      log("** %s not in hierarchy; has to be a cycle" % (blurb(x),))
-    sup = get_superior(x, None)
-    if not is_accepted(x):
-      if len(get_children(x, ())) > 0:
-        log("** synonym %s has child %s" % (blurb(x), blurb(get_children(x)[0])))
-      if len(get_synonyms(x, ())) > 0:
-        if monitor(x):
-          log("> synonym %s has synonym %s" % (blurb(x), blurb(get_synonyms(x)[0])))
+    if not prop.mep_get(seen, z, False):
+      log("** %s not in hierarchy; has to be a cycle" % (blurb(z),))
+    sup = get_superior(z, None)
+    if not is_accepted_locally(C, z):
+      if len(get_children(z, ())) > 0:
+        log("** synonym %s has child %s" % (blurb(z), blurb(get_children(z)[0])))
+      if len(get_synonyms(z, ())) > 0:
+        if monitor(z):
+          log("> synonym %s has synonym %s" % (blurb(z), blurb(get_synonyms(z)[0])))
   log("# %s total records" % len(seen))
 
 # -----------------------------------------------------------------------------
@@ -413,12 +413,11 @@ def ensure_inferiors_indexed(C):
     if record == C.top: continue
     # top has no superior, all others
 
-    assert get_source(record) == C
     sup = get_superior(record, None)
     assert sup, blurb(record)
     assert_local(record, sup.record)
 
-    if is_accepted(record):
+    if is_accepted_locally(C, record):
       #log("# accepted %s -> %s" % (blurb(record), blurb(sup.record)))
       parent = sup.record
       # Add record to list of parent's children

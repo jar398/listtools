@@ -158,6 +158,9 @@ def local_accepted(AB, u):
   else:
     return AB.in_right(y)
 
+def is_accepted_locally(AB, u):
+  return is_accepted(get_outject(u))
+
 def swap(AB):
   BA = AB.swap()
   BA.A = AB.B
