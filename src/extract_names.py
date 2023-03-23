@@ -22,7 +22,6 @@ for row in reader:
     name = row[can_pos]
   if status_pos != None and 'common' in row[status_pos]:
     name = MISSING  #name.lower()   # force Quality = 0
-  name = name.strip()
   if name.startswith('? ') or  name == '?':
     name = 'Wildcard' + name[1:]     # Undone in use_gnparse.py
   print(name, file=sys.stdout)

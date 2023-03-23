@@ -20,8 +20,7 @@ def use_parse(gn_iter, check_iter):
   gn_header = next(gn_iter)
   # Id,Verbatim,Cardinality,CanonicalStem,CanonicalSimple,CanonicalFull,Authorship,Year,Quality
   if len(gn_header) != 9:
-    print("** Expected 9 columns in gnparse output, but got %s" % (len(gn_header),),
-          file=sys.stderr)
+    log("** Expected 9 columns in gnparse output, but got %s" % (len(gn_header),))
     assert False
   verbatim_pos = windex(gn_header, "Verbatim")
   cardinality_pos = windex(gn_header, "Cardinality")
@@ -57,6 +56,7 @@ def use_parse(gn_iter, check_iter):
   n_added_columns = (len(out_header) - len(checklist_header))
 
   row_count = 0
+  loser_count = 0
 
   yield out_header
   for checklist_row in check_iter:
@@ -84,22 +84,19 @@ def use_parse(gn_iter, check_iter):
     if gn_stem == gn_full:
       gn_stem = MISSING         # kludge to make csv a little easier to read
 
-    parts = parse.parse_name(sci_name,
-                             gn_full=gn_full,
-                             gn_stem=gn_stem,
-                             gn_authorship=gn_row[auth_pos])
-    token = parts.token
-    year = parts.year
-    #assert year == gn_year
-
-    out_row[out_gn_full_pos] = gn_full
-    out_row[out_gn_stem_pos] = gn_stem
-    out_row[out_gn_auth_pos] = gn_row[auth_pos]
+    q = int(gn_row[quality_pos])
+    if q < 4:
+      out_row[out_gn_full_pos] = gn_full
+      out_row[out_gn_stem_pos] = gn_stem
+      out_row[out_gn_auth_pos] = gn_row[auth_pos]
+    else:
+      loser_count += 1
 
     yield out_row
 
-  print("-- use_gnparse: %s rows" % (row_count,),
-        file=sys.stderr)
+  log("-- use_gnparse: %s rows" % (row_count,))
+  if loser_count > 0:
+    log("-- %s rows had gnparse quality >= 4" % loser_count)
 
 if __name__ == '__main__':
   parser = argparse.ArgumentParser(description="""

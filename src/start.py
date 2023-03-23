@@ -28,6 +28,7 @@ def start_csv(inport, params, outport, args):
 
   pk_col = args.pk or 'taxonID'
   pk_pos_in = windex(in_header, pk_col)
+  assert pk_pos_in != None
 
   can_pos = windex(in_header, "canonicalName")
   sci_pos = windex(in_header, "scientificName")
@@ -45,14 +46,8 @@ def start_csv(inport, params, outport, args):
 
   out_header = in_header
 
-  must_affix_pk = (pk_pos_in == None)
-  if must_affix_pk:
-    log("-- Appending a %s column" % pk_col)
-    out_header = in_header + [pk_col]
-
   # --managed taxonID --prefix GBIF:   must always be used together
   if args.managed:
-    assert not must_affix_pk
     (prefix, managed_col) = args.managed.split(':')     # GBIF:taxonID
 
     # Position of source id (usually taxonID) to be copied to managed_id column
@@ -81,108 +76,99 @@ def start_csv(inport, params, outport, args):
   conflicts = 0
   senior = 0
   managed = 0
-  for row in reader:
+  for in_row in reader:
 
     # Deal with raggedness if any
-    if len(row) > len(in_header):
-      row = row[0:len(in_header)]
+    if len(in_row) > len(in_header):
+      in_row = in_row[0:len(in_header)]
       trimmed += 1
-    elif len(row) < len(in_header):
+    elif len(in_row) < len(in_header):
       log(("** start: Unexpected number of columns: have %s want %s" %
-             (len(row), len(in_header))))
-      log(("** start: Row is %s" % (row,)))
+             (len(in_row), len(in_header))))
+      log(("** start: in_row is %s" % (in_row,)))
       assert False
 
     # Filter out senior synonyms
-    if tax_status_pos != None and row[tax_status_pos] == "senior synonym":
+    if tax_status_pos != None and in_row[tax_status_pos] == "senior synonym":
       senior += 1
       continue
 
     # Clean up if wrong values in canonical and/or scientific name columns
     if cleanp:
-      if clean_name(row, can_pos, sci_pos):
+      if clean_name(in_row, can_pos, sci_pos):
         names_cleaned += 1
-      if clean_rank(row, rank_pos, can_pos):
+      if clean_rank(in_row, rank_pos, can_pos):
         ranks_cleaned += 1
 
-    if normalize_accepted(row, taxon_id_pos, parent_pos, accepted_pos):
+    if normalize_accepted(in_row, taxon_id_pos, parent_pos, accepted_pos):
       accepteds_normalized += 1
 
     # Shouldn't have both accepted and parent
     if False:
-      if accepted_pos and parent_pos and row[accepted_pos] and row[parent_pos]:
-        row[parent_pos] = MISSING
+      if accepted_pos and parent_pos and in_row[accepted_pos] and in_row[parent_pos]:
+        in_row[parent_pos] = MISSING
 
-    stat = row[tax_status_pos]
+    stat = in_row[tax_status_pos]
     indication_2 = (stat.startswith("accepted") or
                     stat.startswith("valid") or
                     stat.startswith("dubious"))
 
     # Two ways to test whether a usage is accepted/dubious
-    usage_id = row[pk_pos_in] if pk_pos_in != None else MISSING
-    au = row[accepted_pos] if accepted_pos != None else MISSING
-    indication_1 = (au == MISSING or au == usage_id)
+    pk = in_row[pk_pos_in]
+    au = in_row[accepted_pos] if accepted_pos != None else MISSING
+    indication_1 = (au == MISSING or au == pk)
 
     if indication_1 != indication_2 and conflicts < 10:
-      log("-- %s has accepted %s but taxstatus %s" %
-             (usage_id, au, stat))
+      log("-- %s has accepted '%s' but taxstatus '%s'" %
+          (pk, au, stat))
     conflicts += 1
 
     # landmark_status is specific to EOL
     if landmark_pos != None: 
-      l = row[landmark_pos]
+      l = in_row[landmark_pos]
       if l != MISSING:
         e = int(l)
         # enum landmark: %i[no_landmark minimal abbreviated extended full]
-        if   e == 1: row[landmark_pos] = 'minimal'
-        elif e == 2: row[landmark_pos] = 'abbreviated'
-        elif e == 3: row[landmark_pos] = 'extended'
-        elif e == 4: row[landmark_pos] = 'full'
-        else: row[landmark_pos] = MISSING
+        if   e == 1: in_row[landmark_pos] = 'minimal'
+        elif e == 2: in_row[landmark_pos] = 'abbreviated'
+        elif e == 3: in_row[landmark_pos] = 'extended'
+        elif e == 4: in_row[landmark_pos] = 'full'
+        else: in_row[landmark_pos] = MISSING
 
     # If multiple sources (smasher output), use only the first
-    if source_pos != None and row[source_pos] != MISSING:
-      row[source_pos] = row[source_pos].split(',', 1)[0]
+    if source_pos != None and in_row[source_pos] != MISSING:
+      in_row[source_pos] = in_row[source_pos].split(',', 1)[0]
 
-    # Extend for new primary key column if necessary
-    if must_affix_pk:
-      out_row = row + [MISSING]
-    else:
-      out_row = row
-    pk = out_row[pk_pos_out]
+    out_row = in_row
+
+    # Add primary key if duplicate(?) or missing
+    if pk == MISSING:
+      pk = fresh_pk(in_row, out_header)
+      minted += 1
+      out_row[pk_pos_out] = pk
+    elif pk in seen_pks:
+      log("** %s Two or more rows have %s = %s\n" %
+            (pk_col, pk_col, pk))
+      pk = fresh_pk(in_row, out_header)
+      out_row[pk_pos_out] = pk
+    assert pk != MISSING
+    seen_pks[pk] = True
 
     # Add managed_id if necessary
-    if args.managed:
-      if prefix == "mdd" and (('synonym' in stat) or
-                              row[rank_pos] != 'species'):
-        # id added by Prashant, flush
-        managed_id = MISSING
-      elif pk:
-        id = row[managed_col_pos]
+    if args.managed:            # --managed prefix:column
+      if in_row[pk_pos_in]:
+        id = in_row[managed_col_pos]
         managed_id = "%s:%s" % (prefix, id) if id else MISSING
         managed += 1
       else:
         managed_id = MISSING
       out_row = out_row + [managed_id]
 
-    # Set primary key if duplicate or mising
-    if pk in seen_pks:
-      log("** %s is not a good primary key column.  Two or more rows with %s = %s\n" %
-            (pk_col, pk_col, pk))
-      pk = fresh_pk(row, out_header)
-      out_row[pk_pos_out] = pk
-    elif pk == MISSING:
-      pk = fresh_pk(row, out_header)
-      minted += 1
-      out_row[pk_pos_out] = pk
-    assert pk != MISSING
-    seen_pks[pk] = True
-
     assert len(out_row) == len(out_header)
     writer.writerow(out_row)
     count += 1
     if count % 250000 == 0:
-      log("row %s id %s" % (count, row[taxon_id_pos]))
+      log("row %s id %s" % (count, in_row[taxon_id_pos]))
   log("-- start: %s rows, %s columns, %s ids minted, %s accepteds normalized" %
         (count, len(in_header), minted, accepteds_normalized))
   log("-- start: %s names cleaned, %s ranks cleaned" %
@@ -234,37 +220,36 @@ Case analysis:
 
 def clean_name(row, can_pos, sci_pos):
   mod = False
-  if can_pos != None and sci_pos != None:
-    c = row[can_pos]
-    s = row[sci_pos]
-    if s == MISSING:
-      if is_scientific(c):
-        row[sci_pos] = c
-        row[can_pos] = MISSING    # ?
-        mod = True
-    elif is_scientific(s):
-      pass
-    # s is nonnull and not 'scientific'
-    elif c == MISSING:
-      # swap
-      row[sci_pos] = MISSING
-      row[can_pos] = s
-      # log("start: c := s") - frequent in DH 1.1
-      mod = True
-    elif c == s:
-      if is_scientific(c):
-        # should gnparse!
-        row[can_pos] = MISSING
-      else:
-        row[sci_pos] = MISSING
-      # log("start: flush s") - frequent in DH 1.1
-      mod = True
-  if sci_pos != None and row[sci_pos]:
-    repl = row[sci_pos].replace(' and ', ' & ') # frequent in DH 1.1
-    repl = repl.replace(',,', ',')    # kludge for MDD 1.0
-    if repl != row[sci_pos]:
-      row[sci_pos] = repl
-      mod = True
+  c = row[can_pos].strip() if can_pos != None else MISSING
+  s = row[sci_pos].strip() if sci_pos != None else MISSING
+  if s == MISSING:
+    if is_scientific(c):
+      s = c
+      c = MISSING    # ?
+  elif is_scientific(s):
+    pass
+  # s is nonnull and not 'scientific'
+  elif c == MISSING:
+    # swap
+    c = s
+    s = MISSING
+    # log("start: c := s") - frequent in DH 1.1
+  elif c == s:
+    if is_scientific(c):
+      c = MISSING
+    else:
+      s = MISSING
+    # log("start: flush s") - frequent in DH 1.1
+  s = s.replace(' and ', ' & ') # frequent in DH 1.1 ?
+  s = s.replace(',,', ',')    # kludge for MDD 1.0
+  s = s.replace('  ', ' ')    # kludge for MSW 3
+  if s.endswith(').'): s = s[0:-1] # for MSW 3
+  if s != row[sci_pos]:
+    row[sci_pos] = s
+    mod = True
+  if c != row[can_pos]:
+    row[can_pos] = c
+    mod = True
   return mod
 
 has_auth_re = regex.compile(u" (\()\p{Uppercase_Letter}[\p{Letter}-]+")

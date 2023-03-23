@@ -18,13 +18,14 @@ import util
 
 from util import MISSING, windex, csv_parameters
 
-def extract_subset(infile, hier_file, root_id, outfile):
-  (topo, root_tid) = read_topology(hier_file, root_id)
+def extract_subset(infile, hier_file, root_name, outfile):
+  (topo, root_tid) = read_topology(hier_file, root_name)
   assert root_tid
+  assert root_tid in topo, root_tid
   all = closure(topo, root_tid)
   write_subset(infile, root_tid, all, topo, outfile)
 
-def write_subset(infile, root_id, all, topo, outfile):
+def write_subset(infile, root_name, all, topo, outfile):
   reader = csv.reader(infile)
   head = next(reader)
 
@@ -47,9 +48,10 @@ def write_subset(infile, root_id, all, topo, outfile):
 
 # Transitive closure of accepted records
 
-def closure(topo, root_id):
-  print("-- subset: transitive closure starting with %s" % root_id, file=sys.stderr)
-  (children, _) = topo[root_id]
+def closure(topo, root_tid):
+  print("-- subset: transitive closure starting with %s" % root_tid, file=sys.stderr)
+  assert root_tid in topo
+  (children, _) = topo[root_tid]
   print("-- subset: root has %s children" % len(children), file=sys.stderr)
   all = {}
   empty = []
@@ -62,11 +64,11 @@ def closure(topo, root_id):
           descend(child)
         for syn in synonyms:
           descend(syn)
-  descend(root_id)
+  descend(root_tid)
   print("-- subset: %s items in transitive closure" % len(all), file=sys.stderr)
   return all
 
-def read_topology(hier_file, root_id):
+def read_topology(hier_file, root_name):
   # Keyed by taxon id
   topo = {}
   # (delimiter, quotechar, mode) = csv_parameters(hier_path)
@@ -110,17 +112,20 @@ def read_topology(hier_file, root_id):
     if parent_id != MISSING and parent_id != tid:
       (children, _) = get_topo_record(parent_id, topo)
       children.append(tid)
-    if (tid == root_id or
-        (name_column != None and row[name_column] == root_id) or
-        (sci_column != None and row[sci_column] == root_id)):
+    if (tid == root_name or
+        (name_column != None and row[name_column] == root_name) or
+        (sci_column != None and row[sci_column] == root_name)):
+      assert tid
       root_tid = tid
 
   print("-- subset: %s hierarchy items of which %s have children and/or synonyms" %
         (counter, len(topo)), file=sys.stderr)
 
   if root_tid == None:
-    print("*** Did not find root taxonID or canonicalName %s" % root_id)
-  return (topo, root_tid or root_id)
+    print("*** Did not find taxon with id or name %s" % root_name)
+  if not root_tid in topo:
+    print("*** Did not find root taxon, taxon id %s name %s" % (root_tid, root_name))
+  return (topo, root_tid)
 
 def get_topo_record(tid, topo):
   record = topo.get(tid)
@@ -129,7 +134,7 @@ def get_topo_record(tid, topo):
     topo[tid] = record
   return record
 
-# extract_subset(checklist, taxonomy, root_id, outfile)
+# extract_subset(checklist, taxonomy, root_name, outfile)
 
 if __name__ == '__main__':
   parser = argparse.ArgumentParser()

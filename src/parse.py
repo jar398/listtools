@@ -18,7 +18,7 @@ class Parts(NamedTuple):
   authorship : Any              # includes initials, all authors, etc
   token      : Any              # just Lastname of first author
   year       : Any
-  moved      : Any              # none means don't know (no authorship)
+  protonymp  : Any              # False means moved, None means don't know.
 
 # -----------------------------------------------------------------------------
 # Parsing: string -> Parts
@@ -27,8 +27,16 @@ class Parts(NamedTuple):
 # columns of the original DwC - if they're present.
 
 def parse_name(verbatim, gn_full=MISSING, gn_stem=MISSING, gn_auth=MISSING):
+  verbatim = verbatim.replace('  ', ' ')     # two -> one
   (canonical0, auth0) = split_name(verbatim)
+  auth_n = gn_auth.count(' ') + 1 if gn_auth != MISSING else 0
   if gn_full != MISSING:
+    # Interesting to look at.
+    #  e.g. Sigmodon dalquesti + Stangl & Jr. 1992 != Sigmodon dalquesti Stangl, Jr., 1992
+
+    if False and gn_full.count(' ') + auth_n != verbatim.count(' '):
+      log("** chunk count mismatch: %s + %s != %s" %
+          (gn_full, gn_auth, verbatim))
     if gn_stem == MISSING: gn_stem = gn_full # Space saving kludge
     # Epithet will be stemmed
     (canonical, g, e) = recover_canonical(gn_full, gn_stem, gn_auth, canonical0)
@@ -47,8 +55,8 @@ def parse_name(verbatim, gn_full=MISSING, gn_stem=MISSING, gn_auth=MISSING):
 
   if e == '?': e = None
   if g == '?': g = None         # cf. use_gnparse.py, but careful MSW3
-  (t, y, moved) = analyze_authorship(auth)
-  return Parts(verbatim, canonical, g, e, auth, t, y, moved)
+  (t, y, protonymp) = analyze_authorship(auth)
+  return Parts(verbatim, canonical, g, e, auth, t, y, protonymp)
 
 # This ought to be trivial but the problem is that gnparser drops
 # tokens that occur after the last alphabetic epithet.  So we have to
@@ -86,8 +94,8 @@ def recover_canonical(gn_full, gn_stem, gn_auth, hack_canonical):
 
 def analyze_authorship(auth):
   if not auth: return (None, None, None) # moved? don't know
-  moved = (auth[0] == '(' and auth[-1] == ')')
-  if moved:
+  protonymp = not (auth[0] == '(' and auth[-1] == ')')
+  if not protonymp:
     auth = auth[1:-1]
   t_match = token_re.search(auth)
   tok = t_match[0] if t_match else None
@@ -95,14 +103,14 @@ def analyze_authorship(auth):
   y_match = year_re.search(auth)
   year = y_match[1] if y_match else None
   if year == '1111': year = None       # Wild card
-  return (tok, year, moved)
+  return (tok, year, protonymp)
 
 # This may not agree with gnparse exactly...
 # [1] is complete canonical; [2] is paren or empty; [3] is authorship part (name(s) + maybe year)
 LP = "\\("
 split_re = \
   regex.compile(u"(.+?) (((%s)?)\p{Uppercase_Letter}[\p{Letter}.-]+.*)$" % LP)
-token_re = regex.compile(u"\p{Uppercase_Letter}[\p{Letter}-]+")
+token_re = regex.compile(u"\p{Uppercase_Letter}[\p{Letter}{3}-]+")
 year_re = regex.compile(' ([12][0-9]{3})\)?$')
 starts_auth_re = \
   regex.compile(u"((%s)?)\p{Uppercase_Letter}\p{Letter}" % LP)
@@ -126,7 +134,7 @@ def split_name(verbatim):
 # Umm... really ought to just combine canonical and authorship
 
 def unparse_parts(parts):
-  (v, c, g, e, a, tok, y, moved) = parts
+  (v, c, g, e, a, tok, y, protonymp) = parts
   assert g
 
   # Species name
@@ -150,7 +158,8 @@ def unparse_parts(parts):
       auth = tok                  # Jones
     else:
       auth = "%s, %s" % (tok, y) # Jones, 2088
-    if moved: auth = "(%s)" % auth
+    if protonymp == False: auth = "(%s)" % auth
+    assert protonymp != None    # ???
 
   all = "%s %s" % (canon, auth) if auth != None else canon
   return all
@@ -173,12 +182,12 @@ if __name__ == '__main__':
   def qu(x): return "?" if x == None else "'%s'" % x
 
   parts = parse_name(sys.argv[1])
-  (v, c, g, ep, a, tok, y, moved) = parts
+  (v, c, g, ep, a, tok, y, protonymp) = parts
   print("canonical %s" % qu(c))
   print(" genus %s" % qu(g))
   print(" epithet %s" % qu(ep))
   print("authorship %s" % qu(a))
   print(" token %s" % qu(tok))
   print(" year %s" % qu(y))
-  print(" moved %s" % moved)
+  print(" protonymp %s" % protonymp)
   print("recovered namestring '%s'" % unparse_parts(parts))

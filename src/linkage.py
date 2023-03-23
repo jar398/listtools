@@ -26,6 +26,7 @@ def find_links(AB, m_iter=None, nearness=None):
   # This sets the 'link' property of ... some ... records.
   subproblems = find_subproblems(AB)
   count = 0
+
   for (key, (us, vs)) in subproblems.items():
     # classify as A1, A2, A3 (HETEROTYPIC, REVIEW, HOMOTYPIC)
     for u in us:
@@ -40,42 +41,50 @@ def find_links(AB, m_iter=None, nearness=None):
           count += improve_link(v, u, score, key)
           #log("#  Improved: %s %s" % (blurb(u), blurb(get_link(u))))
   assert get_link(AB.in_left(AB.A.top)) == AB.in_right(AB.B.top)
-  log("# %s links forged" % count)
+  log("-- %s links forged" % count)
 
 def improve_link(u, v, score, key):
   if score_to_ship(score) != HOMOTYPIC:
     return 0
   else:
     have_v = get_link(u, None) # (v0, score) Anything to improve on?
-    if have_v:
-      have_out = get_outject(have_v)
-      out = get_outject(v)
-      mrca = simple.mrca(have_out, out)
-      # We want the one that is... more protonymical (fewer () )
-      if have_out == mrca:
-        # v < have_v.  prefer v ??
-        set_link(u, v)
-        log("# Improving link %s ~ %s" % (blurb(u), blurb(v)))
-        return 0                # Replacing
-      elif out == mrca:
-        # have_v < v.  Leave it alone.
-        return 0
-      else:
-        # ambiguous.  wait until later to figure this out.
-        if get_link(u, None) != False: # doesn't help
-          log("# Ambiguous (%s): %s -> %s & %s" %
-              (key, blurb(u), blurb(have_v), blurb(v)))
-          set_link(u, False)
-          return -1               # Retracting
-    # Adding
-    set_link(u, v)
-    #log("# Set link %s ~ %s" % (blurb(u), blurb(v)))
-    return 1
+    if have_v == None:                 # not None or False
+      set_link(u, v)                   # One side, not nec. reciprocal
+      #log("# Set link %s ~ %s" % (blurb(u), blurb(v)))
+      return 1
+    elif have_v == False:       # ambiguous
+      return 0
+    else:
+      # ambiguous.  wait until later to figure this out.
+      set_link(u, False)
+      return -1               # Retracting
+
+"""
+      if False:                 # pick 'best' of the two
+        have_out = get_outject(have_v)
+        out = get_outject(v)
+        mrca = simple.mrca(have_out, out)
+        # We want the one that is... more protonymical (fewer () )
+        if have_out == mrca:
+          # v < have_v.  prefer v ??
+          set_link(u, v)
+          log("# Improving link %s ~ %s" % (blurb(u), blurb(v)))
+          return 0                # Replacing
+        elif out == mrca:
+          # have_v < v.  Leave it alone.
+          return 0
+...
+      if False:                    # Too much
+        log("# Ambiguous (%s): %s -> %s & %s" %
+            (key, blurb(u), blurb(have_v), blurb(v)))
+"""
 
 def score_to_ship(score):
   if score >= THRESH:     return HOMOTYPIC
   elif score <= NOTHRESH: return HETEROTYPIC
   else: return REVIEW
+
+# Assumes both are descended from the same species (or genus?)
 
 def homotypic(u, species):
   score = compute_score(u, species, 10)
@@ -134,9 +143,9 @@ def compute_score(u, v, nearness=None):
                               get_parts(v),
                               nearness)
   if monitor(u) or monitor(v):
-    log("# Score %s, %s = %s" % (blurb(u), blurb(v), score))
-    log("# %s" % (get_parts(u),))
-    log("# %s" % (get_parts(v),))
+    log("# Score (%s, %s) = %s" % (blurb(u), blurb(v), score))
+    #log("# %s" % (get_parts(u),))
+    #log("# %s" % (get_parts(v),))
   return score
 
 # Score potentially contipic names from 0 to 100
@@ -159,11 +168,11 @@ def compute_parts_score(p, q, nearness=None):
     else: misses += 4
 
   if p.genus != None and q.genus != None:
-    #log("# 1 comparing %s, %s (%s, %s)" % (p.genus, q.genus, p.moved, q.moved))
+    #log("# 1 comparing %s, %s (%s, %s)" % (p.genus, q.genus, p.protonymp, q.protonymp))
     if p.genus == q.genus:
       #log("# 2 comparing %s, %s" % (p.genus, q.genus))
       hits += 8
-    elif p.moved == False and q.moved == False:
+    elif p.protonymp == True and q.protonymp == True:
       #log("# 4 comparing %s, %s -> miss" % (p.genus, q.genus))
       misses += 8
     else:

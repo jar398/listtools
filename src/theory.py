@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 
-import math, types, functools
-import property as prop, checklist, workspace, simple
+import math
+import property as prop
+import checklist, workspace, simple, exemplar
 
 from util import log
 from checklist import *
@@ -142,11 +143,13 @@ def compare_within_block(AB, u, w):
   ship = parallel_relationship(ship1, ship2)
   if ship1 != ship2:
     if ship != ship1:
-      log("# (%s, %s); Reducing %s to %s" %
-          (blurb(u), blurb(w), rcc5_symbol(ship1), rcc5_symbol(ship)))
+      if monitor(u):
+        log("# (%s, %s); Reducing %s to %s" %
+            (blurb(u), blurb(w), rcc5_symbol(ship1), rcc5_symbol(ship)))
     elif ship != ship2:
-      log("# (%s, %s): Reducing %s to %s" %
-          (blurb(u), blurb(w), rcc5_symbol(ship2), rcc5_symbol(ship)))
+      if monitor(u):
+        log("# (%s, %s): Reducing %s to %s." %
+            (blurb(u), blurb(w), rcc5_symbol(ship2), rcc5_symbol(ship)))
 
   if ship & (LT|GT) == LT|GT:
     log("# Path inconsistency from %s to %s" % (blurb(u), blurb(w)))
@@ -195,9 +198,7 @@ def compose_paths(rel1, rel2):
     if ship == LT|GT:
       return relation(DISJOINT, rel2.record, note=note)
     else:
-      # < >
-      assert False, (rcc5_symbol(ship1),
-                     rcc5_symbol(ship2))
+      return relation(ship, rel2.record, note=note)
 
 def parallel_relationship(ship1, ship2):
   return ship1 & ship2
@@ -223,10 +224,13 @@ def cross_le(AB, u, w):
 # For 2M species, tip to root is expected to be about 20... -> nearness 2
 
 def compute_nearness(u, v):
-  return 40.0/(compute_half_nearness(u, v) +
-               compute_half_nearness(v, u))
+  return -compute_distance(u, v)
 
-def compute_half_nearness(u, v):
+def compute_distance(u, v):
+  return (compute_half_distance(u, v) +
+          compute_half_distance(v, u))/2.
+
+def compute_half_distance(u, v):
   # u < u1 <= (v1 < m > v)
   u1 = get_center(u)
   v1 = get_cross_mrca(u1)
@@ -239,7 +243,8 @@ def compute_half_nearness(u, v):
 def distance_on_lineage(u1, u2):
   if u1 == u2:
     return 0
-  return distance_to_parent(u) + distance_on_lineage(get_superior(u).record, u2)
+  return (distance_to_parent(u) +
+          distance_on_lineage(get_superior(u).record, u2))
 
 def distance_to_parent(u):
   sup = get_superior(u)
@@ -248,6 +253,17 @@ def distance_to_parent(u):
 def lg(x):
   return math.log(x)/log2
 log2 = math.log(2)
+
+# sort of like: exemplar
+
+def get_cross_glb(u):
+  v = v1 = get_cross_mrca(u)
+  while True:
+    if simple.gt(get_cross_mrca(v1), u):
+      break
+    v = v1
+    v1 = get_superior(v1).record
+  return v                      # Top of chain
 
 # -----------------------------------------------------------------------------
 # TBD: Cache this  (and do not cache equivalents)
@@ -294,10 +310,12 @@ def find_estimates_from(AB, u):
 # Possibly some of u's ancestors too.
 
 def find_estimates_when_central(AB, u):
-  #log("# Estimating central %s ..." % blurb(u))
+  if monitor(u):
+    log("# Estimating central %s ..." % blurb(u))
   probe = get_estimate(u, None)
   if probe != None:
-    log("#  ... cached: %s", (blurb(probe)))
+    if monitor(u):
+      log("#  ... cached: %s" % (blurb(probe)))
     return probe
 
   v = get_cross_mrca(u, None)   # u <= v
@@ -310,25 +328,33 @@ def find_estimates_when_central(AB, u):
   if not same_block(get_block(u), get_block(v)):
     rel = relation(LT, v, "block is smaller")
     rel = optimize_relation(AB, u, rel)
-    log("# Estimate: %s %s" % (blurb(u), blurb(rel)))
+    if monitor(u):
+      log("#  ...estimate: %s %s" % (blurb(u), blurb(rel)))
     set_estimate(u, rel)
 
   # If no choice, go ahead and match.  Might still be unsound...
   elif at_top_of_chain(AB, u) and at_top_of_chain(AB, v):
     rel = relation(EQ, v, note="unique same-block match")
-    #log("#  ... chain top: %s" % blurb(rel))
+    if monitor(u):
+      log("#  ... chain top: %s" % blurb(rel))
     set_estimate(u, rel)
 
   # "ladder" - lineage from u (bottom of block) up to top of block,
   # and from v (bottom of block) up to top of block.
   else:
-    # End of u1 loop - go back to the original u
-    analyze_ladder(u, v)        # sets estimates
+    if monitor(u): log("#  ... ladder ...")
 
-    # Check to make sure it got cached
-    rel = get_estimate(u, None)
-    assert rel != None, (blurb(u), "not cached")
-    log("#  ... ladder: %s %s" % (blurb(u), blurb(rel)))
+    if get_estimate(u, None) == None:
+      # End of u1 loop - go back to the original u
+      analyze_ladder(u, v)        # sets estimates
+      # Check to make sure it got cached
+      rel = get_estimate(u, None)
+      assert rel != None, (blurb(u), "not cached")
+      if monitor(u):
+        log("#  ... ladder: %s %s" % (blurb(u), blurb(rel)))
+    else:
+      if monitor(u):
+        log("#  ... ladder cached")
 
   assert rel, blurb(u)
   assert separated(u, rel.record)
@@ -346,44 +372,56 @@ def analyze_ladder(u, v):
     # Top of chain, last resort
     set_estimate(u, relation(EQ, v, note="tops of chains"))
     set_estimate(v, relation(EQ, u, note="tops of chains"))
-    log("#    ... top: %s | %s" % (blurb(u), blurb(v)))
+    if monitor(u):
+      log("#    ... top: %s = %s" % (blurb(u), blurb(v)))
     (u2, v2) = (u, v)
 
-  elif not u_up:
-    (u2, v2) = analyze_ladder(u, v_up)
-    set_estimate(u, relation(LT, v2, note="skip left at top"))
-    log("#    ... skip left at top: %s | %s" % (blurb(u), blurb(v2)))
-
-  elif not v_up:
-    (u2, v2) = analyze_ladder(u_up, v)
-    set_estimate(v, relation(LT, u2, note="skip right at top"))
-    log("#    ... skip right at top: %s | %s" % (blurb(u2), blurb(v)))
-
   else:
-    m = get_match_in_block(u)  # a relation
-    n = get_match_in_block(v)  
+    m = get_link_in_block(u)  # a relation
+    n = get_link_in_block(v)
 
-    if m and n:
-      (u2, v2) = analyze_ladder(u_up, v_up)
-      if m == v:
-        assert n == u
-        log("#    ... match: %s | %s" % (blurb(u), blurb(v)))
+    if v_up and u_up:
+      if m is v and n is u:
+        (u2, v2) = analyze_ladder(u_up, v_up)
+        if monitor(u):
+          log("#    ... match: %s = %s" % (blurb(u), blurb(v)))
         set_estimate(u, relation(EQ, v, note="match in block"))
         set_estimate(v, relation(EQ, u, note="match in block"))
+        set_link(m, u); set_link(v, n) # ???????
         (u2, v2) = (u, v)
       else:
+        (u2, v2) = analyze_ladder(u_up, v_up)
+        if monitor(u):
+          log("#    ... mismatch: %s <> %s" % (blurb(u), blurb(v)))
         set_estimate(u, relation(LT, v2, note="left mismatch"))
         set_estimate(v, relation(LT, u2, note="right mismatch"))
-        log("#    ... mismatch: %s | %s" % (blurb(u), blurb(v)))
-    elif u_up:
-      (u2, v2) = analyze_ladder(u_up, v)
-      set_estimate(u, relation(LT, v2, note="skip left"))
-      log("#     ... skip left: %s | %s" % (blurb(u), blurb(v2)))
-    elif v_up:
+
+    elif not u_up:
       (u2, v2) = analyze_ladder(u, v_up)
-      set_estimate(v, relation(LT, u2, note="skip right"))
-      log("#     ... skip right: %s | %s" % (blurb(v), blurb(u2)))
+      assert u is u2
+      set_estimate(v, relation(LT, u, note="skip left at top"))
+      if monitor(u):
+        log("#    ... skip left: %s -> %s" % (blurb(u), blurb(v2)))
+
+    else:
+      assert not v_up
+      (u2, v2) = analyze_ladder(u_up, v)
+      assert v is v2
+      set_estimate(u, relation(LT, v, note="skip right at top")) # clobbered
+      if monitor(u):
+        log("#    ... skip right: %s <- %s" % (blurb(u2), blurb(v)))
+
+  # Theorem: u has an estimate.
+
+  assert get_estimate(u, None), blurb(u)
+  assert get_estimate(v, None), blurb(v)
   return (u2, v2)
+
+# foo
+def same_exemplar(u, v):
+  if u is v: return True
+  e1 = exemplar.get_exemplar(u)
+  return e1 and e1 is exemplar.get_exemplar(v)
 
 # -----------------------------------------------------------------------------
 # u assumed central
@@ -401,23 +439,11 @@ def get_superior_in_block(u):
 
 # wait.
 
-def get_match_in_block(u):
-  v = get_link(u, None)     # returns relation to node in AB
+def get_link_in_block(u):
+  v = get_mutual_link(u, None)     # returns relation to node in AB
+  # what if v is False (u is ambiguous)?
   if v and same_block(get_block(v), get_block(u)):
     return v
-  return None
-
-# This performs a bit better but there are still lapses.
-# Not consistent with what get_estimate does.
-
-def get_match_in_block_hairy(u):
-  b = get_block(u)
-  if b == None: return None     # peripheral
-  m = get_link(u)
-  if m:
-    n = get_link(m)
-    if n and get_block(n) == b:
-      return m
   return None
 
 # Given u, find unique node v in opposite checklist such that v = u.
@@ -596,21 +622,8 @@ def analyze_blocks(AB):
 
 def show_exemplars(z, tag, AB):
   def foo(id):
-    return blurb(exemplar_record(AB, id, z))
+    return blurb(exemplar.xid_to_record(AB, id, z))
   log("# theory: %s: {%s}" % (tag, ", ".join(map(foo, get_block(z)))))
-
-# Apply this to something that 'belongs' to a single exemplar
-# id -> record in same checklist as z
-
-def exemplar_record(AB, id, z):
-  (_, vs, ws) = AB.exemplar_records[id]
-  return vs[0] if isinA(AB, z) else ws[0]
-
-# id -> record not in same checklist as z
-
-def opposite_exemplar_record(AB, id, z):
-  (_, vs, ws) = AB.exemplar_records[id]
-  return vs[0] if isinB(AB, z) else ws[0]
 
 # record -> list of exemplar ids
 
@@ -621,10 +634,10 @@ def exemplar_ids(AB, z):
 # in the block for z.
 
 def exemplar_records(AB, z):
-  return (exemplar_record(AB, id, z) for id in exemplar_ids(AB, z))
+  return (exemplar.xid_to_record(AB, id, z) for id in exemplar_ids(AB, z))
 
 def opposite_exemplar_records(AB, z):
-  return (opposite_exemplar_record(AB, id, z) for id in exemplar_ids(AB, z))
+  return (exemplar.xid_to_opposite_record(AB, id, z) for id in exemplar_ids(AB, z))
 
 def get_block(x):
   return really_get_block(x, BOTTOM_BLOCK)

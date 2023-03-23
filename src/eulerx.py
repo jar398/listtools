@@ -1,6 +1,7 @@
 # Returns generator of lines (strings)
 
 import sys
+import theory
 
 from rcc5 import *
 from checklist import *
@@ -103,7 +104,7 @@ def eulerx_alignment(AB, al):
          (get_tag(A), get_tag(B),
           checklist_description(A), checklist_description(B)))
   for (v, rel) in al:
-    rel = maybe_graft(rel) # Mark grafts with ! per Nico's suggestion
+    rel = theory.maybe_graft(v, rel) # Mark grafts with ! per Nico's suggestion
     w = rel.record
     x = get_outject(v); y = get_outject(w)
     if not is_top(x) and not is_top(y):

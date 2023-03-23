@@ -59,8 +59,9 @@ def generate_alignment(AB, matches=None):
         if swapped: (v, w) = (w, v)
         count[0] += 1
         count[1] = max(count[0], count[1])
-        if count[0] % 100 == 0:
-          log("# articulator %s: %s, most %s" % (blurb(v), blurb(w), count[1]))
+        if monitor(u):
+          if count[0] % 100 == 0:
+            log("# articulator %s: %s, %s" % (blurb(v), blurb(w), count[1]))
         key = (get_primary_key(v), get_primary_key(w))
         if key in seen:
           pass

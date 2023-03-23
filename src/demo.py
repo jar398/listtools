@@ -3,12 +3,14 @@
 # Report generation for alignment procedure
 
 import sys, csv, argparse
-import util, workspace, align, linkage
+import util, workspace, align, linkage, theory, exemplar
 import rows
 
 from checklist import *
 from workspace import *
 from eulerx import generate_eulerx
+from theory import get_equivalent
+from align import is_species, is_acceptable
 
 # Returns a row generator
 
@@ -66,13 +68,16 @@ def generate_short_report(al, AB):
 
 def plausible(AB, u, ship, v):
   if (ship == DISJOINT):
-    eq1 = get_equivalent(AB, get_superior(u).record)
-    eq2 = get_equivalent(AB, get_superior(v).record)
-    r1 = eq1.record if eq1 else None
-    r2 = eq2.record if eq2 else None
-    if (r1 == r2):
-      #log("# unsurprising! %s %s" % (blurb(u), blurb(v)))
-      return True
+    sup1 = get_superior(u, None)
+    sup2 = get_superior(v, None)
+    if sup1 and sup2:
+      eq1 = get_equivalent(AB, sup1.record)
+      eq2 = get_equivalent(AB, sup2.record)
+      r1 = eq1.record if eq1 else None
+      r2 = eq2.record if eq2 else None
+      if (r1 == r2):
+        #log("# unsurprising! %s %s" % (blurb(u), blurb(v)))
+        return True
   return False
 
 # This column is called "category" for consistency with MDD.
@@ -182,8 +187,8 @@ def match_comment1(AB, v, rel):
 # and block(w) - block(v) (synonyms added)
 
 def witnesses(AB, v, w):
-  b1 = theory.get_block(v, theory.BOTTOM_BLOCK)
-  b2 = theory.get_block(w, theory.BOTTOM_BLOCK)
+  b1 = theory.get_block(v)
+  b2 = theory.get_block(w)
   if len(b1) == 0 or len(b2) == 0:
     return None
   # Names are all according to B
@@ -195,8 +200,8 @@ def witnesses(AB, v, w):
   return (flush, keep, add)
 
 def debug_withnesses(AB, v, w):
-  b1 = theory.get_block(v, theory.BOTTOM_BLOCK)
-  b2 = theory.get_block(w, theory.BOTTOM_BLOCK)
+  b1 = theory.get_block(v)
+  b2 = theory.get_block(w)
   def foo(v, which, w, s):
     if False:
       log("# choose_witness: %s %s %s has %s exemplars" %
@@ -210,7 +215,7 @@ def choose_witness(AB, ids, v):
   have = None
   count = 0
   for id in ids:
-    e = theory.exemplar_record(AB, id, v) 
+    e = exemplar.xid_to_record(AB, id, v) 
     if not have:
       have = e
     if is_acceptable(e):     # ?

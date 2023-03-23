@@ -36,8 +36,9 @@ def compare_accepted_in_checklist(x, y):
     else:
       return relation(EQ, y)   # x = x_peer = y_peer = y
   else:
-    log("# peers: %s <= %s != %s >= %s" %
-        (blurb(x), blurb(x_peer), blurb(y_peer), blurb(y)))
+    if False:
+      log("# peers: %s <= %s != %s >= %s" %
+          (blurb(x), blurb(x_peer), blurb(y_peer), blurb(y)))
     return relation(DISJOINT, y, note="x < xp = yp > y")
 
 # Compare x to y under the assumption that accepted(x) = accepted(y).

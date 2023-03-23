@@ -38,8 +38,13 @@ def analyze_exemplars(AB):
 
       v = get_tipward(u, None)
       if v:
-        #log("# Looking at %s -> %s" % (blurb(u), blurb(v)))
-        equate_exemplars(u, v)
+        u_back = get_tipward(v, None)
+        if u_back is u:         # Mutual?
+          #log("# Looking at %s -> %s" % (blurb(u), blurb(v)))
+          equate_exemplars(u, v)
+        elif u_back != None:
+          log("# returns to non-tipward %s -> %s -> %s" % 
+              (blurb(u), blurb(v), blurb(u_back)))
 
       for c in get_inferiors(x):
         traverse(c, species)
@@ -82,7 +87,7 @@ def unify_records(u1, u2):
   if rel.relationship == GT:
     return u2                   # Prefer more tipward
   if (rel.relationship == EQ and
-      get_parts(u1).moved and not get_parts(u2).moved):
+      not get_parts(u1).protonymp and get_parts(u2).protonymp):
     log("# preferring protonym %s to %s" % (blurb(u2), blurb(u1)))
     return u2                   # Prefer protonym
   else:
@@ -100,6 +105,21 @@ def get_exemplar_uf(u):
 (really_get_exemplar_uf, set_exemplar_uf) = \
   prop.get_set(prop.declare_property("exemplar_uf"))
 
+
+# Apply this to an exemplar id to obtain an exemplar union/find node,
+# and return the associated taxon record that's in same checklist as z.
+
+def xid_to_record(AB, id, z):
+  uf = AB.exemplars[id]
+  (_, u, v) = uf.payload()
+  return u if isinA(AB, z) else v
+
+def xid_to_opposite_record(AB, id, z):
+  uf = AB.exemplars[id]
+  (_, u, v) = uf.payload()
+  return v if isinA(AB, z) else u
+
+
 # Returns exemplar record or None.  TO BE USED ONLY AFTER
 # analyze_exemplars HAS FINISHED ITS WORK.
 
@@ -110,14 +130,13 @@ def get_exemplar(u):
     (id, u, v) = r
     if u and v:
       if not id:
-        # Create id on demand
+        # Create id (for set operations) on demand
         ws = get_workspace(u)
         ws.exemplar_counter += 1
         id = ws.exemplar_counter
         r[0] = id
-        ws.exemplars[id] = r
+        ws.exemplars[id] = uf
         #log("# Exemplar %s: e(%s) = (%s)" % (id, blurb(u), blurb(v)))
-        id = ws.exemplar_counter
       return r
   return None
 
@@ -140,7 +159,7 @@ def analyze_tipwards(AB):
     if seen == 0:
       # not seen means that this node could be tipward
       u = AB.in_left(x)            # u is tipward...
-      v = get_link(u, None)
+      v = get_link(u, None)        # same name -> same exemplar(s?)
       if monitor(v):
         log("# exemplars: tipwards %s %s" % (blurb(u), blurb(v)))
       if v:

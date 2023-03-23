@@ -91,6 +91,9 @@ get_match_relationship = prop.getter(prop.declare_property("relationship", inher
 
 (get_outject, set_outject) = prop.get_set(outject_prop)
 
+# -----------------------------------------------------------------------------
+# Relations and relationships
+
 class Relative(NamedTuple):
   relationship : Any    # < (LT, HAS_PARENT), <= (LE), =, NOINFO, maybe others
   record : Any       # the record that we're relating this one to
@@ -444,6 +447,17 @@ def ensure_inferiors_indexed(C):
   #   (count, len(get_children(C.top, ()))))
   validate(C)
 
+# -----------------------------------------------------------------------------
+# More
+
+def get_mutual_link(u, default=-19): # misplaced
+  v = get_link(u, None)
+  if v:
+    u_back = get_link(v, default)
+    if u_back == u:
+      return v
+  return default
+
 def assert_local(x, y):
   assert get_source(x) == get_source(y), \
     (blurb(x), get_source_tag(x), blurb(y), get_source_tag(y))
@@ -693,8 +707,7 @@ def blurb(r):
 def monitor(x):
   if not x: return False
   name = get_canonical(x, '')
-  return (False
-          #name.startswith("Tursiops australis")
+  return (name == "Zaglossus goodfellowi"
           )
 
 # -----------------------------------------------------------------------------
