@@ -129,11 +129,10 @@ def isinA(AB, z):
 def isinB(AB, z):
   return AB.case(z, lambda x: False, lambda x: True)
 
-def separated(x, y):
-  assert x
-  assert y
-  AB = get_source(x)
-  return isinA(AB, x) != isinA(AB, y)
+def separated(u, v):
+  AB = get_workspace(u)
+  assert AB is get_workspace(v)
+  return isinA(AB, u) != isinA(AB, v)
 
 # Returns <p, syn> where p in AB is superior in A (or B) of v,
 #  and syn is true iff p is a synonym
@@ -151,6 +150,16 @@ def local_sup(AB, u):
     return relation(loc.relationship, AB.in_right(loc.record),
                     note=loc.note, span=loc.span)
 
+def swap(AB):
+  BA = AB.swap()
+  BA.A = AB.B
+  BA.B = AB.A
+  BA.workspace = AB.workspace
+  return BA
+
+def get_workspace(u):
+  return get_source(u).workspace
+
 def local_accepted(AB, u):
   y = get_accepted(get_outject(u))
   if isinA(AB, u):
@@ -161,15 +170,10 @@ def local_accepted(AB, u):
 def is_accepted_locally(AB, u):
   return is_accepted(get_outject(u))
 
-def swap(AB):
-  BA = AB.swap()
-  BA.A = AB.B
-  BA.B = AB.A
-  BA.workspace = AB.workspace
-  return BA
 
-def get_workspace(u):
-  return get_source(u).workspace
+def set_link(x, y):
+  assert y == False or separated(x, y)
+  really_set_link(x, y)
 
 # -----------------------------------------------------------------------------
 

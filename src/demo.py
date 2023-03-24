@@ -17,20 +17,21 @@ from align import is_species, is_acceptable
 def generate_alignment_report(al, AB):
   yield ("A id", "A name", "rcc5", "B name", "B id",
          "category", "note", "witnesses", "match")
-  for (v, rel) in al:
+  seen = set()
+  for (u, rel) in al:
     ship = rel.relationship
-    w = rel.record
-    x = theory.get_outject(v)
-    y = theory.get_outject(w)
-    d = category(v, ship, w)
+    v = rel.record
+    x = theory.get_outject(u)
+    y = theory.get_outject(v)
+    d = category(u, ship, v)
 
-    seen = {}
-    if (d.startswith('drop') and get_match(v, None) != None and
-        not get_primary_key(v) in seen):
-      if monitor(v):
-        log("# Removing %s, why?" % blurb(v))
-        diagnose_match(v)         # logs
-      seen[get_primary_key(v)] = True
+    # What is this about ???
+    if (d.startswith('drop') and get_match(u, None) != None and
+        not get_primary_key(u) in seen):
+      if monitor(u):
+        log("# Removing %s, why?" % blurb(u))
+        diagnose_match(u)         # logs
+      seen.add(get_primary_key(u))
 
     yield  (get_primary_key(x),
             blurb(x),
@@ -38,33 +39,35 @@ def generate_alignment_report(al, AB):
             blurb(y),
             get_primary_key(y),
             d, rel.note,
-            witness_comment(AB, v, rel),
-            match_comment(AB, v, rel))
+            witness_comment(AB, u, rel),
+            match_comment(AB, u, rel))
 
 def generate_short_report(al, AB):
-  yield ("A name", "B name", "category", "witnesses", "match")
-  for (v, rel) in al:
+  yield ("A name", "rcc5", "B name", "category", "witnesses", "match")
+  for (u, rel) in al:
     w = rel.record
 
+    # Elide equalities lacking name change ...
     ship = rel.relationship
-    if ship == EQ:
-      if get_canonical(v) == get_canonical(w):
-        continue
+    if ship == EQ and get_canonical(u) == get_canonical(w):
+      continue
 
-    if ((is_species(v) or is_species(w)) and
-        is_acceptable(v) and is_acceptable(w)):  # filter out subspecies too
-      ship = rel.relationship
-      if plausible(AB, v, ship, w):
+    if ((is_species(u) or is_species(w)) and
+        is_acceptable(u) and is_acceptable(w)):  # filter out subspecies too
+      if plausible(AB, u, ship, w):
         continue
-      d = category(v, ship, w)
-      if (not d.startswith('retain')) or get_canonical(v) != get_canonical(w):
+      d = category(u, ship, w)
+      if (not d.startswith('retain')) or get_canonical(u) != get_canonical(w):
         # Show mismatch / ambiguity ... ?
         # m = get_match(z); m.note if m else ...
-        yield  (blurb(get_outject(v)) if ship != IREP else MISSING,
-                blurb(get_outject(w)) if ship != PERI else MISSING,
+        yield  (blurb(get_outject(u)) ,# if ship != IREP else MISSING,
+                rcc5_symbol(ship),
+                blurb(get_outject(w)) ,# if ship != PERI else MISSING,
                 d,
-                witness_comment(AB, v, rel),
-                match_comment(AB, v, rel))
+                witness_comment(AB, u, rel),
+                match_comment(AB, u, rel))
+
+# Is relationship mmerely copied over from a source checklist?
 
 def plausible(AB, u, ship, v):
   if (ship == DISJOINT):
@@ -130,7 +133,7 @@ def category(v, ship, w):
   elif ship == PERI:
     action = 'drop'
   else:
-    action = rcc5_symbol(ship)
+    action = rcc5_symbol(ship) + ' ??'
   return action
 
 # rel.note will often be the match type, so don't duplicate it
@@ -278,7 +281,7 @@ if __name__ == '__main__':
     b_path = args.B
     e_path = args.eulerx
     d_path = args.short         # diff
-    l_path = args.long
+    l_path = args.long          # long alignment report
     assert a_path != b_path
     with rows.open(a_path) as a_rows:
       with rows.open(b_path) as b_rows:

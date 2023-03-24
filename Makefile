@@ -71,10 +71,10 @@ $(DEMO): $P/demo.py $P/align.py $P/theory.py $P/simple.py $P/workspace.py \
 	@echo
 	@echo "--- PREPARING DEMO ---"
 	$P/demo.py --A $A.csv --B $B.csv --Aname $(ANAME) --Bname $(BNAME) \
-	  --eulerx $(EULERX).new --short $(SHORT).new > $@.new
+	  --eulerx $(EULERX).new --short $(SHORT).new --long $@.new
 	@mv -f $@.new $@
-	@mv -f $(EULERX).new $(EULERX)
 	@mv -f $(SHORT).new $(SHORT)
+	@mv -f $(EULERX).new $(EULERX)
 
 # Record matches, required for merging:
 

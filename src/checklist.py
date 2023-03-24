@@ -62,7 +62,7 @@ outject_prop = prop.declare_property("outject")
   prop.get_set(taxonomic_status_prop)
 
 # One column from the matches table?
-(get_link, set_link) = prop.get_set(link_prop)
+(get_link, really_set_link) = prop.get_set(link_prop)
 (get_match, set_match) = prop.get_set(match_prop)
 
 # Links
@@ -458,7 +458,7 @@ def get_mutual_link(u, default=-19): # misplaced
   return default
 
 def assert_local(x, y):
-  assert get_source(x) == get_source(y), \
+  assert get_source(x) is get_source(y), \
     (blurb(x), get_source_tag(x), blurb(y), get_source_tag(y))
 
 def get_source_tag(x):          # applied to a record

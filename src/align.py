@@ -10,7 +10,8 @@ from property import mep_get, mep_set
 from rcc5 import *
 from checklist import *
 from workspace import *
-from theory import local_sup, get_equivalent
+from theory import local_sup, get_equivalent, \
+  get_block, is_empty_block
 
 def align(A_iter, B_iter, A_name='A', B_name='B', matches_iter=None):
   AB = ingest_workspace(a_rows.rows(), b_rows.rows(),
@@ -45,44 +46,71 @@ def generate_alignment(AB, matches=None):
   theory.theorize(AB)
   #span.span(AB)
 
-  seen = {}
+  seen = set()
+
+  def unseen(u, v):
+    ku = u.id
+    kv = v.id
+    key = (kv, ku) if kv < ku else (ku, kv)
+    if key in seen:
+      return False
+    else:
+      seen.add(key)
+      return True
 
   def doit(AB, swapped):
-    def traverse(x):            # u in AB
-      assert is_accepted(x)
-      count = [0, -1]
-      u = AB.in_left(x)
-      assert is_accepted_locally(AB, u)
-      arts = list(taxon_articulators(AB, u))
-      assert len(arts) > 0, blurb(u)
-      for art in arts: # Normalized
-        v = get_acceptable(AB, art)        # Compare v to art
-        assert separated(u, v)
-        assert is_accepted_locally(AB, v)
-        if swapped: (u, v) = (v, u)
-        count[0] += 1
-        count[1] = max(count[0], count[1])
-        if monitor(u) or monitor(v):
-          if count[0] % 100 == 0:
-            log("# articulator %s: %s, %s" % (blurb(art), blurb(v), count[1]))
-        key = (get_primary_key(u), get_primary_key(v))
-        if key in seen:
-          pass
-        else:
-          seen[key] = True
-          assert separated(u, v)
-          rel = theory.cross_compare(AB, u, v)
 
-          # Suppress if entailed by either checklist
-          ship = rel.relationship
-          if obvious(AB, u, rel.relationship, v):
-            pass
-          else:
-            yield (u, rel)
+    # Returns generator of records v to compare to u.
+    # u and v are in different checklists.
+    # Duplicates and synnonyms are filtered out elsewhere.
+
+    def taxon_articulators(u):
+      rel = theory.get_estimate(u, None)
+      if rel and rel.record:
+        v = rel.record
+        yield (v, True)                   # u <= v
+        for c in get_inferiors(get_outject(v)):
+          v2 = AB.in_right(c)
+          if not get_equivalent(AB, v2): # premature optimization
+            yield (v2, False)
+      v = get_link(u, False)         # Match by name
+      if v:
+        yield (v, True)
+
+    def process_articulator(u, v_art, rd):
+      v = get_acceptable(AB, v_art)        # Compare v to art
+      if unseen(u, v):
+        rel = theory.cross_compare(AB, u, v)
+        if (is_empty_block(get_block(u)) and
+            not is_empty_block(get_block(v))): # Peripheral attachment
+          rel = relation(rel.relationship | DISJOINT,    # Nico's request
+                         rel.record,
+                         rel.note,
+                         rel.span)
+        if rd or rel.relationship == OVERLAP:
+          yield (u, rel)
+
+    def traverse(x):            # u in AB
+      u = AB.in_left(x)
+      if not get_acceptable(AB, u): # ?????
+        return
+
+      # 1. Report the estimate
+      v = theory.get_estimate(u, None).record
+      yield from process_articulator(u, v, True)
+      # 2. Report on children of estimate looking for ><
+      for c in get_inferiors(get_outject(v)):
+        v2 = AB.in_right(c)
+        if not get_equivalent(AB, v2): # premature optimization
+          yield from process_articulator(u, v2, False)
+      # 3. Report on name match
+      vl = get_link(u, False)         # Match by name
+      if vl: yield from process_articulator(u, vl, True)
+
       if not is_species(u):
         for c in get_children(x, ()): # subspecies and synonyms
           yield from traverse(c)
-    yield from traverse(AB.A.top) # B has priority
+    yield from traverse(AB.A.top)
 
   yield from doit(swap(AB), True) # B has priority
   yield from doit(AB, False)
@@ -94,58 +122,29 @@ def obvious(AB, u, ship, v):
       (ship == LT or ship == GT or ship == DISJOINT)):
     return True
 
-# Returns generator of records v to compare to u.
-# u and v are in different checklists.
-# There may be duplicates.
-# Need to filter out articulations involving synonyms.
-
-def taxon_articulators(AB, u):
-  assert isinA(AB, u)
-  assert get_workspace(u)
-  rel = theory.get_estimate(u, None)
-  assert get_workspace(rel.record)
-  assert is_accepted(get_outject(u))
-  if rel and rel.record:
-    v = rel.record
-    assert separated(u, v)
-    assert is_accepted_locally(AB, v)
-    yield v                   # u <= v
-    if True or rel.relationship != EQ:
-      for c in get_children(get_outject(v), ()):
-        assert is_accepted(c)
-        v2 = AB.in_right(c)
-        if not get_equivalent(AB, v2):
-          yield v2
-  v = get_link(u, None)         # Match by name
-  if v:
-    assert is_accepted_locally(AB, v)
-    yield v
-
-def is_species(v):              # z local
-  z = get_outject(v)
-  return get_rank(z, None) == 'species' and is_accepted(z)
-
-# Acceptable = accepted and not infraspecific.
-# Approximation!
-
-def is_acceptable(u):           # in AB
-  return is_acceptable_locally(get_outject(u))
+def is_species(u):              # z local
+  x = get_outject(u)
+  return get_rank(x, None) == 'species' and is_accepted(x)
 
 # Returns ancestor
 
 def get_acceptable(AB, u):
   x = get_outject(u)
   # Ascend until an acceptable is found
-  while not is_acceptable_locally(x):
+  while not is_acceptable(x):
     sup = get_superior(x, None)
     if not sup:
       break
     x = sup.record
   return AB.in_left(x) if isinA(AB, u) else AB.in_right(x)
 
-# This is inaccurate - doesn't allow nested infraspecific ranks
+# Acceptable = accepted and not infraspecific.
+# Approximation!
 
-def is_acceptable_locally(x):
+def is_acceptable_locally(AB, u):  # in AB
+  return is_acceptable(get_outject(u))
+
+def is_acceptable(x):
   if is_accepted(x):
     if get_rank(x, None) == 'species':
       return True
