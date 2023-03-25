@@ -8,7 +8,7 @@ from util import log
 from checklist import *
 from workspace import *
 from simple import BOTTOM, compare_per_checklist, compare_siblings
-
+from exemplar import equate_exemplars
 
 import exemplar
 
@@ -18,8 +18,18 @@ def theorize(AB):
   # ... exemplar.exemplars(A_iter, B_iter, m_iter) ...
   # TBD: option to read them from a file
   # Assumes links found already  - find_links(AB)
-  exemplar.analyze_exemplars(AB)   # does set_exemplar(...)
+  iteration(AB)
+  if False:
+    # Now we can compute distances !!!
+    iteration(AB)
   analyze_blocks(AB)               # does set_block(...)
+
+def iteration(AB):
+  # Clear out links? but keep cross_mrcas (needed for distance)?
+  # Links grow monotonically, if ambiguities are retained
+  really_find_links(AB)
+  # Exemplars grow monotonically
+  exemplar.analyze_exemplars(AB)   # does set_exemplar(...)
   compute_cross_mrcas(AB)          # does set_cross_mrca(...)
   find_estimates(AB)               # does set_estimate(...)
 
@@ -217,26 +227,24 @@ def cross_le(AB, u, w):
 
 # -----------------------------------------------------------------------------
 
-# 'nearness' - reciprocal of distance, approximately - it's thresholded,
-# so only matters whether it's small or large
+# distance is thresholded, so only really matters whether it's small
+# or large
 
-# For mammals, tip to root is expected to be about 13... -> nearness 3
-# For 2M species, tip to root is expected to be about 20... -> nearness 2
-
-def compute_nearness(u, v):
-  return -compute_distance(u, v)
+# For mammals, tip to root is expected to be about 13... 
+# For 2M species, tip to root is expected to be about 20... 
 
 def compute_distance(u, v):
-  return (compute_half_distance(u, v) +
-          compute_half_distance(v, u))/2.
+  if get_estimate(u, None) and get_estimate(v, None):
+    return (compute_half_distance(u, v) +
+            compute_half_distance(v, u))/2.
+  else:
+    return None
 
 def compute_half_distance(u, v):
   # u < u1 <= (v1 < m > v)
-  u1 = get_center(u)
-  v1 = get_cross_mrca(u1)
+  v1 = get_estimate(u)
   m = simple.mrca(v1, v)
-  dist = (distance_on_lineage(u, u1) +
-          distance_on_lineage(v1, m) +
+  dist = (distance_on_lineage(v1, m) +
           distance_on_lineage(v, m))
   return dist
 
@@ -254,7 +262,7 @@ def lg(x):
   return math.log(x)/log2
 log2 = math.log(2)
 
-# sort of like: exemplar
+# sort of like: exemplar  ???
 
 def get_cross_glb(u):
   v = v1 = get_cross_mrca(u)
@@ -286,40 +294,52 @@ def find_estimates(AB):
   findem(AB)
   findem(swap(AB))              # swap is in checklist
 
+# Not sure about this
+
 def find_estimate(AB, u):
-  notes = []
-  u1 = u
-  peri = under = scan = False
-  while True:
-    v = get_cross_mrca(u1, None)
+  ship = EQ
+  while True:                   # Skip over peripherals
+    v = get_cross_mrca(u, None)
     if v != None:
       break
-    sup = local_sup(AB, u1)
-    assert sup, (blurb(u), blurb(u1))
-    u1 = sup.record
-    peri = True
-  # v = xmrca(u), non-None
-  while descends_from(get_cross_mrca(v), u):
-    sup = local_sup(AB, v)
-    if not sup:
-      break
-    v = sup.record
-    under = True
-  # v is >= xmrca(u)
+    sup = local_sup(AB, u)
+    assert sup, (blurb(u1), blurb(u))
+    u = sup.record
+    ship = LT
+  u2 = u
+  v1 = v
+  u1 = get_cross_mrca(v1)
+
+  # Scan upwards from v2 looking for a way back to the u chain, either
+  # by a name or by hitting the top of the chain.
+
   while True:
+    # Optional search for links by name
+    v3 = v
+    u3 = get_mutual_link(v3, None)
+    if (u3 and
+        get_cross_mrca(u3) == v1 and
+        get_cross_mrca(v3) == u1):
+      if u2 is u3:
+        log("# Jackpot %s, %s" % (blurb(u3), blurb(v3)))
+        equate_exemplars(u3, v3)
+        break
+      if descends_from(u2, u3):
+        # Answer is v3 (= v)
+        log("# Modestly %s" % blurb(u3))
+        ship = LT
+        break
+
     sup = local_sup(AB, v)
-    if not sup:
-      break
-    if not get_cross_mrca(sup.record) is u:
-      break
-    v = sup.record
-    scan = True
-  note = '+'.join((name
-                   for (flag, name)
-                   in ((peri, "peri"), (under, "under"), (scan, "scan"))
-                   if flag))
-  # v is >= u
-  return relation(LE, v, '+'.join(notes))
+    if (not sup or
+        not get_cross_mrca(sup.record) is u1):
+      # TBD: EQ when u is at top of chain ??? for symmetry
+      ship = LT
+      break                     # at top of right checklist
+
+    v = sup.record              # Try next higher v
+
+  return relation(ship, v, "dancing about")
 
 def descends_from(u1, u2):
   return simple.descends_from(get_outject(u1), get_outject(u2))
@@ -608,16 +628,9 @@ def compute_cross_mrcas(AB):
         m0 = m
         m = simple.mrca(m, q)      # in B
       # Sanity checks
-      b1 = get_block(u)
-      assert (m == BOTTOM) == is_empty_block(b1)
       if m != BOTTOM:
         v = AB.in_right(m)
-
         assert separated(u, v)
-        b2 = get_block(v)
-        # AssertionError: ([122, 123, 124], [124])
-        assert block_le(b1, b2), (list(b1), list(b2))
-
         set_cross_mrca(u, v)
       return m
     traverse(AB.A.top)

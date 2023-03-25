@@ -18,10 +18,13 @@ REVIEW      = HOMOTYPIC | HETEROTYPIC
 
 NEUTRAL = 0
 
+def find_links(AB, m_iter=None, nearness=None):
+  return 
+
 # For each record, get list of matching records.... hmm
 # Future: read exceptions or whole thing from a file
 
-def find_links(AB, m_iter=None, nearness=None):
+def really_find_links(AB):
   assert not m_iter, 'NYI'
   # This sets the 'link' property of ... some ... records.
   subproblems = find_subproblems(AB)
