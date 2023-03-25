@@ -24,8 +24,7 @@ def find_links(AB, m_iter=None, nearness=None):
 # For each record, get list of matching records.... hmm
 # Future: read exceptions or whole thing from a file
 
-def really_find_links(AB):
-  assert not m_iter, 'NYI'
+def really_find_links(AB, distance):
   # This sets the 'link' property of ... some ... records.
   subproblems = find_subproblems(AB)
   count = 0
@@ -37,9 +36,9 @@ def really_find_links(AB):
         have1 = get_link(u, None)
         have2 = get_link(v, None)
         if have1 == None or have2 == None:
-          # **** COMPUTE NEARNESS ****
-          near = nearness(u, v) if nearness else None
-          score = compute_score(u, v, near)
+          # **** COMPUTE DISTANCE if 2nd pass ****
+          dist = distance(u, v) if distance else None
+          score = compute_score(u, v, dist)
           count += improve_link(u, v, score, key)
           count += improve_link(v, u, score, key)
           #log("#  Improved: %s %s" % (blurb(u), blurb(get_link(u))))
