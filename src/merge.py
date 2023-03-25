@@ -394,7 +394,6 @@ def equated(x, y):              # Are x and y equated?
 def propose_superior(AB, z, rs, ship, status, note):
   assert rs
   assert isinstance(z, prop.Record), blurb(z)
-  assert isinstance(rs, Relative)
   # I don't feel good about these
   s = get_accepted(rs.record)
   rel = relation(ship,

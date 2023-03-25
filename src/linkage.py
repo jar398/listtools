@@ -138,10 +138,10 @@ def get_subproblem_key(z):
 # Score potentially contipic taxa.
 # If distance is close, give a pass on genus mismatch.
 
-def compute_score(u, v, nearness=None):
+def compute_score(u, v, distance=None):
   score = compute_parts_score(get_parts(u),
                               get_parts(v),
-                              nearness)
+                              distance)
   if monitor(u) or monitor(v):
     log("# Score (%s, %s) = %s" % (blurb(u), blurb(v), score))
     #log("# %s" % (get_parts(u),))
@@ -150,16 +150,9 @@ def compute_score(u, v, nearness=None):
 
 # Score potentially contipic names from 0 to 100
 
-def compute_parts_score(p, q, nearness=None):
+def compute_parts_score(p, q, distance=None):
   hits = misses = 0
-  if nearness != None:
-    # -1 = too far apart to link
-    # 0 = neutral, intermediate distance, no info
-    # 1 = nearby, hit  ?
-    if nearness > 0:
-      hits += 1
-    elif nearness < 0:
-      misses += 1
+
   if p.year != None and q.year != None:
     if p.year == q.year: hits += 2
     else: misses += 2
@@ -179,9 +172,16 @@ def compute_parts_score(p, q, nearness=None):
       #log("# 3 comparing %s, %s -> ?" % (p.genus, q.genus))
       pass
 
+  if distance != None:
+    # 15 = too far apart to link
+    # 9 = neutral, most distant linkable
+    # 0 = equated, exact hit
+    if distance <= 9: hits += 16
+    elif distance > 15: misses += 16
+
   if p.epithet != None and q.epithet != None:
-    if p.epithet != q.epithet: misses += 16
-    else: hits += 16
+    if p.epithet != q.epithet: misses += 32
+    else: hits += 32
   if misses > 0: return NEUTRAL - misses
   else: return NEUTRAL + hits
 
@@ -191,11 +191,12 @@ def explain(score):
                       for (i, z)
                       in zip(range(0, 5),
                              (
-                              "nearness", # 1  = 1 << 0
+                              "unused", # 1  = 1 << 0
                               "year",     # 2
                               "token",    # 4
                               "genus",    # 8
-                              "epithet",  # 16
+                              "vicinity", # 16
+                              "epithet",  # 32
                                          ))
                       if (things & (1<<i)) != 0))
   if score == NEUTRAL:
@@ -226,7 +227,7 @@ log("# For possible genus motion: %s" % THRESH2)
 THRESH_Q = compute_parts_score(parse_name("Foo bar Jones, 1927"),
                                parse_name("Quux bar Jones, 1927"),
                                10)
-log("# For definite genus motion: %s" % THRESH_Q)
+log("# For distinct genus starts: %s" % THRESH_Q)
 
 # The most similar things that are dissimilar.  Distinguish records that 
 # are this different (minimally different) or more so.

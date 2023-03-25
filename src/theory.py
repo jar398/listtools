@@ -42,7 +42,7 @@ def cross_compare(AB, v, w):
   rel1 = get_accepted_relation(v)      # v <= v1
   v1 = rel1.record
   w1 = rel3r.record
-  rel3 = reverse_relation(rel3r, w)    # w1 >= w
+  rel3 = reverse_relation(w, rel3r)    # w1 >= w
   # compare rel1 and rel3, which are accepted, in opposite checklists
   assert separated(v1, w1)
   rel2 = compare_accepted(AB, v1, w1)
@@ -62,7 +62,7 @@ def compare_accepted(AB, u, v):
     return relation(NOINFO, v, "trees not connected")
   u1 = rel1.record
   v1 = rel3r.record
-  rel3 = reverse_relation(rel3r, v)  # v1 >= v
+  rel3 = reverse_relation(v, rel3r)  # v1 >= v
   assert separated(u1, v1)
   # Compare u1 and v1, which are central, in opposite checklists
   rel2 = compare_centrally(AB, u1, v1)   # u1 ? v1
@@ -266,19 +266,65 @@ def get_cross_glb(u):
   return v                      # Top of chain
 
 # -----------------------------------------------------------------------------
-# TBD: Cache this  (and do not cache equivalents)
-# def find_estimates(AB): ...
 
 (get_estimate, set_estimate) = prop.get_set(prop.declare_property("estimate"))
 
 def find_estimates(AB):
   count = 1
   def findem(AB):
-    for x in checklist.postorder_records(AB.A):
-      u = AB.in_left(x)
-      find_estimates_from(AB, u) # Cache it
+    def doit(AB):
+      if True:
+        for x in checklist.postorder_records(AB.A):
+          u = AB.in_left(x)
+          if False:
+            find_estimates_from(AB, u) # Cache it
+          else:
+            v = find_estimate(AB, u)
+            set_estimate(u, v)
+    doit(AB)
+    doit(swap(AB))
   findem(AB)
   findem(swap(AB))              # swap is in checklist
+
+def find_estimate(AB, u):
+  notes = []
+  u1 = u
+  peri = under = scan = False
+  while True:
+    v = get_cross_mrca(u1, None)
+    if v != None:
+      break
+    sup = local_sup(AB, u1)
+    assert sup, (blurb(u), blurb(u1))
+    u1 = sup.record
+    peri = True
+  # v = xmrca(u), non-None
+  while descends_from(get_cross_mrca(v), u):
+    sup = local_sup(AB, v)
+    if not sup:
+      break
+    v = sup.record
+    under = True
+  # v is >= xmrca(u)
+  while True:
+    sup = local_sup(AB, v)
+    if not sup:
+      break
+    if not get_cross_mrca(sup.record) is u:
+      break
+    v = sup.record
+    scan = True
+  note = '+'.join((name
+                   for (flag, name)
+                   in ((peri, "peri"), (under, "under"), (scan, "scan"))
+                   if flag))
+  # v is >= u
+  return relation(LE, v, '+'.join(notes))
+
+def descends_from(u1, u2):
+  return simple.descends_from(get_outject(u1), get_outject(u2))
+
+# -----------------------------------------------------------------------------
 
 # Set estimates per find_estimates_when_central, adjusting for
 # peripherals as needed.

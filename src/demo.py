@@ -18,7 +18,8 @@ def generate_alignment_report(al, AB):
   yield ("A id", "A name", "rcc5", "B name", "B id",
          "category", "note", "witnesses", "match")
   seen = set()
-  for (u, rel) in al:
+  for art in al:
+    (u, rel) = normalize_articulation(art)
     ship = rel.relationship
     v = rel.record
     x = theory.get_outject(u)
@@ -34,9 +35,9 @@ def generate_alignment_report(al, AB):
       seen.add(get_primary_key(u))
 
     yield  (get_primary_key(x),
-            blurb(x),
+            '' if x == AB.A.top else blurb(x),
             rcc5_symbol(ship),
-            blurb(y),
+            '' if y == AB.B.top else blurb(y),
             get_primary_key(y),
             d, rel.note,
             witness_comment(AB, u, rel),
@@ -44,7 +45,8 @@ def generate_alignment_report(al, AB):
 
 def generate_short_report(al, AB):
   yield ("A name", "rcc5", "B name", "category", "witnesses", "match")
-  for (u, rel) in al:
+  for art in al:
+    (u, rel) = normalize_articulation(art)
     w = rel.record
 
     # Elide equalities lacking name change ...
@@ -54,18 +56,26 @@ def generate_short_report(al, AB):
 
     if ((is_species(u) or is_species(w)) and
         is_acceptable(u) and is_acceptable(w)):  # filter out subspecies too
-      if plausible(AB, u, ship, w):
-        continue
+      #if plausible(AB, u, ship, w): continue
       d = category(u, ship, w)
       if (not d.startswith('retain')) or get_canonical(u) != get_canonical(w):
         # Show mismatch / ambiguity ... ?
         # m = get_match(z); m.note if m else ...
-        yield  (blurb(get_outject(u)) ,# if ship != IREP else MISSING,
+        x = get_outject(u)
+        y = get_outject(w)
+        yield  ('' if x == AB.A.top else blurb(x),
                 rcc5_symbol(ship),
-                blurb(get_outject(w)) ,# if ship != PERI else MISSING,
+                '' if y == AB.B.top else blurb(y),
                 d,
                 witness_comment(AB, u, rel),
                 match_comment(AB, u, rel))
+
+def normalize_articulation(art):
+  u = art[0]
+  if isinA(get_workspace(u), u):
+    return art
+  else:
+    return reverse_articulation(art)
 
 # Is relationship mmerely copied over from a source checklist?
 

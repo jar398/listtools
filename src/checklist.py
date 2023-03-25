@@ -30,12 +30,12 @@ source_prop = prop.declare_property("source", inherit=False)    # which checklis
 parent_key_prop = prop.declare_property("parentNameUsageID", inherit=False)
 accepted_key_prop = prop.declare_property("acceptedNameUsageID", inherit=False)
 superior_note_prop = prop.declare_property("superior_note", inherit=False)
-superior_prop = prop.declare_property("superior", inherit=False)    # value is a Relative
+superior_prop = prop.declare_property("superior", inherit=False)    # value is a Relation
 
 # For A/B identifications
-equated_key_prop = prop.declare_property("equated_id", inherit=False)    # value is a Relative
-equated_note_prop = prop.declare_property("equated_note", inherit=False)    # value is a Relative
-equated_prop = prop.declare_property("equated", inherit=False)    # value is a Relative
+equated_key_prop = prop.declare_property("equated_id", inherit=False)    # value is a Relation
+equated_note_prop = prop.declare_property("equated_note", inherit=False)    # value is a Relation
+equated_prop = prop.declare_property("equated", inherit=False)    # value is a Relation
 
 # For record matches made by name(s)
 match_prop = prop.declare_property("match", inherit=False)
@@ -94,7 +94,7 @@ get_match_relationship = prop.getter(prop.declare_property("relationship", inher
 # -----------------------------------------------------------------------------
 # Relations and relationships
 
-class Relative(NamedTuple):
+class Relation(NamedTuple):
   relationship : Any    # < (LT, HAS_PARENT), <= (LE), =, NOINFO, maybe others
   record : Any       # the record that we're relating this one to
   span : int
@@ -109,20 +109,27 @@ def relation(ship, record, note=MISSING, span=None):
     if ship == EQ: span = 0
     #elif ship == SYNONYM or MYNONYS: span = 1
     else: span = 2
-  return Relative(ship, record, span, note)
+  return Relation(ship, record, span, note)
 
-def reverse_relation(rel, starting):
-  return Relative(reverse_relationship(rel.relationship),
+def reverse_relation(starting, rel):
+  return Relation(reverse_relationship(rel.relationship),
                   starting,
                   rel.span,
                   reverse_note(rel.note))
+
+def reverse_articulation(art):
+  (starting, rel) = art
+  return (rel.record, Relation(reverse_relationship(rel.relationship),
+                               starting,
+                               rel.span,
+                               reverse_note(rel.note)))
 
 def compose_relations(rel1, rel2):
   assert rel1
   assert rel2
   if is_identity(rel1): return rel2
   if is_identity(rel2): return rel1
-  return Relative(compose_relationships(rel1.relationship, rel2.relationship),
+  return Relation(compose_relationships(rel1.relationship, rel2.relationship),
                   rel2.record,
                   rel1.span + rel2.span,
                   compose_notes(rel1.note, rel2.note))
@@ -132,7 +139,7 @@ def compose_path_relations(rel1, rel2):
   assert rel2
   if is_identity(rel1): return rel2
   if is_identity(rel2): return rel1
-  return Relative(compose_path_relationships(rel1.relationship,
+  return Relation(compose_path_relationships(rel1.relationship,
                                              rel2.relationship),
                   rel2.record,
                   rel1.span + rel2.span,
@@ -279,6 +286,8 @@ def resolve_superior_link(S, record):
             (get_tag(S), blurb(record), parent_key))
       sup = relation(HAS_PARENT, S.top, note="unresolved parent id")
 
+  if monitor(record):
+    "# resolving %s %s" % (blurb(record), blurb(sup))
   if sup:
     set_superior_carefully(record, sup)
     #if is_toplike(sup.record):
@@ -306,7 +315,7 @@ def known_same_exemplar(x, y):
 
 def set_superior_carefully(x, sup):
   assert isinstance(x, prop.Record)
-  assert isinstance(sup, Relative)
+  assert isinstance(sup, Relation)
   assert sup.record != x
   have = get_superior(x, None)
   if have:
@@ -337,12 +346,12 @@ def set_superior_carefully(x, sup):
       log("> superior of %s is %s" % (blurb(x), blurb(sup)))
 
 # Establish a link of the form w -> p
-# sup is a Relative with record p
+# sup is a Relation with record p
 # How to represent whether w is accepted or not?
 
-def link_superior(w, sup):      # w is inferior Record, sup is Relative
+def link_superior(w, sup):      # w is inferior Record, sup is Relation
   assert isinstance(w, prop.Record), blurb(w)
-  assert isinstance(sup, Relative), blurb(sup)
+  assert isinstance(sup, Relation), blurb(sup)
   assert get_superior(w, None) == None
   set_superior(w, sup)
   if is_accepted(w):
@@ -674,18 +683,14 @@ def blurb(r):
   if isinstance(r, prop.Record):
     x = get_outject(r, None)
     if x: r = x
-    name = (get_canonical(r, None) or     # string
-            get_scientific(r, None) or
-            get_managed_id(r, None) or
-            get_primary_key(r, None) or
-            "[no identifier]")
+    name = get_ok_name(r)
     if '(' in get_scientific(r, MISSING):
-      name = name + '()'
+      pass                      # name = name + '()'
     if not is_accepted(r):
       return name + '*'
     else:
       return name
-  elif isinstance(r, Relative):
+  elif isinstance(r, Relation):
     if r.note:
       return ("[%s (%s) %s]" %
               (rcc5_symbol(r.relationship), r.note,
@@ -706,7 +711,7 @@ def blurb(r):
 def monitor(x):
   if not x: return False
   name = get_canonical(x, '')
-  return (name == "Zaglossus goodfellowi"
+  return (name == "Archaeolemur majori"
           )
 
 # -----------------------------------------------------------------------------
@@ -809,7 +814,12 @@ def get_parts(x):
                           gn_auth = get_gn_auth(x, MISSING))
 
 def get_best_name(x):
-  name = (get_scientific(x, None) or get_canonical(x, None) or
+  name = (get_scientific(x, None) or get_ok_name(x))
+  assert name
+  return name
+
+def get_ok_name(x):
+  name = (get_canonical(x, None) or
           get_managed_id(x, None) or get_primary_key(x))
   assert name
   return name

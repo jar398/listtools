@@ -23,7 +23,7 @@ def compare_accepted_in_checklist(x, y):
     if x_peer == x:     # x = x_peer = y_peer > y, so x > y
       sup = get_superior(y)
       if sup and x == sup.record:
-        return reverse_relation(sup, y)
+        return reverse_relation(y, sup)
       else:
         return relation(GT, y, note="x = xp = yp > y")
     elif y_peer == y:
@@ -154,3 +154,6 @@ def ensure_levels(S):
       # This isn't right -- get_level works better
       cache(c, n+1)
   cache(S.top, 1)
+
+def descends_from(x, y):
+  return get_level(x) < get_level(y)

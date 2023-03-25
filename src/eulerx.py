@@ -42,9 +42,9 @@ def generate_eulerx_checklist(C):
       u = C.in_left(x)
       children = get_children(x, None) # not the synonyms
       if children:
-        sup_name = get_eulerx_name(u)
+        sup_name = get_eulerx_name(get_outject(u))
         if sup_name and get_rank(x, None) != 'species':
-          names = list(map(lambda c:get_eulerx_name(C.in_left(c)),
+          names = list(map(lambda c:get_eulerx_name(c),
                            children))
           names.sort()
           yield ("(%s %s)" % (sup_name, ' '.join(names)))
@@ -68,69 +68,69 @@ def eulerx_alignment(AB, al):
     if not is_top(get_outject(v)) and not is_top(get_outject(w)):
       yield eulerx_articulation(v, rel.relationship, w, rel.note)
 
-def eulerx_articulation(u, ship, y, note):
+def eulerx_articulation(u, ship, v, note):
   sym = rcc5_eulerx(ship)
   name1 = get_eulerx_qualified_name(u)
-  name2 = get_eulerx_qualified_name(y)
+  name2 = get_eulerx_qualified_name(v)
   return "[%s %s %s]" % (name1, sym, name2)
 
 
 # Unique name of the sort Euler/X likes
 # TBD: ensure name is unique (deal with multiple taxa with same canonical)
 
-def get_eulerx_name(z):
-  C = get_workspace(z)
-  which = mep_get(C.eulerx_which, z, None) # (ecanon, i, cell)
-  if not is_accepted_locally(C, z):
-    log("# %s not accepted in articulation" % blurb(z))
+def get_eulerx_name(x):
+  A = get_source(x)
+  which = mep_get(A.eulerx_which, x, None) # (ecanon, i, cell)
+  if not is_accepted(x):
+    log("# %s not accepted in articulation" % blurb(x))
     assert False
   if not which:
-    log("# No euler/x name for %s" % blurb(z))
+    log("# No euler/x name for %s" % blurb(x))
     assert False
   (ecanon, i, cell) = which
   if cell[0] <= 1:
     return ecanon
   else:
     if False:                   # lots of these in ncbi mammals
-      tag = get_source_tag(z)
-      print("# Discriminating: %s %s/%s, %s in %s" % (ecanon, i, cell[0], get_primary_key(z), tag),
+      tag = get_source_tag(x)
+      print("# Discriminating: %s %s/%s, %s in %s" % (ecanon, i, cell[0], get_primary_key(x), tag),
             file=sys.stderr)
     return "%s_%s" % (ecanon, i)
 
 def assign_eulerx_names(C):
-  spin = {}    # maps eulerx base name to integer
-  eulerx_which = mep()
   def doit(C):
+    eulerx_which = mep()
+    spin = {}    # maps eulerx base name to integer
     def traverse(x):
       if is_accepted(x):
-        z = C.in_left(x)
-        ecanon = get_eulerx_base_name(z)
+        ecanon = get_eulerx_base_name(x)  #NOT in workspace
         cell = spin.get(ecanon, None)
         if cell == None:
           cell = [0]
           spin[ecanon] = cell
         cell[0] += 1
-        mep_set(eulerx_which, z, (ecanon, cell[0], cell))
+        mep_set(eulerx_which, x, (ecanon, cell[0], cell))
         if get_rank(x, None) != 'species':
           for c in get_inferiors(x):  # children only ??
             traverse(c)
     traverse(C.A.top)
+    C.A.eulerx_which = eulerx_which
   doit(C)
   doit(swap(C))
-  C.eulerx_which = eulerx_which
 
 def get_eulerx_base_name(x):
-  e = blurb(x)
+  e = get_ok_name(x)
   e = e.replace(' ', '_')
   e = e.replace('.', '_')
   # Nico's cosmetic preference
   e = e.replace('__', '_')
+  if not is_accepted(x): e = e + "_SYN"
   return e
 
 # x is a record (list)
 
-def get_eulerx_qualified_name(x):
-  assert get_workspace(x)
+def get_eulerx_qualified_name(z):
+  x = get_outject(z)
   src = get_source_tag(x)       # e.g. "A"
   ename = get_eulerx_name(x)
   assert ename                  # why why why

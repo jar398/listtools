@@ -60,23 +60,6 @@ def generate_alignment(AB, matches=None):
 
   def doit(AB, swapped):
 
-    # Returns generator of records v to compare to u.
-    # u and v are in different checklists.
-    # Duplicates and synnonyms are filtered out elsewhere.
-
-    def taxon_articulators(u):
-      rel = theory.get_estimate(u, None)
-      if rel and rel.record:
-        v = rel.record
-        yield (v, True)                   # u <= v
-        for c in get_inferiors(get_outject(v)):
-          v2 = AB.in_right(c)
-          if not get_equivalent(AB, v2): # premature optimization
-            yield (v2, False)
-      v = get_link(u, False)         # Match by name
-      if v:
-        yield (v, True)
-
     def process_articulator(u, v_art, rd):
       v = get_acceptable(AB, v_art)        # Compare v to art
       if unseen(u, v):
@@ -87,7 +70,7 @@ def generate_alignment(AB, matches=None):
                          rel.record,
                          rel.note,
                          rel.span)
-        if rd or rel.relationship == OVERLAP:
+        if rd or rel.relationship == OVERLAP: # can't happen
           yield (u, rel)
 
     def traverse(x):            # u in AB
@@ -98,11 +81,19 @@ def generate_alignment(AB, matches=None):
       # 1. Report the estimate
       v = theory.get_estimate(u, None).record
       yield from process_articulator(u, v, True)
+
+      # 1a. Report estimate vs. parent - may overlap
+      sup = get_superior(u, None)
+      if sup:
+        p = sup.record
+        yield from process_articulator(p, v, True)
+
       # 2. Report on children of estimate looking for ><
       for c in get_inferiors(get_outject(v)):
         v2 = AB.in_right(c)
         if not get_equivalent(AB, v2): # premature optimization
           yield from process_articulator(u, v2, False)
+
       # 3. Report on name match
       vl = get_link(u, False)         # Match by name
       if vl: yield from process_articulator(u, vl, True)

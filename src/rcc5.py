@@ -70,7 +70,12 @@ def rcc5_symbol(ship):
     return "{%s}" % " ".join(s)
 
 def rcc5_eulerx(ship):
-  return rcc5_eulerxs[ship]
+  components = tuple(explode_rcc5(ship))
+  if len(components) == 1:
+    return rcc5_symbols[ship]
+  else:
+    s = [rcc5_symbols[r] for r in components]
+    return "{%s}" % " ".join(s)
 
 def rcc5_relationship(name):
   if name.startswith('{'):
