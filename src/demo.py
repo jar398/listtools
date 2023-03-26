@@ -9,7 +9,7 @@ import rows
 from checklist import *
 from workspace import *
 from eulerx import generate_eulerx
-from theory import get_equivalent
+from lub import get_equivalent
 from align import is_species, is_acceptable
 
 # Returns a row generator
@@ -142,6 +142,8 @@ def category(v, ship, w):
     action = 'add'
   elif ship == PERI:
     action = 'drop'
+  elif ship == INCONSISTENT:
+    action = 'should not happen'
   else:
     action = rcc5_symbol(ship) + ' ??'
   return action

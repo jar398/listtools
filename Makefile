@@ -63,11 +63,12 @@ EULERX=work/$(shell basename $A)-$(shell basename $B)-eulerx.txt
 SHORT=work/$(shell basename $A)-$(shell basename $B)-short.csv
 EXEMPLARS=work/$(shell basename $A)-$(shell basename $B)-exemplars.csv
 
+CODE=$P/demo.py $P/align.py $P/theory.py $P/simple.py $P/workspace.py \
+     $P/checklist.py $P/match_records.py $P/rcc5.py $P/eulerx.py $P/linkage.py
+
 demo: $(DEMO)
 
-$(DEMO): $P/demo.py $P/align.py $P/theory.py $P/simple.py $P/workspace.py \
-	   $P/checklist.py $P/match_records.py $P/rcc5.py $P/eulerx.py \
-	   $A.csv $B.csv
+$(DEMO): $(CODE) $A.csv $B.csv
 	@echo
 	@echo "--- PREPARING DEMO ---"
 	$P/demo.py --A $A.csv --B $B.csv --Aname $(ANAME) --Bname $(BNAME) \

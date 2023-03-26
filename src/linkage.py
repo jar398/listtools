@@ -27,7 +27,6 @@ def find_links(AB, m_iter=None, nearness=None):
 def really_find_links(AB, distance):
   # This sets the 'link' property of ... some ... records.
   subproblems = find_subproblems(AB)
-  count = 0
 
   for (key, (us, vs)) in subproblems.items():
     # classify as A1, A2, A3 (HETEROTYPIC, REVIEW, HOMOTYPIC)
@@ -37,13 +36,45 @@ def really_find_links(AB, distance):
         have2 = get_link(v, None)
         if have1 == None or have2 == None:
           # **** COMPUTE DISTANCE if 2nd pass ****
-          dist = distance(u, v) if distance else None
+          dist = distance(u, v)
           score = compute_score(u, v, dist)
-          count += improve_link(u, v, score, key)
-          count += improve_link(v, u, score, key)
+          improve_link(u, v, score, key)
+          improve_link(v, u, score, key)
           #log("#  Improved: %s %s" % (blurb(u), blurb(get_link(u))))
   assert get_link(AB.in_left(AB.A.top)) == AB.in_right(AB.B.top)
-  log("-- %s links forged" % count)
+  report_on_links(AB, subproblems)
+
+def report_on_links(AB, subproblems):
+  full_count = 0
+  half_count = 0
+  amb_count = 0
+  for (key, (us, vs)) in subproblems.items():
+    for u in us:
+      link = get_link(u, None)
+      if link == None:
+        pass
+      elif link == False:
+        amb_count += 1
+      else:
+        link2 = get_link(link, None)
+        if link2 == u:
+          full_count += 1
+        elif link2 == None:
+          half_count += 1
+    for v in vs:
+      link = get_link(u, None)
+      if link == None:
+        pass
+      elif link == False:
+        amb_count += 1
+      else:
+        link2 = get_link(link, None)
+        if link2 == v:
+          pass                  # already counted
+        elif link2 == None:
+          half_count += 1
+  log("-- Links: %s mutual, %s one-sided, %s ambiguous" %
+      (full_count, half_count, amb_count))
 
 def improve_link(u, v, score, key):
   if score_to_ship(score) != HOMOTYPIC:
@@ -217,18 +248,19 @@ def explain(score):
 
 # The most dissimilar things that are similar.  Unite records that are 
 # this similar (minimally similar) or more so.
-THRESH = compute_parts_score(parse_name("Foo bar"),
-                             parse_name("Foo bar"))
-log("# Match predicted if score >= %s" % THRESH)
-
+THRESH1 = compute_parts_score(parse_name("Foo bar"),
+                              parse_name("Foo bar"),
+                              None)
 THRESH2 = compute_parts_score(parse_name("Foo bar Jones, 1927"),
                               parse_name("Quux bar (Jones, 1927)"),
-                              10)
-log("# For possible genus motion: %s" % THRESH2)
+                              3)
+THRESH = min(THRESH1, THRESH2)
+log("# Match predicted if score >= %s = min(%s,%s)" %
+    (THRESH, THRESH1, THRESH2))
 
 THRESH_Q = compute_parts_score(parse_name("Foo bar Jones, 1927"),
                                parse_name("Quux bar Jones, 1927"),
-                               10)
+                               3)
 log("# For distinct genus starts: %s" % THRESH_Q)
 
 # The most similar things that are dissimilar.  Distinguish records that 

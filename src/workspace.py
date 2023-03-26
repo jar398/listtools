@@ -82,12 +82,13 @@ def make_workspace(A, B, meta=None):
   # AB.top is not set at this point.  Needs to be determined independently
   #log("# taxonID counter: %s" % pk_counter[0])
 
-  AB.exemplar_counter = [0]     # shared with swapped form
+  AB.exemplar_counter = 0     # shared with swapped form
+  AB.exemplars = {}
   return AB
 
 def fresh_exemplar_id(AB):
-  AB.exemplar_counter[0] += 1
-  return AB.exemplar_counter[0]
+  AB.exemplar_counter += 1
+  return AB.exemplar_counter
   
 
 # Is given synonym usage a senior synonym of its accepted usage?

@@ -7,11 +7,11 @@ import checklist, workspace, simple, exemplar
 from util import log
 from checklist import *
 from workspace import *
-from simple import BOTTOM, compare_per_checklist, compare_siblings
-from linkage import really_find_links
-from exemplar import equate_exemplars
+from simple import compare_per_checklist, compare_siblings
 
 import exemplar
+import lub
+from lub import iteration, get_estimate, get_equivalent
 
 # Assumes that name matches are already stored in AB.
 
@@ -19,22 +19,10 @@ def theorize(AB):
   # ... exemplar.exemplars(A_iter, B_iter, m_iter) ...
   # TBD: option to read them from a file
   # Assumes links found already  - find_links(AB)
-  iteration(AB, None)
-  if False:
-    # Now we can compute distances !!!
-    iteration(AB, compute_distance)
+  iteration(AB, lambda u,v:None)
+  # Now we can compute distances !!!
+  iteration(AB, compute_distance)
   analyze_blocks(AB)               # does set_block(...)
-
-def iteration(AB, distance):
-  # Links grow monotonically.  Ambiguities are recorded as False but that's OK.
-  really_find_links(AB, distance)
-  # Exemplars grow monotonically, no need to overwrite.
-  exemplar.analyze_exemplars(AB)   # does set_exemplar(...)
-  # Cross-mrcas need to be replaced (LUBs get tighter/smaller).
-  #  Easily overwritten.
-  compute_cross_mrcas(AB)          # does set_cross_mrca(...)
-  # Estimates depend highly on cross-mrcas.  Easily overwritten.
-  find_estimates(AB)               # does set_estimate(...)
 
 #-----------------------------------------------------------------------------
 # compare: The implementation of the RCC-5 theory of AB (A+B).
@@ -237,29 +225,33 @@ def cross_le(AB, u, w):
 # For 2M species, tip to root is expected to be about 20... 
 
 def compute_distance(u, v):
+  assert separated(u, v)
   if get_estimate(u, None) and get_estimate(v, None):
-    return (compute_half_distance(u, v) +
-            compute_half_distance(v, u))/2.
+    return int((compute_half_distance(u, v) +
+                compute_half_distance(v, u))/2)
   else:
     return None
 
 def compute_half_distance(u, v):
   # u < u1 <= (v1 < m > v)
-  v1 = get_estimate(u)
-  m = simple.mrca(v1, v)
-  dist = (distance_on_lineage(v1, m) +
-          distance_on_lineage(v, m))
+  assert separated(u, v)
+  v1 = get_estimate(u).record
+  y = get_outject(v)
+  y1 = get_outject(v1)
+  m = simple.mrca(y1, y)
+  dist = (distance_on_lineage(y1, m) +
+          distance_on_lineage(y, m))
   return dist
 
 def distance_on_lineage(u1, u2):
   if u1 == u2:
     return 0
-  return (distance_to_parent(u) +
-          distance_on_lineage(get_superior(u).record, u2))
+  return (distance_to_parent(u1) +
+          distance_on_lineage(get_superior(u1).record, u2))
 
 def distance_to_parent(u):
   sup = get_superior(u)
-  lg(len(get_children(sup.record)))
+  return lg(max(1,len(get_children(sup.record, ()))))
 
 def lg(x):
   return math.log(x)/log2
@@ -276,113 +268,25 @@ def get_cross_glb(u):
     v1 = get_superior(v1).record
   return v                      # Top of chain
 
-# -----------------------------------------------------------------------------
+# Find a 'central' (non-peripheral) ancestor node (contains at least
+# one exemplar) in SAME checklist, and u's relation to it
 
-(get_estimate, set_estimate) = prop.get_set(prop.declare_property("estimate"))
-
-def find_estimates(AB):
-  count = 1
-  def findem(AB):
-    def doit(AB):
-      if True:
-        for x in checklist.postorder_records(AB.A):
-          u = AB.in_left(x)
-          if False:
-            find_estimates_from(AB, u) # Cache it
-          else:
-            v = find_estimate(AB, u)
-            set_estimate(u, v)
-    doit(AB)
-    doit(swap(AB))
-  findem(AB)
-  findem(swap(AB))              # swap is in checklist
-
-# Not sure about this
-
-def find_estimate(AB, u):
-  ship = EQ
-  while True:                   # Skip over peripherals
-    v = get_cross_mrca(u, None)
-    if v != None:
-      break
-    sup = local_sup(AB, u)
-    assert sup, (blurb(u1), blurb(u))
-    u = sup.record
-    ship = LT
-  u2 = u
-  v1 = v
-  u1 = get_cross_mrca(v1)
-
-  # Scan upwards from v2 looking for a way back to the u chain, either
-  # by a name or by hitting the top of the chain.
-
-  while True:
-    # Optional search for links by name
-    v3 = v
-    u3 = get_mutual_link(v3, None)
-    if (u3 and
-        get_cross_mrca(u3) == v1 and
-        get_cross_mrca(v3) == u1):
-      if u2 is u3:
-        log("# Jackpot %s, %s" % (blurb(u3), blurb(v3)))
-        equate_exemplars(u3, v3)
-        break
-      if descends_from(u2, u3):
-        # Answer is v3 (= v)
-        log("# Modestly %s" % blurb(u3))
-        ship = LT
-        break
-
-    v_sup = local_sup(AB, v)
-    if (not v_sup or
-        not get_cross_mrca(v_sup.record) is u1):
-      # TBD: EQ when u is at top of chain ??? for symmetry
-      u_sup = local_sup(AB, u)
-      if (u_sup and
-          get_cross_mrca(u_sup.record) is v1):
-        ship = LT               # not at top of u chain
-      break                     # at top of v chains
-
-    v = v_sup.record              # Try next higher v
-
-  return relation(ship, v, "dancing about")
-
-def descends_from(u1, u2):
-  return simple.descends_from(get_outject(u1), get_outject(u2))
-
-# -----------------------------------------------------------------------------
-# u assumed central
-
-def get_superior_in_block(u):
-  assert u
-  AB = get_source(u)
-  sup = local_sup(AB, u)
-  if not sup: return None
-  u1 = sup.record
-  if same_block(get_block(u1), get_block(u)):
-    return u1
+def get_central(AB, u):
+  u_central = u
+  while is_empty_block(get_block(u_central)):
+    u_central = local_sup(AB, u_central).record
+  # "optimize"
+  if u_central == u:
+    return relation(EQ, u_central)
   else:
-    return None
+    sup = local_sup(AB, u)
+    if sup and sup.record == u_central:
+      return sup
+    else:
+      return relation(LT, u_central, note="get_central")
 
-# wait.
-
-def get_link_in_block(u):
-  v = get_mutual_link(u, None)     # returns relation to node in AB
-  # what if v is False (u is ambiguous)?
-  if v and same_block(get_block(v), get_block(u)):
-    return v
-  return None
-
-# Given u, find unique node v in opposite checklist such that v = u.
-# x and y are in AB, not A or B.
-# Returns a Relation or None.
-
-def get_equivalent(AB, u):
-  assert u
-  est = get_estimate(u, None)
-  if est and est.relationship == EQ: return est
-  else: return None
-
+def is_central(u):
+  return not is_empty_block(u)
 
 # Attempt to set span to 1 (parent/child) if possible.
 
@@ -425,81 +329,6 @@ def find_cross_sup_rel(AB, u, w):
         # oops, could use rel directly without copying it!
   # Option 3. u ?= z = q -> w   -- cannot go from w to child q.
   return rel if q == w else None
-
-def debug_block(AB, u, w, v0):
-      log("# v0=u %s" % (v0 == u))
-      log("# %s top %s" % (blurb(u), at_top_of_chain(AB, u)))
-      log("# %s top %s" % (blurb(w), at_top_of_chain(AB, w)))
-
-def at_top_of_chain(AB, u):
-  sup = local_sup(AB, u)
-  if not sup: return True
-  b = get_block(u)
-  # each peripheral has its own chain
-  if is_empty_block(b): return True
-  return not same_block(get_block(sup.record), b)
-
-# Find a 'central' (non-peripheral) ancestor node (contains at least
-# one exemplar) in SAME checklist, and u's relation to it
-
-def get_central(AB, u):
-  u_central = u
-  while is_empty_block(get_block(u_central)):
-    u_central = local_sup(AB, u_central).record
-  # "optimize"
-  if u_central == u:
-    return relation(EQ, u_central)
-  else:
-    sup = local_sup(AB, u)
-    if sup and sup.record == u_central:
-      return sup
-    else:
-      return relation(LT, u_central, note="get_central")
-
-def is_central(u):
-  return not is_empty_block(u)
-
-# -----------------------------------------------------------------------------
-# ONLY USED WITHIN THIS FILE
-
-# If w (in B) is the 'estimate' of u (in A), and u contains at least one 
-# exemplar, then:
-#      w is the smallest taxon in B containing all the exemplars 
-#      that are in v (might contain more).
-#
-# i.e.   x ≲ y ≲ x' ≤ x   →   x ≅ y   (same 'block')
-# i.e.   x ≲ y ≲ x' > x   →   x < y
-#
-# Cached in AB nodes under the 'estimate' property.
-# Needed for equivalent and cosuperior calculations
-
-def compute_cross_mrcas(AB):
-  def do_cross_mrcas(AB):
-    def traverse(x):            # arg in A, result in B
-      u = AB.in_left(x)         # in AB
-      exem = exemplar.get_exemplar(u)       # in AB
-      if exem:
-        (_, u1, v1) = exem
-        v = v1 if separated(u, v1) else u1
-        m = get_outject(v)
-      else:
-        m = BOTTOM                # identity for mrca
-      for c in get_inferiors(x):  # c in A
-        q = traverse(c)       # in B
-        m0 = m
-        m = simple.mrca(m, q)      # in B
-      # Sanity checks
-      if m != BOTTOM:
-        v = AB.in_right(m)
-        assert separated(u, v)
-        set_cross_mrca(u, v)
-      return m
-    traverse(AB.A.top)
-  do_cross_mrcas(AB)
-  do_cross_mrcas(swap(AB))
-
-(get_cross_mrca, set_cross_mrca) = \
-  prop.get_set(prop.declare_property("cross_mrca"))
 
 # -----------------------------------------------------------------------------
 # Precompute 'blocks' (exemplar sets, implemented in one of various ways).

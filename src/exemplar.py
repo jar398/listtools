@@ -22,8 +22,6 @@ from workspace import *
 
 def analyze_exemplars(AB):
   analyze_tipwards(AB)
-  AB.exemplar_counter = 0
-  AB.exemplars = {}
 
   def do_exemplars(CD):
     def traverse(x, species):      # x in A
@@ -54,6 +52,16 @@ def analyze_exemplars(AB):
   do_exemplars(swap(AB))
   equate_exemplars(AB.in_left(AB.A.top),
                    AB.in_right(AB.B.top))
+  report_on_exemplars(AB)
+
+def report_on_exemplars(AB):
+  exemplars = set()
+  for x in preorder_records(AB.A):
+    u = AB.in_left(x)
+    ex = get_exemplar(u)
+    if ex:
+      exemplars.add(ex[0])
+  log("-- Exemplars: %s " % len(exemplars))
 
 # Issues: 
 #   1. choice of taxa (both sides)
@@ -132,8 +140,7 @@ def get_exemplar(u):
       if not id:
         # Create id (for set operations) on demand
         ws = get_workspace(u)
-        ws.exemplar_counter += 1
-        id = ws.exemplar_counter
+        id = fresh_exemplar_id(ws)
         r[0] = id
         ws.exemplars[id] = uf
         #log("# Exemplar %s: e(%s) = (%s)" % (id, blurb(u), blurb(v)))
