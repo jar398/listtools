@@ -134,17 +134,6 @@ def compose_relations(rel1, rel2):
                   rel1.span + rel2.span,
                   compose_notes(rel1.note, rel2.note))
 
-def compose_path_relations(rel1, rel2):
-  assert rel1
-  assert rel2
-  if is_identity(rel1): return rel2
-  if is_identity(rel2): return rel1
-  return Relation(compose_path_relationships(rel1.relationship,
-                                             rel2.relationship),
-                  rel2.record,
-                  rel1.span + rel2.span,
-                  compose_notes(rel1.note, rel2.note))
-
 def is_identity(rel):
   return rel.relationship == EQ and rel.note == MISSING
 

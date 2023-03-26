@@ -156,4 +156,4 @@ def ensure_levels(S):
   cache(S.top, 1)
 
 def descends_from(x, y):
-  return get_level(x) < get_level(y)
+  return get_level(y) < get_level(x)

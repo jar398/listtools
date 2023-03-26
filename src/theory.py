@@ -51,7 +51,7 @@ def cross_compare(AB, v, w):
     # Species and one synonym, or two synonyms
     rel = compare_siblings(v, v1, w1, w)
   else:
-    rel = compose_final(rel1, rel2, rel3)
+    rel = compose_final(v, rel1, rel2, rel3)
   return rel
 
 # Compare two nodes that are known to be accepted
@@ -69,7 +69,7 @@ def compare_accepted(AB, u, v):
   rel2 = compare_centrally(AB, u1, v1)   # u1 ? v1
   assert rel2
   # u -> u1 -> v1 -> v
-  return compose_final(rel1, rel2, rel3)
+  return compose_final(u, rel1, rel2, rel3)
 
 def maybe_graft(start, rel):
   if is_graft(start, rel):
@@ -116,70 +116,68 @@ def compare_within_block(AB, u, w):
 
   # Path 1: u = m ? w
   rel_um = get_estimate(u, None)      # u <= m   in same checklist
-  assert rel_um, blurb(u)
   m = rel_um.record
   assert separated(u, m)
   rel_mw = compare_per_checklist(get_outject(m), get_outject(w)) # in A or B
-  rel_uw = compose_paths(rel_um, rel_mw)
+  rel_uw = compose_paths(u, rel_um, rel_mw)
   ship1 = rel_uw.relationship   # u <= m ? w
 
   # Path 2: u ? n = w   (starting with w)
   rel_wn = get_estimate(w, None)     # n = w
-  assert rel_wn
   n = rel_wn.record
   assert separated(w, n)
   rel_nu = compare_per_checklist(get_outject(n), get_outject(u))
-  rel_wu = compose_paths(rel_wn, rel_nu)
-  rship2 = rel_wu.relationship   # u ? w
-  ship2 = reverse_relationship(rship2)
-
-  if ship1==None and ship2==None:
-    return None                 # can't get there from here
-  if ship1!=None and ship2==None:
-    return rel_uw
-  if ship2!=None and ship1==None:
-    return reverse_relation(w, rel_nu)
+  rel_wu = compose_paths(w, rel_wn, rel_nu)
+  ship2 = rel_wu.relationship   # u ? w
+  rev_ship2 = reverse_relationship(ship2)
 
   # Take intersection to see where they agree
-  ship = parallel_relationship(ship1, ship2)
-  if ship1 != ship2:
+  ship = parallel_relationship(ship1, rev_ship2)
+  if ship1 != rev_ship2:
     if ship != ship1:
       if monitor(u):
         log("# (%s, %s); Reducing %s to %s" %
             (blurb(u), blurb(w), rcc5_symbol(ship1), rcc5_symbol(ship)))
-    elif ship != ship2:
+    elif ship != rev_ship2:
       if monitor(u):
         log("# (%s, %s): Reducing %s to %s." %
-            (blurb(u), blurb(w), rcc5_symbol(ship2), rcc5_symbol(ship)))
+            (blurb(u), blurb(w), rcc5_symbol(rev_ship2), rcc5_symbol(ship)))
 
-  if ship & (LT|GT) == LT|GT:
+  if (ship & (LT|GT)) == LT|GT or ship == INCONSISTENT:
     log("# Path inconsistency from %s to %s" % (blurb(u), blurb(w)))
-    log("# u <= m %s w:" % (rcc5_symbol(ship1),))
-    log("# u         : %s" % blurb(u)),        # u
-    log("#   <= m    : %s" % blurb(rel_um)),   #   = m
-    log("#        ? w: %s" % blurb(rel_mw))    #       ? w
-    log("# u      ? w: %s" % blurb(rel_uw))    #       ? w
+    log("# u %s m %s w, i.e. u %s w:" % (rcc5_symbol(rel_um.relationship),
+                                         rcc5_symbol(rel_mw.relationship),
+                                         rcc5_symbol(rel_uw.relationship),))
+    log("#   u         : %s" % blurb(u)),        # u
+    log("#     <= m    : %s" % blurb(rel_um)),   #   = m
+    log("#          ? w: %s" % blurb(rel_mw))    #       ? w
+    log("#   u      ? w: %s" % blurb(rel_uw))    #       ? w
 
-    log("# w <= n %s u:" % (rcc5_symbol(ship2),))
-    log("# w         : %s" % blurb(w)),        # w
-    log("#   <= n    : %s" % blurb(rel_wn)),   #   = n
-    log("#        ? u: %s" % blurb(rel_nu))    #       ? u
+    log("# w %s n %s u, i.e. w %s u:" % (rcc5_symbol(rel_wn.relationship),
+                                         rcc5_symbol(rel_nu.relationship),
+                                         rcc5_symbol(rel_wu.relationship),))
+    log("#   w         : %s" % blurb(w)),        # w
+    log("#     <= n    : %s" % blurb(rel_wn)),   #   = n
+    log("#          ? u: %s" % blurb(rel_nu))    #       ? u
+    log("#   w      ? u: %s" % blurb(rel_wu))    #       ? w
+    log('')
 
-    return relation(ship, w, "unknown order in same block")
+    return relation(ship, w, "same block, but unknown order")
 
   else:
     # All four notes are relevant, actually
     return relation(ship, w, "same block")
 
-def compose_final(rel1, rel2, rel3):
+def compose_final(u, rel1, rel2, rel3):
   assert rel1                   # could be < or <= or =
   assert rel2                   # one of < > = >< !
   assert rel3                   # could be > or >= or =
-  rel23 = compose_paths(rel2, rel3)
-  rel13 = compose_paths(rel1, rel23)
+  rel13 = compose_paths(u, rel1, compose_paths(rel1.record, rel2, rel3))
   return rel13
 
-def compose_paths(rel1, rel2):
+# Similar to compose but assumes... assumptions
+
+def compose_paths(z, rel1, rel2):
   ship1 = rel1.relationship
   ship2 = rel2.relationship
   if ship1 == EQ: return rel2
@@ -195,10 +193,12 @@ def compose_paths(rel1, rel2):
     # INTERSECT vs. NEQ depends on whether homotypic or not.
     return relation(INTERSECT, rel2.record, note=note)
   else:
-    ship = ship1 | ship2
-    if ship == LT|GT:
-      return relation(DISJOINT, rel2.record, note=note)
+    if True:
+      return compose_relations(rel1, rel2)
+    elif ship == LT|GT:
+      pass
     else:
+      ship = ship1 | ship2
       return relation(ship, rel2.record, note=note)
 
 def parallel_relationship(ship1, ship2):

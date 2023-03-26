@@ -39,12 +39,9 @@ def find_estimates(AB):
       if True:
         for x in checklist.postorder_records(AB.A):
           u = AB.in_left(x)
-          if False:
-            find_estimates_from(AB, u) # Cache it
-          else:
-            rel = find_estimate(AB, u)
-            set_estimate(u, rel)
-          if rel.relationship == EQ:
+          rel = find_estimate(AB, u)
+          set_estimate(u, rel)
+          if rel.relationship == EQ: # Metering
             counts[0] += 1
           else:
             counts[1] += 1
@@ -76,35 +73,50 @@ def find_estimate(AB, u):
   while True:
     # Optional search for links by name
     v3 = v
+
+    # See if chains are linked here
     u3 = get_mutual_link(v3, None)
     if (u3 and
         get_cross_mrca(u3, None) == v1 and
         get_cross_mrca(v3) == u1):
+      # Candidate's (v3's) partner (u3) is in same block
       if u2 is u3:
+        # Candidate's (v3's) partner (u3) belongs to our node u2
         if monitor(u3):
-          log("# Jackpot %s, %s" % (blurb(u3), blurb(v3)))
+          log("# Jackpot %s, %s" % (blurb(u2), blurb(v3)))
         equate_exemplars(u3, v3)
+        note="linked"
         break
       if descends_from(u2, u3):
         # Answer is v3 (= v)
         if monitor(u3):
-          log("# Modestly %s" % (blurb(u3), blurb(v3)))
+          log("# Modestly %s, %s" % (blurb(u2), blurb(v3)))
         ship = LT
+        note="goes up to linked"
         break
 
+    # u top: B  --> ?
+    #        A <--> A :v top
+
     v_sup = local_sup(AB, v)
-    if (not v_sup or
-        not get_cross_mrca(v_sup.record) is u1):
+    assert v_sup
+    # We're at top of chain if v's parent is not in u1/v1 block
+    v = v_sup.record              # Try next higher v
+    ship = LT                     # not at top of u chain
+    if not get_cross_mrca(v) is u1:
+      note="v off top of chain"
+      break
+
+    elif False: #not get_cross_mrca(v_sup.record) is u1:
       # TBD: EQ only when u is at top of chain - for symmetry
       u_sup = local_sup(AB, u)
       if (u_sup and
           get_cross_mrca(u_sup.record) is v1):
         ship = LT               # not at top of u chain
+      note="deprecated code"
       break                     # at top of v chains
 
-    v = v_sup.record              # Try next higher v
-
-  return relation(ship, v, "dancing about")
+  return relation(ship, v, note)
 
 def descends_from(u1, u2):
   return simple.descends_from(get_outject(u1), get_outject(u2))

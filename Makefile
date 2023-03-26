@@ -64,7 +64,7 @@ SHORT=work/$(shell basename $A)-$(shell basename $B)-short.csv
 EXEMPLARS=work/$(shell basename $A)-$(shell basename $B)-exemplars.csv
 
 CODE=$P/demo.py $P/align.py $P/theory.py $P/simple.py $P/workspace.py \
-     $P/checklist.py $P/match_records.py $P/rcc5.py $P/eulerx.py $P/linkage.py
+     $P/checklist.py $P/rcc5.py $P/eulerx.py $P/linkage.py $P/lub.py
 
 demo: $(DEMO)
 
