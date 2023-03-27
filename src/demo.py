@@ -16,8 +16,7 @@ from align import is_species, is_acceptable
 
 def generate_alignment_report(al, AB):
   yield ("A id", "A name", "rcc5", "B name", "B id",
-         "category", "note", "witnesses", "match")
-  seen = set()
+         "category", "note", "witnesses")
   for art in al:
     (u, rel) = normalize_articulation(art)
     ship = rel.relationship
@@ -26,25 +25,16 @@ def generate_alignment_report(al, AB):
     y = theory.get_outject(v)
     d = category(u, ship, v)
 
-    # What is this about ???
-    if (d.startswith('drop') and get_match(u, None) != None and
-        not get_primary_key(u) in seen):
-      if monitor(u):
-        log("# Removing %s, why?" % blurb(u))
-        diagnose_match(u)         # logs
-      seen.add(get_primary_key(u))
-
     yield  (get_primary_key(x),
             '' if x == AB.A.top else blurb(x),
             rcc5_symbol(ship),
             '' if y == AB.B.top else blurb(y),
             get_primary_key(y),
             d, rel.note,
-            witness_comment(AB, u, rel),
-            match_comment(AB, u, rel))
+            witness_comment(AB, u, rel))
 
 def generate_short_report(al, AB):
-  yield ("A name", "rcc5", "B name", "category", "witnesses", "match")
+  yield ("A name", "rcc5", "B name", "category", "witnesses")
   for art in al:
     (u, rel) = normalize_articulation(art)
     w = rel.record
@@ -59,16 +49,13 @@ def generate_short_report(al, AB):
       #if plausible(AB, u, ship, w): continue
       d = category(u, ship, w)
       if (not d.startswith('retain')) or get_canonical(u) != get_canonical(w):
-        # Show mismatch / ambiguity ... ?
-        # m = get_match(z); m.note if m else ...
         x = get_outject(u)
         y = get_outject(w)
         yield  ('' if x == AB.A.top else blurb(x),
                 rcc5_symbol(ship),
                 '' if y == AB.B.top else blurb(y),
                 d,
-                witness_comment(AB, u, rel),
-                match_comment(AB, u, rel))
+                witness_comment(AB, u, rel))
 
 def normalize_articulation(art):
   u = art[0]
@@ -96,8 +83,8 @@ def plausible(AB, u, ship, v):
 # This column is called "category" for consistency with MDD.
 
 def category(v, ship, w):
-  rel = get_match(v, None)      # Does the name persist in B?
-  mat = rel and (rel.record == w)
+  w2 = get_link(v, None)      # Does the name persist in B?
+  mat = (w2 == w)
   x = get_outject(v)
   y = get_outject(w)
   stay = (get_rank(get_accepted(x), None) ==
@@ -109,7 +96,6 @@ def category(v, ship, w):
     if stay: action = ('retain (lump)' if mat else 'lump')
     else: action = 'drop'
   elif ship == EQ:
-    # No match - ambiguous match - unique match
     # Different names - same name
     if get_canonical(v) != get_canonical(w):
       action = 'rename'
@@ -161,42 +147,6 @@ def witness_comment(AB, v, rel):
             (blurb(flush) if flush else '',
              blurb(keep) if keep else '',
              blurb(add) if add else ''))
-
-
-# Ideally, display only surprises: where name match and hierarchy 
-# match give different results.  That would only be the = case.
-# And = is suggested by any positive matches where either match set
-# contains the opposite node.
-
-def match_comment(AB, v, rel):
-  w = rel.record
-  ws = get_matches(v)
-  vs = get_matches(w)
-  x1 = v in vs
-  x2 = w in ws
-  if (x1 or x2) == (rel.relationship == EQ):
-    return MISSING
-  else:            # Surprising
-    return ("a -> %s %s b -> %s %s a" %
-            (len(ws), ';' if x1 else '/', len(vs), ';' if x2 else '/'))
-
-def match_comment1(AB, v, rel):
-  w = rel.record
-  comments = []
-
-  # info = match_info(v, None)
-  # if info: (us, dir, kind, basis) = info ...
-  m1 = get_match(v, None) 
-  if m1 and m1.record != w and m1.note and ' ' in m1.note:
-    # v and w are matches, so don't need info in both directions
-    comments.append(m1.note)
-
-  m2 = get_match(w, None)
-  if m2 and m2.record != v and m2.note and ' ' in m2.note:
-    # Shouldn't happen, since matches are symmetric
-    comments.append(m2.note)
-
-  return '|'.join(comments)
 
 # Report on block(v) - block(w) (synonyms removed)
 # and block(w) - block(v) (synonyms added)
