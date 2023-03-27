@@ -14,9 +14,9 @@ from exemplar import equate_exemplars
 import exemplar
 
 
-def iteration(AB, distance):
+def iteration(AB):
   # Links grow monotonically.  Ambiguities are recorded as False but that's OK.
-  really_find_links(AB, distance)
+  really_find_links(AB, compute_distance)
 
   # Exemplars grow monotonically, no need to overwrite.
   exemplar.analyze_exemplars(AB)   # does set_exemplar(...)
@@ -174,4 +174,45 @@ def compute_cross_mrcas(AB):
 
 (get_cross_mrca, set_cross_mrca) = \
   prop.get_set(prop.declare_property("cross_mrca"))
+
+# -----------------------------------------------------------------------------
+
+# distance is thresholded, so it only really matters whether it's small
+# or large
+
+# For mammals, tip to root is expected to be about 13... 
+# For 2M species, tip to root is expected to be about 20... 
+
+def compute_distance(u, v):
+  assert separated(u, v)
+  if get_estimate(u, None) and get_estimate(v, None):
+    return int((compute_half_distance(u, v) +
+                compute_half_distance(v, u))/2)
+  else:
+    return None
+
+def compute_half_distance(u, v):
+  # u < u1 <= (v1 < m > v)
+  assert separated(u, v)
+  v1 = get_estimate(u).record
+  y = get_outject(v)
+  y1 = get_outject(v1)
+  m = simple.mrca(y1, y)
+  dist = (distance_on_lineage(y1, m) +
+          distance_on_lineage(y, m))
+  return dist
+
+def distance_on_lineage(u1, u2):
+  if u1 == u2:
+    return 0
+  return (distance_to_parent(u1) +
+          distance_on_lineage(get_superior(u1).record, u2))
+
+def distance_to_parent(u):
+  sup = get_superior(u)
+  return lg(max(1,len(get_children(sup.record, ()))))
+
+def lg(x):
+  return math.log(x)/log2
+log2 = math.log(2)
 

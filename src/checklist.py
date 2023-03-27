@@ -129,6 +129,8 @@ def compose_relations(rel1, rel2):
   assert rel2
   if is_identity(rel1): return rel2
   if is_identity(rel2): return rel1
+  # Consider special relationships for synonyms 
+  # if rel1.span <= 1 and rel2.span <= 1: ...
   return Relation(compose_relationships(rel1.relationship, rel2.relationship),
                   rel2.record,
                   rel1.span + rel2.span,
@@ -700,7 +702,8 @@ def blurb(r):
 def monitor(x):
   if not x: return False
   name = get_canonical(x, '')
-  return (name == "Archaeolemur majori"
+  return (name == "Mico marcai"
+          # "Archaeolemur majori"
           )
 
 # -----------------------------------------------------------------------------

@@ -19,9 +19,9 @@ def theorize(AB):
   # ... exemplar.exemplars(A_iter, B_iter, m_iter) ...
   # TBD: option to read them from a file
   # Assumes links found already  - find_links(AB)
-  iteration(AB, lambda u,v:None)
+  iteration(AB)
   # Now we can compute distances !!!
-  iteration(AB, compute_distance)
+  iteration(AB)
   analyze_blocks(AB)               # does set_block(...)
 
 #-----------------------------------------------------------------------------
@@ -128,45 +128,50 @@ def compare_within_block(AB, u, w):
   assert separated(w, n)
   rel_nu = compare_per_checklist(get_outject(n), get_outject(u))
   rel_wu = compose_paths(w, rel_wn, rel_nu)
-  ship2 = rel_wu.relationship   # u ? w
-  rev_ship2 = reverse_relationship(ship2)
+  rev_rel_wu = reverse_relation(w, rel_wu)
+  rev_ship2 = rev_rel_wu.relationship   # u ? w
 
   # Take intersection to see where they agree
   ship = parallel_relationship(ship1, rev_ship2)
-  if ship1 != rev_ship2:
-    if ship != ship1:
-      if monitor(u):
-        log("# (%s, %s); Reducing %s to %s" %
-            (blurb(u), blurb(w), rcc5_symbol(ship1), rcc5_symbol(ship)))
-    elif ship != rev_ship2:
-      if monitor(u):
-        log("# (%s, %s): Reducing %s to %s." %
-            (blurb(u), blurb(w), rcc5_symbol(rev_ship2), rcc5_symbol(ship)))
 
-  if (ship & (LT|GT)) == LT|GT or ship == INCONSISTENT:
-    log("# Path inconsistency from %s to %s" % (blurb(u), blurb(w)))
-    log("# u %s m %s w, i.e. u %s w:" % (rcc5_symbol(rel_um.relationship),
-                                         rcc5_symbol(rel_mw.relationship),
-                                         rcc5_symbol(rel_uw.relationship),))
-    log("#   u         : %s" % blurb(u)),        # u
-    log("#     <= m    : %s" % blurb(rel_um)),   #   = m
-    log("#          ? w: %s" % blurb(rel_mw))    #       ? w
-    log("#   u      ? w: %s" % blurb(rel_uw))    #       ? w
-
-    log("# w %s n %s u, i.e. w %s u:" % (rcc5_symbol(rel_wn.relationship),
-                                         rcc5_symbol(rel_nu.relationship),
-                                         rcc5_symbol(rel_wu.relationship),))
-    log("#   w         : %s" % blurb(w)),        # w
-    log("#     <= n    : %s" % blurb(rel_wn)),   #   = n
-    log("#          ? u: %s" % blurb(rel_nu))    #       ? u
-    log("#   w      ? u: %s" % blurb(rel_wu))    #       ? w
+  if ((monitor(u) or monitor(w)) and
+      ((ship & (LT|GT)) == LT|GT or ship == INCONSISTENT)):
+    log("# Path %s from %s to %s" % ("inconsistency" if ship == INCONSISTENT else "incompleteness",
+                                     blurb(u), blurb(w)))
+    log("#   u        : %s" % blurb(u))         # u
+    log("#     %s m    :  %s" % (rcc5_symbol(rel_um.relationship), blurb(rel_um)))
+    log("#         %s w:   %s" % (rcc5_symbol(rel_mw.relationship), blurb(rel_mw)))
+    log("#   u   %s   w:  %s" % (rcc5_symbol(rel_uw.relationship), blurb(rel_uw)))
+    log("#   w        : %s" % blurb(w)),        # w
+    log("#     %s n    :  %s" % (rcc5_symbol(rel_wn.relationship), blurb(rel_wn)))
+    log("#         %s u:   %s" % (rcc5_symbol(rel_nu.relationship), blurb(rel_nu)))
+    log("#   w   %s   u:  %s" % (rcc5_symbol(rel_wu.relationship), blurb(rel_wu)))
     log('')
 
-    return relation(ship, w, "same block, but unknown order")
-
+  if ship == ship1:
+    rel = rel_uw
+  elif ship == rev_ship2:
+    rel = rev_rel_wu
+  elif ship & DISJOINT != 0 and ship != DISJOINT:
+    log("# Tightening %s to !" % rcc5_symbol(ship))
+    ship = DISJOINT
+    rel = relation(ship, w, "tightened")
+  elif ship == INCONSISTENT:
+    if monitor(u) or monitor(w):
+      log("# Recovering %s ! %s from inconsistency" % (blurb(u), blurb(w)))
+    ship = DISJOINT
+    rel = relation(ship, w, "inconsistent")
+  elif ship & (LT|GT) == LT|GT:
+    # Does not happen
+    log("# Recovering %s ! %s from incompleteness" % (blurb(u), blurb(w)))
+    ship = DISJOINT
+    rel = relation(ship, w, "incomplete")
   else:
-    # All four notes are relevant, actually
-    return relation(ship, w, "same block")
+    # Does not happen
+    log("# (%s, %s); Reducing %s and %s to %s" %
+        (blurb(u), blurb(w), rcc5_symbol(ship1), rcc5_symbol(rev_ship2), rcc5_symbol(ship)))
+    rel = relation(ship, w, "consensus")
+  return rel
 
 def compose_final(u, rel1, rel2, rel3):
   assert rel1                   # could be < or <= or =
@@ -176,30 +181,10 @@ def compose_final(u, rel1, rel2, rel3):
   return rel13
 
 # Similar to compose but assumes... assumptions
+# Remember all the nodes involved are central (no synonyms)
 
 def compose_paths(z, rel1, rel2):
-  ship1 = rel1.relationship
-  ship2 = rel2.relationship
-  if ship1 == EQ: return rel2
-  if ship2 == EQ: return rel1
-  if ship1 == DISJOINT: return rel1
-  if ship2 == DISJOINT: return rel2
-  if ship1 == OVERLAP: return rel1
-  if ship2 == OVERLAP: return rel2
-  note = compose_notes(rel1.note, rel2.note)
-  # now < or <= then >= or >
-  if rel1.span <= 1 and rel2.span <= 1:
-    # Neither is EQ, so we have <= and >= .. sibling synos.
-    # INTERSECT vs. NEQ depends on whether homotypic or not.
-    return relation(INTERSECT, rel2.record, note=note)
-  else:
-    if True:
-      return compose_relations(rel1, rel2)
-    elif ship == LT|GT:
-      pass
-    else:
-      ship = ship1 | ship2
-      return relation(ship, rel2.record, note=note)
+  return compose_relations(rel1, rel2)
 
 def parallel_relationship(ship1, ship2):
   return ship1 & ship2
@@ -217,45 +202,6 @@ def cross_le(AB, u, w):
   return ship == LT or ship == LE or ship == PERI or ship == EQ
 
 # -----------------------------------------------------------------------------
-
-# distance is thresholded, so only really matters whether it's small
-# or large
-
-# For mammals, tip to root is expected to be about 13... 
-# For 2M species, tip to root is expected to be about 20... 
-
-def compute_distance(u, v):
-  assert separated(u, v)
-  if get_estimate(u, None) and get_estimate(v, None):
-    return int((compute_half_distance(u, v) +
-                compute_half_distance(v, u))/2)
-  else:
-    return None
-
-def compute_half_distance(u, v):
-  # u < u1 <= (v1 < m > v)
-  assert separated(u, v)
-  v1 = get_estimate(u).record
-  y = get_outject(v)
-  y1 = get_outject(v1)
-  m = simple.mrca(y1, y)
-  dist = (distance_on_lineage(y1, m) +
-          distance_on_lineage(y, m))
-  return dist
-
-def distance_on_lineage(u1, u2):
-  if u1 == u2:
-    return 0
-  return (distance_to_parent(u1) +
-          distance_on_lineage(get_superior(u1).record, u2))
-
-def distance_to_parent(u):
-  sup = get_superior(u)
-  return lg(max(1,len(get_children(sup.record, ()))))
-
-def lg(x):
-  return math.log(x)/log2
-log2 = math.log(2)
 
 # sort of like: exemplar  ???
 

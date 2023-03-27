@@ -113,9 +113,9 @@ def improve_link(u, v, score, key):
 """
 
 def score_to_ship(score):
-  if score >= THRESH:     return HOMOTYPIC
-  elif score <= NOTHRESH: return HETEROTYPIC
-  else: return REVIEW
+  if score >= THRESH:     return HOMOTYPIC    # EQ
+  elif score <= NOTHRESH: return HETEROTYPIC  # NEQ
+  else: return REVIEW                         # NOINFO
 
 # Assumes both are descended from the same species (or genus?)
 
@@ -175,7 +175,7 @@ def compute_score(u, v, distance=None):
   score = compute_parts_score(get_parts(u),
                               get_parts(v),
                               distance)
-  if monitor(u) or monitor(v):
+  if monitor(u) or monitor(v) and score >= NOTHRESH:
     log("# Score (%s, %s) = %s" % (blurb(u), blurb(v), score))
     #log("# %s" % (get_parts(u),))
     #log("# %s" % (get_parts(v),))
@@ -248,7 +248,7 @@ def explain(score):
 
 # The most dissimilar things that are similar.  Unite records that are 
 # this similar (minimally similar) or more so.
-THRESH1 = compute_parts_score(parse_name("Foo bar"),
+THRESH1 = compute_parts_score(parse_name("Foo bar Jones, 1927"),
                               parse_name("Foo bar"),
                               None)
 THRESH2 = compute_parts_score(parse_name("Foo bar Jones, 1927"),
