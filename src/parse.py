@@ -72,7 +72,9 @@ def parse_name(verbatim,
     # parse: tokens (by different methods) differ: Fitz FitzGibbon
   if y and y2 and y != y2:
     log("# parse: years (by different methods) differ: %s %s" % (y, y2))
-  assert protonymp == protonymp2, (protonymp, protonymp2)
+  if auth and auth0 and protonymp != protonymp2:
+    log("# parse: protonymps (by different methods) differ: '%s' / '%s'" %
+        (auth, auth0))
   return Parts(verbatim, canonical, g, e, auth, t, y, protonymp)
 
 # This ought to be trivial but the problem is that gnparser drops
@@ -111,6 +113,7 @@ def recover_canonical(gn_full, gn_stem, gn_auth, hack_canonical):
 
 def analyze_authorship(auth):
   if not auth: return (None, None, None) # moved? don't know
+  if auth.endswith(').'): auth = auth[0:-1] # for MDD
   protonymp = not (auth[0] == '(' and auth[-1] == ')')
   if not protonymp:
     auth = auth[1:-1]

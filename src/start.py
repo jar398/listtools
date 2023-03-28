@@ -100,8 +100,11 @@ def start_csv(inport, params, outport, args):
         names_cleaned += 1
       if clean_rank(in_row, rank_pos, can_pos):
         ranks_cleaned += 1
-      if auth_pos != None:
-        in_row[auth_pos] = in_row[auth_pos].strip()
+      if auth_pos != None:      # clean_auth ...
+        a = in_row[auth_pos]
+        a = a.strip()
+        if a.endswith(').'): a = a[0:-1] # for MDD
+        in_row[auth_pos] = a
 
     if normalize_accepted(in_row, taxon_id_pos, parent_pos, accepted_pos):
       accepteds_normalized += 1

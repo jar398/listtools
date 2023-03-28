@@ -65,7 +65,7 @@ def generate_alignment(AB, matches=None):
 
   def doit(AB, swapped):
 
-    def process_articulator(u, v_art, rd):
+    def process_articulator(u, v_art, kind):
       v = get_acceptable(AB, v_art)        # Compare v to art
       if unseen(u, v):
         rel = theory.cross_compare(AB, u, v)
@@ -75,7 +75,7 @@ def generate_alignment(AB, matches=None):
                          rel.record,
                          rel.note,
                          rel.span)
-        if rd or rel.relationship == OVERLAP: # can't happen
+        if kind == 'subestimate' or rel.relationship == OVERLAP: # can't happen
           assert get_workspace(u)
           assert get_workspace(rel.record)
           yield (u, rel)
@@ -88,7 +88,7 @@ def generate_alignment(AB, matches=None):
 
       # 1. Report the estimate (= or <)
       v = theory.get_estimate(u, None).record
-      yield from process_articulator(u, v, 1)
+      yield from process_articulator(u, v, 'lub')
 
       # 2. Report estimate vs. parent - may overlap
       if False:
@@ -96,18 +96,21 @@ def generate_alignment(AB, matches=None):
        if sup:
         p = sup.record
         assert get_workspace(p)
-        yield from process_articulator(p, v, 2)
+        yield from process_articulator(p, v, 'vs')
 
       # 3. Report on children of estimate looking for ><
+      # if lt(v, get_equivalent(AB, v)) ...
       for c in get_inferiors(get_outject(v)):
         v2 = AB.in_right(c)
         if not get_equivalent(AB, v2): # premature optimization
-          # compare(AB, u, v2).relationship == OVERLAP ...
-          yield from process_articulator(u, v2, False)
+          # cross_compare(AB, u, v2).relationship == OVERLAP ...
+          yield from process_articulator(u, v2, 'subestimate')
 
       # 4. Report on name match
-      vl = get_link(u, False)         # Match by name
-      if vl: yield from process_articulator(u, vl, 4)
+      vl = get_link(u, None)         # Match by name
+      if vl: yield from process_articulator(u, vl, 'by name')
+      elif vl == False:
+        pass
 
       if not is_species(u):
         for c in get_children(x, ()): # subspecies and synonyms

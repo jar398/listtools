@@ -692,7 +692,8 @@ def blurb(r):
 def monitor(x):
   if not x: return False
   name = get_canonical(x, '')
-  return (name == "Gorilla beringei"
+  return (name == "Holochilus vulpinus"
+          # name == "Gorilla beringei"
           # name == "Sturnira magna"
           # "Mico marcai"
           # "Archaeolemur majori"
