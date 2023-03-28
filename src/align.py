@@ -40,6 +40,10 @@ def articulation_order(art):
   else:
     return (blurb(u), ship)
 
+def articulation(z, rel):
+  assert get_workspace(z)
+  return (z, rel)
+
 # Return generator for alignment; each row is an articulation
 
 def generate_alignment(AB, matches=None):
@@ -72,32 +76,38 @@ def generate_alignment(AB, matches=None):
                          rel.note,
                          rel.span)
         if rd or rel.relationship == OVERLAP: # can't happen
+          assert get_workspace(u)
+          assert get_workspace(rel.record)
           yield (u, rel)
 
     def traverse(x):            # u in AB
       u = AB.in_left(x)
+      assert get_workspace(u)
       if not get_acceptable(AB, u): # ?????
         return
 
-      # 1. Report the estimate
+      # 1. Report the estimate (= or <)
       v = theory.get_estimate(u, None).record
-      yield from process_articulator(u, v, True)
+      yield from process_articulator(u, v, 1)
 
-      # 1a. Report estimate vs. parent - may overlap
-      sup = get_superior(u, None)
-      if sup:
+      # 2. Report estimate vs. parent - may overlap
+      if False:
+       sup = local_sup(AB, u)
+       if sup:
         p = sup.record
-        yield from process_articulator(p, v, True)
+        assert get_workspace(p)
+        yield from process_articulator(p, v, 2)
 
-      # 2. Report on children of estimate looking for ><
+      # 3. Report on children of estimate looking for ><
       for c in get_inferiors(get_outject(v)):
         v2 = AB.in_right(c)
         if not get_equivalent(AB, v2): # premature optimization
+          # compare(AB, u, v2).relationship == OVERLAP ...
           yield from process_articulator(u, v2, False)
 
-      # 3. Report on name match
+      # 4. Report on name match
       vl = get_link(u, False)         # Match by name
-      if vl: yield from process_articulator(u, vl, True)
+      if vl: yield from process_articulator(u, vl, 4)
 
       if not is_species(u):
         for c in get_children(x, ()): # subspecies and synonyms
@@ -121,6 +131,7 @@ def is_species(u):              # z local
 # Returns ancestor
 
 def get_acceptable(AB, u):
+  assert get_workspace(u)
   x = get_outject(u)
   # Ascend until an acceptable is found
   while not is_acceptable(x):
@@ -137,6 +148,7 @@ def is_acceptable_locally(AB, u):  # in AB
   return is_acceptable(get_outject(u))
 
 def is_acceptable(x):
+  assert not get_workspace(x)
   if is_accepted(x):
     if get_rank(x, None) == 'species':
       return True

@@ -39,6 +39,7 @@ def start_csv(inport, params, outport, args):
   accepted_pos = windex(in_header, "acceptedNameUsageID")
   parent_pos = windex(in_header, "parentNameUsageID")
   tax_status_pos = windex(in_header, "taxonomicStatus")
+  auth_pos = windex(in_header, "Authorship")
   taxon_id_pos = windex(in_header, "taxonID")
 
   if taxon_id_pos == None:
@@ -99,12 +100,14 @@ def start_csv(inport, params, outport, args):
         names_cleaned += 1
       if clean_rank(in_row, rank_pos, can_pos):
         ranks_cleaned += 1
+      if auth_pos != None:
+        in_row[auth_pos] = in_row[auth_pos].strip()
 
     if normalize_accepted(in_row, taxon_id_pos, parent_pos, accepted_pos):
       accepteds_normalized += 1
 
     # Shouldn't have both accepted and parent
-    if False:
+    if False:                   # why disabled?
       if accepted_pos and parent_pos and in_row[accepted_pos] and in_row[parent_pos]:
         in_row[parent_pos] = MISSING
 

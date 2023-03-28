@@ -35,13 +35,24 @@ def analyze_exemplars(AB):
         species = u
 
       v = get_tipward(u, None)
-      if v:
+      if v:                     # not None or False
         u_back = get_tipward(v, None)
         if u_back is u:         # Mutual?
-          #log("# Looking at %s -> %s" % (blurb(u), blurb(v)))
+          if monitor(u) or monitor(v):
+            log("# exemplar: Mutual: %s -> %s" % (blurb(u), blurb(v)))
           equate_exemplars(u, v)
-        elif u_back != None:
-          log("# returns to non-tipward %s -> %s -> %s" % 
+        elif u_back == None:
+          if monitor(u) or monitor(v):
+            log("# exemplar: Nonmutual: %s -> %s -> (none)" % 
+                (blurb(u), blurb(v)))
+          equate_exemplars(u, v)
+        elif u_back == False:
+          if monitor(u) or monitor(v):
+            log("# exemplar: Ambiguous: %s -> %s -> (2 or more)" % 
+                (blurb(u), blurb(v)))
+          equate_exemplars(u, v)
+        else: # u_back != None:     doesn't seem to happen?
+          log("# exemplar: Returns to different tipward %s -> %s -> %s" % 
               (blurb(u), blurb(v), blurb(u_back)))
 
       for c in get_inferiors(x):
@@ -168,14 +179,15 @@ def analyze_tipwards(AB):
       u = AB.in_left(x)            # u is tipward...
       v = get_link(u, None)        # same name -> same exemplar(s?)
       if monitor(v):
-        log("# exemplars: tipwards %s %s" % (blurb(u), blurb(v)))
-      if v:
-        assert separated(u, v)
+        log("# exemplar: Tipward link %s -> %s" % (blurb(u), blurb(v)))
+      if v != None:                     # not None, not False = ambiguous
+        if v != False:
+          assert separated(u, v)
+          seen = 1
         # u is tipward and has link, but link not necessarily tipward ...
         set_tipward(u, v)
-        seen = 1
         if monitor(u):
-          log("# Set tipward %s -> %s" % (blurb(u), blurb(v)))
+          log("# exemplar: Set tipward %s -> %s" % (blurb(u), blurb(v)))
     return seen + seen2
   traverse(AB, AB.A.top)
   traverse(swap(AB), AB.B.top)

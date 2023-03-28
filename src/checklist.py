@@ -14,10 +14,10 @@ import parse
 primary_key_prop = prop.declare_property("taxonID")
 canonical_prop = prop.declare_property("canonicalName")
 scientific_prop = prop.declare_property("scientificName")
+authorship_prop = prop.declare_property("scientificNameAuthorship")
 year_prop = prop.declare_property("namePublishedInYear")  # http://rs.tdwg.org/dwc/terms/
 rank_prop = prop.declare_property("taxonRank")
 managed_id_prop = prop.declare_property("managed_id")
-tipe_prop = prop.declare_property("tipe")
 stemmed_prop = prop.declare_property("canonicalStem")
 taxonomic_status_prop = prop.declare_property("taxonomicStatus")
 nomenclatural_status_prop = prop.declare_property("nomenclaturalStatus")
@@ -49,11 +49,11 @@ outject_prop = prop.declare_property("outject")
 (get_source, set_source) = prop.get_set(source_prop)
 (get_canonical, set_canonical) = prop.get_set(canonical_prop)
 (get_scientific, set_scientific) = prop.get_set(scientific_prop)
+(get_authorship, set_authorship) = prop.get_set(authorship_prop)
 (get_rank, set_rank) = prop.get_set(rank_prop)
 (get_year, set_year) = prop.get_set(year_prop)
 (get_managed_id, set_managed_id) = prop.get_set(managed_id_prop)
 (get_stemmed, set_stemmed) = prop.get_set(stemmed_prop)
-(get_tipe, set_tipe) = prop.get_set(tipe_prop)
 (get_nomenclatural_status, set_nomenclatural_status) = \
   prop.get_set(nomenclatural_status_prop)
 (get_taxon_remarks_citation, set_taxon_remarks_citation) = \
@@ -127,6 +127,7 @@ def reverse_articulation(art):
 def compose_relations(rel1, rel2):
   assert rel1
   assert rel2
+  assert (not get_workspace(rel1.record)) == (not get_workspace(rel2.record))
   if is_identity(rel1): return rel2
   if is_identity(rel2): return rel1
   # Consider special relationships for synonyms 
@@ -165,6 +166,7 @@ class Source:
     self.meta = meta
     self.indexed = False    # get_children, get_synonyms set?
     self.top = None
+    self.workspace = None
 
 def all_records(C):
   col = prop.get_column(primary_key_prop, C.context)
@@ -188,6 +190,9 @@ def postorder_records(C):       # ending with top
       yield from traverse(c)
     yield x
   yield from traverse(C.top)
+
+def get_workspace(u):
+  return get_source(u).workspace
 
 # -----------------------------------------------------------------------------
 # Read and write Darwin Core files
@@ -244,7 +249,7 @@ def resolve_superior_link(S, record):
   accepted_key = get_accepted_key(record, None)
   taxonID = get_primary_key(record)
   assert taxonID
-  assert accepted_key != taxonID       # see start.py
+  assert accepted_key != taxonID, (accepted_key, taxonID)  # see start.py
   if accepted_key:
     # set_accepted(record, False)
     accepted = look_up_record(S, accepted_key, record)
@@ -258,7 +263,8 @@ def resolve_superior_link(S, record):
         if monitor(record):
           log("# %s %s %s %s" %
               (blurb(record), taxonID, accepted_key, blurb(accepted)))
-        sup = relation(synonym_relationship(record, accepted), accepted,
+        sup = relation(synonym_relationship(record, accepted),
+                       accepted,
                        note="checklist (synonym)", span=1)
     else:
       log("# Synonym %s with unresolvable accepted: %s -> %s" %
@@ -287,22 +293,7 @@ def resolve_superior_link(S, record):
     log("# No superior: %s" % blurb(record))
 
 def synonym_relationship(record, accepted):
-  if known_different_exemplars(record, accepted):
-    return LT
-  elif known_same_exemplar(record, accepted):
-    return EQ
-  else:
-    return SYNONYM                # LE
-
-def known_different_exemplars(x, y):
-  t1 = get_tipe(x, None)   # same_exemplar
-  t2 = get_tipe(y, None)
-  if t1 and t2:
-    return t1 != t2
-  return False
-
-def known_same_exemplar(x, y):
-  return False
+  return SYNONYM                # could be LT, LE, EQ
 
 def set_superior_carefully(x, sup):
   assert isinstance(x, prop.Record)
@@ -607,15 +598,14 @@ usual_props = \
      canonical_prop,
      scientific_prop,
      stemmed_prop,
-     tipe_prop,
      managed_id_prop,
      rank_prop,
      prop.declare_property("parentNameUsageID",
-                       getter=recover_parent_key),
+                           getter=recover_parent_key),
      prop.declare_property("acceptedNameUsageID",
-                       getter=recover_accepted_key),
+                           getter=recover_accepted_key),
      prop.declare_property("taxonomicStatus",
-                       getter=recover_status))
+                           getter=recover_status))
 
 # Alternative ways to order the rows
 
@@ -702,7 +692,9 @@ def blurb(r):
 def monitor(x):
   if not x: return False
   name = get_canonical(x, '')
-  return (name == "Mico marcai"
+  return (name == "Gorilla beringei"
+          # name == "Sturnira magna"
+          # "Mico marcai"
           # "Archaeolemur majori"
           )
 
@@ -799,11 +791,15 @@ u1 -> v1 -> u2 -> v3
 ...
 """
 
+# We could cache this...
+
 def get_parts(x):
   return parse.parse_name(get_best_name(x),
                           gn_full = get_gn_full(x, MISSING),
                           gn_stem = get_gn_stem(x, MISSING),
-                          gn_auth = get_gn_auth(x, MISSING))
+                          gn_auth = get_gn_auth(x, MISSING),
+                          canonical = get_canonical(x, MISSING),
+                          authorship = get_authorship(x, MISSING))
 
 def get_best_name(x):
   name = (get_scientific(x, None) or get_ok_name(x))

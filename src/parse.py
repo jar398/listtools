@@ -26,13 +26,20 @@ class Parts(NamedTuple):
 # Another way to split would be using the canonicalName and authorship
 # columns of the original DwC - if they're present.
 
-def parse_name(verbatim, gn_full=MISSING, gn_stem=MISSING, gn_auth=MISSING):
+def parse_name(verbatim,
+               gn_full=MISSING, gn_stem=MISSING, gn_auth=MISSING, \
+               canonical=MISSING, authorship=MISSING):
   verbatim = verbatim.replace('  ', ' ')     # two -> one
-  (canonical0, auth0) = split_name(verbatim)
+  canonical = canonical.strip()
+  authorship = authorship.strip()
+  if canonical != MISSING and authorship != MISSING:
+    (canonical0, auth0) = (canonical, authorship)
+  else:
+    (canonical0, auth0) = split_name(verbatim)
   auth_n = gn_auth.count(' ') + 1 if gn_auth != MISSING else 0
   if gn_full != MISSING:
     # Interesting to look at.
-    #  e.g. Sigmodon dalquesti + Stangl & Jr. 1992 != Sigmodon dalquesti Stangl, Jr., 1992
+    #  e.g. 'Sigmodon dalquesti Stangl, Jr., 1992' != 'Sigmodon dalquesti' + 'Stangl & Jr. 1992'
 
     if False and gn_full.count(' ') + auth_n != verbatim.count(' '):
       log("** chunk count mismatch: %s + %s != %s" %
@@ -56,6 +63,16 @@ def parse_name(verbatim, gn_full=MISSING, gn_stem=MISSING, gn_auth=MISSING):
   if e == '?': e = None
   if g == '?': g = None         # cf. use_gnparse.py, but careful MSW3
   (t, y, protonymp) = analyze_authorship(auth)
+  (t2, y2, protonymp2) = analyze_authorship(auth0)
+  if t and t2 and t != t2:
+    pass
+    # log("# parse: tokens (by different methods) differ: %s %s" % (t, t2))
+    # parse: tokens (by different methods) differ: De DeKay
+    # parse: tokens (by different methods) differ: La LaVal
+    # parse: tokens (by different methods) differ: Fitz FitzGibbon
+  if y and y2 and y != y2:
+    log("# parse: years (by different methods) differ: %s %s" % (y, y2))
+  assert protonymp == protonymp2, (protonymp, protonymp2)
   return Parts(verbatim, canonical, g, e, auth, t, y, protonymp)
 
 # This ought to be trivial but the problem is that gnparser drops
@@ -189,5 +206,5 @@ if __name__ == '__main__':
   print("authorship %s" % qu(a))
   print(" token %s" % qu(tok))
   print(" year %s" % qu(y))
-  print(" protonymp %s" % protonymp)
+  print(" protonymp %s" % ('?' if protonymp == None else protonymp))
   print("recovered namestring '%s'" % unparse_parts(parts))

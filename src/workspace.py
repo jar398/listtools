@@ -33,6 +33,7 @@ def make_workspace(A, B, meta=None):
   missing = False
 
   def ensure_injected(x):
+    assert not get_workspace(x)
     z = get_inject(x, None)
     if not z:
       z = prop.clone(x)         # sets canonical, scientific, rank, type etc
@@ -51,6 +52,7 @@ def make_workspace(A, B, meta=None):
       key = "%s!%s" % (get_source_tag(x), have_key)
       set_primary_key(z, key)
       register(z)
+    assert get_workspace(z)
     return z
 
   def _in_left(x):
@@ -69,12 +71,16 @@ def make_workspace(A, B, meta=None):
     else: assert False
   AB = Coproduct(_in_left, _in_right, _case)
   AB.workspace = AB
-  AB.context = Q
-
-  AB.meta = meta
-
   AB.A = A
   AB.B = B
+  AB.context = Q
+  AB.meta = meta
+
+  # Foo
+  BA = AB.swap()
+  BA.workspace = AB.workspace
+  BA.A = AB.B
+  BA.B = AB.A
 
   # Force local copies of all source records  -- really?
   for y in all_records(B): AB.in_right(y) # not including top
@@ -152,11 +158,7 @@ def local_sup(AB, u):
                     note=loc.note, span=loc.span)
 
 def swap(AB):
-  BA = AB.swap()
-  BA.A = AB.B
-  BA.B = AB.A
-  BA.workspace = AB.workspace
-  return BA
+  return AB.swap()
 
 def get_workspace(u):
   return get_source(u).workspace
@@ -175,6 +177,10 @@ def is_accepted_locally(AB, u):
 def set_link(x, y):
   assert y == False or separated(x, y)
   really_set_link(x, y)
+
+def in_same_tree(AB, x, y):
+  return (AB.case(x, lambda x:1, lambda x:2) ==
+          AB.case(y, lambda x:1, lambda x:2))
 
 # -----------------------------------------------------------------------------
 

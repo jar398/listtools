@@ -107,14 +107,13 @@ def simple_le(x, y):
   while get_level(x1) > stop:
     x1 = get_parent(x1)    # y1 > previously, level(y1) < previously
 
-  return x1 == y
+  return x1 is y
 
 def simple_lt(x, y):
-  return simple_le(x, y) and x != y
+  return simple_le(x, y) and not x is y
 
-def in_same_tree(AB, x, y):
-  return (AB.case(x, lambda x:1, lambda x:2) ==
-          AB.case(y, lambda x:1, lambda x:2))
+def simple_gt(x, y): return simple_lt(y, x)
+def simple_ge(x, y): return simple_le(y, x)
 
 (really_get_level, set_level) = prop.get_set(prop.declare_property("level", inherit=False))
 

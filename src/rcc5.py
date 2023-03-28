@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 # ≥ ≤ ≳ ≲ ≂
 
-# Actually this is RCC-29...
+import sys
+
+# Actually this is RCC-29 or something...
 
 # intended for use with: from rcc5 import *
 
@@ -24,26 +26,26 @@ GT = def_rcc5_symbol(1 << 1, '>')
 EQ = def_rcc5_symbol(1 << 2, '=')
 DISJOINT = def_rcc5_symbol(1 << 3, '!')
 OVERLAP = def_rcc5_symbol(1 << 4, '><')
-rcc5_relationships['*'] = OVERLAP # for composition table
+rcc5_relationships['*'] = OVERLAP # for concise composition table
 
 # Disjunctions
-LE = def_rcc5_symbol(LT|EQ, '<=', '{< =}')       # ≤, synonym
-GE = def_rcc5_symbol(GT|EQ, '>=', '{> =}')       # ≥, accepted
-COMPARABLE = def_rcc5_symbol(LT|GT, '<>', '{< >}')
-INTERSECT = def_rcc5_symbol(LT|GT|EQ|OVERLAP, 'not!', '{< > = ><}')  # ∩
+LE = def_rcc5_symbol(LT|EQ, '<=')       # ≤, synonym
+GE = def_rcc5_symbol(GT|EQ, '>=')       # ≥, accepted
+COMPARABLE = def_rcc5_symbol(LT|GT, '<>')
+INTERSECT = def_rcc5_symbol(LT|GT|EQ|OVERLAP, 'not!')  # ∩
 rcc5_relationships['∩'] = INTERSECT
 # bottom
-NOINFO = def_rcc5_symbol(LT|GT|EQ|OVERLAP|DISJOINT, '?', '{< > = >< !}')
+NOINFO = def_rcc5_symbol(LT|GT|EQ|OVERLAP|DISJOINT, '?')
 # top (unicode ⋕ is 'equal and parallel to')
 INCONSISTENT = def_rcc5_symbol(0, '⋕', '{}')
 
 HAS_PARENT = LT
 SYNONYM = LE
 MYNONYS = GE
-NEQ = def_rcc5_symbol(LT|GT|OVERLAP|DISJOINT, 'not=', '{< > >< !}')
+NEQ = def_rcc5_symbol(LT|GT|OVERLAP|DISJOINT, 'not=')
 
-PERI = def_rcc5_symbol(LT|DISJOINT, '<!', '{< !}')
-IREP = def_rcc5_symbol(GT|DISJOINT, '>!', '{> !}')
+PERI = def_rcc5_symbol(LT|DISJOINT, '<!')
+IREP = def_rcc5_symbol(GT|DISJOINT, '>!')
 
 def reverse_relationship(ship):
   l = (ship & LT)
@@ -91,11 +93,11 @@ def rcc5_relationship(name):
 # possible results for all possible inputs.
 
 def compose_relationships(r, s):
-  s = 0
+  ship = 0
   for r1 in explode_rcc5(r):
-    for s1 in explode_rcc5(r):
-      s |= rcc5_composition_table[(r1, s1)]
-  return s
+    for s1 in explode_rcc5(s):
+      ship |= rcc5_composition_table[(r1, s1)]
+  return ship
 
 # -----------------------------------------------------------------------------
 # Composing RCC5 relationships
@@ -185,7 +187,8 @@ def generate_rcc5_composition_table():
       (r1, r2) = key
       display(r1, r2, results[key])
     print("  }")
-    print("print('%s -> %s' % (('<', '!'), rcc5_composition_table[('<', '!')]))")
+    testcase = ('<', '!')
+    print("print('%s -> %s' % (testcase, rcc5_composition_table[testcase]))")
 
   def display(r1, r2, r3s):
     print("  ('%s', '%s'): '%s'," %

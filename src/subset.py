@@ -41,6 +41,8 @@ def write_subset(infile, root_name, all, topo, outfile):
       aid = row[aid_column]
       if not aid in all:
         row[aid_column] = MISSING
+      if aid == tid:            # flush redundant accepted id
+        row[aid_column] = MISSING
       pid = row[pid_column]
       if not pid in all:
         row[pid_column] = MISSING

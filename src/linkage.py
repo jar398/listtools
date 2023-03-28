@@ -5,7 +5,7 @@
 
 import util
 import property as prop
-import parser, rows
+import parse, rows
 import simple
 from checklist import *
 from workspace import *
@@ -84,33 +84,12 @@ def improve_link(u, v, score, key):
     if have_v == None:                 # not None or False
       set_link(u, v)                   # One side, not nec. reciprocal
       #log("# Set link %s ~ %s" % (blurb(u), blurb(v)))
-      return 1
-    elif have_v == False:       # ambiguous
-      return 0
-    else:
+    elif have_v != False:       # ambiguous
       # ambiguous.  wait until later to figure this out.
-      set_link(u, False)
-      return -1               # Retracting
-
-"""
-      if False:                 # pick 'best' of the two
-        have_out = get_outject(have_v)
-        out = get_outject(v)
-        mrca = simple.mrca(have_out, out)
-        # We want the one that is... more protonymical (fewer () )
-        if have_out == mrca:
-          # v < have_v.  prefer v ??
-          set_link(u, v)
-          log("# Improving link %s ~ %s" % (blurb(u), blurb(v)))
-          return 0                # Replacing
-        elif out == mrca:
-          # have_v < v.  Leave it alone.
-          return 0
-...
-      if False:                    # Too much
-        log("# Ambiguous (%s): %s -> %s & %s" %
+      if monitor(u) or monitor(v):
+        log("# linkage: Ambiguous (%s): %s -> %s & %s" %
             (key, blurb(u), blurb(have_v), blurb(v)))
-"""
+      set_link(u, False)
 
 def score_to_ship(score):
   if score >= THRESH:     return HOMOTYPIC    # EQ
@@ -175,7 +154,7 @@ def compute_score(u, v, distance=None):
   score = compute_parts_score(get_parts(u),
                               get_parts(v),
                               distance)
-  if monitor(u) or monitor(v) and score >= NOTHRESH:
+  if (monitor(u) or monitor(v)) and score >= NOTHRESH:
     log("# Score (%s, %s) = %s" % (blurb(u), blurb(v), score))
     #log("# %s" % (get_parts(u),))
     #log("# %s" % (get_parts(v),))
@@ -213,8 +192,8 @@ def compute_parts_score(p, q, distance=None):
     elif distance > 15: misses += 16
 
   if p.epithet != None and q.epithet != None:
-    if p.epithet != q.epithet: misses += 32
-    else: hits += 32
+    if p.epithet == q.epithet: hits += 32
+    else: misses += 32
   if misses > 0: return NEUTRAL - misses
   else: return NEUTRAL + hits
 
@@ -291,16 +270,22 @@ if __name__ == '__main__':
                       default='-')
   parser.add_argument('--B', help="the B checklist, as path name or -",
                       default='-')
+  parser.add_argument('--test', action='store_true', help="run smoke tests")
   args=parser.parse_args()
 
-  a_name = 'A'; b_name = 'B'
-  a_path = args.A
-  b_path = args.B
-  with rows.open(a_path) as a_rows: # rows object
-    with rows.open(b_path) as b_rows:
-      # compute name matches afresh
-      AB = ingest_workspace(a_rows.rows(), b_rows.rows(),
-                            A_name=a_name, B_name=b_name)
-      find_links(AB)
-      report_gen = generate_linkage_report(AB)
-      util.write_rows(report_gen, sys.stdout)
+  if args.test:
+    print(compute_parts_score(parse_name("Sturnira angeli"),
+                              parse_name("Sturnira magna"),
+                              3))
+  else:
+    a_name = 'A'; b_name = 'B'
+    a_path = args.A
+    b_path = args.B
+    with rows.open(a_path) as a_rows: # rows object
+      with rows.open(b_path) as b_rows:
+        # compute name matches afresh
+        AB = ingest_workspace(a_rows.rows(), b_rows.rows(),
+                              A_name=a_name, B_name=b_name)
+        find_links(AB)
+        report_gen = generate_linkage_report(AB)
+        util.write_rows(report_gen, sys.stdout)

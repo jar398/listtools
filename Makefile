@@ -64,7 +64,8 @@ SHORT=work/$(shell basename $A)-$(shell basename $B)-short.csv
 EXEMPLARS=work/$(shell basename $A)-$(shell basename $B)-exemplars.csv
 
 CODE=$P/demo.py $P/align.py $P/theory.py $P/simple.py $P/workspace.py \
-     $P/checklist.py $P/rcc5.py $P/eulerx.py $P/linkage.py $P/lub.py $P/util.py
+     $P/checklist.py $P/rcc5.py $P/eulerx.py $P/linkage.py $P/lub.py \
+     $P/exemplar.py $P/parse.py $P/util.py
 
 demo: $(DEMO)
 
@@ -337,6 +338,15 @@ mdd-demo:
 
 mdd-demo-67:
 	$(MAKE) A=work/mdd1.6 B=work/mdd1.7 ANAME=MDD1_6 BNAME=MDD1_7 demo
+
+mdd-demo-67p:
+	$(MAKE) A=work/mdd1.6-primates B=work/mdd1.7-primates ANAME=MDD1_6 BNAME=MDD1_7 \
+	  taxon=Primates TAXON=Primates demo
+
+work/mdd1.6.csv: work/mdd1.6-raw.csv
+work/mdd1.7.csv: work/mdd1.7-raw.csv
+work/mdd1.6-primates-raw.csv: work/mdd1.6-raw.csv
+work/mdd1.7-primates-raw.csv: work/mdd1.7-raw.csv
 
 # make A=mdd1.2-mammals B=mdd1.3 report
 # make A=mdd1.2 B=mdd1.3 report

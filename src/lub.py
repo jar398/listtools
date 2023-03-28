@@ -66,12 +66,34 @@ def find_estimate(AB, u):
   u2 = u
   v1 = v
   u1 = get_cross_mrca(v1)
+  if simple.simple_gt(get_outject(u1), get_outject(u2)):
+    return relation(LT, v, "goes up ladder")
+  if not get_cross_mrca(u1) is v1:
+    log("# Lose: u2 %s, v1 %s, u1 %s, v0 %s" %
+        (blurb(u2), blurb(v1), blurb(u1), blurb(get_cross_mrca(u1))))
+    assert False
+  if u1 is u2:
+    return relation(ship, v1, "bottom of ladder")
 
-  # Scan upwards from v2 looking for a way back to the u chain, either
-  # by a name or by hitting the top of the chain.
+  # Scan upwards from v1 looking for a way back to the u chain, either
+  # by a linked name or by hitting the top of the chain.
 
   while True:
-    # Optional search for links by name
+
+    # u top: B  --> ?
+    #        A <--> A :v top
+
+    v_sup = local_sup(AB, v)
+    assert v_sup
+    # We're at top of chain if v's parent is not in u1/v1 block
+    v = v_sup.record              # Try next higher v
+
+    if not get_cross_mrca(v) is u1:
+      note="v off top of chain"
+      ship = LT                 # ?
+      break
+
+    # Search for links by name
     v3 = v
 
     # See if chains are linked here
@@ -83,38 +105,17 @@ def find_estimate(AB, u):
       if u2 is u3:
         # Candidate's (v3's) partner (u3) belongs to our node u2
         if monitor(u3):
-          log("# Jackpot %s, %s" % (blurb(u2), blurb(v3)))
+          log("# lub: Jackpot %s, %s" % (blurb(u2), blurb(v3)))
         equate_exemplars(u3, v3)
         note="linked"
         break
       if descends_from(u2, u3):
         # Answer is v3 (= v)
         if monitor(u3):
-          log("# Modestly %s, %s" % (blurb(u2), blurb(v3)))
+          log("# lub: Modestly %s, %s" % (blurb(u2), blurb(v3)))
         ship = LT
         note="goes up to linked"
         break
-
-    # u top: B  --> ?
-    #        A <--> A :v top
-
-    v_sup = local_sup(AB, v)
-    assert v_sup
-    # We're at top of chain if v's parent is not in u1/v1 block
-    v = v_sup.record              # Try next higher v
-    ship = LT                     # not at top of u chain
-    if not get_cross_mrca(v) is u1:
-      note="v off top of chain"
-      break
-
-    elif False: #not get_cross_mrca(v_sup.record) is u1:
-      # TBD: EQ only when u is at top of chain - for symmetry
-      u_sup = local_sup(AB, u)
-      if (u_sup and
-          get_cross_mrca(u_sup.record) is v1):
-        ship = LT               # not at top of u chain
-      note="deprecated code"
-      break                     # at top of v chains
 
   return relation(ship, v, note)
 

@@ -10,7 +10,7 @@ from checklist import *
 from workspace import *
 from eulerx import generate_eulerx
 from lub import get_equivalent
-from align import is_species, is_acceptable
+from align import is_species, is_acceptable_locally
 
 # Returns a row generator
 
@@ -19,6 +19,7 @@ def generate_alignment_report(al, AB):
          "category", "note", "witnesses")
   for art in al:
     (u, rel) = normalize_articulation(art)
+    assert get_workspace(u)
     ship = rel.relationship
     v = rel.record
     x = theory.get_outject(u)
@@ -34,7 +35,7 @@ def generate_alignment_report(al, AB):
             witness_comment(AB, u, rel))
 
 def generate_short_report(al, AB):
-  yield ("A name", "rcc5", "B name", "category", "witnesses")
+  yield ("A name", "rcc5", "B name", "category", "note", "witnesses")
   for art in al:
     (u, rel) = normalize_articulation(art)
     w = rel.record
@@ -45,7 +46,7 @@ def generate_short_report(al, AB):
       continue
 
     if ((is_species(u) or is_species(w)) and
-        is_acceptable(u) and is_acceptable(w)):  # filter out subspecies too
+        is_acceptable_locally(AB, u) and is_acceptable_locally(AB, w)):  # filter out subspecies too
       #if plausible(AB, u, ship, w): continue
       d = category(u, ship, w)
       if (not d.startswith('retain')) or get_canonical(u) != get_canonical(w):
@@ -55,6 +56,7 @@ def generate_short_report(al, AB):
                 rcc5_symbol(ship),
                 '' if y == AB.B.top else blurb(y),
                 d,
+                rel.note,
                 witness_comment(AB, u, rel))
 
 def normalize_articulation(art):
@@ -183,7 +185,7 @@ def choose_witness(AB, ids, v):
     e = exemplar.xid_to_record(AB, id, v) 
     if not have:
       have = e
-    if is_acceptable(e):     # ?
+    if is_acceptable_locally(AB, e):     # ?
       # maybe pick earliest year or something??
       have = e
       break
