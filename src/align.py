@@ -2,8 +2,8 @@
 
 import sys, csv, argparse
 import util, property as prop
-import checklist, workspace, match_records
-import theory, span, rows, linkage
+import checklist, workspace, exemplar #match_records
+import lub, theory, span, rows, linkage
 
 from util import windex, MISSING
 from property import mep_get, mep_set
@@ -11,7 +11,7 @@ from rcc5 import *
 from checklist import *
 from workspace import *
 from theory import local_sup, \
-  get_block, is_empty_block
+  get_block, is_empty_block, cross_compare
 from lub import get_equivalent, get_estimate
 
 def align(A_iter, B_iter, A_name='A', B_name='B', matches_iter=None):
@@ -26,37 +26,47 @@ def align(A_iter, B_iter, A_name='A', B_name='B', matches_iter=None):
 # An articulation is a pair (record, relation).
 
 def make_alignment(AB):
-  unsorted = list(generate_alignment(AB))
-  log("-- %s articulations in alignment" % len(unsorted))
-  return sorted(unsorted, key=articulation_order)
+  def normalize(art):
+    (u, rel, kind) = art
+    (u, rel) = normalize_articulation((u, rel))
+    return (u, rel, kind)
 
-# B has priority.  u in A part of AB, v in B part
-def articulation_order(art):
-  (u, rel) = art
-  v = rel.record
-  ship = rel.relationship
-  if is_species(v) or not is_species(u):
-    return (blurb(v), ship)
+  return sort_alignment(generate_alignment(AB))
+
+def sort_alignment(al):
+  unsorted = list(al)
+  log("-- %s articulations in alignment" % len(unsorted))
+  unsorted.sort(key=articulation_sort_order)
+  return unsorted
+
+# B (rel) has sort priority.  u in A part of AB, v in B part
+def articulation_sort_order(art):
+  (u, rel, kind) = art
+  if rel:
+    v = rel.record
+    return (blurb(v), blurb(u), kind)
   else:
-    return (blurb(u), ship)
+    return (blurb(u), '~~~~~', kind)
 
 def articulation(z, rel):
   assert get_workspace(z)
   return (z, rel)
+
+def get_acceptables(AB, u, v):
+  return (get_acceptable(AB, u), get_acceptable(AB, v))
 
 # Return generator for alignment; each row is an articulation
 
 def generate_alignment(AB, matches=None):
   # Assumes that name matches are already stored in AB.
   theory.theorize(AB)
-  #span.span(AB)
 
   seen = set()
 
-  def unseen(u, v):
-    ku = u.id
-    kv = v.id
-    key = (kv, ku) if kv < ku else (ku, kv)
+  def unseen(u, v, kind):
+    ku = u.id 
+    kv = v.id 
+    key = (kv, ku, kind) if kv < ku else (ku, kv, kind)
     if key in seen:
       return False
     else:
@@ -65,69 +75,74 @@ def generate_alignment(AB, matches=None):
 
   def doit(AB, swapped):
 
-    def process_articulator(u, v_art, kind):
-      v = get_acceptable(AB, v_art)        # Compare v to art
-      if unseen(u, v):
-        rel = theory.cross_compare(AB, u, v)
-        if (is_empty_block(get_block(u)) and
-            not is_empty_block(get_block(v))): # Peripheral attachment
-          rel = relation(rel.relationship | DISJOINT,    # Nico's request
-                         rel.record,
-                         rel.note,
-                         rel.span)
-        if kind == 'subestimate' or rel.relationship == OVERLAP: # can't happen
-          assert get_workspace(u)
-          assert get_workspace(rel.record)
-          yield (u, rel)
-
     def traverse(x):            # u in AB
       u = AB.in_left(x)
       assert get_workspace(u)
-      if not get_acceptable(AB, u): # ?????
-        return
+      #if not get_acceptable(AB, u): return   # ?????
 
-      # 1. Report the estimate (= or <)
-      v = theory.get_estimate(u, None).record
-      yield from process_articulator(u, v, 'lub')
+      # Show species overlaps
+      e = exemplar.get_exemplar(u)
+      if e:
+        (id, ue, ve) = e
+        if ue is u:
+          v1 = ve if in_same_tree(AB, u, ue) else ue
+          (u2, v2) = get_acceptables(AB, u, v1)
+          if unseen(u2, v2, 'related'):
+            rel2 = cross_compare(AB, u2, v2)
+            yield (u2, rel2, 'related')
 
-      # 2. Report estimate vs. parent - may overlap
-      if False:
-       sup = local_sup(AB, u)
-       if sup:
-        p = sup.record
-        assert get_workspace(p)
-        yield from process_articulator(p, v, 'vs')
+      if is_acceptable_locally(AB, u):
 
-      # 3. Report on children of estimate looking for ><
-      # if lt(v, get_equivalent(AB, v)) ...
-      for c in get_inferiors(get_outject(v)):
-        v2 = AB.in_right(c)
-        if not get_equivalent(AB, v2): # premature optimization
-          # cross_compare(AB, u, v2).relationship == OVERLAP ...
-          yield from process_articulator(u, v2, 'subestimate')
+        est_rel = get_estimate(u)
+        v = est_rel.record
 
-      # 4. Report on name match
-      vl = get_link(u, None)         # Match by name
-      if vl: yield from process_articulator(u, vl, 'by name')
-      elif vl == False:
-        pass
+        if is_acceptable_locally(AB, est_rel.record):
+          # Equivalence - for long report
+          if est_rel.relationship == EQ:
+            yield (u, est_rel, 'equivalent')
+          else:
 
-      if not is_species(u):
-        for c in get_children(x, ()): # subspecies and synonyms
-          yield from traverse(c)
+            # De novo, unassigned split, or retracted
+            if get_rank(u, None) == 'species':
+              if not lub.get_cross_mrca(u, None):
+                yield (u,
+                       relation(est_rel.relationship | DISJOINT,
+                                est_rel.record, est_rel.note, est_rel.span),
+                       'peripheral')
+
+          # 'Insertions' / change of parent   vc <? u < v
+          # u < v    v is smallest such
+          for c in get_children(get_outject(v), ()):
+            # c < v
+            if is_acceptable(c):
+              vc = AB.in_right(c)
+              # vc < v
+              if unseen(vc, u, 'topological change'):
+                rel = cross_compare(AB, vc, u)
+                ship = rel.relationship
+                assert not ship == EQ
+                if ship != DISJOINT and ship != GT:  # LT, OVERLAP
+                  yield (vc, rel, 'topological change')
+
+        # Report on change of circumscription
+        vl = get_link(u, None)         # Match by name
+        if vl == False:
+          yield (u, relation(NOINFO, vl), 'ambiguous')
+        elif vl and is_acceptable_locally(AB, vl):
+          rel = cross_compare(AB, u, vl)
+          if rel.relationship != EQ:
+            yield (u, rel, 'change in circumscription')
+
+      for c in get_inferiors(x): # subspecies and synonyms
+        yield from traverse(c)
+
     yield from traverse(AB.A.top)
 
   yield from doit(swap(AB), True) # B has priority
   yield from doit(AB, False)
 
-def obvious(AB, u, ship, v):
-  if is_toplike(u) or is_toplike(v):
-    return True
-  if ((get_equivalent(AB, u) or get_equivalent(AB, v)) and
-      (ship == LT or ship == GT or ship == DISJOINT)):
-    return True
-
 def is_species(u):              # z local
+  if u == False: return False
   x = get_outject(u)
   return get_rank(x, None) == 'species' and is_accepted(x)
 
@@ -148,6 +163,7 @@ def get_acceptable(AB, u):
 # Approximation!
 
 def is_acceptable_locally(AB, u):  # in AB
+  assert get_workspace(u)
   return is_acceptable(get_outject(u))
 
 def is_acceptable(x):

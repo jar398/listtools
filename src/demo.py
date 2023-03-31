@@ -16,57 +16,51 @@ from align import is_species, is_acceptable_locally
 
 def generate_alignment_report(al, AB):
   yield ("A id", "A name", "rcc5", "B name", "B id",
-         "category", "note", "witnesses")
+         "category", "note", "kind", "witnesses")
   for art in al:
-    (u, rel) = normalize_articulation(art)
+    (u, rel, kind) = art
     assert get_workspace(u)
     ship = rel.relationship
     v = rel.record
-    x = theory.get_outject(u)
-    y = theory.get_outject(v)
+    x = theory.get_outject(u) if u else None
+    y = theory.get_outject(v) if v else None
     d = category(u, ship, v)
 
-    yield  (get_primary_key(x),
-            '' if x == AB.A.top else blurb(x),
+    yield  (get_primary_key(x) if x else '',
+            blurb(x),
             rcc5_symbol(ship),
-            '' if y == AB.B.top else blurb(y),
-            get_primary_key(y),
-            d, rel.note,
+            blurb(y),
+            get_primary_key(y) if y else '',
+            d, rel.note, kind,
             witness_comment(AB, u, rel))
 
 def generate_short_report(al, AB):
-  yield ("A name", "rcc5", "B name", "category", "note", "witnesses")
+  yield ("A name", "rcc5", "B name", "category", "note", "kind", "witnesses")
   for art in al:
-    (u, rel) = normalize_articulation(art)
-    w = rel.record
+    (u, rel, kind) = art
+    if kind != 'topological change':
+      v = rel.record
 
-    # Elide equalities lacking name change ...
-    ship = rel.relationship
-    if ship == EQ and get_canonical(u) == get_canonical(w):
-      continue
+      # Elide equalities lacking name change ...
+      ship = rel.relationship
+      if ship == EQ and get_canonical(u) == get_canonical(v):
+        continue
 
-    if ((is_species(u) or is_species(w)) and
-        is_acceptable_locally(AB, u) and is_acceptable_locally(AB, w)):  # filter out subspecies too
-      #if plausible(AB, u, ship, w): continue
-      d = category(u, ship, w)
-      if (not d.startswith('retain')) or get_canonical(u) != get_canonical(w):
-        x = get_outject(u)
-        y = get_outject(w)
-        yield  ('' if x == AB.A.top else blurb(x),
-                rcc5_symbol(ship),
-                '' if y == AB.B.top else blurb(y),
-                d,
-                rel.note,
-                witness_comment(AB, u, rel))
+      if is_species(u) or is_species(v):  # subspecies already filtered out
+        #if plausible(AB, u, ship, v): continue
+        d = category(u, ship, v)
+        if (not d.startswith('retain')) or get_canonical(u) != get_canonical(v):
+          x = get_outject(u) if u else None
+          y = get_outject(v) if v else None
+          yield  (('' if x == AB.A.top else blurb(x)) if x else '',
+                  rcc5_symbol(ship),
+                  ('' if y == AB.B.top else blurb(y)) if y else '',
+                  d,
+                  rel.note,
+                  kind,
+                  witness_comment(AB, u, rel))
 
-def normalize_articulation(art):
-  u = art[0]
-  if isinA(get_workspace(u), u):
-    return art
-  else:
-    return reverse_articulation(art)
-
-# Is relationship mmerely copied over from a source checklist?
+# Is relationship merely copied over from a source checklist?
 
 def plausible(AB, u, ship, v):
   if (ship == DISJOINT):
@@ -84,10 +78,11 @@ def plausible(AB, u, ship, v):
 
 # This column is called "category" for consistency with MDD.
 
-def category(v, ship, w):
-  w2 = get_link(v, None)      # Does the name persist in B?
+def category(u, ship, w):
+  if u == False or w == False: return 'ambiguous'
+  w2 = get_link(u, None)      # Does the name persist in B?
   mat = (w2 == w)
-  x = get_outject(v)
+  x = get_outject(u)
   y = get_outject(w)
   stay = (get_rank(get_accepted(x), None) ==
           get_rank(get_accepted(y), None))
@@ -99,7 +94,7 @@ def category(v, ship, w):
     else: action = 'drop'
   elif ship == EQ:
     # Different names - same name
-    if get_canonical(v) != get_canonical(w):
+    if get_canonical(u) != get_canonical(w):
       action = 'rename'
     else:
       action = 'retain'
@@ -112,14 +107,14 @@ def category(v, ship, w):
     action = 'intersect in some way'
   elif ship == NOINFO:
     action = 'no information'
-  elif ship == SYNONYM:              # a synonym of v <= w
+  elif ship == SYNONYM:              # a synonym of u <= w
     # x = y1* <= y   i.e. x is being demoted from accepted to synonym (y1)
     t = get_tipe(x, None)
     if t and t == get_tipe(y, None): # ?
       action = 'rename (demotion)'
     else:
       action = 'lump (demotion)'
-  elif ship == MYNONYS:              # a synonym of w <= v
+  elif ship == MYNONYS:              # a synonym of w <= u
     # x >= x1* = y   i.e. x1 is being promoted from synonym to accepted (y)
     t = get_tipe(x, None)
     if t and t == get_tipe(y, None):
@@ -138,10 +133,11 @@ def category(v, ship, w):
 
 # rel.note will often be the match type, so don't duplicate it
 
-def witness_comment(AB, v, rel):
-  w = rel.record
+def witness_comment(AB, u, rel):
+  v = rel.record
+  if u == False or v == False: return ''
   ship = rel.relationship
-  probe = witnesses(AB, v, w)
+  probe = witnesses(AB, u, v)
   if not probe: return ''
   (flush, keep, add) = probe
   if flush or keep or add and not ship == PERI and not ship == IREP:
@@ -150,11 +146,11 @@ def witness_comment(AB, v, rel):
              blurb(keep) if keep else '',
              blurb(add) if add else ''))
 
-# Report on block(v) - block(w) (synonyms removed)
-# and block(w) - block(v) (synonyms added)
+# Report on block(u) - block(v) (synonyms removed)
+# and block(v) - block(u) (synonyms added)
 
-def witnesses(AB, v, w):
-  b1 = theory.get_block(v)
+def witnesses(AB, u, w):
+  b1 = theory.get_block(u)
   b2 = theory.get_block(w)
   if len(b1) == 0 or len(b2) == 0:
     return None
@@ -163,26 +159,26 @@ def witnesses(AB, v, w):
   keep  = choose_witness(AB, b1.intersection(b2), w)
   add   = choose_witness(AB, b2.difference(b1), w)
   if len(b1) + len(b1) > 10000:
-    debug_withnesses(AB, v, w)
+    debug_withnesses(AB, u, w)
   return (flush, keep, add)
 
-def debug_withnesses(AB, v, w):
-  b1 = theory.get_block(v)
+def debug_withnesses(AB, u, w):
+  b1 = theory.get_block(u)
   b2 = theory.get_block(w)
-  def foo(v, which, w, s):
+  def foo(u, which, w, s):
     if False:
       log("# choose_witness: %s %s %s has %s exemplars" %
-          (blurb(v), which, blurb(w), len(s)))
+          (blurb(u), which, blurb(w), len(s)))
     pass
-  foo(v, "-", w, b1.difference(b2))
-  foo(v, "∩", w, b1.intersection(b2))
-  foo(w, "-", v, b2.difference(b1))
+  foo(u, "-", w, b1.difference(b2))
+  foo(u, "∩", w, b1.intersection(b2))
+  foo(w, "-", u, b2.difference(b1))
 
-def choose_witness(AB, ids, v):
+def choose_witness(AB, ids, u):
   have = None
   count = 0
   for id in ids:
-    e = exemplar.xid_to_record(AB, id, v) 
+    e = exemplar.xid_to_record(AB, id, u) 
     if not have:
       have = e
     if is_acceptable_locally(AB, e):     # ?
@@ -212,7 +208,7 @@ def test():
 
 def demo(A_iter, A_name, B_iter, B_name):
   AB = ingest_workspace(A_iter, A_name, B_iter, B_name)
-  al = align.generate_alignment(AB)
+  al = align.make_alignment(AB)
   return (generate_alignment_report(al, AB),
           generate_short_report(al, AB),
           generate_eulerx(AB, al))
@@ -252,7 +248,7 @@ if __name__ == '__main__':
         AB = ingest_workspace(a_rows.rows(), b_rows.rows(),
                               A_name=a_name, B_name=b_name)
         linkage.find_links(AB)
-        al = list(align.generate_alignment(AB))
+        al = list(align.make_alignment(AB))
     if l_path or (not d_path and not e_path):
       with rows.open(l_path, "w") as l_gen:
         l_gen.write_rows(generate_alignment_report(al, AB))

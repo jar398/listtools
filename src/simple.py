@@ -47,9 +47,9 @@ def compare_accepted_in_checklist(x, y):
 
 def compare_siblings(x, x1, y1, y):
   if x != x1 and y != y1:       # x <= x1 = y1 >= y
-    if known_different_exemplars(x, y):
+    if False and known_different_exemplars(x, y):
       return relation(NEQ, y, "sibling heterotypic synonyms", span=2)
-    elif known_same_exemplar(x, y):                # Need fuzzy protonym compare
+    elif False and known_same_exemplar(x, y):                # Need fuzzy protonym compare
       return relation (EQ, y, "sibling homotypic synonyms", span=2)
     else:
       return relation(NOINFO, y, "sibling synonyms", span=2)

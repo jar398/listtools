@@ -59,14 +59,15 @@ def eulerx_alignment(AB, al):
   yield ("articulation %s-%s %s-%s" %
          (get_tag(A), get_tag(B),
           checklist_description(A), checklist_description(B)))
-  for (v, rel) in al:
-    rel = theory.maybe_graft(v, rel) # Mark grafts with ! per Nico's suggestion
+  for (u, rel, kind) in al:
+    # rel = theory.maybe_graft(u, rel) # Mark grafts with ! per Nico's suggestion
     w = rel.record
-    assert get_workspace(v)
-    assert is_accepted_locally(AB, v)
-    assert is_accepted_locally(AB, w), blurb(w)
-    if not is_top(get_outject(v)) and not is_top(get_outject(w)):
-      yield eulerx_articulation(v, rel.relationship, w, rel.note)
+    if u and w:
+      assert get_workspace(u)
+      assert is_accepted_locally(AB, u)
+      assert is_accepted_locally(AB, w), blurb(w)
+      if not is_top(get_outject(u)) and not is_top(get_outject(w)):
+        yield eulerx_articulation(u, rel.relationship, w, rel.note)
 
 def eulerx_articulation(u, ship, v, note):
   sym = rcc5_eulerx(ship)

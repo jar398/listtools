@@ -56,10 +56,10 @@ def make_workspace(A, B, meta=None):
     return z
 
   def _in_left(x):
-    assert get_source(x) == A, ("expected left", get_source_tag(x))
+    assert get_source(x) is A, ("expected left", get_source_tag(x))
     return ensure_injected(x)
   def _in_right(y):
-    assert get_source(y) == B, ("expected right", get_source_tag(y))
+    assert get_source(y) is B, ("expected right", get_source_tag(y))
     return ensure_injected(y)
   def _case(z, when_left, when_right):
     w = get_outject(z, None)
@@ -69,12 +69,15 @@ def make_workspace(A, B, meta=None):
     elif get_source(w) == B:
       return when_right(w)
     else: assert False
+  def _prefix(z):
+    return _case(z, lambda x:'A.', lambda x:'B.')
   AB = Coproduct(_in_left, _in_right, _case)
   AB.workspace = AB
   AB.A = A
   AB.B = B
   AB.context = Q
   AB.meta = meta
+  AB.prefix = _prefix
 
   # Foo
   BA = AB.swap()
@@ -89,7 +92,7 @@ def make_workspace(A, B, meta=None):
   #log("# taxonID counter: %s" % pk_counter[0])
 
   AB.exemplar_counter = 0     # shared with swapped form
-  AB.exemplars = {}
+  AB.exemplars = {}           # maps id to union-find node with (id, u, v)
   return AB
 
 def fresh_exemplar_id(AB):
@@ -160,9 +163,6 @@ def local_sup(AB, u):
 def swap(AB):
   return AB.swap()
 
-def get_workspace(u):
-  return get_source(u).workspace
-
 def local_accepted(AB, u):
   y = get_accepted(get_outject(u))
   if isinA(AB, u):
@@ -181,6 +181,15 @@ def set_link(x, y):
 def in_same_tree(AB, x, y):
   return (AB.case(x, lambda x:1, lambda x:2) ==
           AB.case(y, lambda x:1, lambda x:2))
+
+# Put in A->B form
+
+def normalize_articulation(art):
+  u = art[0]
+  if isinA(get_workspace(u), u):
+    return art
+  else:
+    return reverse_articulation(art)
 
 # -----------------------------------------------------------------------------
 

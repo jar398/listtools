@@ -104,7 +104,7 @@ def relation(ship, record, note=MISSING, span=None):
   assert isinstance(ship, int), ship
   assert note != None
   #assert ((ship == NOINFO and not record) or \ ...)
-  assert isinstance(record, prop.Record), blurb(record)
+  assert record == False or isinstance(record, prop.Record), blurb(record)
   if span == None:
     if ship == EQ: span = 0
     #elif ship == SYNONYM or MYNONYS: span = 1
@@ -145,7 +145,7 @@ def is_identity(rel):
 def reverse_note(note):
   if note:
     if note.startswith("←"):
-      return note[-1:]
+      return note[1:]
     else:
       return "←" + note
   else:
@@ -261,7 +261,7 @@ def resolve_superior_link(S, record):
         sup = relation(EQ, accepted, note="input")
       else:
         if monitor(record):
-          log("# %s %s %s %s" %
+          log("# checklist: debug: %s %s %s %s" %
               (blurb(record), taxonID, accepted_key, blurb(accepted)))
         sup = relation(synonym_relationship(record, accepted),
                        accepted,
@@ -662,15 +662,19 @@ def clog(x, *records):
 
 def blurb(r):
   if isinstance(r, prop.Record):
-    x = get_outject(r, None)
-    if x: r = x
-    name = get_ok_name(r)
-    if '(' in get_scientific(r, MISSING):
-      pass                      # name = name + '()'
-    if not is_accepted(r):
-      return name + '*'
+    if get_workspace(r):
+      x = get_outject(r, None)
+      u = r
     else:
+      x = r
+      u = None
+    name = get_ok_name(x)
+    if u:
+      name = get_workspace(u).prefix(u) + name
+    if is_accepted(x):
       return name
+    else:
+      return name + '*'
   elif isinstance(r, Relation):
     if r.note:
       return ("[%s (%s) %s]" %
@@ -692,7 +696,9 @@ def blurb(r):
 def monitor(x):
   if not x: return False
   name = get_canonical(x, '')
-  return (name == "Holochilus vulpinus"
+  return (name == "Holochilus vulpinus" or
+          name == "Holochilus brasiliensis" or
+          name == "Holochilus darwini"
           # name == "Gorilla beringei"
           # name == "Sturnira magna"
           # "Mico marcai"

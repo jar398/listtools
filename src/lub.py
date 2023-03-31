@@ -56,6 +56,7 @@ def find_estimates(AB):
 def find_estimate(AB, u):
   ship = EQ
   while True:                   # Skip over peripherals
+    u0 = u
     v = get_cross_mrca(u, None)
     if v != None:
       break
@@ -74,6 +75,8 @@ def find_estimate(AB, u):
     assert False
   if u1 is u2:
     return relation(ship, v1, "bottom of ladder")
+  if monitor(u1) or monitor(u2) or monitor(v1):
+    set_scene(AB, u0, u1, v1, u2)
 
   # Scan upwards from v1 looking for a way back to the u chain, either
   # by a linked name or by hitting the top of the chain.
@@ -109,7 +112,7 @@ def find_estimate(AB, u):
         equate_exemplars(u3, v3)
         note="linked"
         break
-      if descends_from(u2, u3):
+      if simple.simple_lt(u2, u3):
         # Answer is v3 (= v)
         if monitor(u3):
           log("# lub: Modestly %s, %s" % (blurb(u2), blurb(v3)))
@@ -119,8 +122,24 @@ def find_estimate(AB, u):
 
   return relation(ship, v, note)
 
-def descends_from(u1, u2):
-  return simple.descends_from(get_outject(u1), get_outject(u2))
+def set_scene(AB, u0, u1, v1, u2):
+  us = []
+  u = u1
+  while get_cross_mrca(u) is v1:
+    us.append(blurb(u))
+    u = local_sup(AB, u).record
+  vs = []
+  v = v1
+  while get_cross_mrca(v) is u1:
+    vs.append(blurb(v))
+    v = local_sup(AB, v).record
+  u2p = local_sup(AB, u2).record
+  if u0 is u2:
+    log("# u0 = u2 %s | %s" % (blurb(u0), blurb(u2p)))
+  else:
+    log("# u0 %s --> u2 %s | %s" % (blurb(u0), blurb(u2), blurb(u2p)))
+  log("#   v1...: %s | %s" % ("; ".join(vs), blurb(v)))
+  log("#   u1...: %s | %s" % ("; ".join(us), blurb(u)))
 
 # -----------------------------------------------------------------------------
 # u assumed central
@@ -131,6 +150,7 @@ def descends_from(u1, u2):
 
 def get_equivalent(AB, u):
   assert u
+  assert get_workspace(u)
   est = get_estimate(u, None)
   if est and est.relationship == EQ: return est
   else: return None

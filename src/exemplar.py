@@ -66,12 +66,12 @@ def analyze_exemplars(AB):
   report_on_exemplars(AB)
 
 def report_on_exemplars(AB):
-  exemplars = set()
+  exemplars = set()             # for counting distinct exemplars
   for x in preorder_records(AB.A):
     u = AB.in_left(x)
     ex = get_exemplar(u)
     if ex:
-      exemplars.add(ex[0])
+      exemplars.add(ex[0])      # id only
   log("-- Exemplars: %s " % len(exemplars))
 
 # Issues: 
@@ -184,7 +184,7 @@ def analyze_tipwards(AB):
         if v != False:
           assert separated(u, v)
           seen = 1
-        # u is tipward and has link, but link not necessarily tipward ...
+        # u is tipward and has link, but doesn't necessarily link tipward ...
         set_tipward(u, v)
         if monitor(u):
           log("# exemplar: Set tipward %s -> %s" % (blurb(u), blurb(v)))

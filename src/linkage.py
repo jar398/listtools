@@ -57,7 +57,7 @@ def report_on_links(AB, subproblems):
         amb_count += 1
       else:
         link2 = get_link(link, None)
-        if link2 == u:
+        if link2 is u:
           full_count += 1
         elif link2 == None:
           half_count += 1
@@ -69,7 +69,7 @@ def report_on_links(AB, subproblems):
         amb_count += 1
       else:
         link2 = get_link(link, None)
-        if link2 == v:
+        if link2 is v:
           pass                  # already counted
         elif link2 == None:
           half_count += 1
@@ -99,9 +99,7 @@ def score_to_ship(score):
 # Assumes both are descended from the same species (or genus?)
 
 def homotypic(u, species):
-  score = compute_score(u, species, 10)
-  if score >= THRESH2: return HOMOTYPIC
-  else: return REVIEW
+  return score_to_ship(compute_score(u, species, 5)) == HOMOTYPIC
 
 # Find blocks/chunks, one per epithet
 
@@ -156,8 +154,8 @@ def compute_score(u, v, distance=None):
                               distance)
   if (monitor(u) or monitor(v)) and score >= NOTHRESH:
     log("# Score (%s, %s) = %s" % (blurb(u), blurb(v), score))
-    #log("# %s" % (get_parts(u),))
-    #log("# %s" % (get_parts(v),))
+    #log("#  %s" % (get_parts(u),))
+    #log("#  %s" % (get_parts(v),))
   return score
 
 # Score potentially contipic names from 0 to 100
@@ -232,15 +230,16 @@ THRESH1 = compute_parts_score(parse_name("Foo bar Jones, 1927"),
                               None)
 THRESH2 = compute_parts_score(parse_name("Foo bar Jones, 1927"),
                               parse_name("Quux bar (Jones, 1927)"),
-                              3)
+                              5)
 THRESH = min(THRESH1, THRESH2)
 log("# Match predicted if score >= %s = min(%s,%s)" %
     (THRESH, THRESH1, THRESH2))
 
 THRESH_Q = compute_parts_score(parse_name("Foo bar Jones, 1927"),
                                parse_name("Quux bar Jones, 1927"),
-                               3)
+                               5)
 log("# For distinct genus starts: %s" % THRESH_Q)
+assert THRESH_Q < THRESH
 
 # The most similar things that are dissimilar.  Distinguish records that 
 # are this different (minimally different) or more so.

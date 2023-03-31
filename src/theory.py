@@ -7,7 +7,6 @@ import checklist, workspace, simple, exemplar
 from util import log
 from checklist import *
 from workspace import *
-from simple import compare_per_checklist, compare_siblings
 
 import exemplar
 import lub
@@ -31,7 +30,7 @@ def compare(AB, v, w):
   if separated(v, w):
     return cross_compare(AB, v, w)
   else:
-    return compare_per_checklist(get_outject(v), get_outject(w))
+    return simple.compare_per_checklist(get_outject(v), get_outject(w))
 
 # v and w are Records in AB, not in A or B
 # Returns a Relative to w
@@ -50,7 +49,7 @@ def cross_compare(AB, u, w):
   rel2 = compare_accepted(AB, u1, w1)
   if rel2.relationship == EQ:
     # Species and one synonym, or two synonyms
-    rel = compare_siblings(u, u1, w1, w)
+    rel = simple.compare_siblings(u, u1, w1, w)
     assert get_workspace(rel.record) # ***********************
   else:
     rel = compose_final(u, rel1, rel2, rel3)
@@ -106,7 +105,7 @@ def compare_centrally(AB, u, v):
   else:
     # ship is not EQ (i.e. exemplar sets are different)
     return optimize_relation(AB, u,
-                             relation(ship, v, note="different exemplar sets"))
+                             relation(ship, v, note="exemplar set comparison"))
 
 # u and w are inequivalent, but they are in the same nonempty block
 # (in parallel chains)
@@ -161,8 +160,7 @@ def compare_within_block(AB, u, v):
     rel = rev_rel_vu
   elif ship == NOINFO:
     log("# Baffled: %s" % rcc5_symbol(ship))
-    ship = INTERSECT
-    rel = relation(ship, v, "tightened")
+    rel = relation(INTERSECT, v, "tightened")
   elif ship == INCONSISTENT:
     if monitor(u) or monitor(v):
       log("# Recovering %s ! %s from inconsistency" % (blurb(u), blurb(v)))
@@ -177,7 +175,7 @@ def compose_final(u, rel1, rel2, rel3):
   return rel13
 
 def compare_locally(u, v):
-  rel = compare_per_checklist(get_outject(u), get_outject(v)) # in A or B
+  rel = simple.compare_per_checklist(get_outject(u), get_outject(v)) # in A or B
   return relation(rel.relationship,
                   v,
                   note=rel.note,
@@ -292,33 +290,32 @@ def find_cross_sup_rel(AB, u, v):
 # Assumes exemplars have already been chosen and are available
 # via `get_exemplar`.
 
-def analyze_blocks(AB):
-  def traverse(x, in_left, inB):
-    # x is in A (or B if inB)
-    if monitor(x): log("# theory: computing block for %s" % (blurb(x),))
-    # initial e = exemplars from descendants
-    e = BOTTOM_BLOCK
-    for c in get_inferiors(x):  # inferiors in A/B
-      e = combine_blocks(e, traverse(c, in_left, inB))
-      if monitor(c):
-        log("# theory: got subblock %s -> %s" % (blurb(c), len(e),))
+def analyze_blocks(ws):
+  def doit(AB):
+    def traverse(x):
+      u = AB.in_left(x)
+      if monitor(u): log("# theory: computing block for %s" % (blurb(u),))
+      # initial e = exemplars from descendants
+      e = BOTTOM_BLOCK
+      for c in get_inferiors(x):  # inferiors in A/B
+        e = combine_blocks(e, traverse(c))
 
-    u = in_left(x)              # in A (or B if in B)
-    exem = exemplar.get_exemplar(u)
-    if exem:
-      (id, _, _) = exem
-      e = adjoin_exemplar(id, e)
-    # **************** TBD
-    if e != BOTTOM_BLOCK:
+      exem = exemplar.get_exemplar(u) # returns none or (id, u, v)
+      if exem:
+        (id, _, _) = exem
+        e = adjoin_exemplar(id, e)
+      # **************** TBD
       set_block(u, e)
-    #log("# theory: block(%s) = %s" % (blurb(x), e))
-    return e
-  traverse(AB.A.top, AB.in_left, False)
-  traverse(AB.B.top, AB.in_right, True)
+      if monitor(u):
+        show_exemplars(u, blurb(u), ws)
+      return e
+    traverse(AB.A.top)
+  doit(ws)
+  doit(swap(ws))
 
   # Sanity check
-  b1 = get_block(AB.in_left(AB.A.top))
-  b2 = get_block(AB.in_right(AB.B.top))
+  b1 = get_block(ws.in_left(ws.A.top))
+  b2 = get_block(ws.in_right(ws.B.top))
   assert b1 != BOTTOM_BLOCK
   assert b1 == b2
 
@@ -327,7 +324,8 @@ def analyze_blocks(AB):
 def show_exemplars(z, tag, AB):
   def foo(id):
     return blurb(exemplar.xid_to_record(AB, id, z))
-  log("# theory: %s: {%s}" % (tag, ", ".join(map(foo, get_block(z)))))
+  log("# theory: %s: {%s}" %
+      (tag, ", ".join(map(foo, get_block(z)))))
 
 # record -> list of exemplar ids
 
