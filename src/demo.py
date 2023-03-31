@@ -37,9 +37,9 @@ def generate_short_report(al, AB):
   yield ("A name", "rcc5", "B name", "category", "note", "kind", "witnesses")
   for art in al:
     (u, rel, kind) = art
-    if kind != 'topological change':
-      v = rel.record
+    v = rel.record
 
+    if kind != 'topological change' or (u and v and same_rank(u, v)):
       # Elide equalities lacking name change ...
       ship = rel.relationship
       if ship == EQ and get_canonical(u) == get_canonical(v):
@@ -61,6 +61,10 @@ def generate_short_report(al, AB):
                   rel.note,
                   kind,
                   witness_comment(AB, u, rel))
+
+def same_rank(u, v):
+  return (get_rank(get_accepted(get_outject(u)), None) ==
+          get_rank(get_accepted(get_outject(v)), None))
 
 # Is relationship merely copied over from a source checklist?
 

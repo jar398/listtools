@@ -98,18 +98,17 @@ def generate_alignment(AB, matches=None):
 
         if is_acceptable_locally(AB, est_rel.record):
           # Equivalence - for long report
-          if est_rel.relationship == EQ:
-            if unseen(u, v):
-              yield (u, est_rel, 'equivalent')
-          else:
-
-            # De novo, unassigned split, or retracted
-            if get_rank(u, None) == 'species':
-              if not lub.get_cross_mrca(u, None):
-                yield (u,
-                       relation(est_rel.relationship | DISJOINT,
-                                est_rel.record, est_rel.note, est_rel.span),
-                       'peripheral')
+          if unseen(u, v):
+            if est_rel.relationship == EQ:
+                yield (u, est_rel, 'equivalent')
+            else:
+              # De novo, unassigned split, or retracted
+              if get_rank(u, None) == 'species':
+                if not lub.get_cross_mrca(u, None):
+                  yield (u,
+                         relation(est_rel.relationship | DISJOINT,
+                                  v, est_rel.note, est_rel.span),
+                         'peripheral')
 
           # 'Insertions' / change of parent   vc <? u < v
           # u < v    v is smallest such
@@ -130,9 +129,12 @@ def generate_alignment(AB, matches=None):
         if vl == False:
           yield (u, relation(NOINFO, vl), 'ambiguous')
         elif vl and is_acceptable_locally(AB, vl):
-          rel = cross_compare(AB, u, vl)
-          if rel.relationship != EQ:
-            yield (u, rel, 'change in circumscription')
+          if unseen(u, vl):
+            rel = cross_compare(AB, u, vl)
+            if rel.relationship != EQ:
+              yield (u, rel, 'change in circumscription')
+            elif get_canonical(u) != get_canonical(vl):
+              yield (u, rel, 'rename')
 
       for c in get_inferiors(x): # subspecies and synonyms
         yield from traverse(c)
@@ -183,9 +185,7 @@ def is_acceptable(x):
     return False
 
 def sort_key(c):
-  return (get_canonical(c, ''),
-          get_scientific(c, ''),
-          get_primary_key(c, ''))
+  return get_best_name(c)
 
 # -----------------------------------------------------------------------------
 
