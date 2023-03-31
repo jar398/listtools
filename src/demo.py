@@ -19,7 +19,6 @@ def generate_alignment_report(al, AB):
          "category", "note", "kind", "witnesses")
   for art in al:
     (u, rel, kind) = art
-    assert get_workspace(u)
     ship = rel.relationship
     v = rel.record
     x = theory.get_outject(u) if u else None
@@ -45,6 +44,9 @@ def generate_short_report(al, AB):
       ship = rel.relationship
       if ship == EQ and get_canonical(u) == get_canonical(v):
         continue
+
+      # No one will know what to do with 'no information'
+      if ship == NOINFO: continue
 
       if is_species(u) or is_species(v):  # subspecies already filtered out
         #if plausible(AB, u, ship, v): continue

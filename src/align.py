@@ -31,7 +31,7 @@ def make_alignment(AB):
     (u, rel) = normalize_articulation((u, rel))
     return (u, rel, kind)
 
-  return sort_alignment(generate_alignment(AB))
+  return sort_alignment(map(normalize, generate_alignment(AB)))
 
 def sort_alignment(al):
   unsorted = list(al)
@@ -63,10 +63,10 @@ def generate_alignment(AB, matches=None):
 
   seen = set()
 
-  def unseen(u, v, kind):
+  def unseen(u, v):
     ku = u.id 
     kv = v.id 
-    key = (kv, ku, kind) if kv < ku else (ku, kv, kind)
+    key = (kv, ku) if kv < ku else (ku, kv)
     if key in seen:
       return False
     else:
@@ -87,7 +87,7 @@ def generate_alignment(AB, matches=None):
         if ue is u:
           v1 = ve if in_same_tree(AB, u, ue) else ue
           (u2, v2) = get_acceptables(AB, u, v1)
-          if unseen(u2, v2, 'related'):
+          if unseen(u2, v2):
             rel2 = cross_compare(AB, u2, v2)
             yield (u2, rel2, 'related')
 
@@ -99,7 +99,8 @@ def generate_alignment(AB, matches=None):
         if is_acceptable_locally(AB, est_rel.record):
           # Equivalence - for long report
           if est_rel.relationship == EQ:
-            yield (u, est_rel, 'equivalent')
+            if unseen(u, v):
+              yield (u, est_rel, 'equivalent')
           else:
 
             # De novo, unassigned split, or retracted
@@ -117,7 +118,7 @@ def generate_alignment(AB, matches=None):
             if is_acceptable(c):
               vc = AB.in_right(c)
               # vc < v
-              if unseen(vc, u, 'topological change'):
+              if unseen(vc, u):
                 rel = cross_compare(AB, vc, u)
                 ship = rel.relationship
                 assert not ship == EQ
