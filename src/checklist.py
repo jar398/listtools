@@ -808,6 +808,10 @@ def get_parts(x):
                           canonical = get_canonical(x, MISSING),
                           authorship = get_authorship(x, MISSING))
 
+def get_tipe(x, default=None):
+  parts = get_parts(x)
+  return (parts.epithet, parts.token, parts.year)
+
 def get_best_name(x):
   name = (get_scientific(x, None) or get_ok_name(x))
   assert name

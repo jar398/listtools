@@ -170,6 +170,7 @@ $(DELTA): $A.csv $B.csv $P/delta.py $P/match_records.py $P/property.py
 # Download a DwCA zip file
 in/%.zip: work/%.dwca-url
 	wget -O $@.new $$(cat $<)
+	touch $@.new
 	mv -f $@.new $@
 
 # Extract contents of a .zip file
@@ -178,6 +179,7 @@ work/%.dump: in/%.zip
 	mkdir -p $@.new
 	unzip -d $@.new $<
 	rm -rf $@ && mv $@.new $@
+	touch $@/*
 
 # Normalize the DwCA taxon file (no managed id space).
 
@@ -343,6 +345,9 @@ mdd-demo-67p:
 	$(MAKE) A=work/mdd1.6-primates B=work/mdd1.7-primates ANAME=MDD1_6 BNAME=MDD1_7 \
 	  taxon=Primates TAXON=Primates demo
 
+mdd-demo-01:
+	$(MAKE) A=work/mdd1.10 B=work/mdd1.11 ANAME=MDD1_10 BNAME=MDD1_11 demo
+
 work/mdd1.6.csv: work/mdd1.6-raw.csv
 work/mdd1.7.csv: work/mdd1.7-raw.csv
 work/mdd1.6-primates-raw.csv: work/mdd1.6-raw.csv
@@ -450,6 +455,7 @@ $(MDDDWC)/mdd1.7-dwc.csv: $(MDDSOURCE)/MDD_v1.7_6567species.csv
 $(MDDDWC)/mdd1.8-dwc.csv: $(MDDSOURCE)/MDD_v1.8_6591species.csv
 $(MDDDWC)/mdd1.9-dwc.csv: $(MDDSOURCE)/MDD_v1.9_6596species.csv
 $(MDDDWC)/mdd1.10-dwc.csv: $(MDDSOURCE)/MDD_v1.10_6615species.csv
+$(MDDDWC)/mdd1.11-dwc.csv: $(MDDSOURCE)/MDD_v1.11_6649species.csv
 
 work/mdd%-raw.csv: $(MDDDWC)/mdd%-dwc.csv $P/start.py
 	$P/start.py < $< --pk taxonID > $@.new
@@ -460,6 +466,7 @@ work/mdd1.1-raw.csv: $(MDDDWC)/mdd1.1-dwc.csv $P/start.py
 work/mdd1.6-raw.csv: $(MDDDWC)/mdd1.6-dwc.csv $P/start.py
 work/mdd1.7-raw.csv: $(MDDDWC)/mdd1.7-dwc.csv $P/start.py
 work/mdd1.10-raw.csv: $(MDDDWC)/mdd1.10-dwc.csv $P/start.py
+work/mdd1.11-raw.csv: $(MDDDWC)/mdd1.11-dwc.csv $P/start.py
 
 # ----- 4. EOL examples
 
@@ -565,6 +572,14 @@ col%-raw.csv: col%.dump $P/start.py
 	  >$@.new
 	@mv -f $@.new $@
 .PRECIOUS: col%-raw.csv
+
+work/col2023-mammals-raw.csv: work/col2023-raw.csv
+	$P/subset.py < $< --hierarchy $< --root "6224G" > $@.new
+	@mv -f $@.new $@
+
+work/col2021-mammals-raw.csv: work/col2021-raw.csv
+	$P/subset.py < $< --hierarchy $< --root "6224G" > $@.new
+	@mv -f $@.new $@
 
 # ----- 6. ITIS
 # Where do we get ITIS?  Need a subset step.

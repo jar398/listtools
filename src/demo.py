@@ -165,10 +165,10 @@ def witnesses(AB, u, w):
   keep  = choose_witness(AB, b1.intersection(b2), w)
   add   = choose_witness(AB, b2.difference(b1), w)
   if len(b1) + len(b1) > 10000:
-    debug_withnesses(AB, u, w)
+    debug_witnesses(AB, u, w)
   return (flush, keep, add)
 
-def debug_withnesses(AB, u, w):
+def debug_witnesses(AB, u, w):
   b1 = theory.get_block(u)
   b2 = theory.get_block(w)
   def foo(u, which, w, s):

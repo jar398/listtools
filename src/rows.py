@@ -4,6 +4,9 @@
 
 import sys, io, csv, newick
 
+# For CoL
+csv.field_size_limit(131072 * 4)
+
 def open(specifier, mode='r'):
   if not specifier: specifier = '-'
   return Rows(specifier, mode)

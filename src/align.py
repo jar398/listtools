@@ -10,8 +10,7 @@ from property import mep_get, mep_set
 from rcc5 import *
 from checklist import *
 from workspace import *
-from theory import local_sup, \
-  get_block, is_empty_block, cross_compare
+from theory import cross_compare
 from lub import get_equivalent, get_estimate
 
 def align(A_iter, B_iter, A_name='A', B_name='B', matches_iter=None):

@@ -18,6 +18,8 @@ import util
 
 from util import MISSING, windex, csv_parameters
 
+csv.field_size_limit(131072 * 4) # CoL. fix later
+
 def extract_subset(infile, hier_file, root_name, outfile):
   (topo, root_tid) = read_topology(hier_file, root_name)
   assert root_tid

@@ -77,7 +77,14 @@ def start_csv(inport, params, outport, args):
   conflicts = 0
   senior = 0
   managed = 0
+  # In COL 2023 we get:
+  # _csv.Error: field larger than field limit (131072)
+  csv.field_size_limit(131072 * 4)
   for in_row in reader:
+
+    for field in in_row:
+      if len(field) > 10000:
+        log("# Really long row: %s %s" % (count, in_row[0]))
 
     # Deal with raggedness if any
     if len(in_row) > len(in_header):
@@ -253,7 +260,7 @@ def clean_name(row, can_pos, sci_pos):
   if s != row[sci_pos]:
     row[sci_pos] = s
     mod = True
-  if c != row[can_pos]:
+  if can_pos and c != row[can_pos]:
     row[can_pos] = c
     mod = True
   return mod

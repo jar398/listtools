@@ -47,6 +47,7 @@ def use_parse(gn_iter, check_iter):
   (out_gn_full_pos, add_gn_full) = ensure_column("gn_canonical_full")
   (out_gn_stem_pos, add_gn_stem) = ensure_column("gn_canonical_stem")
   (out_gn_auth_pos, add_gn_auth) = ensure_column("gn_authorship")
+  (out_canon_pos, add_canon) = ensure_column("canonicalName")
 
   # May need to consult the source record too
   scientific_pos = windex(checklist_header, "scientificName")
@@ -65,15 +66,17 @@ def use_parse(gn_iter, check_iter):
     gn_row = next(gn_iter)
     out_row = checklist_row + n_added_columns*[MISSING]
 
-    if scientific_pos:
-      sci_name = out_row[scientific_pos]
-    else:
-      sci_name = out_row[canonical_pos]
-
     # Kludge to allow gnparse to parse names of the form '? foo'
     gn_full = gn_row[canonical_full_pos]
     if gn_full.startswith('Wildcard '):
       gn_full = '?' + gn_full[8:]
+    if not canonical_pos:
+      out_row[out_canon_pos] = gn_full
+
+    if scientific_pos:
+      sci_name = out_row[scientific_pos]
+    else:
+      sci_name = out_row[out_canon_pos]
 
     gn_stem = gn_row[canonical_stem_pos]
     if gn_stem.startswith('Wildcard '):
