@@ -577,8 +577,18 @@ work/col2023-mammals-raw.csv: work/col2023-raw.csv
 	$P/subset.py < $< --hierarchy $< --root "6224G" > $@.new
 	@mv -f $@.new $@
 
+work/col2022-mammals-raw.csv: work/col2022-raw.csv
+	$P/subset.py < $< --hierarchy $< --root "6224G" > $@.new
+	@mv -f $@.new $@
+
 work/col2021-mammals-raw.csv: work/col2021-raw.csv
 	$P/subset.py < $< --hierarchy $< --root "6224G" > $@.new
+	@mv -f $@.new $@
+
+risk: work/col-risk.csv
+work/col-risk.csv: work/col2022-mammals.csv work/col2023-mammals.csv src/risk.py
+	src/risk.py --A work/col2022-mammals.csv \
+		    --B work/col2023-mammals.csv > $@.new
 	@mv -f $@.new $@
 
 # ----- 6. ITIS

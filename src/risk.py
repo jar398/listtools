@@ -6,14 +6,13 @@ from workspace import ingest_workspace
 from checklist import *
 
 def generate_risk_report(AB):
-  yield ("A name", "status", "keep", "flush", "add")
+  yield ("A name", "status", "kept", "split out", "lumped in")
   for x in preorder_records(AB.A):
     if get_rank(x, None) == 'species' and is_accepted(x):
       u = AB.in_left(x)
       v = get_link(u, None)
       if not v:
-        log("# Removed %s" % blurb(u))
-        yield (get_best_name(x), "removed", "", "", "")
+        yield (get_ok_name(x), "removed", "", "", "")
       else:
         b1 = theory.get_block(u)
         b2 = theory.get_block(v)
@@ -23,32 +22,37 @@ def generate_risk_report(AB):
         k = not theory.is_empty_block(keep)
         f = not theory.is_empty_block(flush)
         a = not theory.is_empty_block(add)
-        k_exemplars = exemplar_names(keep, AB, u)
-        f_exemplars = exemplar_names(flush, AB, u)
-        a_exemplars = exemplar_names(add, AB, u)
+        k_exemplars = exemplar_names(keep, AB, u, v)
+        f_exemplars = exemplar_names(flush, AB, u, v)
+        a_exemplars = exemplar_names(add, AB, u, v)
         if not k:
-          log("# No exemplars in common: %s" % blurb(u))
-          yield (get_best_name(x), "mismatch",
+          #log("# No exemplars in common: %s" % blurb(u))
+          yield (get_ok_name(x), "mismatch",
                  k_exemplars, f_exemplars, a_exemplars)
         elif f and a:
           log("# Reorg: %s" % blurb(u))
-          yield (get_best_name(x), "reorg",
+          yield (get_ok_name(x), "reorg",
                  k_exemplars, f_exemplars, a_exemplars)
         elif not f and not a:
           pass                  # No risk
         elif f:
           log("# Split: %s" % blurb(u))
-          yield (get_best_name(x), "split",
+          yield (get_ok_name(x), "split",
                  k_exemplars, f_exemplars, a_exemplars)
         else:
           log("# Lump: %s" % blurb(u))
-          yield (get_best_name(x), "lump",
+          yield (get_ok_name(x), "lump",
                  k_exemplars, f_exemplars, a_exemplars)
 
-def exemplar_names(xids, AB, u):
-  return ";".join(map(lambda xid: \
-                        get_canonical(exemplar.xid_to_record(AB, xid, u)),
-                      xids))
+def exemplar_names(xids, AB, u, v):
+  def makename(xid):
+    aname = get_ok_name(exemplar.xid_to_record(AB, xid, u))
+    bname = get_ok_name(exemplar.xid_to_record(AB, xid, v))
+    if aname == bname:
+      return aname
+    else:
+      return "%s[%s]" % (aname, bname)
+  return ";".join(map(makename, xids))
 
 if __name__ == '__main__':
   parser = argparse.ArgumentParser(description="""
