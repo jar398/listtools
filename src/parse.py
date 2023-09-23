@@ -32,10 +32,17 @@ def parse_name(verbatim,
   verbatim = verbatim.replace('  ', ' ')     # two -> one
   canonical = canonical.strip()
   authorship = authorship.strip()
+  # If authorship is ill-formed, discard it e.g. Depéret, 1895 (Gervais, 1847)
+  if (authorship.endswith(')') and
+      not authorship.startswith('(')):
+    authorship = MISSING
   if canonical != MISSING and authorship != MISSING:
     (canonical0, auth0) = (canonical, authorship)
   else:
     (canonical0, auth0) = split_name(verbatim)
+  if auth0 != None:
+    auth0 = auth0.strip(', ')
+  assert auth0 == None or not auth0.startswith(',')
   auth_n = gn_auth.count(' ') + 1 if gn_auth != MISSING else 0
   if gn_full != MISSING:
     # Interesting to look at.
@@ -64,16 +71,21 @@ def parse_name(verbatim,
   if g == '?': g = None         # cf. use_gnparse.py, but careful MSW3
   (t, y, protonymp) = analyze_authorship(auth)
   (t2, y2, protonymp2) = analyze_authorship(auth0)
+  if not t: t = t2              # ???
   if t and t2 and t != t2:
     pass
     # log("# parse: tokens (by different methods) differ: %s %s" % (t, t2))
     # parse: tokens (by different methods) differ: De DeKay
     # parse: tokens (by different methods) differ: La LaVal
     # parse: tokens (by different methods) differ: Fitz FitzGibbon
+  if not y: y = y2              # ???
   if y and y2 and y != y2:
-    log("# parse: years (by different methods) differ: %s %s" % (y, y2))
-  if auth and auth0 and protonymp != protonymp2:
-    log("# parse: protonymps (by different methods) differ: '%s' / '%s'" %
+    log("# parse: years (by different methods) differ: %s / %s" % (auth, auth0))
+  # ugh, tangled code
+  if protonymp == None: protonymp = protonymp2
+  if protonymp != None and protonymp2 != None and \
+     protonymp != protonymp2:
+    log("# parse: protonymps (by different methods) differ: %s / %s" %
         (auth, auth0))
   return Parts(verbatim, canonical, g, e, auth, t, y, protonymp)
 
@@ -90,7 +102,8 @@ def recover_canonical(gn_full, gn_stem, gn_auth, hack_canonical):
   n_full_chunks = gn_full.count(' ')
   # gnparser "Cryptotis avia  G. M. Allen, 1923 as C. thomasi & C. avia."
   if n_full_chunks > n_hack_canonical_chunks:
-    log("** Ill formed canonical name: %s" % gn_full)
+    # ** Ill formed canonical name: Homo sapiens × Rattus norvegicus fusion cell line
+    log("** Ill formed canonical name: full %s\n / hack %s" % (gn_full, hack_canonical_chunks))
     extra = []
   else:
     # TBD: Should interpolate chunks that are in full but missing
@@ -114,9 +127,20 @@ def recover_canonical(gn_full, gn_stem, gn_auth, hack_canonical):
 def analyze_authorship(auth):
   if not auth: return (None, None, None) # moved? don't know
   if auth.endswith(').'): auth = auth[0:-1] # for MDD
-  protonymp = not (auth[0] == '(' and auth[-1] == ')')
-  if not protonymp:
-    auth = auth[1:-1]
+
+  # GBIF sometimes has (yyyy) where it should have yyyy
+  m = parenyear_re.search(auth)
+  if m:
+    auth = auth.replace(m[0], m[0][1:-1])
+
+  # Find (...) in auth, assume it means this isn't a protonym, and flush parents
+  if '(' in auth and ')' in auth:
+    auth = auth.replace('(','')
+    auth = auth.replace(')','')
+    protonymp = False
+  else:
+    protonymp = True
+
   t_match = token_re.search(auth)
   tok = t_match[0] if t_match else None
   if tok == 'Someone': tok = None         # Wild card
@@ -128,22 +152,39 @@ def analyze_authorship(auth):
 # This may not agree with gnparse exactly...
 # [1] is complete canonical; [2] is paren or empty; [3] is authorship part (name(s) + maybe year)
 LP = "\\("
+RP = "\\)"
 split_re = \
   regex.compile(u"(.+?) (((%s)?)\p{Uppercase_Letter}[\p{Letter}.-]+.*)$" % LP)
 token_re = regex.compile(u"\p{Uppercase_Letter}[\p{Letter}{3}-]+")
-year_re = regex.compile(' ([12][0-9]{3})\)?$')
+# Loses with Van Beneden & Gervais, 1868-79
+year_re_string = '\\b([12][0-9]{3})\\b'
+year_re = regex.compile(year_re_string)
+#year_re = regex.compile(' ([12][0-9]{3})\)?$')
 starts_auth_re = \
   regex.compile(u"((%s)?)\p{Uppercase_Letter}\p{Letter}" % LP)
+parenyear_re = \
+  regex.compile("%s%s%s" % (LP, year_re_string, RP))
+
+# Split verbatim using regex.  This is a parsing strategy independent
+# of what gnparse does.
+# Assume that there is no authority for hybrids!
 
 def split_name(verbatim):
-  # 1. Provisional verbatim split using regex
-  m = split_re.search(verbatim)
-  if m:
-    hack_canonical = m[1].strip()
-    hack_auth = m[2].strip()
-  else:
+  if ' × ' in verbatim or ' x ' in verbatim:
     hack_canonical = verbatim
     hack_auth = None      # Not present
+  elif verbatim.endswith(')') and '(' in verbatim:
+    i = verbatim.index('(')
+    hack_canonical = verbatim[0:i].strip()
+    hack_auth = verbatim[i:]
+  else:
+    m = split_re.search(verbatim)
+    if m:
+      hack_canonical = m[1].strip()
+      hack_auth = m[2].strip()
+    else:
+      hack_canonical = verbatim
+      hack_auth = None      # Not present
   return (hack_canonical, hack_auth)
 
 # -----------------------------------------------------------------------------

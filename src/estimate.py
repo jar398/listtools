@@ -1,38 +1,24 @@
 #!/usr/bin/env python3
 
-import math
 import property as prop
-import checklist, workspace, simple, exemplar
+import checklist, workspace, simple, some_exemplar
 
 from util import log
 from checklist import *
 from workspace import *
 from simple import BOTTOM, compare_per_checklist, compare_siblings
-from linkage import really_find_links
-from exemplar import equate_exemplars
-
-import exemplar
-
-
-def iteration(AB):
-  # Links grow monotonically.  Ambiguities are recorded as False but that's OK.
-  really_find_links(AB, compute_distance)
-
-  # Exemplars grow monotonically, no need to overwrite.
-  exemplar.analyze_exemplars(AB)   # does set_exemplar(...)
-
-  # Cross-mrcas need to be replaced (LUBs get tighter/smaller).
-  #  Easily overwritten.
-  compute_cross_mrcas(AB)          # does set_cross_mrca(...)
-
-  # Estimates depend highly on cross-mrcas.  Easily overwritten.
-  find_estimates(AB)               # does set_estimate(...)
+from some_exemplar import equate_exemplars, get_exemplar
 
 # -----------------------------------------------------------------------------
 
 (get_estimate, set_estimate) = prop.get_set(prop.declare_property("estimate"))
 
 def find_estimates(AB):
+  # Cross-mrcas might need to be replaced 
+  #  (LUBs get tighter/smaller on 2nd pass).
+  #  Easily overwritten.
+  compute_cross_mrcas(AB)          # does set_cross_mrca(...)
+
   counts = [0, 0]
   def findem(AB):
     def doit(AB):
@@ -51,32 +37,56 @@ def find_estimates(AB):
   findem(swap(AB))              # swap is in checklist
   log("-- Estimates: %s (=), %s (<)" % (int(counts[0]/2), counts[1]))
 
-# Not sure about this
+# Given a model M, let [u] be the least node in the opposite checklist
+# that contains u.  Then we're interested in the minimal [u] taken over
+# all models.  Does that work?  Is it unique?
 
 def find_estimate(AB, u):
   ship = EQ
-  while True:                   # Skip over peripherals
-    u0 = u
-    v = get_cross_mrca(u, None)
+  # If u is in A, find smallest v in B with u <= v (sim. B/A)
+  u2 = u
+  while True:
+    # Skip over peripherals, locating non-peripheral u2
+    v = get_cross_mrca(u2, None)
     if v != None:
       break
-    sup = local_sup(AB, u)
-    assert sup, (blurb(u1), blurb(u))
-    u = sup.record
+    sup = local_sup(AB, u2)
+    assert sup, blurb(u2)       # not at root
+    u2 = sup.record
     ship = LT
-  u2 = u
+
+  # Let a "chain" be a maximal sequence of nodes all having the same
+  # cross_mrca (or exemplar set).
+
+  # If  u is part of a chain u1 -> ... u ... -> u4
+  # and cross_mrca(u) = v1,
+  # and we have a chain      v1 -> ...   ... -> v4, then...
+
+  # with v1 = cross_mrca(u), u1 = cross_mrca(v1),
+  # then if   u <= u1   then the answer is v1 ... v4
+  #      if   u > u1    then the answer is v1. ??
+
   v1 = v
+  # could have v1 >= u2 (if v1 has more or same exemplars as u2)
+  # or v1 < u2 (if same exemplars but u2 has additional non-exemplars)
+
   u1 = get_cross_mrca(v1)
+  # necessarily u1 >= v1
+
   if simple.simple_gt(get_outject(u1), get_outject(u2)):
     return relation(LT, v, "goes up ladder")
-  if not get_cross_mrca(u1) is v1:
-    log("# Lose: u2 %s, v1 %s, u1 %s, v0 %s" %
-        (blurb(u2), blurb(v1), blurb(u1), blurb(get_cross_mrca(u1))))
+  # necessarily u1 <= u2... but it can't be <, can it?
+
+  v0 = get_cross_mrca(u1)
+  if not v0 is v1:
+    # could have u1 ~ v1 <= u1 <= v0... very unusual
+    log("# Lose: u2 %s, v1 %s <= u1 %s <= v0 %s" %
+        (blurb(u2), blurb(v1), blurb(u1), blurb(v0)))
     assert False
   if u1 is u2:
     return relation(ship, v1, "bottom of ladder")
   if monitor(u1) or monitor(u2) or monitor(v1):
-    set_scene(AB, u0, u1, v1, u2)
+    set_scene(AB, u, u1, v1, u2)
 
   # Scan upwards from v1 looking for a way back to the u chain, either
   # by a linked name or by hitting the top of the chain.
@@ -108,21 +118,23 @@ def find_estimate(AB, u):
       if u2 is u3:
         # Candidate's (v3's) partner (u3) belongs to our node u2
         if monitor(u3):
-          log("# lub: Jackpot %s, %s" % (blurb(u2), blurb(v3)))
+          log("# estimate: Jackpot %s, %s" % (blurb(u2), blurb(v3)))
         equate_exemplars(u3, v3)
         note="linked"
         break
       if simple.simple_lt(u2, u3):
         # Answer is v3 (= v)
         if monitor(u3):
-          log("# lub: Modestly %s, %s" % (blurb(u2), blurb(v3)))
+          log("# estimate: Modestly %s, %s" % (blurb(u2), blurb(v3)))
         ship = LT
         note="goes up to linked"
         break
 
   return relation(ship, v, note)
 
-def set_scene(AB, u0, u1, v1, u2):
+# is u correct here?
+
+def set_scene(AB, u, u1, v1, u2):
   us = []
   u = u1
   while get_cross_mrca(u) is v1:
@@ -134,10 +146,10 @@ def set_scene(AB, u0, u1, v1, u2):
     vs.append(blurb(v))
     v = local_sup(AB, v).record
   u2p = local_sup(AB, u2).record
-  if u0 is u2:
-    log("# u0 = u2 %s | %s" % (blurb(u0), blurb(u2p)))
+  if u is u2:
+    log("# u = u2 %s | %s" % (blurb(u), blurb(u2p)))
   else:
-    log("# u0 %s --> u2 %s | %s" % (blurb(u0), blurb(u2), blurb(u2p)))
+    log("# u %s --> u2 %s | %s" % (blurb(u), blurb(u2), blurb(u2p)))
   log("#   v1...: %s | %s" % ("; ".join(vs), blurb(v)))
   log("#   u1...: %s | %s" % ("; ".join(us), blurb(u)))
 
@@ -172,7 +184,7 @@ def compute_cross_mrcas(AB):
   def do_cross_mrcas(AB):
     def traverse(x):            # arg in A, result in B
       u = AB.in_left(x)         # in AB
-      exem = exemplar.get_exemplar(u)       # in AB
+      exem = get_exemplar(u)       # in AB
       if exem:
         (_, u1, v1) = exem
         v = v1 if separated(u, v1) else u1
@@ -195,45 +207,3 @@ def compute_cross_mrcas(AB):
 
 (get_cross_mrca, set_cross_mrca) = \
   prop.get_set(prop.declare_property("cross_mrca"))
-
-# -----------------------------------------------------------------------------
-
-# distance is thresholded, so it only really matters whether it's small
-# or large
-
-# For mammals, tip to root is expected to be about 13... 
-# For 2M species, tip to root is expected to be about 20... 
-
-def compute_distance(u, v):
-  assert separated(u, v)
-  if get_estimate(u, None) and get_estimate(v, None):
-    return int((compute_half_distance(u, v) +
-                compute_half_distance(v, u))/2)
-  else:
-    return None
-
-def compute_half_distance(u, v):
-  # u < u1 <= (v1 < m > v)
-  assert separated(u, v)
-  v1 = get_estimate(u).record
-  y = get_outject(v)
-  y1 = get_outject(v1)
-  m = simple.mrca(y1, y)
-  dist = (distance_on_lineage(y1, m) +
-          distance_on_lineage(y, m))
-  return dist
-
-def distance_on_lineage(u1, u2):
-  if u1 == u2:
-    return 0
-  return (distance_to_parent(u1) +
-          distance_on_lineage(get_superior(u1).record, u2))
-
-def distance_to_parent(u):
-  sup = get_superior(u)
-  return lg(max(1,len(get_children(sup.record, ()))))
-
-def lg(x):
-  return math.log(x)/log2
-log2 = math.log(2)
-

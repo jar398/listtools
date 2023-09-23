@@ -249,7 +249,8 @@ def resolve_superior_link(S, record):
   accepted_key = get_accepted_key(record, None)
   taxonID = get_primary_key(record)
   assert taxonID
-  assert accepted_key != taxonID, (accepted_key, taxonID)  # see start.py
+  assert accepted_key != taxonID, (accepted_key, taxonID,
+                                   get_source_tag(record))  # see start.py
   if accepted_key:
     # set_accepted(record, False)
     accepted = look_up_record(S, accepted_key, record)

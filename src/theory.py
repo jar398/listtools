@@ -9,18 +9,20 @@ from checklist import *
 from workspace import *
 
 import exemplar
-import lub
-from lub import iteration, get_estimate, get_equivalent
+import estimate
+from estimate import get_estimate, get_equivalent
 
 # Assumes that name matches are already stored in AB.
 
-def theorize(AB):
+def theorize(AB, compute_exemplars=True):
   # ... exemplar.exemplars(A_iter, B_iter, m_iter) ...
   # TBD: option to read them from a file
   # Assumes links found already  - find_links(AB)
-  iteration(AB)
-  # Now we can compute distances !!!
-  iteration(AB)
+  if compute_exemplars:
+    exemplar.find_exemplars(AB)
+  # else: read them from a file
+
+  estimate.find_estimates(AB)
   analyze_blocks(AB)               # does set_block(...)
 
 #-----------------------------------------------------------------------------

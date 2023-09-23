@@ -3,7 +3,7 @@
 import sys, csv, argparse
 import util, property as prop
 import checklist, workspace, exemplar #match_records
-import lub, theory, span, rows, linkage
+import estimate, theory, span, rows, linkage
 
 from util import windex, MISSING
 from property import mep_get, mep_set
@@ -11,7 +11,7 @@ from rcc5 import *
 from checklist import *
 from workspace import *
 from theory import cross_compare
-from lub import get_equivalent, get_estimate
+from estimate import get_estimate, get_equivalent
 
 def align(A_iter, B_iter, A_name='A', B_name='B', matches_iter=None):
   AB = ingest_workspace(a_rows.rows(), b_rows.rows(),
@@ -103,7 +103,7 @@ def generate_alignment(AB, matches=None):
             else:
               # De novo, unassigned split, or retracted
               if get_rank(u, None) == 'species':
-                if not lub.get_cross_mrca(u, None):
+                if not estimate.get_cross_mrca(u, None):
                   yield (u,
                          relation(est_rel.relationship | DISJOINT,
                                   v, est_rel.note, est_rel.span),
@@ -233,7 +233,7 @@ if __name__ == '__main__':
         # compute name matches afresh
         AB = ingest_workspace(a_rows.rows(), b_rows.rows(),
                               A_name=args.Aname, B_name=args.Bname)
-        linkage.find_links(AB)
+        # linkage.find_links(AB)  -- not needed!
         al = generate_alignment(AB)
         report = simple_report(al)
         util.write_rows(report, sys.stdout)

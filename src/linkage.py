@@ -3,6 +3,7 @@
 # Record linkage - Calculate match score / probability
 # See wikipedia record linkage article
 
+import math
 import util
 import property as prop
 import parse, rows
@@ -18,13 +19,10 @@ REVIEW      = HOMOTYPIC | HETEROTYPIC
 
 NEUTRAL = 0
 
-def find_links(AB, m_iter=None, nearness=None):
-  return 
-
 # For each record, get list of matching records.... hmm
 # Future: read exceptions or whole thing from a file
 
-def really_find_links(AB, distance):
+def really_find_links(AB, get_pre_estimate):
   # This sets the 'link' property of ... some ... records.
   subproblems = find_subproblems(AB)
 
@@ -36,12 +34,14 @@ def really_find_links(AB, distance):
         have2 = get_link(v, None)
         if have1 == None or have2 == None:
           # **** COMPUTE DISTANCE if 2nd pass ****
-          dist = distance(u, v)
+          # There's probably a simpler default if 1st, but this will do
+          dist = compute_distance(u, v, get_pre_estimate)
           score = compute_score(u, v, dist)
           improve_link(u, v, score, key)
           improve_link(v, u, score, key)
           #log("#  Improved: %s %s" % (blurb(u), blurb(get_link(u))))
-  assert get_link(AB.in_left(AB.A.top)) == AB.in_right(AB.B.top)
+  if get_link(AB.in_left(AB.A.top), None) != AB.in_right(AB.B.top):
+    log("tops don't link")
   report_on_links(AB, subproblems)
 
 def report_on_links(AB, subproblems):
@@ -239,7 +239,9 @@ THRESH_Q = compute_parts_score(parse_name("Foo bar Jones, 1927"),
                                parse_name("Quux bar Jones, 1927"),
                                5)
 log("# For distinct genus starts: %s" % THRESH_Q)
-assert THRESH_Q < THRESH
+assert THRESH_Q < THRESH, \
+  (parse_name("Foo bar Jones, 1927"),
+   parse_name("Quux bar Jones, 1927"))
 
 # The most similar things that are dissimilar.  Distinguish records that 
 # are this different (minimally different) or more so.
@@ -288,3 +290,46 @@ if __name__ == '__main__':
         find_links(AB)
         report_gen = generate_linkage_report(AB)
         util.write_rows(report_gen, sys.stdout)
+
+
+# -----------------------------------------------------------------------------
+
+# distance is thresholded, so it only really matters whether it's small
+# or large
+
+# For mammals, tip to root is expected to be about 13... 
+# For 2M species, tip to root is expected to be about 20... 
+
+def compute_distance(u, v, get_pre_estimate):
+  assert separated(u, v)
+  if get_pre_estimate(u, None) and get_pre_estimate(v, None):
+    return int((compute_half_distance(u, v, get_pre_estimate) +
+                compute_half_distance(v, u, get_pre_estimate))/2)
+  else:
+    return None
+
+def compute_half_distance(u, v, get_pre_estimate):
+  # u < u1 <= (v1 < m > v)
+  assert separated(u, v)
+  v1 = get_pre_estimate(u).record
+  y = get_outject(v)
+  y1 = get_outject(v1)
+  m = simple.mrca(y1, y)
+  dist = (distance_on_lineage(y1, m) +
+          distance_on_lineage(y, m))
+  return dist
+
+def distance_on_lineage(u1, u2):
+  if u1 == u2:
+    return 0
+  return (distance_to_parent(u1) +
+          distance_on_lineage(get_superior(u1).record, u2))
+
+def distance_to_parent(u):
+  sup = get_superior(u)
+  return lg(max(1,len(get_children(sup.record, ()))))
+
+def lg(x):
+  return math.log(x)/log2
+log2 = math.log(2)
+
