@@ -23,7 +23,8 @@ from workspace import *
 # find_exemplars is defined in exemplar.py.  Does 2 passes.
 # find_some_exemplars is just one pass; invoked twice.
 
-def find_some_exemplars(AB):
+def find_some_exemplars(AB, get_pre_estimate):
+  linkage.really_find_links(AB, get_pre_estimate)
   analyze_tipwards(AB)
 
   def do_exemplars(CD):

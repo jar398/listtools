@@ -22,9 +22,17 @@ NEUTRAL = 0
 # For each record, get list of matching records.... hmm
 # Future: read exceptions or whole thing from a file
 
-def really_find_links(AB, get_pre):
+# Definition of 'subproblem':
+# If a node pair (u, v) doesn't have u in us and v in vs for some
+# 'subproblem' (us, vs) then it is not going to be considered a
+# potential match.
+
+# 'pre_estimate' = LUB estimate from first pass, if this is second pass.
+
+def really_find_links(AB, get_pre_estimate):
   # This sets the 'link' property of ... some ... records.
   subproblems = find_subproblems(AB)
+  log("# There are %s subproblems" % len(subproblems))
 
   for (key, (us, vs)) in subproblems.items():
     # classify as A1, A2, A3 (HETEROTYPIC, REVIEW, HOMOTYPIC)
@@ -35,7 +43,7 @@ def really_find_links(AB, get_pre):
         if have1 == None or have2 == None:
           # **** COMPUTE DISTANCE if 2nd pass ****
           # There's probably a simpler default if 1st, but this will do
-          dist = compute_distance(u, v, get_pre)
+          dist = compute_distance(u, v, get_pre_estimate)
           score = compute_score(u, v, dist)
           improve_link(u, v, score, key)
           improve_link(v, u, score, key)
@@ -300,19 +308,21 @@ if __name__ == '__main__':
 # For mammals, tip to root is expected to be about 13... 
 # For 2M species, tip to root is expected to be about 20... 
 
-def compute_distance(u, v, get_pre):
+def compute_distance(u, v, get_pre_estimate):
   assert separated(u, v)
-  if get_pre(u, None) and get_pre(v, None):
-    return int((compute_half_distance(u, v, get_pre) +
-                compute_half_distance(v, u, get_pre))/2)
+  up = get_pre_estimate(u, None)
+  vp = get_pre_estimate(v, None)
+  if up and vp:
+    return int((compute_half_distance(u, v, up) +
+                compute_half_distance(v, u, vp))/2)
   else:
     return None
 
-def compute_half_distance(u, v, get_pre):
+def compute_half_distance(u, v, up):
   # u < u1 <= (v1 < m > v)
   assert separated(u, v)
-  v1 = get_pre(u).record
-  y = get_outject(v)
+  v1 = up.record
+  y  = get_outject(v)
   y1 = get_outject(v1)
   m = simple.mrca(y1, y)
   dist = (distance_on_lineage(y1, m) +

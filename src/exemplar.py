@@ -9,9 +9,9 @@ from estimate import get_estimate, find_estimates
 from some_exemplar import find_some_exemplars, get_exemplar
 
 def find_exemplars(AB):
-  find_some_exemplars(AB)
+  find_some_exemplars(AB, get_estimate)
   find_estimates(AB)
-  find_some_exemplars(AB)
+  find_some_exemplars(AB, get_estimate)
 
 # exemplars
 
@@ -37,12 +37,15 @@ def write_exemplar_list(AB, out=sys.stdout):
 
 def generate_exemplars(AB):
   yield ("exemplar", "A_taxonID", "B_taxonID", "A_blurb", "B_blurb") # representatives
-  count = 0
+  count = rcount = ecount = lcount = 0
   seen = {}
   for x in preorder_records(AB.A):
+    rcount += 1
     z = AB.in_left(x)
+    if get_link(x, None): lcount += 1
     r = get_exemplar(z)
     if r:
+      ecount += 1
       (id, u, v) = r
       if u == z:
         u_key = get_primary_key(get_outject(u))
@@ -50,6 +53,8 @@ def generate_exemplars(AB):
         yield (id, u_key, v_key, blurb(u), blurb(v))
         count += 1
   log("# %s rows in exemplar report" % count)
+  log("# preorder: %s, links %s, exemplars: %s" % (rcount, lcount, ecount)) 
+
 
 if __name__ == '__main__':
   parser = argparse.ArgumentParser(description="""
