@@ -1,17 +1,17 @@
 #!/usr/bin/env python3
 
 import sys, argparse
-import rows
-
+import util, rows
 from workspace import *
-from estimate import get_estimate, find_estimates
 from util import log, windex
-from some_exemplar import find_some_exemplars
+
+from estimate import get_estimate, find_estimates
+from some_exemplar import find_some_exemplars, get_exemplar
 
 def find_exemplars(AB):
-  find_some_exemplars(AB, get_estimate)
+  find_some_exemplars(AB)
   find_estimates(AB)
-  find_some_exemplars(AB, get_estimate)
+  find_some_exemplars(AB)
 
 # exemplars
 

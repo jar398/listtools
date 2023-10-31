@@ -173,13 +173,14 @@ in/%.zip: work/%.dwca-url
 	touch $@.new
 	mv -f $@.new $@
 
-# Extract contents of a .zip file
+# Extract contents of a .zip file (GBIF, NCBI, anything)
 
 work/%.dump: in/%.zip
+	rm -rf $@.new
 	mkdir -p $@.new
 	unzip -d $@.new $<
+	touch $@.new/*
 	rm -rf $@ && mv $@.new $@
-	touch $@/*
 
 # Normalize the DwCA taxon file (no managed id space).
 
@@ -265,17 +266,14 @@ work/ncbi201505-$(taxon)-raw.csv: work/ncbi201505-raw.csv
 work/ncbi202008-$(taxon)-raw.csv: work/ncbi202008-raw.csv
 
 # Convert NCBI taxdump to DwC form
-work/ncbi%-raw.csv: work/ncbi%.dump/names.dmp $P/ncbi_to_dwc.py $P/start.py
-	$P/ncbi_to_dwc.py `dirname $<` \
-	| $P/start.py --pk $(PRIMARY_KEY) > $@.new
+#work/ncbi%-raw.csv: work/ncbi%.dump
+
+work/ncbi%.dump/taxon.csv: work/ncbi%.dump/names.dmp $P/ncbi_to_dwc.py
+	$P/ncbi_to_dwc.py `dirname $<` > $@.new
 	@mv -f $@.new $@
 
-# Extract files from NCBI .zip file
-work/%.dump/names.dmp: in/%.zip
-	rm -rf `dirname $@`
-	mkdir -p `dirname $@`
-	unzip -d `dirname $@` $<
-	touch `dirname $@`/*
+# Extract files from NCBI .zip file (?)
+work/%.dump/names.dmp: work/%.dump
 
 # Download and unpack some version of NCBI Taxonomy
 # The theory of in/ is not well baked yet
@@ -317,6 +315,9 @@ work/gbif%-raw.csv: work/gbif%.dump $P/start.py
 	  --managed gbif:taxonID >$@.new
 	@mv -f $@.new $@
 .PRECIOUS: work/gbif%-raw.csv
+
+work/gbif201505.dwca-url:
+	echo https://rs.gbif.org/datasets/backbone/2015-05-05/backbone.zip >$@
 
 work/gbif20190916.dwca-url:
 	echo https://rs.gbif.org/datasets/backbone/2019-09-06/backbone.zip >$@

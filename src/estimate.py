@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 import property as prop
-import checklist, workspace, simple, some_exemplar
+import checklist, workspace, simple
 
 from util import log
 from checklist import *

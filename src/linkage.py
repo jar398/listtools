@@ -22,7 +22,7 @@ NEUTRAL = 0
 # For each record, get list of matching records.... hmm
 # Future: read exceptions or whole thing from a file
 
-def really_find_links(AB, get_pre_estimate):
+def really_find_links(AB, get_pre):
   # This sets the 'link' property of ... some ... records.
   subproblems = find_subproblems(AB)
 
@@ -35,7 +35,7 @@ def really_find_links(AB, get_pre_estimate):
         if have1 == None or have2 == None:
           # **** COMPUTE DISTANCE if 2nd pass ****
           # There's probably a simpler default if 1st, but this will do
-          dist = compute_distance(u, v, get_pre_estimate)
+          dist = compute_distance(u, v, get_pre)
           score = compute_score(u, v, dist)
           improve_link(u, v, score, key)
           improve_link(v, u, score, key)
@@ -300,18 +300,18 @@ if __name__ == '__main__':
 # For mammals, tip to root is expected to be about 13... 
 # For 2M species, tip to root is expected to be about 20... 
 
-def compute_distance(u, v, get_pre_estimate):
+def compute_distance(u, v, get_pre):
   assert separated(u, v)
-  if get_pre_estimate(u, None) and get_pre_estimate(v, None):
-    return int((compute_half_distance(u, v, get_pre_estimate) +
-                compute_half_distance(v, u, get_pre_estimate))/2)
+  if get_pre(u, None) and get_pre(v, None):
+    return int((compute_half_distance(u, v, get_pre) +
+                compute_half_distance(v, u, get_pre))/2)
   else:
     return None
 
-def compute_half_distance(u, v, get_pre_estimate):
+def compute_half_distance(u, v, get_pre):
   # u < u1 <= (v1 < m > v)
   assert separated(u, v)
-  v1 = get_pre_estimate(u).record
+  v1 = get_pre(u).record
   y = get_outject(v)
   y1 = get_outject(v1)
   m = simple.mrca(y1, y)
