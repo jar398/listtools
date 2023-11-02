@@ -104,10 +104,16 @@ def score_to_ship(score):
   elif score <= NOTHRESH: return HETEROTYPIC  # NEQ
   else: return REVIEW                         # NOINFO
 
-# Assumes both are descended from the same species (or genus?)
+# u and species assumed to be in the same checklist, yes?
+# Assumes both are descended from the same species (or genus?).
+# Yes, if they're near one another and the epithet stems match.
+# 5 is an estimate of typical max distance between a species and 
+#  any descendant... hmm...  there has to be a better way
+
+NEAR = 5
 
 def homotypic(u, species):
-  return score_to_ship(compute_score(u, species, 5)) == HOMOTYPIC
+  return score_to_ship(compute_score(u, species, NEAR)) == HOMOTYPIC
 
 # Find blocks/chunks, one per epithet
 
@@ -154,7 +160,8 @@ def get_subproblem_key(z):
 
 # -----------------------------------------------------------------------------
 # Score potentially contipic taxa.
-# If distance is close, give a pass on genus mismatch.
+# distance is distance (perhaps estimated) between u and v in combined model.
+# If distance (in tree) is close, give a pass on genus mismatch.
 
 def compute_score(u, v, distance=None):
   score = compute_parts_score(get_parts(u),

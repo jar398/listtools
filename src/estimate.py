@@ -22,15 +22,14 @@ def find_estimates(AB):
   counts = [0, 0]
   def findem(AB):
     def doit(AB):
-      if True:
-        for x in checklist.postorder_records(AB.A):
-          u = AB.in_left(x)
-          rel = find_estimate(AB, u)
-          set_estimate(u, rel)
-          if rel.relationship == EQ: # Metering
-            counts[0] += 1
-          else:
-            counts[1] += 1
+      for x in checklist.postorder_records(AB.A):
+        u = AB.in_left(x)
+        rel = find_estimate(AB, u)
+        set_estimate(u, rel)
+        if rel.relationship == EQ: # Metering
+          counts[0] += 1
+        else:
+          counts[1] += 1
     doit(AB)
     doit(swap(AB))
   findem(AB)
@@ -51,6 +50,9 @@ def find_estimate(AB, u):
     if v != None:
       break
     sup = local_sup(AB, u2)
+    if not sup:
+      # u2 is top
+      return relation(ship, u2, "estimate = top")
     assert sup, blurb(u2)       # not at root
     u2 = sup.record
     ship = LT

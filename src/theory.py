@@ -2,11 +2,12 @@
 
 import math
 import property as prop
-import checklist, workspace, simple, exemplar
+import rcc5, checklist, workspace, simple, exemplar
 
 from util import log
 from checklist import *
 from workspace import *
+from rcc5 import rcc5_symbol
 
 import exemplar
 import estimate
@@ -27,6 +28,7 @@ def theorize(AB, compute_exemplars=True):
 
 #-----------------------------------------------------------------------------
 # compare: The implementation of the RCC-5 theory of AB (A+B).
+# Returns a relation.
 
 def compare(AB, v, w):
   if separated(v, w):
@@ -318,8 +320,10 @@ def analyze_blocks(ws):
   # Sanity check
   b1 = get_block(ws.in_left(ws.A.top))
   b2 = get_block(ws.in_right(ws.B.top))
-  assert b1 != BOTTOM_BLOCK
-  assert b1 == b2
+  if b1 != b2:
+    assert b1 == b2
+  if b1 == BOTTOM_BLOCK:
+    assert b1 != BOTTOM_BLOCK
 
 # For debugging
 

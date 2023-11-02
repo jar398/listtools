@@ -7,30 +7,34 @@ from util import log, windex
 
 from estimate import get_estimate, find_estimates
 from some_exemplar import find_some_exemplars, get_exemplar
+from some_exemplar import init_exemplar
+
+# listtools's exemplar-finding procedure.  If there is some other way
+# of finding exemplars, that's fine, don't need to use this.
 
 def find_exemplars(AB):
   find_some_exemplars(AB, get_estimate)
   find_estimates(AB)
   find_some_exemplars(AB, get_estimate)
 
-# exemplars
+# Read list of exemplars from file (given as a Rows)
 
-def read_exemplars(inpath, AB):
+def read_exemplars(in_rows, AB):
   exemplars = {}
-  with open(inpath) as infile:
-    reader = csv.reader(infile)
-    header = next(reader)
-    id_col = windex(header, "exemplar")
-    a_col = windex(header, "A_taxonID")
-    b_col = windex(header, "B_taxonID")
-    for row in reader:
-      exemplars[id_col] = \
-        (row[id_col],
-         checklist.look_up_record(AB.A, row[a_col]),
-         checklist.look_up_record(AB,B, row[b_col]))
+  init_exemplar(AB, exemplars, 1, AB.A.top, AB.B.top)    # is there a better way?
+  the_rows = in_rows.rows()     # caller will close in_rows
+  header = next(the_rows)
+  id_col = windex(header, "exemplar")
+  a_col = windex(header, "A_taxonID")
+  b_col = windex(header, "B_taxonID")
+  for row in the_rows:
+    id = int(row[id_col])
+    log("# exemplar #%s = %s" % (id, row))
+    x = checklist.look_up_record(AB.A, row[a_col])
+    y = checklist.look_up_record(AB.B, row[b_col])
+    init_exemplar(AB, exemplars, id, x, y)
+  log("# %s exemplars" % len(exemplars))
   return exemplars
-
-# could do this as a generator + write_rows
 
 def write_exemplar_list(AB, out=sys.stdout):
   util.write_rows(generate_exemplars(AB), out)
@@ -40,18 +44,19 @@ def generate_exemplars(AB):
   count = rcount = ecount = lcount = 0
   seen = {}
   for x in preorder_records(AB.A):
-    rcount += 1
-    z = AB.in_left(x)
-    if get_link(x, None): lcount += 1
-    r = get_exemplar(z)
-    if r:
-      ecount += 1
-      (id, u, v) = r
-      if u == z:
-        u_key = get_primary_key(get_outject(u))
-        v_key = get_primary_key(get_outject(v))
-        yield (id, u_key, v_key, blurb(u), blurb(v))
-        count += 1
+    if not is_top(x):               # ?
+      rcount += 1
+      z = AB.in_left(x)
+      if get_link(x, None): lcount += 1
+      r = get_exemplar(z)
+      if r:
+        ecount += 1
+        (id, u, v) = r
+        if u == z:
+          u_key = get_primary_key(get_outject(u))
+          v_key = get_primary_key(get_outject(v))
+          yield (id, u_key, v_key, blurb(u), blurb(v))
+          count += 1
   log("# %s rows in exemplar report" % count)
   log("# preorder: %s, links %s, exemplars: %s" % (rcount, lcount, ecount)) 
 

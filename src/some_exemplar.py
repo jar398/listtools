@@ -17,7 +17,6 @@ from workspace import *
 # has no tipward accepted descendant taxon.
 
 # See AB.exemplars for map {id: [id, v, w], ...}
-# Called from theory.theorize.
 # Each exemplar has a representative in A and one in B.
 
 # find_exemplars is defined in exemplar.py.  Does 2 passes.
@@ -28,23 +27,22 @@ def find_some_exemplars(AB, get_pre_estimate):
   analyze_tipwards(AB)
 
   def do_exemplars(CD):
-    def traverse(x, species):      # x in A
+    def traverse(x, species):      # species is an ancestor of x, in A
       u = CD.in_left(x)
       
-      if species:
-        if linkage.homotypic(u, species):
-          equate_exemplars(species, u)
-
-      if get_rank(u, None) == 'species':
+      if not species and get_rank(u, None) == 'species':
         species = u
+      for c in get_inferiors(x):
+        traverse(c, species)
 
       v = get_tipward(u, None)
+      # u has priority over v
       if v:                     # not None or False
         u_back = get_tipward(v, None)
         if u_back is u:         # Mutual?
           if monitor(u) or monitor(v):
             log("# exemplar: Mutual: %s -> %s" % (blurb(u), blurb(v)))
-          equate_exemplars(u, v)
+          equate_exemplars(u, v) # Normal case.
         elif u_back == None:
           if monitor(u) or monitor(v):
             log("# exemplar: Nonmutual: %s -> %s -> (none)" % 
@@ -59,8 +57,12 @@ def find_some_exemplars(AB, get_pre_estimate):
           log("# exemplar: Returns to different tipward %s -> %s -> %s" % 
               (blurb(u), blurb(v), blurb(u_back)))
 
-      for c in get_inferiors(x):
-        traverse(c, species)
+      if False and species:
+        if linkage.homotypic(u, species): # same epithet stem
+          equate_exemplars(u, species)    # ? what is this for ?
+
+      # TBD: Handle multiple subspecifics with same epithet...
+
     traverse(CD.A.top, None)
 
   do_exemplars(AB)
@@ -84,6 +86,7 @@ def report_on_exemplars(AB):
 
 def equate_exemplars(u, v):     # opposite checklists. u might be species
   if u != v:
+    # assert u descends from v if in same checklist?
     uf = get_exemplar_uf(u)
     vf = get_exemplar_uf(v)
     merge_representatives(uf.find(), vf.find())
@@ -99,18 +102,23 @@ def merge_representatives(uf, vf): # absorb into uf
     #log("# Same exemplar: e(%s) = e(%s)" % (blurb(r[1]), blurb(r[2])))
     pass
   if i1 and i2:
-    r[0] = min(i1, i2)
+    r[0] = min(i1, i2)          # wait, what is this for?
   else:
     r[0] = i1 or i2
+
+# u1 and u2 are in same checklist
 
 def unify_records(u1, u2):
   if not u2: return u1
   if not u1: return u2
   rel = simple.compare_per_checklist(u1, u2)
+  if rel.relationship == LT:
+    return u1                   # Prefer more tipward
   if rel.relationship == GT:
     return u2                   # Prefer more tipward
-  if (rel.relationship == EQ and
-      not get_parts(u1).protonymp and get_parts(u2).protonymp):
+  # The following is probably not necessary, but is tidy?
+  # if necessary, should work harder to canonicalize, yes?
+  if (not get_parts(u1).protonymp and get_parts(u2).protonymp):
     log("# preferring protonym %s to %s" % (blurb(u2), blurb(u1)))
     return u2                   # Prefer protonym
   else:
@@ -124,6 +132,17 @@ def get_exemplar_uf(u):
   uf = UnionFindable([None, u, None] if isinA(AB, u) else [None, None, u])
   set_exemplar_uf(u, uf)
   return uf
+
+def init_exemplar(AB, exemplars, id, x, y):
+  u = AB.in_left(x)
+  v = AB.in_right(y)
+  ex = (id, u, v)
+  uf = UnionFindable(ex)
+  set_exemplar_uf(u, uf)
+  set_exemplar_uf(v, uf)
+  assert not id in exemplars, id
+  exemplars[id] = ex
+  return ex
 
 (really_get_exemplar_uf, set_exemplar_uf) = \
   prop.get_set(prop.declare_property("exemplar_uf"))
