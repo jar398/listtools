@@ -89,15 +89,32 @@ def improve_link(u, v, score, key):
     return 0
   else:
     have_v = get_link(u, None) # (v0, score) Anything to improve on?
-    if have_v == None:                 # not None or False
+    if have_v == v:
+      pass
+    elif have_v == None:                 # not None or False
       set_link(u, v)                   # One side, not nec. reciprocal
       #log("# Set link %s ~ %s" % (blurb(u), blurb(v)))
     elif have_v != False:       # ambiguous
       # ambiguous.  wait until later to figure this out.
-      if monitor(u) or monitor(v):
-        log("# linkage: Ambiguous (%s): %s -> %s & %s" %
-            (key, blurb(u), blurb(have_v), blurb(v)))
-      set_link(u, False)
+      # TBD:
+      #   Pick the one that is accepted, if the other isn't?
+      #   Pick the one that has deeper rank (v descends from have_v)?
+      AB = get_workspace(v)
+      if not is_accepted_locally(AB, have_v) and is_accepted_locally(AB, v):
+        if False:
+         log("# linkage: Accepted is better (%s): %s -> %s (was %s)" %
+            (key, blurb(u), blurb(v), blurb(have_v)))
+        set_link(u, v)
+      elif (is_accepted_locally(AB, v) and
+            simple.descends_from(get_outject(v), get_outject(have_v))):
+        log("# linkage: More tipward is better (%s): %s -> %s (was %s)" %
+            (key, blurb(u), blurb(v), blurb(have_v)))
+        set_link(u, v)
+      else:
+        if monitor(u) or monitor(v):
+          log("# linkage: Ambiguous (%s): %s -> %s & %s" %
+              (key, blurb(u), blurb(have_v), blurb(v)))
+        set_link(u, False)
 
 def score_to_ship(score):
   if score >= THRESH:     return HOMOTYPIC    # EQ

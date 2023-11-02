@@ -2,7 +2,7 @@
 
 import math
 import property as prop
-import rcc5, checklist, workspace, simple, exemplar
+import rcc5, checklist, workspace, simple, exemplar, some_exemplar
 
 from util import log
 from checklist import *
@@ -304,7 +304,7 @@ def analyze_blocks(ws):
       for c in get_inferiors(x):  # inferiors in A/B
         e = combine_blocks(e, traverse(c))
 
-      exem = exemplar.get_exemplar(u) # returns none or (id, u, v)
+      exem = some_exemplar.get_exemplar(u) # returns none or (id, u, v)
       if exem:
         (id, _, _) = exem
         e = adjoin_exemplar(id, e)
@@ -329,7 +329,7 @@ def analyze_blocks(ws):
 
 def show_exemplars(z, tag, AB):
   def foo(id):
-    return blurb(exemplar.xid_to_record(AB, id, z))
+    return blurb(some_exemplar.xid_to_record(AB, id, z))
   log("# theory: %s: {%s}" %
       (tag, ", ".join(map(foo, get_block(z)))))
 
@@ -342,10 +342,31 @@ def exemplar_ids(AB, z):
 # in the block for z.
 
 def exemplar_records(AB, z):
-  return (exemplar.xid_to_record(AB, id, z) for id in exemplar_ids(AB, z))
+  return (some_exemplar.xid_to_record(AB, id, z) for id in exemplar_ids(AB, z))
 
 def opposite_exemplar_records(AB, z):
-  return (exemplar.xid_to_opposite_record(AB, id, z) for id in exemplar_ids(AB, z))
+  return (some_exemplar.xid_to_opposite_record(AB, id, z) for id in exemplar_ids(AB, z))
+
+def is_species(u):              # z local
+  if u == False: return False
+  x = get_outject(u)
+  return get_rank(x, None) == 'species' and is_accepted(x)
+
+def get_species(u):
+  s = u
+  while s and not is_species(s):
+    s = local_sup(s)
+  if s: return s
+  return u
+
+def get_overlapping_species(u):
+  o = []
+  ids = set()
+  AB = get_workspace(u)
+  for v in opposite_exemplar_records(AB, u):
+    if not v.id in ids:
+      ids = ids | {id}
+  return o
 
 def get_block(x):
   return really_get_block(x, BOTTOM_BLOCK)

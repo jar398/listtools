@@ -10,7 +10,7 @@ from property import mep_get, mep_set
 from rcc5 import *
 from checklist import *
 from workspace import *
-from theory import cross_compare
+from theory import cross_compare, is_species
 from estimate import get_estimate, get_equivalent
 
 def align(A_iter, B_iter, A_name='A', B_name='B', matches_iter=None):
@@ -142,11 +142,6 @@ def generate_alignment(AB, matches=None):
 
   yield from doit(swap(AB), True) # B has priority
   yield from doit(AB, False)
-
-def is_species(u):              # z local
-  if u == False: return False
-  x = get_outject(u)
-  return get_rank(x, None) == 'species' and is_accepted(x)
 
 # Returns ancestor
 

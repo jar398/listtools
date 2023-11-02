@@ -30,38 +30,65 @@ def find_some_exemplars(AB, get_pre_estimate):
     def traverse(x, species):      # species is an ancestor of x, in A
       u = CD.in_left(x)
       
-      if not species and get_rank(u, None) == 'species':
-        species = u
-      for c in get_inferiors(x):
-        traverse(c, species)
+      if True:
+        # All reciprocal links become exemplars
+        v = get_link(u, None)
+        if v:
+          u2 = get_link(v, None)
+          if u2 == u:
+            equate_exemplars(u, v)
+        for c in get_inferiors(x):
+          traverse(c, species)
 
-      v = get_tipward(u, None)
-      # u has priority over v
-      if v:                     # not None or False
-        u_back = get_tipward(v, None)
-        if u_back is u:         # Mutual?
-          if monitor(u) or monitor(v):
-            log("# exemplar: Mutual: %s -> %s" % (blurb(u), blurb(v)))
-          equate_exemplars(u, v) # Normal case.
-        elif u_back == None:
-          if monitor(u) or monitor(v):
-            log("# exemplar: Nonmutual: %s -> %s -> (none)" % 
-                (blurb(u), blurb(v)))
-          equate_exemplars(u, v)
-        elif u_back == False:
-          if monitor(u) or monitor(v):
-            log("# exemplar: Ambiguous: %s -> %s -> (2 or more)" % 
-                (blurb(u), blurb(v)))
-          equate_exemplars(u, v)
-        else: # u_back != None:     doesn't seem to happen?
-          log("# exemplar: Returns to different tipward %s -> %s -> %s" % 
-              (blurb(u), blurb(v), blurb(u_back)))
+      else:
+        # Only reciprocal tipward links, and species, become exemplars
 
-      if False and species:
-        if linkage.homotypic(u, species): # same epithet stem
-          equate_exemplars(u, species)    # ? what is this for ?
+        v = get_tipward(u, None)
+        # u has priority over v
+        if v:                     # not None or False
+          # 1. Mutual tipward matches mean we have an exemplar
+          u_back = get_tipward(v, None)
+          if u_back is u:         # Mutual?
+            if monitor(u) or monitor(v):
+              log("# exemplar: Mutual: %s -> %s" % (blurb(u), blurb(v)))
+            equate_exemplars(u, v) # Normal case.
+          elif u_back == None:
+            if monitor(u) or monitor(v):
+              log("# exemplar: Nonmutual: %s -> %s -> (none)" % 
+                  (blurb(u), blurb(v)))
+            equate_exemplars(u, v)
+          elif u_back == False:
+            if monitor(u) or monitor(v):
+              log("# exemplar: Ambiguous: %s -> %s -> (2 or more)" % 
+                  (blurb(u), blurb(v)))
+            equate_exemplars(u, v)
+          else: # u_back != None:     doesn't seem to happen?
+            log("# exemplar: Returns to different tipward %s -> %s -> %s" % 
+                (blurb(u), blurb(v), blurb(u_back)))
+        else:
+          if not species and get_rank(u, None) == 'species':
+            species = u
 
-      # TBD: Handle multiple subspecifics with same epithet...
+          found_species = False
+          for c in get_inferiors(x):
+            found_species |= traverse(c, species)
+
+          # 2. A matched species with descendents, having an epithet different
+          # from any descendent, is also an exemplar. (but matched to what??)
+
+
+          v = get_link(u, None)   # None, False, node
+
+          # WORK IN PROGRESSS
+
+          species = u
+          if not found_species and species and linkage.homotypic(u, species): # same epithet stem
+            equate_exemplars(u, species)    # ? what is this for ?
+            found_species = True
+
+          # TBD: Handle multiple subspecifics with same epithet...
+
+          return found_species
 
     traverse(CD.A.top, None)
 
