@@ -22,15 +22,18 @@ from workspace import *
 # find_exemplars is defined in exemplar.py.  Does 2 passes.
 # find_some_exemplars is just one pass; invoked twice.
 
+CARE_TIPWARD = False
+
 def find_some_exemplars(AB, get_pre_estimate):
   linkage.really_find_links(AB, get_pre_estimate)
-  analyze_tipwards(AB)
+  if CARE_TIPWARD:
+    analyze_tipwards(AB)
 
   def do_exemplars(CD):
     def traverse(x, species):      # species is an ancestor of x, in A
       u = CD.in_left(x)
       
-      if True:
+      if not CARE_TIPWARD:
         # All reciprocal links become exemplars
         v = get_link(u, None)
         if v:
@@ -133,37 +136,43 @@ def merge_representatives(uf, vf): # absorb into uf
   else:
     r[0] = i1 or i2
 
-# u1 and u2 are in same checklist
+# x1 and u2 are in same checklist (not in workspace)
 
-def unify_records(u1, u2):
-  if not u2: return u1
-  if not u1: return u2
-  rel = simple.compare_per_checklist(u1, u2)
+def unify_records(x1, x2):
+  if not x2: return x1
+  if not x1: return x2
+  rel = simple.compare_per_checklist(x1, x2)
   if rel.relationship == LT:
-    return u1                   # Prefer more tipward
+    return x1                   # Prefer more tipward
   if rel.relationship == GT:
-    return u2                   # Prefer more tipward
+    return x2                   # Prefer more tipward
   # The following is probably not necessary, but is tidy?
   # if necessary, should work harder to canonicalize, yes?
-  if (not get_parts(u1).protonymp and get_parts(u2).protonymp):
-    log("# preferring protonym %s to %s" % (blurb(u2), blurb(u1)))
-    return u2                   # Prefer protonym
+  parts1 = get_parts(x1)
+  parts2 = get_parts(x2)
+  if (not parts1.protonymp and parts2.protonymp and parts2.genus != None):
+    log("# preferring protonym %s to %s" % (blurb(x2), blurb(x1)))
+    return x2                   # Prefer protonym
   else:
-    return u1
+    return x1
+
+# Only workspace nodes have uf records
 
 def get_exemplar_uf(u):
   #log("# Thinking about exemplar for %s" % blurb(u))
   probe = really_get_exemplar_uf(u, None)
   if probe: return probe
   AB = get_workspace(u)
-  uf = UnionFindable([None, u, None] if isinA(AB, u) else [None, None, u])
+  uf = UnionFindable([None, get_outject(u), None] if isinA(AB, u) else [None, None, get_outject(u)])
   set_exemplar_uf(u, uf)
   return uf
 
+# Union-find nodes start out with no id, then get id when exemplars are identified
+
 def init_exemplar(AB, exemplars, id, x, y):
-  u = AB.in_left(x)
-  v = AB.in_right(y)
-  ex = (id, u, v)
+  assert get_source(x) is AB.A
+  assert get_source(y) is AB.B
+  ex = (id, x, y)
   uf = UnionFindable(ex)
   set_exemplar_uf(u, uf)
   set_exemplar_uf(v, uf)
@@ -175,41 +184,28 @@ def init_exemplar(AB, exemplars, id, x, y):
   prop.get_set(prop.declare_property("exemplar_uf"))
 
 
-# Apply this to an exemplar id to obtain an exemplar union/find node,
-# and return the associated taxon record that's in same checklist as z.
-
-def xid_to_record(AB, id, z):
-  uf = AB.exemplars[id]
-  (_, u, v) = uf.payload()
-  return u if isinA(AB, z) else v
-
-def xid_to_opposite_record(AB, id, z):
-  uf = AB.exemplars[id]
-  (_, u, v) = uf.payload()
-  return v if isinA(AB, z) else u
-
-
 # Returns exemplar record or None.  TO BE USED ONLY AFTER
 # analyze_exemplars HAS FINISHED ITS WORK.
 
 def get_exemplar(u):
+  ws = get_workspace(u)
   uf = really_get_exemplar_uf(u, None)
   if uf:
     r = uf.payload()
-    (id, u, v) = r
-    if u and v:
+    (id, x, y) = r
+    if x and y:
       if not id:
         # Create id (for set operations) on demand
-        ws = get_workspace(u)
         id = fresh_exemplar_id(ws)
         r[0] = id
         ws.exemplars[id] = uf
-        #log("# Exemplar %s: e(%s) = (%s)" % (id, blurb(u), blurb(v)))
+        #log("# Exemplar %s: e(%s) = (%s)" % (id, blurb(x), blurb(y)))
       return r
   return None
 
 # -----------------------------------------------------------------------------
 # Find tipward record matches (TRMs)
+# Not used at present
 
 (get_tipward, set_tipward) = prop.get_set(prop.declare_property("tipward"))
 

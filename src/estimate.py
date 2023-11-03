@@ -183,27 +183,25 @@ def get_equivalent(AB, u):
 # Needed for equivalent and cosuperior calculations
 
 def compute_cross_mrcas(AB):
-  def do_cross_mrcas(AB):
+  def do_cross_mrcas(WS):        # WS is AB or swap(AB)
     def traverse(x):            # arg in A, result in B
-      u = AB.in_left(x)         # in AB
-      exem = get_exemplar(u)       # in AB
+      u = WS.in_left(x)          # in WS
+      exem = get_exemplar(u)       # in WS
       if exem:
-        (_, u1, v1) = exem
-        v = v1 if separated(u, v1) else u1
-        m = get_outject(v)
+        (_, x1, y1) = exem
+        m = y1 if isinA(AB, u) else x1
       else:
         m = BOTTOM                # identity for mrca
-      for c in get_inferiors(x):  # c in A
-        q = traverse(c)       # in B
-        m0 = m
-        m = simple.mrca(m, q)      # in B
+      for c in get_inferiors(x):  # c in WS.A
+        q = traverse(c)           # in WS.B
+        m = simple.mrca(m, q)     # in WS.B
       # Sanity checks
       if m != BOTTOM:
-        v = AB.in_right(m)
+        v = WS.in_right(m)
         assert separated(u, v)
         set_cross_mrca(u, v)
       return m
-    traverse(AB.A.top)
+    traverse(WS.A.top)
   do_cross_mrcas(AB)
   do_cross_mrcas(swap(AB))
 

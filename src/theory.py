@@ -329,54 +329,73 @@ def analyze_blocks(ws):
 
 def show_exemplars(z, tag, AB):
   def foo(id):
-    return blurb(some_exemplar.xid_to_record(AB, id, z))
+    return blurb(xid_to_record(AB, id, z))
   log("# theory: %s: {%s}" %
       (tag, ", ".join(map(foo, get_block(z)))))
+
+# -----------------------------------------------------------------------------
+
+def get_intersecting_species(u):
+  o = []
+  ids = set()
+  AB = get_workspace(u)
+  for v in opposite_exemplar_records(AB, u):
+    s = get_species(v)
+    if not s.id in ids:
+      ids = ids | {s.id}
+      o.append(s)
+  return o
+
+# The records in z's checklist corresponding to the exemplars
+# in the block for z.  (z is in AB)
+
+def exemplar_records(AB, z):
+  return (xid_to_record(AB, id, z) for id in exemplar_ids(AB, z))
+
+def opposite_exemplar_records(AB, z):
+  return (xid_to_opposite_record(AB, id, z) for id in exemplar_ids(AB, z))
 
 # record -> list of exemplar ids
 
 def exemplar_ids(AB, z):
   return list(get_block(z))
 
-# The records in z's checklist corresponding to the exemplars
-# in the block for z.
-
-def exemplar_records(AB, z):
-  return (some_exemplar.xid_to_record(AB, id, z) for id in exemplar_ids(AB, z))
-
-def opposite_exemplar_records(AB, z):
-  return (some_exemplar.xid_to_opposite_record(AB, id, z) for id in exemplar_ids(AB, z))
+def get_species(u):
+  s = u
+  AB = get_workspace(u)
+  while s and not is_species(s):
+    rel = local_sup(AB, s)        # relation
+    if rel: s = rel.record
+  if s: return s
+  return u
 
 def is_species(u):              # z local
   if u == False: return False
   x = get_outject(u)
   return get_rank(x, None) == 'species' and is_accepted(x)
 
-def get_species(u):
-  s = u
-  while s and not is_species(s):
-    s = local_sup(s)
-  if s: return s
-  return u
+# Apply this to an exemplar id to obtain an exemplar union/find node,
+# and return the associated taxon record that's in same checklist as z.
 
-def get_overlapping_species(u):
-  o = []
-  ids = set()
-  AB = get_workspace(u)
-  for v in opposite_exemplar_records(AB, u):
-    if not v.id in ids:
-      ids = ids | {id}
-  return o
+def xid_to_record(AB, id, z):
+  uf = AB.exemplars[id]
+  (_, x, y) = uf.payload()
+  return AB.in_left(x) if isinA(AB, z) else AB.in_right(y)
 
-def get_block(x):
-  return really_get_block(x, BOTTOM_BLOCK)
-
-(really_get_block, set_block) = prop.get_set(prop.declare_property("block"))
+def xid_to_opposite_record(AB, id, z):
+  uf = AB.exemplars[id]
+  (_, x, y) = uf.payload()
+  return AB.in_right(y) if isinA(AB, z) else AB.in_left(x)
 
 # -----------------------------------------------------------------------------
 # Implementation of blocks as Python sets of 'exemplars'.
 # A 'block' is just a set of exemplars, implemented as ... a python set.
 # The term 'block' comes from the mathematical treatment of partitions.
+
+def get_block(x):
+  return really_get_block(x, BOTTOM_BLOCK)
+
+(really_get_block, set_block) = prop.get_set(prop.declare_property("block"))
 
 # RCC-5 relationship between two blocks
 

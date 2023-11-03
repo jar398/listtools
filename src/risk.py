@@ -46,8 +46,8 @@ def generate_risk_report(AB):
 
 def exemplar_names(xids, AB, u, v):
   def makename(xid):
-    aname = get_ok_name(exemplar.xid_to_record(AB, xid, u))
-    bname = get_ok_name(exemplar.xid_to_record(AB, xid, v))
+    aname = get_ok_name(theory.xid_to_record(AB, xid, u))
+    bname = get_ok_name(theory.xid_to_record(AB, xid, v))
     if aname == bname:
       return aname
     else:

@@ -184,7 +184,7 @@ def choose_witness(AB, ids, u):
   have = None
   count = 0
   for id in ids:
-    e = exemplar.xid_to_record(AB, id, u) 
+    e = theory.xid_to_record(AB, id, u) 
     if not have:
       have = e
     if is_acceptable_locally(AB, e):     # ?

@@ -325,6 +325,9 @@ work/gbif20190916.dwca-url:
 work/gbif20210303.dwca-url:
 	echo https://rs.gbif.org/datasets/backbone/2021-03-03/backbone.zip >$@
 
+work/gbif20230828.dwca-url:
+	echo https://rs.gbif.org/datasets/backbone/2023-08-28/backbone.zip >$@
+
 # need the following or no?
 #work/gbif20210303-$(taxon)-raw.csv: work/gbif20210303-raw.csv
 
