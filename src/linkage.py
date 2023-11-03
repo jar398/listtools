@@ -107,8 +107,10 @@ def improve_link(u, v, score, key):
         set_link(u, v)
       elif (is_accepted_locally(AB, v) and
             simple.descends_from(get_outject(v), get_outject(have_v))):
-        log("# linkage: More tipward is better (%s): %s -> %s (was %s)" %
-            (key, blurb(u), blurb(v), blurb(have_v)))
+        if False:
+          # seems to work?
+          log("# linkage: More tipward is better (%s): %s -> %s (was %s)" %
+              (key, blurb(u), blurb(v), blurb(have_v)))
         set_link(u, v)
       else:
         if monitor(u) or monitor(v):

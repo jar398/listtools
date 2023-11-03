@@ -341,7 +341,7 @@ def get_intersecting_species(u):
   AB = get_workspace(u)
   for v in opposite_exemplar_records(AB, u):
     s = get_species(v)
-    if not s.id in ids:
+    if s and not s.id in ids:
       ids = ids | {s.id}
       o.append(s)
   return o
@@ -361,13 +361,13 @@ def exemplar_ids(AB, z):
   return list(get_block(z))
 
 def get_species(u):
-  s = u
   AB = get_workspace(u)
-  while s and not is_species(s):
+  s = local_accepted(AB, u)
+  while not is_species(s):
     rel = local_sup(AB, s)        # relation
     if rel: s = rel.record
-  if s: return s
-  return u
+    else: return None
+  return s
 
 def is_species(u):              # z local
   if u == False: return False

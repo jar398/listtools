@@ -211,12 +211,20 @@ def rows_to_checklist(iterabl, meta):
   S.register = register
   S.top = make_top(S)             # Superior of last resort
   column = prop.get_column(primary_key_prop, Q)
+  count = 0
   for record in prop.get_records(column):
+    count += 1
     set_source(record, S)       # not same as EOL "source" column
     resolve_superior_link(S, record)
   roots = list(get_inferiors(S.top))
   if len(roots) > 1:
     log("-- %s roots" % len(roots))
+  # Poor man's cycle detection
+  count2 = 0
+  for row in preorder_rows(S):
+    count2 += 1
+  if count != count2-1:
+    log("!!! count disagreement: %s rows, %s reachable" % (count, count2))
   return S
 
 # Property scoping context ...
