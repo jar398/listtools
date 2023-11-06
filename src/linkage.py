@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 
-# Record linkage - Calculate match score / probability
-# See wikipedia record linkage article
+# Record linkage
+# This doesn't calculate a match score or probability, but has
+# some of that spirit, for which see wikipedia record linkage article...
 
 import math
 import util
@@ -29,10 +30,8 @@ NEUTRAL = 0
 
 # 'pre_estimate' = LUB estimate from first pass, if this is second pass.
 
-def really_find_links(AB, get_pre_estimate):
+def really_find_links(AB, subproblems, get_pre_estimate):
   # This sets the 'link' property of ... some ... records.
-  subproblems = find_subproblems(AB)
-  log("# There are %s subproblems" % len(subproblems))
 
   for (key, (us, vs)) in subproblems.items():
     # classify as A1, A2, A3 (HETEROTYPIC, REVIEW, HOMOTYPIC)
@@ -81,8 +80,10 @@ def report_on_links(AB, subproblems):
           pass                  # already counted
         elif link2 == None:
           half_count += 1
-  log("-- Links: %s mutual, %s one-sided, %s ambiguous" %
+  log("#   Links: %s mutual, %s one-sided, %s ambiguous" %
       (full_count, half_count, amb_count))
+
+# Compare pick_better_record in some_exemplar.py
 
 def improve_link(u, v, score, key):
   if score_to_ship(score) != HOMOTYPIC:
@@ -98,7 +99,7 @@ def improve_link(u, v, score, key):
       # ambiguous.  wait until later to figure this out.
       # TBD:
       #   Pick the one that is accepted, if the other isn't?
-      #   Pick the one that has deeper rank (v descends from have_v)?
+      #   Pick the one that is more tipward (v descends from have_v)?
       AB = get_workspace(v)
       if not is_accepted_locally(AB, have_v) and is_accepted_locally(AB, v):
         if False:
@@ -192,17 +193,22 @@ def compute_score(u, v, distance=None):
     #log("#  %s" % (get_parts(v),))
   return score
 
-# Score potentially contipic names from 0 to 100
+# Score potentially contypic names from 0 to 100
 
 def compute_parts_score(p, q, distance=None):
   hits = misses = 0
 
-  if p.year != None and q.year != None:
-    if p.year == q.year: hits += 2
-    else: misses += 2
-  if p.token != None and q.token != None:
-    if p.token == q.token: hits += 4
-    else: misses += 4
+  if p.epithet != None and q.epithet != None:
+    if p.epithet == q.epithet: hits += 32
+    else: misses += 32
+
+  # Proximity within the hierarchy essential if no genus match
+  if distance != None:
+    # 15 = too far apart to link
+    # 9 = neutral, most distant linkable
+    # 0 = equated, exact hit
+    if distance <= 9: hits += 16
+    elif distance > 15: misses += 16
 
   if p.genus != None and q.genus != None:
     #log("# 1 comparing %s, %s (%s, %s)" % (p.genus, q.genus, p.protonymp, q.protonymp))
@@ -216,16 +222,13 @@ def compute_parts_score(p, q, distance=None):
       #log("# 3 comparing %s, %s -> ?" % (p.genus, q.genus))
       pass
 
-  if distance != None:
-    # 15 = too far apart to link
-    # 9 = neutral, most distant linkable
-    # 0 = equated, exact hit
-    if distance <= 9: hits += 16
-    elif distance > 15: misses += 16
+  if p.year != None and q.year != None:
+    if p.year == q.year: hits += 2
+    else: misses += 2
+  if p.token != None and q.token != None:
+    if p.token == q.token: hits += 4
+    else: misses += 4
 
-  if p.epithet != None and q.epithet != None:
-    if p.epithet == q.epithet: hits += 32
-    else: misses += 32
   if misses > 0: return NEUTRAL - misses
   else: return NEUTRAL + hits
 

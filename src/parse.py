@@ -83,8 +83,10 @@ def parse_name(verbatim,
     # parse: tokens (by different methods) differ: Fitz FitzGibbon
   if not y: y = y2              # ???
   if y and y2 and y != y2:
-    log("# parse: gnparse year %s [%s] differs from ad hoc year %s [%s]" %
-        (y, auth, y2, auth0))
+    if False:
+      log("# parse: gnparse year %s [%s] differs from ad hoc year %s [%s]" %
+          (y, auth, y2, auth0))
+    y = min(y, y2)
   # ugh, tangled code
   if protonymp == None: protonymp = protonymp2
   if protonymp != None and protonymp2 != None and \

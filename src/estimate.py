@@ -7,7 +7,7 @@ from util import log
 from checklist import *
 from workspace import *
 from simple import BOTTOM, compare_per_checklist, compare_siblings
-from some_exemplar import equate_exemplars, get_exemplar
+from some_exemplar import equate_exemplars, get_bare_exemplar
 
 # -----------------------------------------------------------------------------
 
@@ -34,7 +34,7 @@ def find_estimates(AB):
     doit(swap(AB))
   findem(AB)
   findem(swap(AB))              # swap is in checklist
-  log("-- Estimates: %s (=), %s (<)" % (int(counts[0]/2), counts[1]))
+  log("# Estimates: %s (=), %s (<)" % (int(counts[0]/2), counts[1]))
 
 # Given a model M, let [u] be the least node in the opposite checklist
 # that contains u.  Then we're interested in the minimal [u] taken over
@@ -186,10 +186,12 @@ def compute_cross_mrcas(AB):
   def do_cross_mrcas(WS):        # WS is AB or swap(AB)
     def traverse(x):            # arg in A, result in B
       u = WS.in_left(x)          # in WS
-      exem = get_exemplar(u)       # in WS
+      exem = get_bare_exemplar(u)       # exemplar record (not uf)
       if exem:
-        (_, x1, y1) = exem
-        m = y1 if isinA(AB, u) else x1
+        (_, u1, v1) = exem
+        assert get_outject(v1), blurb(v1) # fails
+        assert get_outject(u1), blurb(u1)
+        m = get_outject(v1) if isinA(AB, u) else get_outject(u1)
       else:
         m = BOTTOM                # identity for mrca
       for c in get_inferiors(x):  # c in WS.A

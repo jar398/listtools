@@ -306,8 +306,7 @@ def analyze_blocks(ws):
 
       exem = some_exemplar.get_exemplar(u) # returns none or (id, u, v)
       if exem:
-        (id, _, _) = exem
-        e = adjoin_exemplar(id, e)
+        e = adjoin_exemplar(exem[0], e)
       # **************** TBD
       set_block(u, e)
       if monitor(u):
@@ -377,13 +376,13 @@ def is_species(u):              # z local
 # Apply this to an exemplar id to obtain an exemplar union/find node,
 # and return the associated taxon record that's in same checklist as z.
 
-def xid_to_record(AB, id, z):
-  uf = AB.exemplars[id]
+def xid_to_record(AB, xid, z):
+  uf = AB.exemplar_ufs[xid]
   (_, x, y) = uf.payload()
   return AB.in_left(x) if isinA(AB, z) else AB.in_right(y)
 
-def xid_to_opposite_record(AB, id, z):
-  uf = AB.exemplars[id]
+def xid_to_opposite_record(AB, xid, z):
+  uf = AB.exemplar_ufs[xid]
   (_, x, y) = uf.payload()
   return AB.in_right(y) if isinA(AB, z) else AB.in_left(x)
 

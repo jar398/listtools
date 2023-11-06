@@ -16,7 +16,7 @@ from workspace import *
 # are 'tipward' do.  'Tipward' means that at least one of the two taxa
 # has no tipward accepted descendant taxon.
 
-# See AB.exemplars for map {id: [id, v, w], ...}
+# See AB.exemplar_ufs for map {xid: uf, ...}
 # Each exemplar has a representative in A and one in B.
 
 # find_exemplars is defined in exemplar.py.  Does 2 passes.
@@ -24,91 +24,30 @@ from workspace import *
 
 CARE_TIPWARD = False
 
-def find_some_exemplars(AB, get_pre_estimate):
-  linkage.really_find_links(AB, get_pre_estimate)
-  if CARE_TIPWARD:
-    analyze_tipwards(AB)
+def find_some_exemplars(AB, subproblems, get_pre_estimate, allow_nontipward):
+  log("# Finding some exemplars")
+  linkage.really_find_links(AB, subproblems, get_pre_estimate)
 
   def do_exemplars(CD):
-    def traverse(x, species):      # species is an ancestor of x, in A
-      u = CD.in_left(x)
-      
-      if not CARE_TIPWARD:
-        # All reciprocal links become exemplars
+    def traverse(x):      # species is an ancestor of x, in A
+      tipward = True
+      for c in get_inferiors(x):
+        if traverse(c): tipward = False
+      if tipward:
+        u = CD.in_left(x)
         v = get_link(u, None)
         if v:
           u2 = get_link(v, None)
-          if u2 == u:
+          if u2 is u:
+            # But only if tipward? or overlap??
             equate_exemplars(u, v)
-        for c in get_inferiors(x):
-          traverse(c, species)
 
-      else:
-        # Only reciprocal tipward links, and species, become exemplars
-
-        v = get_tipward(u, None)
-        # u has priority over v
-        if v:                     # not None or False
-          # 1. Mutual tipward matches mean we have an exemplar
-          u_back = get_tipward(v, None)
-          if u_back is u:         # Mutual?
-            if monitor(u) or monitor(v):
-              log("# exemplar: Mutual: %s -> %s" % (blurb(u), blurb(v)))
-            equate_exemplars(u, v) # Normal case.
-          elif u_back == None:
-            if monitor(u) or monitor(v):
-              log("# exemplar: Nonmutual: %s -> %s -> (none)" % 
-                  (blurb(u), blurb(v)))
-            equate_exemplars(u, v)
-          elif u_back == False:
-            if monitor(u) or monitor(v):
-              log("# exemplar: Ambiguous: %s -> %s -> (2 or more)" % 
-                  (blurb(u), blurb(v)))
-            equate_exemplars(u, v)
-          else: # u_back != None:     doesn't seem to happen?
-            log("# exemplar: Returns to different tipward %s -> %s -> %s" % 
-                (blurb(u), blurb(v), blurb(u_back)))
-        else:
-          if not species and get_rank(u, None) == 'species':
-            species = u
-
-          found_species = False
-          for c in get_inferiors(x):
-            found_species |= traverse(c, species)
-
-          # 2. A matched species with descendents, having an epithet different
-          # from any descendent, is also an exemplar. (but matched to what??)
-
-
-          v = get_link(u, None)   # None, False, node
-
-          # WORK IN PROGRESSS
-
-          species = u
-          if not found_species and species and linkage.homotypic(u, species): # same epithet stem
-            equate_exemplars(u, species)    # ? what is this for ?
-            found_species = True
-
-          # TBD: Handle multiple subspecifics with same epithet...
-
-          return found_species
-
-    traverse(CD.A.top, None)
+    traverse(CD.A.top)
 
   do_exemplars(AB)
   do_exemplars(swap(AB))
   equate_exemplars(AB.in_left(AB.A.top),
                    AB.in_right(AB.B.top))
-  report_on_exemplars(AB)
-
-def report_on_exemplars(AB):
-  exemplars = set()             # for counting distinct exemplars
-  for x in preorder_records(AB.A):
-    u = AB.in_left(x)
-    ex = get_exemplar(u)
-    if ex:
-      exemplars.add(ex[0])      # id only
-  log("-- Exemplars: %s " % len(exemplars))
 
 # Issues: 
 #   1. choice of taxa (both sides)
@@ -117,44 +56,50 @@ def report_on_exemplars(AB):
 def equate_exemplars(u, v):     # opposite checklists. u might be species
   if u != v:
     # assert u descends from v if in same checklist?
-    uf = get_exemplar_uf(u)
-    vf = get_exemplar_uf(v)
-    merge_representatives(uf.find(), vf.find())
-    uf.absorb(vf)
+    equate_exemplar_ufs(get_exemplar_uf(u), get_exemplar_uf(v))
+  return u
 
-def merge_representatives(uf, vf): # absorb into uf
-  r = uf.payload()
-  (i1, u1, v1) = r
+def equate_exemplar_ufs(uf, vf):
+  uf = uf.find()
+  vf = vf.find()
+  (i1, u1, v1) = uf.payload()
   (i2, u2, v2) = vf.payload()
-  r[1] = unify_records(u1, u2)
-  r[2] = unify_records(v1, v2)
-  if r[1] and r[2]:
-    #log("# Same exemplar: e(%s) = e(%s)" % (blurb(r[1]), blurb(r[2])))
-    pass
-  if i1 and i2:
-    r[0] = min(i1, i2)          # wait, what is this for?
-  else:
-    r[0] = i1 or i2
+  assert i1 == None or i2 == None or i1 == i2
+  assert u1 or v1
+  assert u2 or v2
+  ef = uf.absorb(vf)
+  assert ef is uf
+  r = ef.payload()
+  r[1] = pick_better_record(u1, u2)
+  r[2] = pick_better_record(v1, v2)
+  assert r[1] or r[2]
+  return ef
 
-# x1 and u2 are in same checklist (not in workspace)
+# u1 and u2 are in workspace, in same checklist
 
-def unify_records(x1, x2):
-  if not x2: return x1
-  if not x1: return x2
+def pick_better_record(u1, u2):
+  if not u2: return u1
+  if not u1: return u2
+  x1 = get_outject(u1)
+  x2 = get_outject(u2)
   rel = simple.compare_per_checklist(x1, x2)
   if rel.relationship == LT:
-    return x1                   # Prefer more tipward
+    return u1                   # Prefer more tipward
   if rel.relationship == GT:
-    return x2                   # Prefer more tipward
-  # The following is probably not necessary, but is tidy?
+    return u2                   # Prefer more tipward
+  # The following is probably not necessary, but it's tidy?
   # if necessary, should work harder to canonicalize, yes?
   parts1 = get_parts(x1)
   parts2 = get_parts(x2)
-  if (not parts1.protonymp and parts2.protonymp and parts2.genus != None):
-    log("# preferring protonym %s to %s" % (blurb(x2), blurb(x1)))
-    return x2                   # Prefer protonym
-  else:
-    return x1
+  if is_accepted(x2):
+    if False and (not parts1.protonymp and parts2.protonymp and parts2.genus != None):
+      log("# preferring protonym %s to %s" % (blurb(u2), blurb(u1)))
+      return u2                   # Prefer protonym - NOT
+    elif not is_accepted(x1):
+      return u2
+    elif simple.descends_from(x2, x1):
+      return u2
+  return u1
 
 # Only workspace nodes have uf records
 
@@ -163,45 +108,45 @@ def get_exemplar_uf(u):
   probe = really_get_exemplar_uf(u, None)
   if probe: return probe
   AB = get_workspace(u)
-  uf = UnionFindable([None, get_outject(u), None] if isinA(AB, u) else [None, None, get_outject(u)])
+  exem = [None, u, None] if isinA(AB, u) else [None, None, u]
+  uf = UnionFindable(exem)
+  assert exem[1] or exem[2]
   set_exemplar_uf(u, uf)
   return uf
 
-# Union-find nodes start out with no id, then get id when exemplars are identified
-
-def init_exemplar(AB, exemplars, id, x, y):
-  assert get_source(x) is AB.A
-  assert get_source(y) is AB.B
-  ex = (id, x, y)
-  uf = UnionFindable(ex)
-  set_exemplar_uf(u, uf)
-  set_exemplar_uf(v, uf)
-  assert not id in exemplars, id
-  exemplars[id] = ex
-  return ex
+# Union-find nodes start out with no xid, then get xid when exemplars are identified
 
 (really_get_exemplar_uf, set_exemplar_uf) = \
   prop.get_set(prop.declare_property("exemplar_uf"))
 
 
-# Returns exemplar record or None.  TO BE USED ONLY AFTER
-# analyze_exemplars HAS FINISHED ITS WORK.
+# Returns exemplar record (xid, u, v) or None.
 
-def get_exemplar(u):
-  ws = get_workspace(u)
-  uf = really_get_exemplar_uf(u, None)
+def get_exemplar(z):
+  uf = really_get_exemplar_uf(z, None)
   if uf:
     r = uf.payload()
-    (id, x, y) = r
-    if x and y:
-      if not id:
-        # Create id (for set operations) on demand
-        id = fresh_exemplar_id(ws)
-        r[0] = id
-        ws.exemplars[id] = uf
-        #log("# Exemplar %s: e(%s) = (%s)" % (id, blurb(x), blurb(y)))
+    (xid, u, v) = r
+    if u and v:
+      if xid == None:
+        # Create exemplar id (for set operations) on demand
+        ws = get_workspace(u)
+        xid = fresh_exemplar_id(ws)
+        r[0] = xid
+        ws.exemplar_ufs[xid] = uf
+        #log("# Exemplar %s: (%s) <-> (%s)" % (xid, blurb(u), blurb(v)))
       return r
   return None
+
+def get_bare_exemplar(z):
+  uf = really_get_exemplar_uf(z, None)
+  if uf:
+    r = uf.payload()
+    (xid, u, v) = r
+    if u and v:
+      return r
+  return None
+  
 
 # -----------------------------------------------------------------------------
 # Find tipward record matches (TRMs)

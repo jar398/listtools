@@ -80,9 +80,9 @@ def generate_alignment(AB, matches=None):
       #if not get_acceptable(AB, u): return   # ?????
 
       # Show species overlaps
-      e = exemplar.get_exemplar(u)
+      e = exemplar.get_bare_exemplar(u)
       if e:
-        (id, ue, ve) = e
+        (_, ue, ve) = e
         if ue is u:
           v1 = ve if in_same_tree(AB, u, ue) else ue
           (u2, v2) = get_acceptables(AB, u, v1)
