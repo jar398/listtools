@@ -265,7 +265,8 @@ def clean_name(row, can_pos, sci_pos):
     mod = True
   return mod
 
-has_auth_re = regex.compile(u" (\()\p{Uppercase_Letter}[\p{Letter}-]+")
+# This may be too liberal... insist on there being a year?
+has_auth_re = regex.compile(u" (\(?)\p{Uppercase_Letter}[\p{Letter}-]+")
 
 def is_scientific(name):
   return has_auth_re.search(name)

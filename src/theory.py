@@ -2,11 +2,12 @@
 
 import math
 import property as prop
-import checklist, workspace, simple, exemplar
+import rcc5, checklist, workspace, simple, exemplar, some_exemplar
 
 from util import log
 from checklist import *
 from workspace import *
+from rcc5 import rcc5_symbol
 
 import exemplar
 import estimate
@@ -27,6 +28,7 @@ def theorize(AB, compute_exemplars=True):
 
 #-----------------------------------------------------------------------------
 # compare: The implementation of the RCC-5 theory of AB (A+B).
+# Returns a relation.
 
 def compare(AB, v, w):
   if separated(v, w):
@@ -302,10 +304,9 @@ def analyze_blocks(ws):
       for c in get_inferiors(x):  # inferiors in A/B
         e = combine_blocks(e, traverse(c))
 
-      exem = exemplar.get_exemplar(u) # returns none or (id, u, v)
+      exem = some_exemplar.get_exemplar(u) # returns none or (id, u, v)
       if exem:
-        (id, _, _) = exem
-        e = adjoin_exemplar(id, e)
+        e = adjoin_exemplar(exem[0], e)
       # **************** TBD
       set_block(u, e)
       if monitor(u):
@@ -318,40 +319,82 @@ def analyze_blocks(ws):
   # Sanity check
   b1 = get_block(ws.in_left(ws.A.top))
   b2 = get_block(ws.in_right(ws.B.top))
-  assert b1 != BOTTOM_BLOCK
-  assert b1 == b2
+  if b1 != b2:
+    assert b1 == b2
+  if b1 == BOTTOM_BLOCK:
+    assert b1 != BOTTOM_BLOCK
 
 # For debugging
 
 def show_exemplars(z, tag, AB):
   def foo(id):
-    return blurb(exemplar.xid_to_record(AB, id, z))
+    return blurb(xid_to_record(AB, id, z))
   log("# theory: %s: {%s}" %
       (tag, ", ".join(map(foo, get_block(z)))))
+
+# -----------------------------------------------------------------------------
+
+def get_intersecting_species(u):
+  o = []
+  ids = set()
+  AB = get_workspace(u)
+  for v in opposite_exemplar_records(AB, u):
+    s = get_species(v)
+    if s and not s.id in ids:
+      ids = ids | {s.id}
+      o.append(s)
+  return o
+
+# The records in z's checklist corresponding to the exemplars
+# in the block for z.  (z is in AB)
+
+def exemplar_records(AB, z):
+  return (xid_to_record(AB, id, z) for id in exemplar_ids(AB, z))
+
+def opposite_exemplar_records(AB, z):
+  return (xid_to_opposite_record(AB, id, z) for id in exemplar_ids(AB, z))
 
 # record -> list of exemplar ids
 
 def exemplar_ids(AB, z):
   return list(get_block(z))
 
-# The records in z's checklist corresponding to the exemplars
-# in the block for z.
+def get_species(u):
+  AB = get_workspace(u)
+  s = local_accepted(AB, u)
+  while not is_species(s):
+    rel = local_sup(AB, s)        # relation
+    if rel: s = rel.record
+    else: return None
+  return s
 
-def exemplar_records(AB, z):
-  return (exemplar.xid_to_record(AB, id, z) for id in exemplar_ids(AB, z))
+def is_species(u):              # z local
+  if u == False: return False
+  x = get_outject(u)
+  return get_rank(x, None) == 'species' and is_accepted(x)
 
-def opposite_exemplar_records(AB, z):
-  return (exemplar.xid_to_opposite_record(AB, id, z) for id in exemplar_ids(AB, z))
+# Apply this to an exemplar id to obtain an exemplar union/find node,
+# and return the associated taxon record that's in same checklist as z.
 
-def get_block(x):
-  return really_get_block(x, BOTTOM_BLOCK)
+def xid_to_record(AB, xid, z):
+  uf = AB.exemplar_ufs[xid]
+  (_, x, y) = uf.payload()
+  return AB.in_left(x) if isinA(AB, z) else AB.in_right(y)
 
-(really_get_block, set_block) = prop.get_set(prop.declare_property("block"))
+def xid_to_opposite_record(AB, xid, z):
+  uf = AB.exemplar_ufs[xid]
+  (_, x, y) = uf.payload()
+  return AB.in_right(y) if isinA(AB, z) else AB.in_left(x)
 
 # -----------------------------------------------------------------------------
 # Implementation of blocks as Python sets of 'exemplars'.
 # A 'block' is just a set of exemplars, implemented as ... a python set.
 # The term 'block' comes from the mathematical treatment of partitions.
+
+def get_block(x):
+  return really_get_block(x, BOTTOM_BLOCK)
+
+(really_get_block, set_block) = prop.get_set(prop.declare_property("block"))
 
 # RCC-5 relationship between two blocks
 

@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 
-# Record linkage - Calculate match score / probability
-# See wikipedia record linkage article
+# Record linkage
+# This doesn't calculate a match score or probability, but has
+# some of that spirit, for which see wikipedia record linkage article...
 
 import math
 import util
@@ -22,9 +23,15 @@ NEUTRAL = 0
 # For each record, get list of matching records.... hmm
 # Future: read exceptions or whole thing from a file
 
-def really_find_links(AB, get_pre_estimate):
+# Definition of 'subproblem':
+# If a node pair (u, v) doesn't have u in us and v in vs for some
+# 'subproblem' (us, vs) then it is not going to be considered a
+# potential match.
+
+# 'pre_estimate' = LUB estimate from first pass, if this is second pass.
+
+def really_find_links(AB, subproblems, get_pre_estimate):
   # This sets the 'link' property of ... some ... records.
-  subproblems = find_subproblems(AB)
 
   for (key, (us, vs)) in subproblems.items():
     # classify as A1, A2, A3 (HETEROTYPIC, REVIEW, HOMOTYPIC)
@@ -73,33 +80,60 @@ def report_on_links(AB, subproblems):
           pass                  # already counted
         elif link2 == None:
           half_count += 1
-  log("-- Links: %s mutual, %s one-sided, %s ambiguous" %
+  log("#   Links: %s mutual, %s one-sided, %s ambiguous" %
       (full_count, half_count, amb_count))
+
+# Compare pick_better_record in some_exemplar.py
 
 def improve_link(u, v, score, key):
   if score_to_ship(score) != HOMOTYPIC:
     return 0
   else:
     have_v = get_link(u, None) # (v0, score) Anything to improve on?
-    if have_v == None:                 # not None or False
+    if have_v == v:
+      pass
+    elif have_v == None:                 # not None or False
       set_link(u, v)                   # One side, not nec. reciprocal
       #log("# Set link %s ~ %s" % (blurb(u), blurb(v)))
     elif have_v != False:       # ambiguous
       # ambiguous.  wait until later to figure this out.
-      if monitor(u) or monitor(v):
-        log("# linkage: Ambiguous (%s): %s -> %s & %s" %
-            (key, blurb(u), blurb(have_v), blurb(v)))
-      set_link(u, False)
+      # TBD:
+      #   Pick the one that is accepted, if the other isn't?
+      #   Pick the one that is more tipward (v descends from have_v)?
+      AB = get_workspace(v)
+      if not is_accepted_locally(AB, have_v) and is_accepted_locally(AB, v):
+        if False:
+         log("# linkage: Accepted is better (%s): %s -> %s (was %s)" %
+            (key, blurb(u), blurb(v), blurb(have_v)))
+        set_link(u, v)
+      elif (is_accepted_locally(AB, v) and
+            simple.descends_from(get_outject(v), get_outject(have_v))):
+        if False:
+          # seems to work?
+          log("# linkage: More tipward is better (%s): %s -> %s (was %s)" %
+              (key, blurb(u), blurb(v), blurb(have_v)))
+        set_link(u, v)
+      else:
+        if monitor(u) or monitor(v):
+          log("# linkage: Ambiguous (%s): %s -> %s & %s" %
+              (key, blurb(u), blurb(have_v), blurb(v)))
+        set_link(u, False)
 
 def score_to_ship(score):
   if score >= THRESH:     return HOMOTYPIC    # EQ
   elif score <= NOTHRESH: return HETEROTYPIC  # NEQ
   else: return REVIEW                         # NOINFO
 
-# Assumes both are descended from the same species (or genus?)
+# u and species assumed to be in the same checklist, yes?
+# Assumes both are descended from the same species (or genus?).
+# Yes, if they're near one another and the epithet stems match.
+# 5 is an estimate of typical max distance between a species and 
+#  any descendant... hmm...  there has to be a better way
+
+NEAR = 5
 
 def homotypic(u, species):
-  return score_to_ship(compute_score(u, species, 5)) == HOMOTYPIC
+  return score_to_ship(compute_score(u, species, NEAR)) == HOMOTYPIC
 
 # Find blocks/chunks, one per epithet
 
@@ -146,7 +180,8 @@ def get_subproblem_key(z):
 
 # -----------------------------------------------------------------------------
 # Score potentially contipic taxa.
-# If distance is close, give a pass on genus mismatch.
+# distance is distance (perhaps estimated) between u and v in combined model.
+# If distance (in tree) is close, give a pass on genus mismatch.
 
 def compute_score(u, v, distance=None):
   score = compute_parts_score(get_parts(u),
@@ -158,17 +193,22 @@ def compute_score(u, v, distance=None):
     #log("#  %s" % (get_parts(v),))
   return score
 
-# Score potentially contipic names from 0 to 100
+# Score potentially contypic names from 0 to 100
 
 def compute_parts_score(p, q, distance=None):
   hits = misses = 0
 
-  if p.year != None and q.year != None:
-    if p.year == q.year: hits += 2
-    else: misses += 2
-  if p.token != None and q.token != None:
-    if p.token == q.token: hits += 4
-    else: misses += 4
+  if p.epithet != None and q.epithet != None:
+    if p.epithet == q.epithet: hits += 32
+    else: misses += 32
+
+  # Proximity within the hierarchy essential if no genus match
+  if distance != None:
+    # 15 = too far apart to link
+    # 9 = neutral, most distant linkable
+    # 0 = equated, exact hit
+    if distance <= 9: hits += 16
+    elif distance > 15: misses += 16
 
   if p.genus != None and q.genus != None:
     #log("# 1 comparing %s, %s (%s, %s)" % (p.genus, q.genus, p.protonymp, q.protonymp))
@@ -182,16 +222,13 @@ def compute_parts_score(p, q, distance=None):
       #log("# 3 comparing %s, %s -> ?" % (p.genus, q.genus))
       pass
 
-  if distance != None:
-    # 15 = too far apart to link
-    # 9 = neutral, most distant linkable
-    # 0 = equated, exact hit
-    if distance <= 9: hits += 16
-    elif distance > 15: misses += 16
+  if p.year != None and q.year != None:
+    if p.year == q.year: hits += 2
+    else: misses += 2
+  if p.token != None and q.token != None:
+    if p.token == q.token: hits += 4
+    else: misses += 4
 
-  if p.epithet != None and q.epithet != None:
-    if p.epithet == q.epithet: hits += 32
-    else: misses += 32
   if misses > 0: return NEUTRAL - misses
   else: return NEUTRAL + hits
 
@@ -302,17 +339,19 @@ if __name__ == '__main__':
 
 def compute_distance(u, v, get_pre_estimate):
   assert separated(u, v)
-  if get_pre_estimate(u, None) and get_pre_estimate(v, None):
-    return int((compute_half_distance(u, v, get_pre_estimate) +
-                compute_half_distance(v, u, get_pre_estimate))/2)
+  up = get_pre_estimate(u, None)
+  vp = get_pre_estimate(v, None)
+  if up and vp:
+    return int((compute_half_distance(u, v, up) +
+                compute_half_distance(v, u, vp))/2)
   else:
     return None
 
-def compute_half_distance(u, v, get_pre_estimate):
+def compute_half_distance(u, v, up):
   # u < u1 <= (v1 < m > v)
   assert separated(u, v)
-  v1 = get_pre_estimate(u).record
-  y = get_outject(v)
+  v1 = up.record
+  y  = get_outject(v)
   y1 = get_outject(v1)
   m = simple.mrca(y1, y)
   dist = (distance_on_lineage(y1, m) +

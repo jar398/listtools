@@ -138,8 +138,8 @@ def log(mess):
 
 class UnionFindable:
 
-  def __init__(self, id):
-    self.the_payload = id
+  def __init__(self, payload):
+    self.the_payload = payload
     self.absorbed_into = None
 
   def find(self):
@@ -149,14 +149,13 @@ class UnionFindable:
     else:
       return self
 
+  # Absorb a into self
   def absorb(self, a):
     a = a.find()
     s = self.find()
-    if a == s:
-      return a
-    else:
+    if not (a is s):
       a.absorbed_into = s # ?
-      return a
+    return s
 
   def payload(self): return self.find().the_payload
 

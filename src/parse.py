@@ -53,19 +53,22 @@ def parse_name(verbatim,
           (gn_full, gn_auth, verbatim))
     if gn_stem == MISSING: gn_stem = gn_full # Space saving kludge
     # Epithet will be stemmed
-    (canonical, g, e) = recover_canonical(gn_full, gn_stem, gn_auth, canonical0)
+    if is_polynomial(gn_full):
+      (canonical, g, e) = recover_canonical(gn_full, gn_stem, gn_auth, canonical0)
+    else:
+      (canonical, g, e) = (gn_full, gn_full, MISSING)
     auth = gn_auth
   else:
     canonical = canonical0
     auth = auth0
     # Epithet will not be stemmed
-    if ' ' in canonical:
+    if is_polynomial(canonical) and ' ' in canonical:
       chunks = canonical.split(' ')
       g = chunks[0]
       e = chunks[-1]              # do our own stemming !? no
     else:
       g = canonical
-      e = ''
+      e = MISSING
 
   if e == '?': e = None
   if g == '?': g = None         # cf. use_gnparse.py, but careful MSW3
@@ -80,7 +83,10 @@ def parse_name(verbatim,
     # parse: tokens (by different methods) differ: Fitz FitzGibbon
   if not y: y = y2              # ???
   if y and y2 and y != y2:
-    log("# parse: years (by different methods) differ: %s / %s" % (auth, auth0))
+    if False:
+      log("# parse: gnparse year %s [%s] differs from ad hoc year %s [%s]" %
+          (y, auth, y2, auth0))
+    y = min(y, y2)
   # ugh, tangled code
   if protonymp == None: protonymp = protonymp2
   if protonymp != None and protonymp2 != None and \
@@ -92,6 +98,7 @@ def parse_name(verbatim,
 # This ought to be trivial but the problem is that gnparser drops
 # tokens that occur after the last alphabetic epithet.  So we have to
 # recover them from the original non-GN scientific name ('verbatim').
+# Returns (canonical, genus, epithet)
 
 def recover_canonical(gn_full, gn_stem, gn_auth, hack_canonical):
   # Recover parts that gnparse stripped off, from verbatim
@@ -170,10 +177,7 @@ parenyear_re = \
 # Assume that there is no authority for hybrids!
 
 def split_name(verbatim):
-  if ' × ' in verbatim or ' x ' in verbatim:
-    hack_canonical = verbatim
-    hack_auth = None      # Not present
-  elif verbatim.endswith(')') and '(' in verbatim:
+  if verbatim.endswith(')') and '(' in verbatim:
     i = verbatim.index('(')
     hack_canonical = verbatim[0:i].strip()
     hack_auth = verbatim[i:]
@@ -186,6 +190,11 @@ def split_name(verbatim):
       hack_canonical = verbatim
       hack_auth = None      # Not present
   return (hack_canonical, hack_auth)
+
+# parsable into [genus] [middle] [epithet]
+
+def is_polynomial(name):
+  return not (' × ' in name or ' x ' in name)
 
 # -----------------------------------------------------------------------------
 # Unparsing = inverse of parsing = string from parts

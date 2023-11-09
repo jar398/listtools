@@ -10,7 +10,7 @@ from property import mep_get, mep_set
 from rcc5 import *
 from checklist import *
 from workspace import *
-from theory import cross_compare
+from theory import cross_compare, is_species
 from estimate import get_estimate, get_equivalent
 
 def align(A_iter, B_iter, A_name='A', B_name='B', matches_iter=None):
@@ -80,9 +80,9 @@ def generate_alignment(AB, matches=None):
       #if not get_acceptable(AB, u): return   # ?????
 
       # Show species overlaps
-      e = exemplar.get_exemplar(u)
+      e = exemplar.get_bare_exemplar(u)
       if e:
-        (id, ue, ve) = e
+        (_, ue, ve) = e
         if ue is u:
           v1 = ve if in_same_tree(AB, u, ue) else ue
           (u2, v2) = get_acceptables(AB, u, v1)
@@ -142,11 +142,6 @@ def generate_alignment(AB, matches=None):
 
   yield from doit(swap(AB), True) # B has priority
   yield from doit(AB, False)
-
-def is_species(u):              # z local
-  if u == False: return False
-  x = get_outject(u)
-  return get_rank(x, None) == 'species' and is_accepted(x)
 
 # Returns ancestor
 

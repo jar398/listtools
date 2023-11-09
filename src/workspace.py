@@ -92,7 +92,7 @@ def make_workspace(A, B, meta=None):
   #log("# taxonID counter: %s" % pk_counter[0])
 
   AB.exemplar_counter = 0     # shared with swapped form
-  AB.exemplars = {}           # maps id to union-find node with (id, u, v)
+  AB.exemplar_ufs = {}           # maps id to union-find node with (id, u, v)
   return AB
 
 def fresh_exemplar_id(AB):

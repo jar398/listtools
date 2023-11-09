@@ -46,8 +46,8 @@ def generate_risk_report(AB):
 
 def exemplar_names(xids, AB, u, v):
   def makename(xid):
-    aname = get_ok_name(exemplar.xid_to_record(AB, xid, u))
-    bname = get_ok_name(exemplar.xid_to_record(AB, xid, v))
+    aname = get_ok_name(theory.xid_to_record(AB, xid, u))
+    bname = get_ok_name(theory.xid_to_record(AB, xid, v))
     if aname == bname:
       return aname
     else:
@@ -76,6 +76,6 @@ if __name__ == '__main__':
     with rows.open(b_path) as b_rows:
       AB = ingest_workspace(a_rows.rows(), b_rows.rows(),
                             A_name=a_name, B_name=b_name)
-      theory.theorize(AB)
+      theory.theorize(AB, False)
       with rows.open(d_path, "w") as d_gen:
         d_gen.write_rows(generate_risk_report(AB))

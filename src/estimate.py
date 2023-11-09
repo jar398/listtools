@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 
 import property as prop
-import checklist, workspace, simple, some_exemplar
+import checklist, workspace, simple
 
 from util import log
 from checklist import *
 from workspace import *
 from simple import BOTTOM, compare_per_checklist, compare_siblings
-from some_exemplar import equate_exemplars, get_exemplar
+from some_exemplar import equate_exemplars, get_bare_exemplar
 
 # -----------------------------------------------------------------------------
 
@@ -22,20 +22,19 @@ def find_estimates(AB):
   counts = [0, 0]
   def findem(AB):
     def doit(AB):
-      if True:
-        for x in checklist.postorder_records(AB.A):
-          u = AB.in_left(x)
-          rel = find_estimate(AB, u)
-          set_estimate(u, rel)
-          if rel.relationship == EQ: # Metering
-            counts[0] += 1
-          else:
-            counts[1] += 1
+      for x in checklist.postorder_records(AB.A):
+        u = AB.in_left(x)
+        rel = find_estimate(AB, u)
+        set_estimate(u, rel)
+        if rel.relationship == EQ: # Metering
+          counts[0] += 1
+        else:
+          counts[1] += 1
     doit(AB)
     doit(swap(AB))
   findem(AB)
   findem(swap(AB))              # swap is in checklist
-  log("-- Estimates: %s (=), %s (<)" % (int(counts[0]/2), counts[1]))
+  log("# Estimates: %s (=), %s (<)" % (int(counts[0]/2), counts[1]))
 
 # Given a model M, let [u] be the least node in the opposite checklist
 # that contains u.  Then we're interested in the minimal [u] taken over
@@ -51,18 +50,23 @@ def find_estimate(AB, u):
     if v != None:
       break
     sup = local_sup(AB, u2)
+    if not sup:
+      # u2 is top
+      return relation(ship, u2, "estimate = top")
     assert sup, blurb(u2)       # not at root
     u2 = sup.record
     ship = LT
 
+  # v is lower bound on u2's estimate (and therefore u's estimate)
+
   # Let a "chain" be a maximal sequence of nodes all having the same
   # cross_mrca (or exemplar set).
 
-  # If  u is part of a chain u1 -> ... u ... -> u4
+  # If  u is part of a chain u1 < ... u ... < u4
   # and cross_mrca(u) = v1,
-  # and we have a chain      v1 -> ...   ... -> v4, then...
+  # and we have a chain      v1 < ...   ... < v4, then...
 
-  # with v1 = cross_mrca(u), u1 = cross_mrca(v1),
+  # with v1 = cross_mrca(u), u1 = cross_mrca(v1),    ***** FALLACY.
   # then if   u <= u1   then the answer is v1 ... v4
   #      if   u > u1    then the answer is v1. ??
 
@@ -71,7 +75,7 @@ def find_estimate(AB, u):
   # or v1 < u2 (if same exemplars but u2 has additional non-exemplars)
 
   u1 = get_cross_mrca(v1)
-  # necessarily u1 >= v1
+  # necessarily u1 >= v1     *** DON'T THINK SO.
 
   if simple.simple_gt(get_outject(u1), get_outject(u2)):
     return relation(LT, v, "goes up ladder")
@@ -82,7 +86,7 @@ def find_estimate(AB, u):
     # could have u1 ~ v1 <= u1 <= v0... very unusual
     log("# Lose: u2 %s, v1 %s <= u1 %s <= v0 %s" %
         (blurb(u2), blurb(v1), blurb(u1), blurb(v0)))
-    assert False
+    return relation(ship, v1, "lose")
   if u1 is u2:
     return relation(ship, v1, "bottom of ladder")
   if monitor(u1) or monitor(u2) or monitor(v1):
@@ -181,27 +185,27 @@ def get_equivalent(AB, u):
 # Needed for equivalent and cosuperior calculations
 
 def compute_cross_mrcas(AB):
-  def do_cross_mrcas(AB):
+  def do_cross_mrcas(WS):        # WS is AB or swap(AB)
     def traverse(x):            # arg in A, result in B
-      u = AB.in_left(x)         # in AB
-      exem = get_exemplar(u)       # in AB
+      u = WS.in_left(x)          # in WS
+      exem = get_bare_exemplar(u)       # exemplar record (not uf)
       if exem:
         (_, u1, v1) = exem
-        v = v1 if separated(u, v1) else u1
-        m = get_outject(v)
+        assert get_outject(v1), blurb(v1) # fails
+        assert get_outject(u1), blurb(u1)
+        m = get_outject(v1) if isinA(AB, u) else get_outject(u1)
       else:
         m = BOTTOM                # identity for mrca
-      for c in get_inferiors(x):  # c in A
-        q = traverse(c)       # in B
-        m0 = m
-        m = simple.mrca(m, q)      # in B
+      for c in get_inferiors(x):  # c in WS.A
+        q = traverse(c)           # in WS.B
+        m = simple.mrca(m, q)     # in WS.B
       # Sanity checks
       if m != BOTTOM:
-        v = AB.in_right(m)
+        v = WS.in_right(m)
         assert separated(u, v)
         set_cross_mrca(u, v)
       return m
-    traverse(AB.A.top)
+    traverse(WS.A.top)
   do_cross_mrcas(AB)
   do_cross_mrcas(swap(AB))
 

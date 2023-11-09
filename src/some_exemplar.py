@@ -1,13 +1,14 @@
+#!/usr/bin/env python3
 
-import sys, regex
+import math
 import property as prop
-import util, workspace, linkage, simple
+import checklist, workspace, simple
+import linkage
+#import exemplar
 
-from util import log, MISSING, UnionFindable
-from property import mep_get, mep_set
-from checklist import * 
+from util import log, UnionFindable
+from checklist import *
 from workspace import *
-from linkage import really_find_links
 
 # Exemplars (representing individual specimens or occurrences with
 # known classification in BOTH checklists) are chosen heuristically
@@ -15,67 +16,36 @@ from linkage import really_find_links
 # are 'tipward' do.  'Tipward' means that at least one of the two taxa
 # has no tipward accepted descendant taxon.
 
-# See AB.exemplars for map {id: [id, v, w], ...}
-# Called from theory.theorize.
+# See AB.exemplar_ufs for map {xid: uf, ...}
 # Each exemplar has a representative in A and one in B.
 
-def find_some_exemplars(AB, get_pre_estimate):
-  really_find_links(AB, get_pre_estimate)
-  analyze_exemplars(AB)
+# find_exemplars is defined in exemplar.py.  Does 2 passes.
+# find_some_exemplars is just one pass; invoked twice.
 
-def analyze_exemplars(AB):
-  analyze_tipwards(AB)
+def find_some_exemplars(AB, subproblems, get_pre_estimate, allow_nontipward):
+  log("# Finding some exemplars")
+  linkage.really_find_links(AB, subproblems, get_pre_estimate)
 
   def do_exemplars(CD):
-    def traverse(x, species):      # x in A
-      u = CD.in_left(x)
-      
-      if species:
-        if linkage.homotypic(u, species):
-          equate_exemplars(species, u)
-
-      if get_rank(u, None) == 'species':
-        species = u
-
-      v = get_tipward(u, None)
-      if v:                     # not None or False
-        u_back = get_tipward(v, None)
-        if u_back is u:         # Mutual?
-          if monitor(u) or monitor(v):
-            log("# exemplar: Mutual: %s -> %s" % (blurb(u), blurb(v)))
-          equate_exemplars(u, v)
-        elif u_back == None:
-          if monitor(u) or monitor(v):
-            log("# exemplar: Nonmutual: %s -> %s -> (none)" % 
-                (blurb(u), blurb(v)))
-          equate_exemplars(u, v)
-        elif u_back == False:
-          if monitor(u) or monitor(v):
-            log("# exemplar: Ambiguous: %s -> %s -> (2 or more)" % 
-                (blurb(u), blurb(v)))
-          equate_exemplars(u, v)
-        else: # u_back != None:     doesn't seem to happen?
-          log("# exemplar: Returns to different tipward %s -> %s -> %s" % 
-              (blurb(u), blurb(v), blurb(u_back)))
-
+    def traverse(x):      # species is an ancestor of x, in A
+      tipward = True
       for c in get_inferiors(x):
-        traverse(c, species)
-    traverse(CD.A.top, None)
+        if traverse(c): tipward = False
+      if tipward:
+        u = CD.in_left(x)
+        v = get_link(u, None)
+        if v:
+          u2 = get_link(v, None)
+          if u2 is u:
+            # But only if tipward? or overlap??
+            equate_exemplars(u, v)
+
+    traverse(CD.A.top)
 
   do_exemplars(AB)
   do_exemplars(swap(AB))
   equate_exemplars(AB.in_left(AB.A.top),
                    AB.in_right(AB.B.top))
-  report_on_exemplars(AB)
-
-def report_on_exemplars(AB):
-  exemplars = set()             # for counting distinct exemplars
-  for x in preorder_records(AB.A):
-    u = AB.in_left(x)
-    ex = get_exemplar(u)
-    if ex:
-      exemplars.add(ex[0])      # id only
-  log("-- Exemplars: %s " % len(exemplars))
 
 # Issues: 
 #   1. choice of taxa (both sides)
@@ -83,86 +53,102 @@ def report_on_exemplars(AB):
 
 def equate_exemplars(u, v):     # opposite checklists. u might be species
   if u != v:
-    uf = get_exemplar_uf(u)     # uf = 'union/find'
-    vf = get_exemplar_uf(v)
-    merge_representatives(uf.find(), vf.find())
-    uf.absorb(vf)
+    # assert u descends from v if in same checklist?
+    equate_exemplar_ufs(get_exemplar_uf(u), get_exemplar_uf(v))
+  return u
 
-def merge_representatives(uf, vf): # absorb into uf
-  r = uf.payload()
-  (i1, u1, v1) = r
+def equate_exemplar_ufs(uf, vf):
+  uf = uf.find()
+  vf = vf.find()
+  (i1, u1, v1) = uf.payload()
   (i2, u2, v2) = vf.payload()
-  r[1] = unify_records(u1, u2)
-  r[2] = unify_records(v1, v2)
-  if r[1] and r[2]:
-    #log("# Same exemplar: e(%s) = e(%s)" % (blurb(r[1]), blurb(r[2])))
-    pass
-  if i1 and i2:
-    r[0] = min(i1, i2)
-  else:
-    r[0] = i1 or i2
+  assert i1 == None or i2 == None or i1 == i2
+  assert u1 or v1
+  assert u2 or v2
+  ef = uf.absorb(vf)
+  assert ef is uf
+  r = ef.payload()
+  r[1] = pick_better_record(u1, u2)
+  r[2] = pick_better_record(v1, v2)
+  assert r[1] or r[2]
+  return ef
 
-def unify_records(u1, u2):
+# u1 and u2 are in workspace, in same checklist
+
+def pick_better_record(u1, u2):
   if not u2: return u1
   if not u1: return u2
-  rel = simple.compare_per_checklist(u1, u2)
+  x1 = get_outject(u1)
+  x2 = get_outject(u2)
+  rel = simple.compare_per_checklist(x1, x2)
+  if rel.relationship == LT:
+    return u1                   # Prefer more tipward
   if rel.relationship == GT:
     return u2                   # Prefer more tipward
-  if (rel.relationship == EQ and
-      not get_parts(u1).protonymp and get_parts(u2).protonymp):
-    log("# preferring protonym %s to %s" % (blurb(u2), blurb(u1)))
-    return u2                   # Prefer protonym
-  else:
-    return u1
+  # The following is probably not necessary, but it's tidy?
+  # if necessary, should work harder to canonicalize, yes?
+  parts1 = get_parts(x1)
+  parts2 = get_parts(x2)
+  if is_accepted(x2):
+    if False and (not parts1.protonymp and parts2.protonymp and parts2.genus != None):
+      log("# preferring protonym %s to %s" % (blurb(u2), blurb(u1)))
+      return u2                   # Prefer protonym - NOT
+    elif not is_accepted(x1):
+      return u2
+    elif simple.descends_from(x2, x1):
+      return u2
+  return u1
+
+# Only workspace nodes have uf records
 
 def get_exemplar_uf(u):
   #log("# Thinking about exemplar for %s" % blurb(u))
   probe = really_get_exemplar_uf(u, None)
   if probe: return probe
   AB = get_workspace(u)
-  uf = UnionFindable([None, u, None] if isinA(AB, u) else [None, None, u])
+  exem = [None, u, None] if isinA(AB, u) else [None, None, u]
+  uf = UnionFindable(exem)
+  assert exem[1] or exem[2]
   set_exemplar_uf(u, uf)
   return uf
+
+# Union-find nodes start out with no xid, then get xid when exemplars are identified
 
 (really_get_exemplar_uf, set_exemplar_uf) = \
   prop.get_set(prop.declare_property("exemplar_uf"))
 
 
-# Given the id for an exemplar union/find node,
-# return the associated taxon record that's in same checklist as z.
+# Returns exemplar record (xid, u, v) or None.
 
-def xid_to_record(AB, id, z):
-  uf = AB.exemplars[id]
-  (_, u, v) = uf.payload()
-  return u if isinA(AB, z) else v
-
-def xid_to_opposite_record(AB, id, z):
-  uf = AB.exemplars[id]
-  (_, u, v) = uf.payload()
-  return v if isinA(AB, z) else u
-
-
-# Returns exemplar record or None.  TO BE USED ONLY AFTER
-# analyze_exemplars HAS FINISHED ITS WORK.
-
-def get_exemplar(u):
-  uf = really_get_exemplar_uf(u, None)
+def get_exemplar(z):
+  uf = really_get_exemplar_uf(z, None)
   if uf:
     r = uf.payload()
-    (id, u, v) = r
+    (xid, u, v) = r
     if u and v:
-      if not id:
-        # Create id (for set operations) on demand
+      if xid == None:
+        # Create exemplar id (for set operations) on demand
         ws = get_workspace(u)
-        id = fresh_exemplar_id(ws)
-        r[0] = id
-        ws.exemplars[id] = uf
-        #log("# Exemplar %s: e(%s) = (%s)" % (id, blurb(u), blurb(v)))
+        xid = fresh_exemplar_id(ws)
+        r[0] = xid
+        ws.exemplar_ufs[xid] = uf
+        #log("# Exemplar %s: (%s) <-> (%s)" % (xid, blurb(u), blurb(v)))
       return r
   return None
 
+def get_bare_exemplar(z):
+  uf = really_get_exemplar_uf(z, None)
+  if uf:
+    r = uf.payload()
+    (xid, u, v) = r
+    if u and v:
+      return r
+  return None
+  
+
 # -----------------------------------------------------------------------------
 # Find tipward record matches (TRMs)
+# Not used at present
 
 (get_tipward, set_tipward) = prop.get_set(prop.declare_property("tipward"))
 
