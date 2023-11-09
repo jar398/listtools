@@ -1,5 +1,8 @@
 # listtools
 
+(Sources on main branch are in a somewhat inconsistent state; Makefile
+and documentation require revision.  If you're eager to get going, you should probably first check [this cheat sheet](doc/plugin-cheat.d).)
+
 Tools for manipulating lists of things, and in particular, lists of taxonomic
 names (i.e. 'checklists'), which are sometimes organized hierachically.
 
@@ -7,10 +10,7 @@ names (i.e. 'checklists'), which are sometimes organized hierachically.
 * [User guide](doc/guide.md)
 * [Method](doc/method.md)
 
-<strong>Warning:</strong> The code is in transition from one method to
-another.  You will see redundancy in functionality as the older code
-has just been left in place rather than removed or integrated with the
-new code.
+### Note
 
 As is customary in computer science, trees grow downwards, like a root
 system, not upwards.  So:

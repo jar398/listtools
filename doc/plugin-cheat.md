@@ -19,9 +19,9 @@ Scenario and theory:
 
 Name matching method:
 - Find sets of rows from the two checklists such that
-  . in each set, all rows have the same associated type
-  . all rows known to have that type are in the set
-  . each set contains at least one row from each checklist
+    . in each set, all rows have the same associated type
+    . all rows known to have that type are in the set
+    . each set contains at least one row from each checklist
 - For each such set call the associated type specimen an "exemplar"
 - (again, we don't "know what the exemplar is", but that doesn't matter
   since algorithmically we'll only be concerned with the associated set)
@@ -29,13 +29,14 @@ Name matching method:
   checklist, with the same accepted species name, but each name could
   also be synonym, a subspecies name, etc. and the set could have multiple
   rows from either or both checklists
-- Output: CSV file of A-or-B, taxonid, exemplarid
+- Output: exemplars CSV file.  Rows are: A-or-B, taxonid, exemplarid
     - says that the row given by taxonid in checklist A-or-B belongs
-      to the record set given by exemplarid
+      to the record set associated with the exemplar given by exemplarid
     - A-or-B is 0 for A, 1 for B
     - exemplarid is locally unique to this analysis (not global)
 
 RCC-5 inference:
+- Input: exemplars CSV file
 - Exemplars play a role similar to protonyms in the Pyle/Remsen formulation
 - N.b. taxon concepts may be distinct (different circumscriptions) even 
   when the exemplar and rank are the same.
