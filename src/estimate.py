@@ -57,14 +57,16 @@ def find_estimate(AB, u):
     u2 = sup.record
     ship = LT
 
+  # v is lower bound on u2's estimate (and therefore u's estimate)
+
   # Let a "chain" be a maximal sequence of nodes all having the same
   # cross_mrca (or exemplar set).
 
-  # If  u is part of a chain u1 -> ... u ... -> u4
+  # If  u is part of a chain u1 < ... u ... < u4
   # and cross_mrca(u) = v1,
-  # and we have a chain      v1 -> ...   ... -> v4, then...
+  # and we have a chain      v1 < ...   ... < v4, then...
 
-  # with v1 = cross_mrca(u), u1 = cross_mrca(v1),
+  # with v1 = cross_mrca(u), u1 = cross_mrca(v1),    ***** FALLACY.
   # then if   u <= u1   then the answer is v1 ... v4
   #      if   u > u1    then the answer is v1. ??
 
@@ -73,7 +75,7 @@ def find_estimate(AB, u):
   # or v1 < u2 (if same exemplars but u2 has additional non-exemplars)
 
   u1 = get_cross_mrca(v1)
-  # necessarily u1 >= v1
+  # necessarily u1 >= v1     *** DON'T THINK SO.
 
   if simple.simple_gt(get_outject(u1), get_outject(u2)):
     return relation(LT, v, "goes up ladder")
@@ -84,7 +86,7 @@ def find_estimate(AB, u):
     # could have u1 ~ v1 <= u1 <= v0... very unusual
     log("# Lose: u2 %s, v1 %s <= u1 %s <= v0 %s" %
         (blurb(u2), blurb(v1), blurb(u1), blurb(v0)))
-    assert False
+    return relation(ship, v1, "lose")
   if u1 is u2:
     return relation(ship, v1, "bottom of ladder")
   if monitor(u1) or monitor(u2) or monitor(v1):

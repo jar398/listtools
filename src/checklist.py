@@ -809,13 +809,19 @@ u1 -> v1 -> u2 -> v3
 
 # We could cache this...
 
+(get_parts_cache, set_parts_cache) = prop.get_set(prop.declare_property("parts_cache", inherit=False))
+
 def get_parts(x):
-  return parse.parse_name(get_best_name(x),
-                          gn_full = get_gn_full(x, MISSING),
-                          gn_stem = get_gn_stem(x, MISSING),
-                          gn_auth = get_gn_auth(x, MISSING),
-                          canonical = get_canonical(x, MISSING),
-                          authorship = get_authorship(x, MISSING))
+  probe = get_parts_cache(x, None)
+  if probe: return probe
+  parts = parse.parse_name(get_best_name(x),
+                           gn_full = get_gn_full(x, MISSING),
+                           gn_stem = get_gn_stem(x, MISSING),
+                           gn_auth = get_gn_auth(x, MISSING),
+                           canonical = get_canonical(x, MISSING),
+                           authorship = get_authorship(x, MISSING))
+  set_parts_cache(x, parts)
+  return parts
 
 def get_tipe(x, default=None):
   parts = get_parts(x)
