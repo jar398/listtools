@@ -1,7 +1,5 @@
 # List tools user guide
 
-See also [philosophy / theory / method](theory.md)
-
 ## Overview
 
 The 'tools' or 'scripts' or 'programs' in this repository manipulate
@@ -15,6 +13,8 @@ a suitable `makefile'.  This way, intermediate objects can be cached
 in the local file system, avoiding expensive regeneration steps when
 inputs have not changed.
 
+For a complete example, see [example.md](example.md).
+
 ## Installation
 <a name="installation"/>
 
@@ -23,8 +23,7 @@ invoked from the shell out of a clone of this `git` repository.
 
 Python 3 and `bash` are assumed.
 
-Install the python3 `regex` module (although it's easy to revert to
-the built-in `re` if you prefer not to).
+Install the python3 `regex` module.
 
 Also required is `gnparser`, which has download instructions
 [here](https://github.com/gnames/gnparser#installation).
@@ -104,6 +103,8 @@ column.  This will then be used for matching operations.
 This extracts `scientificName`s in a form suitable for consumption by `gnparser`.
 If there is no `scientificName` then the `canonicalName` is extracted.
 
+    src/extract_names < work/A-clean.csv > work/A-names.txt
+    gnparser -s < work/A-names.txt > work/A-gnparsed.csv
 
 ### use_gnparse
 
@@ -111,6 +112,7 @@ This consumes the output of `gnparser` and combines it with the table
 that was just processed, enriching the table with the addition of 
 columns from the `gnparser` output.
 
+    src/use_gnparse < work/A-gnparsed.csv > work/A.csv
 
 ### exemplar
 
@@ -125,10 +127,14 @@ and the type specimen of a matched set is called an 'exemplar'.
 
 Writes exemplar file to standard output.
 
-There is one output row per A or B checklist row that has an associated an exemplar.
+    src/exemplar --A work/A.csv --B work/B.csv > work/AB-exemplars.csv
+
+There is one output row for each "interesting" A or B checklist row.
  - `checklist`: 0 for the A checklist, 1 for B
  - `taxonID`: the checklist row for a taxon concept
  - `exemplar id`: identifies an exemplar, locally to this analysis (not global).
+
+"Interesting" - TBD: describe what's omitted - many synonyms
 
 The meaning of an output row is that the type specimen of the
 indicated taxon concept is the exemplar to be identified by `exemplar
@@ -137,10 +143,13 @@ concepts.)
 
 ## plugin
 
-    src/plugin.py --A a.csv --B b.csv --exemplars e.csv
+    src/plugin.py --A work/A.csv --B work/B.csv --exemplars work/AB-exemplars.csv
+
+This writes a report to standard output.
+
+If `--exemplars` is not given, the exemplars are computed using `exemplar.py`.
 
 The output (to standard output) has these columns (subject to change):
-
  - `A taxon id` - the taxon id of an A row
  - `A taxon name` - the canonicalName of that A record (for human consumption)
  - `B species that intersect` - 
@@ -160,7 +169,31 @@ The output (to standard output) has these columns (subject to change):
    as the B concept or larger (RCC-5 >) than it.  For synonyms it may
    be hard to tell.
 
+A name written with an asterisk (e.g. `Rana pipiens*`) indicates a synonym.
+
 In case of an ambiguous match, the exemplar set will contain all alternatives.
+
+How to read the report:
+
+If you're mainly concerned with the impact on a data set of advancing
+from one version of a checklist to the next (from A to B), then focus
+on lines with semicolons, i.e. species intersections with more than
+one species.  These rows indicate splits, meaning that data using the
+taxon name in A would have to be re-curated to use the correct
+intersecting species in B, if one wanted to make the data consistent
+with checklist B.
+
+This splits in the report will only be an exhaustive list if enough
+synonyms and infraspecific taxa are present in A.  For example, if a
+species name is new in B (does not occur in name), then it will look
+like a de novo species, rather than a split, if it does not somehow
+link back to the split taxon in A via synonym and other records.
+
+
+[TBD: there should be some indication of name changes; these are hard
+to detect on a quick scan otherwise.  Maybe a separate column with this info.]
+
+
 
 ### ncbi_to_dwc
 
@@ -184,11 +217,11 @@ Columns in the DwC output:
 `project` (emphasis on second syllable) drops columns from the input.
 With `--keep`, it drops all columns other than those specified:
 
-    src/project.py --keep a,b,c <foo.csv >less-foo.csv
+    src/project.py --keep a,b,c < foo.csv > less-foo.csv
 
 With `--drop`, it drops particular columns, keeping all the rest:
 
-    src/project.py --drop a,b,c <foo.csv >less-foo.csv
+    src/project.py --drop a,b,c < foo.csv > less-foo.csv
 
 
 ### subset
@@ -196,7 +229,7 @@ With `--drop`, it drops particular columns, keeping all the rest:
 `subset` generates a subset of the rows of a given file, starting from
 a specified root.
 
-    src/subset.py --root 40674 <all.csv >some.csv
+    src/subset.py --root 40674 < work/all.csv > work/some.csv
 
 It assumes the usual Darwin Core hierarchical structure, given by
 these columns: 
@@ -210,7 +243,7 @@ these columns:
 
 You can specify the root using its `canonicalName` it that's unique:
 
-    src/subset.py --root Mammalia <all.csv >some.csv
+    src/subset.py --root Mammalia < work/all.csv > work/some.csv
 
 ### sortcsv
 

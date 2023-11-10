@@ -88,4 +88,5 @@ Installation:
 - There is no build step
 
 Use:
-- See user guide (guide.md)[guide.md]
+- See user guide (guide.md)[guide.md] and example (example.md)[example.md]
+
