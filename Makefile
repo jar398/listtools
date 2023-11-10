@@ -52,10 +52,30 @@ BNAME?=B
 TAXON?=Mammalia
 taxon?=mammals
 
-# MDD-style comparison report:
+# For checklistbank accessory
 
 PLUGIN=work/$(shell basename $A)-$(shell basename $B)-plugin.csv
 EXEMPLARS=work/$(shell basename $A)-$(shell basename $B)-exemplars.csv
+
+# E.g. make A=work/col23.1-mammals B=work/gbif20230902-mammals exemplars
+
+exemplars: $(EXEMPLARS)
+$(EXEMPLARS): $(CODE) $A.csv $B.csv
+	@echo
+	$P/exemplar.py --A $A.csv --B $B.csv --Aname $(ANAME) --Bname $(BNAME) \
+	  > $@.new
+	@mv -f $@.new $@
+
+plugin: $(PLUGIN)
+$(PLUGIN): $(CODE) $A.csv $B.csv $(EXEMPLARS)
+	@echo
+	$P/plugin.py --exemplars work/$(shell basename $A)-$(shell basename $B)-exemplars.csv \
+		   --A $A.csv --B $B.csv --Aname $(ANAME) --Bname $(BNAME) \
+	  > $@.new
+	@mv -f $@.new $@
+
+
+# MDD-style comparison report:
 
 SUMMARY=work/$(shell basename $A)-$(shell basename $B)-summary.csv
 REPORT=work/$(shell basename $A)-$(shell basename $B)-report.csv
@@ -72,13 +92,6 @@ SHORT=work/$(shell basename $A)-$(shell basename $B)-short.csv
 CODE=$P/demo.py $P/align.py $P/theory.py $P/simple.py $P/workspace.py \
      $P/checklist.py $P/rcc5.py $P/eulerx.py $P/linkage.py $P/estimate.py \
      $P/exemplar.py $P/plugin.py $P/parse.py $P/util.py
-
-exemplars: $(EXEMPLARS)
-$(EXEMPLARS): $(CODE) $A.csv $B.csv
-	@echo
-	$P/exemplar.py --A $A.csv --B $B.csv --Aname $(ANAME) --Bname $(BNAME) \
-	  > $@.new
-	@mv -f $@.new $@
 
 demo: $(DEMO)
 
@@ -104,13 +117,13 @@ $(MATCHES): $A.csv $B.csv $P/match_records.py
 
 # Stale targets, relicts of some EOL work
 
-report: $(REPORT)
-REPORT_OPTIONS?=
+eol_report: $(EOL_REPORT)
+EOL_REPORT_OPTIONS?=
 
-$(REPORT): $(MERGED) $P/report.py $P/property.py
+$(EOL_REPORT): $(MERGED) $P/eol_report.py $P/property.py
 	@echo
-	@echo "--- PREPARING REPORT ---"
-	$P/report.py $(REPORT_OPTIONS) --summary $(SUMMARY) < $(MERGED) > $@.new
+	@echo "--- PREPARING EOL_REPORT ---"
+	$P/eol_report.py $(EOL_REPORT_OPTIONS) --summary $(SUMMARY) < $(MERGED) > $@.new
 	@mv -f $@.new $@
 
 # Merged checklist on which the report is based:
@@ -238,10 +251,10 @@ test:
 	$P/checklist.py
 	$P/workspace.py
 	$P/align.py --test
-	$(MAKE) A=test1 B=test2 report
+	$(MAKE) A=test1 B=test2 eol_report
 
-test-report: 
-	$(MAKE) A=test1 B=test2 report
+test-eol_report: 
+	$(MAKE) A=test1 B=test2 eol_report
 	@echo 'A: $(TEST1)'
 	@echo 'B: $(TEST2)'
 	$P/newick.py < work/test1-test2-merged.csv
@@ -373,11 +386,11 @@ work/mdd1.7.csv: work/mdd1.7-clean.csv
 work/mdd1.6-primates-clean.csv: work/mdd1.6-clean.csv
 work/mdd1.7-primates-clean.csv: work/mdd1.7-clean.csv
 
-# make A=mdd1.2-mammals B=mdd1.3 report
-# make A=mdd1.2 B=mdd1.3 report
-# make A=gbif20210303-mammals B=mdd1.0-mammals report
+# make A=mdd1.2-mammals B=mdd1.3 eol_report
+# make A=mdd1.2 B=mdd1.3 eol_report
+# make A=gbif20210303-mammals B=mdd1.0-mammals eol_report
 # Prashant's request, see slack on 5/2/2022:
-# make A=mdd1.7 B=gbif20220317-mammals report
+# make A=mdd1.7 B=gbif20220317-mammals eol_report
 
 
 # Norway = artsnavnebase
@@ -416,8 +429,8 @@ work/swe.dwca-url:
 
 # Requires clone of 'plotter' repo.
 
-eol-report:
-	$(MAKE) A=dh11-$(taxon) B=dh12-$(taxon) report
+eol_report:
+	$(MAKE) A=dh11-$(taxon) B=dh12-$(taxon) eol_report
 
 # time make A=dh11-mammals B=dh12-mammals round
 # time make A=dh09-mammals B=dh11-mammals round
@@ -426,10 +439,10 @@ eol-report:
 
 # Hierarchies - columns are those that neo4j needs to know
 # DELTA_KEY=EOLid MANAGE=EOLid,parentEOLid,taxonID,landmark_status \
-#   time make A=dh09-hier B=dh11-hier report
+#   time make A=dh09-hier B=dh11-hier eol_report
 
 # DELTA_KEY=EOLid MANAGE=EOLid,parentEOLid,taxonID,landmark_status \
-#   time make A=dh11-hier B=dh12-hier report
+#   time make A=dh11-hier B=dh12-hier eol_report
 
 # ----- 5. CoL examples:
 

@@ -280,7 +280,7 @@ def resolve_superior_link(S, record):
           (get_tag(S), blurb(record), accepted_key))
   else:
     # Accepted
-    assert is_accepted(record)
+    assert is_accepted(record), (blurb(record), get_taxonomic_status(record))
     parent_key = get_parent_key(record, None)
     parent = look_up_record(S, parent_key, record)
     if parent:
@@ -493,6 +493,7 @@ def get_inferiors(x):
 def is_accepted(x):             # exported
   status = get_taxonomic_status(x, "accepted")
   return (status.startswith("accepted") or
+          status.startswith("provisionally accepted") or #GBIF
           status.startswith("valid") or
           status.startswith("doubtful"))
 

@@ -345,7 +345,7 @@ def get_intersecting_species(u):
       o.append(s)
   return o
 
-# The records in z's checklist corresponding to the exemplars
+# The records on z's "side" corresponding to the exemplars
 # in the block for z.  (z is in AB)
 
 def exemplar_records(AB, z):
@@ -378,13 +378,13 @@ def is_species(u):              # z local
 
 def xid_to_record(AB, xid, z):
   uf = AB.exemplar_ufs[xid]
-  (_, x, y) = uf.payload()
-  return AB.in_left(x) if isinA(AB, z) else AB.in_right(y)
+  (_, u, v) = uf.payload()
+  return u if isinA(AB, z) else v
 
 def xid_to_opposite_record(AB, xid, z):
   uf = AB.exemplar_ufs[xid]
-  (_, x, y) = uf.payload()
-  return AB.in_right(y) if isinA(AB, z) else AB.in_left(x)
+  (_, u, v) = uf.payload()
+  return v if isinA(AB, z) else u
 
 # -----------------------------------------------------------------------------
 # Implementation of blocks as Python sets of 'exemplars'.

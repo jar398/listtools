@@ -102,9 +102,14 @@ if __name__ == '__main__':
                       default='-')
   parser.add_argument('--B', help="the B checklist, as path name or -",
                       default='-')
+  parser.add_argument('--Aname', help="short name of the A checklist",
+                      default='A')
+  parser.add_argument('--Bname', help="short name of the B checklist",
+                      default='B')
   args=parser.parse_args()
 
-  a_name = 'A'; b_name = 'B'
+  a_name = args.Aname
+  b_name = args.Bname
   a_path = args.A
   b_path = args.B
   with rows.open(a_path) as a_rows:

@@ -16,8 +16,8 @@ def start_csv(inport, params, outport, args):
   # Use built-in python csv sniffer ??
   if len(in_header) == 1:
     if "," in in_header[0] or "\t" in in_header[0]:
-      log("** start: Suspicious in_header")
-      log("** start: in_header is %s" % (in_header,))
+      log("** clean: Suspicious in_header")
+      log("** clean: in_header is %s" % (in_header,))
 
   def fix(h):
     if h[0] == '\ufeff': h = h[1:]
@@ -91,9 +91,9 @@ def start_csv(inport, params, outport, args):
       in_row = in_row[0:len(in_header)]
       trimmed += 1
     elif len(in_row) < len(in_header):
-      log(("** start: Unexpected number of columns: have %s want %s" %
+      log(("** clean: Unexpected number of columns: have %s want %s" %
              (len(in_row), len(in_header))))
-      log(("** start: in_row is %s" % (in_row,)))
+      log(("** clean: in_row is %s" % (in_row,)))
       assert False
 
     # Filter out senior synonyms
@@ -124,7 +124,8 @@ def start_csv(inport, params, outport, args):
     stat = in_row[tax_status_pos]
     indication_2 = (stat.startswith("accepted") or
                     stat.startswith("valid") or
-                    stat.startswith("dubious"))
+                    stat.startswith("dubious") or
+                    stat == "provisionally accepted")  #seen in GBIF
 
     # Two ways to test whether a usage is accepted/dubious
     pk = in_row[pk_pos_in]
@@ -182,18 +183,18 @@ def start_csv(inport, params, outport, args):
     count += 1
     if count % 250000 == 0:
       log("row %s id %s" % (count, in_row[taxon_id_pos]))
-  log("-- start: %s rows, %s columns, %s ids minted, %s accepteds normalized" %
+  log("-- clean: %s rows, %s columns, %s ids minted, %s accepteds normalized" %
         (count, len(in_header), minted, accepteds_normalized))
-  log("-- start: %s names cleaned, %s ranks cleaned" %
+  log("-- clean: %s names cleaned, %s ranks cleaned" %
         (names_cleaned, ranks_cleaned))
   if senior > 0:
-    log("-- start: filtered out %s senior synonyms" % senior)
+    log("-- clean: filtered out %s senior synonyms" % senior)
   if managed > 0:
-    log("-- start: %s managed ids" % managed)
+    log("-- clean: %s managed ids" % managed)
   if trimmed > 0:
     # Ignoring extra values is appropriate behavior for DH 0.9.  But
     # elsewhere we might want ragged input to be treated as an error.
-    log("-- start: trimmed extra values from %s rows" % (trimmed,))
+    log("-- clean: trimmed extra values from %s rows" % (trimmed,))
     
 def fresh_pk(row, out_header):
   try:
@@ -246,13 +247,13 @@ def clean_name(row, can_pos, sci_pos):
     # swap
     c = s
     s = MISSING
-    # log("start: c := s") - frequent in DH 1.1
+    # log("clean: c := s") - frequent in DH 1.1
   elif c == s:
     if is_scientific(c):
       c = MISSING
     else:
       s = MISSING
-    # log("start: flush s") - frequent in DH 1.1
+    # log("clean: flush s") - frequent in DH 1.1
   s = s.replace(' and ', ' & ') # frequent in DH 1.1 ?
   s = s.replace(',,', ',')    # kludge for MDD 1.0
   s = s.replace('  ', ' ')    # kludge for MSW 3
