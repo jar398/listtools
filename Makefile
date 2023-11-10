@@ -1,9 +1,13 @@
 # $< = first prerequisite, $@ = target
 
-# See lower part of file for examples (NCBI etc.)
+# This Makefile has general rules for invoking the list tools, as well
+# as examples.  For the examples see the lower part of the file.
 
-# This has examples of the use of the list tools.
-# Very much in flux!
+# This file is in flux as the current focus of development changes.
+# Currently (November 2023) development is focusing on examplar.py
+# and plugin.py, which do not currently have Makefile rules.  Older
+# rules may not work right now.
+
 
 all:
 	@echo "Use make parameter syntax to specify the two checklists, e.g."
@@ -50,6 +54,9 @@ taxon?=mammals
 
 # MDD-style comparison report:
 
+PLUGIN=work/$(shell basename $A)-$(shell basename $B)-plugin.csv
+EXEMPLARS=work/$(shell basename $A)-$(shell basename $B)-exemplars.csv
+
 SUMMARY=work/$(shell basename $A)-$(shell basename $B)-summary.csv
 REPORT=work/$(shell basename $A)-$(shell basename $B)-report.csv
 MERGED=work/$(shell basename $A)-$(shell basename $B)-merged.csv
@@ -61,11 +68,17 @@ DELTA=work/$(shell basename $A)-$(shell basename $B)-delta.csv
 DEMO=work/$(shell basename $A)-$(shell basename $B)-aligned.csv
 EULERX=work/$(shell basename $A)-$(shell basename $B)-eulerx.txt
 SHORT=work/$(shell basename $A)-$(shell basename $B)-short.csv
-EXEMPLARS=work/$(shell basename $A)-$(shell basename $B)-exemplars.csv
 
 CODE=$P/demo.py $P/align.py $P/theory.py $P/simple.py $P/workspace.py \
-     $P/checklist.py $P/rcc5.py $P/eulerx.py $P/linkage.py $P/lub.py \
-     $P/exemplar.py $P/parse.py $P/util.py
+     $P/checklist.py $P/rcc5.py $P/eulerx.py $P/linkage.py $P/estimate.py \
+     $P/exemplar.py $P/plugin.py $P/parse.py $P/util.py
+
+exemplars: $(EXEMPLARS)
+$(EXEMPLARS): $(CODE) $A.csv $B.csv
+	@echo
+	$P/exemplar.py --A $A.csv --B $B.csv --Aname $(ANAME) --Bname $(BNAME) \
+	  > $@.new
+	@mv -f $@.new $@
 
 demo: $(DEMO)
 
@@ -184,14 +197,14 @@ work/%.dump: in/%.zip
 
 # Normalize the DwCA taxon file (no managed id space).
 
-%-raw.csv: %.dump $P/start.py
-	$P/start.py --pk $(PRIMARY_KEY) --input `src/find_taxa.py $<` \
+%-clean.csv: %.dump $P/clean.py
+	$P/clean.py --pk $(PRIMARY_KEY) --input `src/find_taxa.py $<` \
 	  >$@.new
 	@mv -f $@.new $@
 
 # Adjoin 'tipe' and 'year' columns.  To skip this step, change the rule to
 # cp -pf $< $@
-%.csv: %-raw.csv $P/extract_names.py $P/use_gnparse.py
+%.csv: %-clean.csv $P/extract_names.py $P/use_gnparse.py
 	$P/extract_names.py < $< \
 	| gnparser -s \
 	| $P/use_gnparse.py --source $< > $@.new
@@ -199,7 +212,7 @@ work/%.dump: in/%.zip
 
 # Subsetting:
 
-%-$(taxon)-raw.csv: %-raw.csv $P/subset.py
+%-$(taxon)-clean.csv: %-clean.csv $P/subset.py
 	$P/subset.py < $< --hierarchy $< --root $(TAXON) > $@.new
 	@mv -f $@.new $@
 
@@ -217,8 +230,8 @@ tags:
 
 test-demo: work/test1.csv work/test2.csv
 	$(MAKE) A=work/test1 B=work/test2 demo
-work/test1.csv: work/test1-raw.csv $P/extract_names.py $P/use_gnparse.py
-work/test2.csv: work/test2-raw.csv $P/extract_names.py $P/use_gnparse.py
+work/test1.csv: work/test1-clean.csv $P/extract_names.py $P/use_gnparse.py
+work/test2.csv: work/test2-clean.csv $P/extract_names.py $P/use_gnparse.py
 
 test:
 	$P/property.py
@@ -236,10 +249,10 @@ test-report:
 TEST1="((a,b)d,c)f1"
 TEST2="(a,(b,c)e)f2"
 
-work/test1-raw.csv:
+work/test1-clean.csv:
 	$P/newick.py --newick $(TEST1)  >$@
 
-work/test2-raw.csv:
+work/test2-clean.csv:
 	$P/newick.py --newick $(TEST2) >$@
 
 # -----------------------------------------------------------------------------
@@ -256,17 +269,17 @@ ncbi-demo:
 	$(MAKE) A=work/ncbi201505-$(taxon) B=work/ncbi202008-$(taxon) \
 	  ANAME=N2015 BNAME=N2020 demo
 
-work/ncbi201505-$(taxon).csv: work/ncbi201505-$(taxon)-raw.csv \
+work/ncbi201505-$(taxon).csv: work/ncbi201505-$(taxon)-clean.csv \
    $P/extract_names.py $P/use_gnparse.py
-work/ncbi202008-$(taxon).csv: work/ncbi202008-$(taxon)-raw.csv \
+work/ncbi202008-$(taxon).csv: work/ncbi202008-$(taxon)-clean.csv \
    $P/extract_names.py $P/use_gnparse.py
-# raw-to-raw subsetting is implicit... 
+# raw-to-clean subsetting is implicit... 
 
-work/ncbi201505-$(taxon)-raw.csv: work/ncbi201505-raw.csv
-work/ncbi202008-$(taxon)-raw.csv: work/ncbi202008-raw.csv
+work/ncbi201505-$(taxon)-clean.csv: work/ncbi201505-clean.csv
+work/ncbi202008-$(taxon)-clean.csv: work/ncbi202008-clean.csv
 
 # Convert NCBI taxdump to DwC form
-#work/ncbi%-raw.csv: work/ncbi%.dump
+#work/ncbi%-clean.csv: work/ncbi%.dump
 
 work/ncbi%.dump/taxon.csv: work/ncbi%.dump/names.dmp $P/ncbi_to_dwc.py
 	$P/ncbi_to_dwc.py `dirname $<` > $@.new
@@ -294,15 +307,15 @@ gbif-demo:
 	$(MAKE) A=work/gbif20190916-$(taxon) B=work/gbif20210303-$(taxon) \
 	  ANAME=G2019 BNAME=G2021 demo
 
-work/gbif20190916-$(taxon).csv: work/gbif20190916-$(taxon)-raw.csv \
+work/gbif20190916-$(taxon).csv: work/gbif20190916-$(taxon)-clean.csv \
    $P/extract_names.py $P/use_gnparse.py
-work/gbif20210303-$(taxon).csv: work/gbif20210303-$(taxon)-raw.csv \
+work/gbif20210303-$(taxon).csv: work/gbif20210303-$(taxon)-clean.csv \
    $P/extract_names.py $P/use_gnparse.py
-# raw-to-raw subsetting is implicit, don't need the following
-#work/gbif20190916-$(taxon)-raw.csv: work/gbif20190916-raw.csv
+# raw-to-clean subsetting is implicit, don't need the following
+#work/gbif20190916-$(taxon)-clean.csv: work/gbif20190916-clean.csv
 
 # an instance of the DwC ingest rule.  shouldn't need
-#work/gbif20190916-raw.csv: work/gbif20190916.dump
+#work/gbif20190916-clean.csv: work/gbif20190916.dump
 
 # make A=ncbi202008-mammals B=gbif20210303-mammals demo
 # and so on.
@@ -310,11 +323,11 @@ work/gbif20210303-$(taxon).csv: work/gbif20210303-$(taxon)-raw.csv \
 # GBIF-specific rules
 
 # Ingest GBIF dump, convert TSV to CSV, add managed_id column
-work/gbif%-raw.csv: work/gbif%.dump $P/start.py
-	$P/start.py --pk $(PRIMARY_KEY) --input `src/find_taxa.py $<` \
+work/gbif%-clean.csv: work/gbif%.dump $P/clean.py
+	$P/clean.py --pk $(PRIMARY_KEY) --input `src/find_taxa.py $<` \
 	  --managed gbif:taxonID >$@.new
 	@mv -f $@.new $@
-.PRECIOUS: work/gbif%-raw.csv
+.PRECIOUS: work/gbif%-clean.csv
 
 work/gbif201505.dwca-url:
 	echo https://rs.gbif.org/datasets/backbone/2015-05-05/backbone.zip >$@
@@ -329,7 +342,7 @@ work/gbif20230828.dwca-url:
 	echo https://rs.gbif.org/datasets/backbone/2023-08-28/backbone.zip >$@
 
 # need the following or no?
-#work/gbif20210303-$(taxon)-raw.csv: work/gbif20210303-raw.csv
+#work/gbif20210303-$(taxon)-clean.csv: work/gbif20210303-clean.csv
 
 # ----- 3. BioKIC/ATCR examples:
 
@@ -355,10 +368,10 @@ mdd-demo-67p:
 mdd-demo-01:
 	$(MAKE) A=work/mdd1.10 B=work/mdd1.11 ANAME=MDD1_10 BNAME=MDD1_11 demo
 
-work/mdd1.6.csv: work/mdd1.6-raw.csv
-work/mdd1.7.csv: work/mdd1.7-raw.csv
-work/mdd1.6-primates-raw.csv: work/mdd1.6-raw.csv
-work/mdd1.7-primates-raw.csv: work/mdd1.7-raw.csv
+work/mdd1.6.csv: work/mdd1.6-clean.csv
+work/mdd1.7.csv: work/mdd1.7-clean.csv
+work/mdd1.6-primates-clean.csv: work/mdd1.6-clean.csv
+work/mdd1.7-primates-clean.csv: work/mdd1.7-clean.csv
 
 # make A=mdd1.2-mammals B=mdd1.3 report
 # make A=mdd1.2 B=mdd1.3 report
@@ -372,7 +385,7 @@ work/mdd1.7-primates-raw.csv: work/mdd1.7-raw.csv
 hyg-demo:
 	$(MAKE) A=work/nor-hyg B=work/swe-hyg demo
 
-work/nor-raw.csv: work/nor.dump $P/start.py
+work/nor-clean.csv: work/nor.dump $P/clean.py
 
 # Lost track of the URL.  Go do artsnavnebase web site and look around
 work/nor.dwca-url:
@@ -380,13 +393,13 @@ work/nor.dwca-url:
 
 # Sweden = dyntaxa = artdatabanken
 
-work/swe-hyg.csv: work/swe-hyg-raw.csv
+work/swe-hyg.csv: work/swe-hyg-clean.csv
 
-work/swe-hyg-raw.csv: work/swe-raw.csv $P/subset.py
+work/swe-hyg-clean.csv: work/swe-clean.csv $P/subset.py
 	$P/subset.py < $< --hierarchy $< --root Hygrophorus > $@
 
-work/swe-raw.csv: work/swe.dump $P/start.py
-	$P/start.py --pk $(PRIMARY_KEY) --input `src/find_taxa.py $<` | \
+work/swe-clean.csv: work/swe.dump $P/clean.py
+	$P/clean.py --pk $(PRIMARY_KEY) --input `src/find_taxa.py $<` | \
 	  grep -v ",speciesAggregate," \
 	  >$@.new
 	@mv -f $@.new $@
@@ -439,10 +452,10 @@ in/m: sources/mdd1.10.url
 # MDD
 
 # 1.0 and 1.1 don't use the later managed ids
-work/mdd1.0.csv: work/mdd1.0-raw.csv \
+work/mdd1.0.csv: work/mdd1.0-clean.csv \
    $P/extract_names.py $P/use_gnparse.py
-work/mdd1.0-raw.csv: work/mdd/mdd1.0.csv
-	$P/start.py < $< --pk taxonID > $@.new
+work/mdd1.0-clean.csv: work/mdd/mdd1.0.csv
+	$P/clean.py < $< --pk taxonID > $@.new
 	@mv -f $@.new $@
 
 # Need to clone the pgasu/MDD-DwC-mapping repo and put the clone sister to this repo
@@ -464,16 +477,16 @@ $(MDDDWC)/mdd1.9-dwc.csv: $(MDDSOURCE)/MDD_v1.9_6596species.csv
 $(MDDDWC)/mdd1.10-dwc.csv: $(MDDSOURCE)/MDD_v1.10_6615species.csv
 $(MDDDWC)/mdd1.11-dwc.csv: $(MDDSOURCE)/MDD_v1.11_6649species.csv
 
-work/mdd%-raw.csv: $(MDDDWC)/mdd%-dwc.csv $P/start.py
-	$P/start.py < $< --pk taxonID > $@.new
+work/mdd%-clean.csv: $(MDDDWC)/mdd%-dwc.csv $P/clean.py
+	$P/clean.py < $< --pk taxonID > $@.new
 	@mv -f $@.new $@
 
-work/mdd1.0-raw.csv: $(MDDDWC)/mdd1.0-dwc.csv $P/start.py
-work/mdd1.1-raw.csv: $(MDDDWC)/mdd1.1-dwc.csv $P/start.py
-work/mdd1.6-raw.csv: $(MDDDWC)/mdd1.6-dwc.csv $P/start.py
-work/mdd1.7-raw.csv: $(MDDDWC)/mdd1.7-dwc.csv $P/start.py
-work/mdd1.10-raw.csv: $(MDDDWC)/mdd1.10-dwc.csv $P/start.py
-work/mdd1.11-raw.csv: $(MDDDWC)/mdd1.11-dwc.csv $P/start.py
+work/mdd1.0-clean.csv: $(MDDDWC)/mdd1.0-dwc.csv $P/clean.py
+work/mdd1.1-clean.csv: $(MDDDWC)/mdd1.1-dwc.csv $P/clean.py
+work/mdd1.6-clean.csv: $(MDDDWC)/mdd1.6-dwc.csv $P/clean.py
+work/mdd1.7-clean.csv: $(MDDDWC)/mdd1.7-dwc.csv $P/clean.py
+work/mdd1.10-clean.csv: $(MDDDWC)/mdd1.10-dwc.csv $P/clean.py
+work/mdd1.11-clean.csv: $(MDDDWC)/mdd1.11-dwc.csv $P/clean.py
 
 # ----- 4. EOL examples
 
@@ -511,9 +524,9 @@ work/dh12.taxafilename:
 # the managed_id can only be set if DH 0.9 has its records mapped to
 # pages (see -mapped)
 
-work/dh09-raw.csv: work/dh09.taxafilename $P/start.py
+work/dh09-clean.csv: work/dh09.taxafilename $P/clean.py
 	@mkdir -p work
-	$P/start.py --input `cat $<` \
+	$P/clean.py --input `cat $<` \
                     --managed eol:EOLid \
 		    --pk taxonID \
 	       > $@.new
@@ -521,10 +534,10 @@ work/dh09-raw.csv: work/dh09.taxafilename $P/start.py
 
 # taxonID is managed in 1.1 and following, but not in 0.9
 
-dh1%-raw.csv: dh1%.taxafilename $P/start.py
+dh1%-clean.csv: dh1%.taxafilename $P/clean.py
 	@mkdir -p work
 	cat $<
-	$P/start.py --input `cat $<` \
+	$P/clean.py --input `cat $<` \
                     --managed eolnode:taxonID \
 		    --pk taxonID \
 	| $P/sortcsv.py --key taxonID > $@.new
@@ -533,7 +546,7 @@ dh1%-raw.csv: dh1%.taxafilename $P/start.py
 # in1=./deprecated/work/1-mam.csv
 # in2=./deprecated/work/724-mam.csv
 
-work/dh11-$(taxon)-hier.csv: work/dh11-$(taxon).csv work/dh11-map-raw.csv $P/hierarchy.py
+work/dh11-$(taxon)-hier.csv: work/dh11-$(taxon).csv work/dh11-map-clean.csv $P/hierarchy.py
 	$P/hierarchy.py --mapping work/dh11-map.csv \
 		  < $< \
 		  > $@.new
@@ -541,7 +554,7 @@ work/dh11-$(taxon)-hier.csv: work/dh11-$(taxon).csv work/dh11-map-raw.csv $P/hie
 
 # EOL dynamic hierarchy - usages mapped to pages
 
-work/%-hier.csv: work/%-raw.csv work/%-map.csv $P/hierarchy.py
+work/%-hier.csv: work/%-clean.csv work/%-map.csv $P/hierarchy.py
 	set -o pipefail; \
 	$P/hierarchy.py --mapping $(basename $<)-map.csv) \
 			--keep landmark_status \
@@ -554,12 +567,12 @@ work/%-map.csv: work/%.eol-resource-id
 	cp `$(RAKE) resource:map CONF=$(ASSEMBLY) ID=$$ID` $@.new
 	@mv -f $@.new $@
 
-work/dh12-map.csv: work/dh11-map-raw.csv
+work/dh12-map.csv: work/dh11-map-clean.csv
 	cp $< $@
 
 # Deprecated ... ?
 
-work/%-mapped.csv: work/%-raw.csv work/%-map.csv $P/idmap.py
+work/%-mapped.csv: work/%-clean.csv work/%-map.csv $P/idmap.py
 	$P/idmap.py --mapping $(basename $<)-map.csv) \
 		  < $< > $@.new
 	@mv -f $@.new $@
@@ -574,21 +587,21 @@ work/col2019.dwca-url:
 
 # Ingest GBIF dump, convert TSV to CSV, add managed_id column
 # If CoL had record ids we could do --managed col:taxonID 
-col%-raw.csv: col%.dump $P/start.py
-	$P/start.py --pk $(PRIMARY_KEY) --input `src/find_taxa.py $<` \
+col%-clean.csv: col%.dump $P/clean.py
+	$P/clean.py --pk $(PRIMARY_KEY) --input `src/find_taxa.py $<` \
 	  >$@.new
 	@mv -f $@.new $@
-.PRECIOUS: col%-raw.csv
+.PRECIOUS: col%-clean.csv
 
-work/col2023-mammals-raw.csv: work/col2023-raw.csv
+work/col2023-mammals-clean.csv: work/col2023-clean.csv
 	$P/subset.py < $< --hierarchy $< --root "6224G" > $@.new
 	@mv -f $@.new $@
 
-work/col2022-mammals-raw.csv: work/col2022-raw.csv
+work/col2022-mammals-clean.csv: work/col2022-clean.csv
 	$P/subset.py < $< --hierarchy $< --root "6224G" > $@.new
 	@mv -f $@.new $@
 
-work/col2021-mammals-raw.csv: work/col2021-raw.csv
+work/col2021-mammals-clean.csv: work/col2021-clean.csv
 	$P/subset.py < $< --hierarchy $< --root "6224G" > $@.new
 	@mv -f $@.new $@
 
@@ -601,19 +614,19 @@ work/col-risk.csv: work/col2022-mammals.csv work/col2023-mammals.csv src/risk.py
 # ----- 6. ITIS
 # Where do we get ITIS?  Need a subset step.
 
-work/itis2022-mammals-raw.csv: work/itis2022.dump
-work/itis2022-mammals.csv: work/itis2022-mammals-raw.csv
+work/itis2022-mammals-clean.csv: work/itis2022.dump
+work/itis2022-mammals.csv: work/itis2022-mammals-clean.csv
 
 # ----- 7. MDD and other
 
-# Where did I get the file sources/msw3-raw.csv ?
+# Where did I get the file sources/msw3-clean.csv ?
 # How was it created?
 
-work/msw3.csv: work/msw3-raw.csv \
+work/msw3.csv: work/msw3-clean.csv \
    $P/extract_names.py $P/use_gnparse.py
 
-work/msw3-raw.csv: sources/msw3-source.csv $P/start.py
-	$P/start.py --pk $(PRIMARY_KEY) --input $< \
+work/msw3-clean.csv: sources/msw3-source.csv $P/clean.py
+	$P/clean.py --pk $(PRIMARY_KEY) --input $< \
 	  > $@.new
 	@mv -f $@.new $@
 
@@ -623,16 +636,16 @@ work/msw3-raw.csv: sources/msw3-source.csv $P/start.py
 # https://www.checklistbank.org/dataset/2041/download
 # It would be better to get this from artdatabanken rather than GBIF
 
-work/dyntaxa%-raw.csv: in/dyntaxa%.tsv $P/start.py
-	$P/start.py --pk $(PRIMARY_KEY) --input $< \
+work/dyntaxa%-clean.csv: in/dyntaxa%.tsv $P/clean.py
+	$P/clean.py --pk $(PRIMARY_KEY) --input $< \
 	> $@.new
 	@mv -f $@.new $@
 
 # Norway = artsnavebasen
 # https://www.checklistbank.org/dataset/2030/download
 
-work/arts%-raw.csv: in/arts%.tsv $P/start.py
-	$P/start.py --pk $(PRIMARY_KEY) --input $< \
+work/arts%-clean.csv: in/arts%.tsv $P/clean.py
+	$P/clean.py --pk $(PRIMARY_KEY) --input $< \
 	> $@.new
 	@mv -f $@.new $@
 
