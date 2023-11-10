@@ -63,12 +63,12 @@ Inference report columns:
    separated) for species
    whose taxon concepts are inferred to intersect that A taxon concept.
    Each relationship is given as the RCC-5
-   relationship of the A concept to the B concept is given, along
+   relationship of the A concept to the B concept, along
    with the taxon id and canonical name of the B row.
    '-' means there may be intersecting species but the list was not computed 
    because the A row was not for a species.
-1. The relationship to the smallest concept associated
-   with a B row that contains the A row's concept.  The relationship 
+1. The relationship to the smallest concept in the B checklist
+   that contains the A row's concept.  The relationship 
    is given as above: RCC-5 relationship, taxon id, canonical name.
    As long as the A
    and B names are accepted, the A concept is either the same (RCC-5 =)
