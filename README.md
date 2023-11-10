@@ -8,7 +8,7 @@ names (i.e. 'checklists'), which are sometimes organized hierachically.
 
 * [Installation](doc/guide.md#installation)
 * [User guide](doc/guide.md)
-* [Method](doc/method.md)
+* [Example](doc/example.md)
 
 ### Note
 
@@ -33,7 +33,7 @@ checklists might be widely useful.  Before this conversation I had been working 
 [smasher](https://github.com/opentreeoflife/reference-taxonomy/) (see
 [article](https://doi.org/10.3897/BDJ.5.e12581)), which did something
 similar, and I felt a desire to rewrite it on a firmer theoretical
-foundation to make it "more sound", and to make create a free-standing
+foundation to make it "more sound", and to create a free-standing
 tool independent of the Open Tree of Life project or any other framework.
 
 This tool suite replaces the older ['checklist

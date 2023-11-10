@@ -16,12 +16,12 @@ inputs have not changed.
 For a complete example, see [example.md](example.md).
 
 ## Installation
-<a name="installation"/>
+<a name="installation" />
 
 The tools require no particular installation step.  They can be
 invoked from the shell out of a clone of this `git` repository.
 
-Python 3 and `bash` are assumed.
+Python 3 is assumed.
 
 Install the python3 `regex` module.
 

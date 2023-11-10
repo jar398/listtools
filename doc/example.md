@@ -1,16 +1,15 @@
-Checklist comparison example
+## Checklist comparison example
 
-Let's put zip files downloaded from the internet in directory `in/`,
+Let's put zip (or tar) files downloaded from the internet in directory `in/`,
 and all other files in `work/`.
 
 
-First, obtain the two checklists.
-
-E.g. from checklistbank.org, obtain COL19 and COL23.1, so that:
+First, obtain the two checklists.  E.g. from checklistbank.org, obtain
+COL19 and COL23.1, so that:
  * the A checklist = COL19
  * the B checklist = COL23.1
 
-Put them somewhere: (choose different file names if you like)
+Put the zip files somewhere: (choose different file names if you like)
  * `in/A.zip`
  * `in/B.zip`
 
@@ -23,7 +22,7 @@ Prepare file `work/A.csv` for use starting with in/A.zip:
       --managed gbif:taxonID > work/A-clean.csv
     src/extract_names.py < work/A-clean.csv \
     | gnparser -s \
-    | src/use_gnparse.py --source work/A-clean.csv >work/A.csv
+    | src/use_gnparse.py --source work/A-clean.csv > work/A.csv
 
 [I suppose I could create a script `src/prepare.py` that bundles up
 all these steps.]
