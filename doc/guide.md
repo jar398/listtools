@@ -16,7 +16,7 @@ inputs have not changed.
 For a complete example, see [example.md](example.md).
 
 ## Installation
-<a name="installation" />
+<a name="installation"></a>
 
 The tools require no particular installation step.  They can be
 invoked from the shell out of a clone of this `git` repository.

@@ -9,6 +9,10 @@ COL19 and COL23.1, so that:
  * the A checklist = COL19
  * the B checklist = COL23.1
 
+Checklistbank lets you choose a taxon such as Mammalia for download.
+If all you have is a complete archive, you can use the `src/subset.py`
+command to pull out just the taxon you care about.
+
 Put the zip files somewhere: (choose different file names if you like)
  * `in/A.zip`
  * `in/B.zip`
@@ -27,7 +31,7 @@ Prepare file `work/A.csv` for use starting with in/A.zip:
 [I suppose I could create a script `src/prepare.py` that bundles up
 all these steps.]
 
-Do similarly to create work/B.csv from work/B.dump.
+Do similarly to create `work/B.csv` from `work/B.dump`.
 
 Now compare the two checklists, producing a report:
 
@@ -35,3 +39,4 @@ Now compare the two checklists, producing a report:
     src/plugin.py --A work/A.csv --B work/B.csv \
       --exemplars work/AB-exemplars.csv > work/AB-report.csv
 
+See [guide.md] for advice on how to interpret the report.

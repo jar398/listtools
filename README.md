@@ -1,7 +1,7 @@
 # listtools
 
 (Sources on main branch are in a somewhat inconsistent state; Makefile
-and documentation require revision.  If you're eager to get going, you should probably first check [this cheat sheet](doc/plugin-cheat.md).)
+and documentation require revision.  )
 
 Tools for manipulating lists of things, and in particular, lists of taxonomic
 names (i.e. 'checklists'), which are sometimes organized hierachically.
@@ -9,6 +9,9 @@ names (i.e. 'checklists'), which are sometimes organized hierachically.
 * [Installation](doc/guide.md#installation)
 * [User guide](doc/guide.md)
 * [Example](doc/example.md)
+
+If you're eager to get going, check the example and maybe [this
+cheat sheet](doc/plugin-cheat.md).
 
 ### Note
 
