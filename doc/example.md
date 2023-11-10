@@ -39,4 +39,4 @@ Now compare the two checklists, producing a report:
     src/plugin.py --A work/A.csv --B work/B.csv \
       --exemplars work/AB-exemplars.csv > work/AB-report.csv
 
-See [guide.md] for advice on how to interpret the report.
+See [guide.md](guide.md) for advice on how to interpret the report.
