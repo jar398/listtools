@@ -43,6 +43,10 @@ MANAGED?=$(KEEP)
 # This is for EOL.  Requires clone of 'plotter' repo
 RAKE?=cd ../plotter && rake
 
+CODE=$P/demo.py $P/align.py $P/theory.py $P/simple.py $P/workspace.py \
+     $P/checklist.py $P/rcc5.py $P/eulerx.py $P/linkage.py $P/estimate.py \
+     $P/exemplar.py $P/plugin.py $P/parse.py $P/util.py $P/plugin.py
+
 # ----- General rules, top down
 
 A=test1
@@ -88,10 +92,6 @@ DELTA=work/$(shell basename $A)-$(shell basename $B)-delta.csv
 DEMO=work/$(shell basename $A)-$(shell basename $B)-aligned.csv
 EULERX=work/$(shell basename $A)-$(shell basename $B)-eulerx.txt
 SHORT=work/$(shell basename $A)-$(shell basename $B)-short.csv
-
-CODE=$P/demo.py $P/align.py $P/theory.py $P/simple.py $P/workspace.py \
-     $P/checklist.py $P/rcc5.py $P/eulerx.py $P/linkage.py $P/estimate.py \
-     $P/exemplar.py $P/plugin.py $P/parse.py $P/util.py
 
 demo: $(DEMO)
 

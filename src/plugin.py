@@ -13,7 +13,8 @@ def generate_plugin_report(AB):
          "A taxon name",
          "B species that intersect",
          "LUB in B",
-         "exemplar link in B")
+         #"exemplar link in B",
+         )
   i = 0
   frequency = 1000
   for x in preorder_records(AB.A):
@@ -41,14 +42,16 @@ def generate_plugin_report(AB):
                blurb(x),
                inter,
                show_articulation(u, est),
-               show_articulation(u, link))
+               # show_articulation(u, link),
+        )
 
 def show_articulation(u, v):
   if v:
     rel = theory.compare(AB, u, v)
     y = get_outject(v)
     rcc5 = rcc5_symbol(rel.relationship)
-    return "%s %s" % (rcc5_symbol(rel.relationship),
+    # leading space prevents interpretation as excel formula
+    return " %s %s" % (rcc5_symbol(rel.relationship),
                       get_primary_key_for_report(y))
   else:
     return MISSING
