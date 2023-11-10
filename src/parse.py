@@ -77,8 +77,8 @@ def parse_name(verbatim,
   if not t: t = t2              # ???
   if t and t2 and t != t2:
     pass
-    # log("# parse: tokens (by different methods) differ: %s %s" % (t, t2))
-    # parse: tokens (by different methods) differ: De DeKay
+    # log("# parse: tokens differ: gn %s / ad hoc %s" % (t, t2))
+    # parse: tokens differ: De DeKay
     # parse: tokens (by different methods) differ: La LaVal
     # parse: tokens (by different methods) differ: Fitz FitzGibbon
   if not y: y = y2              # ???
@@ -91,7 +91,7 @@ def parse_name(verbatim,
   if protonymp == None: protonymp = protonymp2
   if protonymp != None and protonymp2 != None and \
      protonymp != protonymp2:
-    log("# parse: protonymps (by different methods) differ: %s / %s" %
+    log("# parse: protonymps differ: gn %s / ad hoc %s" %
         (auth, auth0))
   return Parts(verbatim, canonical, g, e, auth, t, y, protonymp)
 

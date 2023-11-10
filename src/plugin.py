@@ -33,8 +33,7 @@ def generate_plugin_report(AB):
       else:
         inter = '-'
 
-      link = get_link(u, None)
-      if is_accepted(x) or link:
+      if is_accepted(x) or o:
         # filter out uninteresting synonyms
         est = estimate.get_estimate(u, None).record
         # est = local_accepted(est)
@@ -42,7 +41,6 @@ def generate_plugin_report(AB):
                blurb(x),
                inter,
                show_articulation(u, est),
-               # show_articulation(u, link),
         )
 
 def show_articulation(u, v):

@@ -146,6 +146,7 @@ def find_subproblems(AB):
         (AB, swap(AB)))
   subprobs = {}
   for (val, us) in A_index.items():
+    assert val != MISSING, blurb(us[0])
     vs = B_index.get(val, None)
     if vs != None:
       subprobs[val] = (us, vs)

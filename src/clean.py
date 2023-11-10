@@ -47,6 +47,15 @@ def start_csv(inport, params, outport, args):
 
   out_header = in_header
 
+  if can_pos == None:
+    can_pos = len(out_header)
+    out_header = out_header + ["canonicalName"]
+    log("** Adding canonicalName column")
+  if sci_pos == None:
+    sci_pos = len(out_header)
+    out_header = out_header + ["scientificName"]
+    log("** Adding scienticicName column")
+
   # --managed taxonID --prefix GBIF:   must always be used together
   if args.managed:
     (prefix, managed_col) = args.managed.split(':')     # GBIF:taxonID
@@ -54,10 +63,11 @@ def start_csv(inport, params, outport, args):
     # Position of source id (usually taxonID) to be copied to managed_id column
     managed_col_pos = windex(in_header, managed_col)
     assert managed_col_pos != None
-    assert windex(in_header, "managed_id") == None
-
-    log("-- Appending a managed_id column")
-    out_header = out_header + ["managed_id"]
+    managed_id_pos = windex(in_header, "managed_id")
+    if managed_id_pos == None:
+      log("-- Appending a managed_id column")
+      out_header = out_header + ["managed_id"]
+      managed_id_pos = windex(out_header, "managed_id")
 
   # log("# Output header: %s" % (out_header,))
 
@@ -94,6 +104,7 @@ def start_csv(inport, params, outport, args):
       log(("** clean: Unexpected number of columns: have %s want %s" %
              (len(in_row), len(in_header))))
       log(("** clean: in_row is %s" % (in_row,)))
+      log(("** clean: in_header is %s" % (in_header,)))
       assert False
 
     # Filter out senior synonyms
@@ -101,25 +112,15 @@ def start_csv(inport, params, outport, args):
       senior += 1
       continue
 
-    # Clean up if wrong values in canonical and/or scientific name columns
-    if cleanp:
-      if clean_name(in_row, can_pos, sci_pos):
-        names_cleaned += 1
-      if clean_rank(in_row, rank_pos, can_pos):
-        ranks_cleaned += 1
-      if auth_pos != None:      # clean_auth ...
-        a = in_row[auth_pos]
-        a = a.strip()
-        if a.endswith(').'): a = a[0:-1] # for MDD
-        in_row[auth_pos] = a
-
     if normalize_accepted(in_row, taxon_id_pos, parent_pos, accepted_pos):
       accepteds_normalized += 1
+
+    out_row = in_row + [MISSING] * (len(out_header) - len(in_row))
 
     # Shouldn't have both accepted and parent
     if False:                   # why disabled?
       if accepted_pos and parent_pos and in_row[accepted_pos] and in_row[parent_pos]:
-        in_row[parent_pos] = MISSING
+        out_row[parent_pos] = MISSING
 
     stat = in_row[tax_status_pos]
     indication_2 = (stat.startswith("accepted") or
@@ -143,17 +144,27 @@ def start_csv(inport, params, outport, args):
       if l != MISSING:
         e = int(l)
         # enum landmark: %i[no_landmark minimal abbreviated extended full]
-        if   e == 1: in_row[landmark_pos] = 'minimal'
-        elif e == 2: in_row[landmark_pos] = 'abbreviated'
-        elif e == 3: in_row[landmark_pos] = 'extended'
-        elif e == 4: in_row[landmark_pos] = 'full'
-        else: in_row[landmark_pos] = MISSING
+        if   e == 1: out_row[landmark_pos] = 'minimal'
+        elif e == 2: out_row[landmark_pos] = 'abbreviated'
+        elif e == 3: out_row[landmark_pos] = 'extended'
+        elif e == 4: out_row[landmark_pos] = 'full'
+        else: out_row[landmark_pos] = MISSING
 
     # If multiple sources (smasher output), use only the first
     if source_pos != None and in_row[source_pos] != MISSING:
-      in_row[source_pos] = in_row[source_pos].split(',', 1)[0]
+      out_row[source_pos] = in_row[source_pos].split(',', 1)[0]
 
-    out_row = in_row
+    # Clean up if wrong values in canonical and/or scientific name columns
+    if cleanp:
+      if clean_name(out_row, can_pos, sci_pos):
+        names_cleaned += 1
+      if clean_rank(out_row, rank_pos, can_pos):
+        ranks_cleaned += 1
+      if auth_pos != None:      # clean_auth ...
+        a = in_row[auth_pos]
+        a = a.strip()
+        if a.endswith(').'): a = a[0:-1] # for MDD
+        out_row[auth_pos] = a
 
     # Add primary key if duplicate(?) or missing
     if pk == MISSING:
@@ -170,13 +181,13 @@ def start_csv(inport, params, outport, args):
 
     # Add managed_id if necessary
     if args.managed:            # --managed prefix:column
-      if in_row[pk_pos_in]:
+      if managed_col_pos < len(in_row):
         id = in_row[managed_col_pos]
         managed_id = "%s:%s" % (prefix, id) if id else MISSING
         managed += 1
       else:
         managed_id = MISSING
-      out_row = out_row + [managed_id]
+      out_row[managed_id_pos] = managed_id
 
     assert len(out_row) == len(out_header)
     writer.writerow(out_row)
@@ -254,6 +265,8 @@ def clean_name(row, can_pos, sci_pos):
     else:
       s = MISSING
     # log("clean: flush s") - frequent in DH 1.1
+  # Remove subgenus: Foo (Bar) -> Foo
+  s = remove_subgenus(s)
   s = s.replace(' and ', ' & ') # frequent in DH 1.1 ?
   s = s.replace(',,', ',')    # kludge for MDD 1.0
   s = s.replace('  ', ' ')    # kludge for MSW 3
@@ -266,8 +279,17 @@ def clean_name(row, can_pos, sci_pos):
     mod = True
   return mod
 
+has_subgenus_re = regex.compile(u'(\p{Uppercase_Letter}[\p{Letter}-]+)( \(\p{Uppercase_Letter}[\p{Letter}-]+\))(.*)')
+
+def remove_subgenus(name):
+  m = has_subgenus_re.match(name)
+  if m:
+    return m[1] + m[3]
+  else:
+    return name
+
 # This may be too liberal... insist on there being a year?
-has_auth_re = regex.compile(u" (\(?)\p{Uppercase_Letter}[\p{Letter}-]+")
+has_auth_re = regex.compile(u' (\(?)\p{Uppercase_Letter}[\p{Letter}-]+')
 
 def is_scientific(name):
   return has_auth_re.search(name)
