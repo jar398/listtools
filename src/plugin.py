@@ -13,7 +13,7 @@ def generate_plugin_report(AB):
          "A taxon name",
          "B species that intersect",
          "LUB in B",
-         #"exemplar link in B",
+         "exemplar ids",
          )
   i = 0
   frequency = 1000
@@ -25,13 +25,16 @@ def generate_plugin_report(AB):
       if i % frequency == 0:
         log("%s %s" % (i, blurb(u)))
 
-      o = []
+      xids = theory.exemplar_ids(AB, u)
       if theory.is_species(u):
         o = theory.get_intersecting_species(u)
         inter = ';'.join(map(lambda s:show_articulation(u, s),
                              o))
+        exemplars = ";".join(map(str, sorted(xids)))
       else:
+        o = []
         inter = '-'
+        exemplars = ";".join(map(str, sorted(xids))) if len(xids) <= 1 else '-'
 
       if is_accepted(x) or o:
         # filter out uninteresting synonyms
@@ -41,7 +44,8 @@ def generate_plugin_report(AB):
                blurb(x),
                inter,
                show_articulation(u, est),
-        )
+               exemplars,
+               )
 
 def show_articulation(u, v):
   if v:

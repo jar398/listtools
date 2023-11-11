@@ -123,6 +123,7 @@ def get_exemplar_uf(u):
 def get_exemplar(z):
   uf = really_get_exemplar_uf(z, None)
   if uf:
+    uf = uf.find()
     r = uf.payload()
     (xid, u, v) = r
     if u and v:

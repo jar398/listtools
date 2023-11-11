@@ -44,7 +44,7 @@ def write_exemplar_list(AB, out=sys.stdout):
   util.write_rows(generate_exemplars(AB), out)
 
 def generate_exemplars(AB):
-  yield ("checklist", "taxonID", "exemplar id")
+  yield ("checklist", "taxonID", "exemplar id", "canonicalName")
   count = [0]
   def doit(ws, which):
     rcount = ecount = lcount = 0
@@ -57,7 +57,7 @@ def generate_exemplars(AB):
         if r:
           ecount += 1
           xid = r[0]
-          yield (which, get_primary_key(x), xid)
+          yield (which, get_primary_key(x), xid, get_canonical(x))
           count[0] += 1
     log("# preorder: %s, links %s, exemplars: %s" % (rcount, lcount, ecount)) 
   yield from doit(AB, 0)

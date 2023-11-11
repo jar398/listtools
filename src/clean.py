@@ -58,7 +58,7 @@ def start_csv(inport, params, outport, args):
 
   # --managed taxonID --prefix GBIF:   must always be used together
   if args.managed:
-    (prefix, managed_col) = args.managed.split(':')     # GBIF:taxonID
+    (prefix, managed_col) = args.managed.split(':')     # gbif:taxonID
 
     # Position of source id (usually taxonID) to be copied to managed_id column
     managed_col_pos = windex(in_header, managed_col)

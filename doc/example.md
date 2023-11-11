@@ -17,7 +17,7 @@ Put the zip files somewhere: (choose different file names if you like)
  * `in/A.zip`
  * `in/B.zip`
 
-Prepare file `work/A.csv` for use starting with in/A.zip:
+Prepare file `work/A.csv` for use starting with `in/A.zip`:
 
     mkdir -p work/A.dump
     unzip -d work/A.dump in/A.zip
