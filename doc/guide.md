@@ -29,12 +29,71 @@ Also required is `gnparser`, which has download instructions
 [here](https://github.com/gnames/gnparser#installation).
 
 
+## Semantics
+
+### Taxon concepts
+
+Each record of each checklist has an associated "taxon concept"
+determined by the fields of the record with the checklist as context.
+
+We may not know much about the taxon concept, and it would be
+challenging to find out (it would usually require a literature
+search).  However, that doesn't prevent us from reasoning about it
+using information in the checklist.
+
+### Type specimens
+
+Each record of each checklist has a name ('scientific' if it includes authority 
+information; 'canonical' if not),
+and the name has an associated type specimen (or just 'type') under
+control of the rules of biological nomenclature (again, we may not have any
+details at hand on the type - that's OK).  If it's not
+clear whether two records have the same type or not,
+information beyond just the name may allow this determination.
+
+Therefore, each record has an associated type, via its name, in context.
+
+We know that the type associated with a record falls under
+the taxon concept associated with that record.
+
+We generally don't know much about a type - we don't know where it is
+housed, or who collected it, and so on.  But that doesn't matter since
+algorithmically we'll only be concerned with membership of types in
+taxon concepts: 
+ - whether or not any particular type belongs to any
+   given taxon concept (as represented by a record from a checklist), 
+ - for each type which taxon concepts contain it,
+ - and for each taxon concept which types it contains.
+
+
+### Exemplars
+
+For each type specimen, we can form the group of records, some in A and
+some in B, with which the type specimen is associated.  If the group contains at least
+one record from each checklist, call the type specimen an "exemplar"
+with respect to checklists A and B.
+
+We take sets of exemplars to be computable approximations to (unknown)
+taxon concepts, in the sense that if exemplar set S = E(C) = {e: e is
+an exemplar in C} for concept C, and similarly T = E(D), then an RCC-5
+relationship between concepts induces the same RCC-5 relationship
+between the exemplar sets.  The opposite also holds, except in some
+cases where S = T, in which case contextual information can be used to
+infer a distinction between C and D [work in progress].
+
+Exemplars play a role similar to that played by protonyms in the
+Pyle/Remsen formulation.
+
+
 ## The tools
 
 To learn about a given tool, please supplement what follows with
 whatever you learn from using the `--help` option, e.g.
 
     src/clean.py --help
+
+Some tools operate on arbitrary CSV files, while some assume they're
+working with Darwin Core files.
 
 ### find_taxa
 
@@ -50,6 +109,12 @@ writes the name of the taxon file within the .zip file, e.g.
 
 It's usually clear by inspection which file is the taxon file, but
 spelling details vary.  This command is intended for use in scripts.
+
+The taxon file is suitable as input to `clean.py`, see below.
+
+TBD: This currently operates by examining file names heuristically.
+But it really ought to look in the meta.xml file, which provides the
+taxon file name explicitly.
 
 ### clean
 
@@ -95,7 +160,8 @@ gbif:taxonID` means that the taxonID column contains managed GBIF
 taxon 'identifiers' and the `managed_id` column will contain 'managed
 identifiers' (an idea I made up).  E.g. if a row's taxonID contains
 `359` then the string `gbid:359` will be placed in the `managed_id`
-column.  This will then be used for matching operations.
+column.  This will then be used for matching operations (well... not
+currently... but it has done so in the past).
 
 
 ### extract_names
@@ -109,7 +175,7 @@ If there is no `scientificName` then the `canonicalName` is extracted.
 ### use_gnparse
 
 This consumes the output of `gnparser` and combines it with the table
-that was just processed, enriching the table with the addition of 
+that was the input to `extract_names`, enriching the table with the addition of 
 columns from the `gnparser` output.
 
     src/use_gnparse < work/A-gnparsed.csv > work/A.csv
@@ -117,43 +183,48 @@ columns from the `gnparser` output.
 ### exemplar
 <a name="exemplar"></a>
 
-This is a name matcher.
+This is a heuristic name matcher; matching names denote taxon concepts
+that share a type specimen.  It understands changes in genus, changes
+in gender, and other vagaries of the nomenclatural system.
 
-Given input checklists A and B, finds the best matches between the A
-records and the B records.  A set of matched records all have the same type specimen,
-and the type specimen of a matched set is called an 'exemplar'.
+Given input checklists A and B in Darwin Core form, finds groups of A
+and B records (at least one of each) such that all members of each
+group share a type specimen.
 
  * `--A` filename  - the A checklist.
  * `--B` filename  - the B checklist.
 
-Writes exemplar file to standard output.
+Writes a file giving exemplar group membership to standard output.
 
     src/exemplar --A work/A.csv --B work/B.csv > work/AB-exemplars.csv
 
-There is one output row for each "interesting" A or B checklist row.
+There is one output row for each A or B checklist record whose associated
+type specimen is an exemplar.
  - `checklist`: 0 for the A checklist, 1 for B
  - `taxonID`: the checklist row for a taxon concept
  - `exemplar id`: identifies an exemplar, locally to this analysis (not global).
 
-"Interesting" - TBD: describe what's omitted - many synonyms
-
 The meaning of an output row is that the type specimen of the
-indicated taxon concept is the exemplar to be identified by `exemplar
-id`.  (The same exemplar can also be the type specimen of other taxon
-concepts.)
+indicated taxon concept is the exemplar identified by `exemplar id`.
+(Of course the same exemplar can also be the type specimen of other
+taxon concepts.)
 
 ## plugin
 <a name="plugin"></a>
 
     src/plugin.py --A work/A.csv --B work/B.csv --exemplars work/AB-exemplars.csv
 
-This writes a report to standard output.
+This writes an analysis report to standard output.
 
-If `--exemplars` is not given, the exemplars are computed using `exemplar.py`.
+If you're doing regression analysis, think of A as the 'baseline' 
+checklist and B as 'proposed successor'.  (This is not the only use case.)
+
+If `--exemplars` is not given, the exemplars are computed just as the
+`exemplar.py` command would.
 
 The output (to standard output) has these columns (subject to change):
- - `A taxon id` - the taxon id of an A row
- - `A taxon name` - the canonicalName of that A record (for human consumption)
+ - `A taxon id` - The taxon id of an A row
+ - `A taxon name` - The canonicalName of that A record (for human consumption)
  - `B species that intersect` - 
    If the A record is for a species, a list of relationships (semicolon 
    separated) for species
@@ -163,19 +234,25 @@ The output (to standard output) has these columns (subject to change):
    with the taxon id and canonical name from the B row.
    A value of `-` means there may be intersecting species but the list was not computed 
    because the A row was not for a species.
- - The relationship to the smallest concept in the B checklist 
+ - `LUB in B` - 
+   The relationship to the smallest concept in the B checklist 
    that contains the A row's concept.  The relationship 
    is given as above: RCC-5 relationship, taxon id, canonical name.
    If the A
    and B names are accepted, the A concept is either the same (RCC-5 =)
    as the B concept or larger (RCC-5 >) than it.  For synonyms it may
-   be hard to tell.
- - If the A record is for a species, a list of exemplar ids for the exemplars
+   be hard to tell what the precise relationship is.
+ - `exemplar ids` - 
+   If the A record is for a species, a list of exemplar ids for the exemplars
    belonging to that species, otherwise `-`
 
 A name written with an asterisk (e.g. `Rana pipiens*`) indicates a synonym.
 
-In case of an ambiguous match, the exemplar set will contain all alternatives.
+The canonical names in the output are present for human readability;
+for a more compact report they might be omitted, and obtained as
+needed from the checklists using the taxon id.
+
+Report rows for synonyms matching synonyms or matching nothing are suppressed.
 
 How to read the report:
 
@@ -187,15 +264,26 @@ taxon name in A would have to be re-curated to use the correct
 intersecting species in B, if one wanted to make the data consistent
 with checklist B.
 
+Probably of most interest for understanding the impact of changes in
+taxonomy going from A to B are the rows with multiple species given in
+the intersecting species column.  These are situations where an A
+species concept corresponds to multiple B species concepts,
+potentially creating mislabeled data or requiring re-curation to
+replace each use of an A species name with the appropriate B species
+name.
+
 This splits in the report will only be an exhaustive list if enough
 synonyms and infraspecific taxa are present in A.  For example, if a
 species name is new in B (does not occur in name), then it will look
 like a de novo species, rather than a split, if it does not somehow
 link back to the split taxon in A via synonym and other records.
+To accommodate A taxa splitting into taxa with names not in A, add the new 
+names to A as synonyms.
 
 
 [TBD: there should be some indication of name changes; these are hard
-to detect on a quick scan otherwise.  Maybe a separate column with this info.]
+to detect on a quick scan otherwise.  Maybe a separate column with
+'rename', 'lump', 'split' information.]
 
 
 
