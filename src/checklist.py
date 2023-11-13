@@ -798,7 +798,8 @@ u1 -> v1 -> u2 -> v3
 ...
 """
 
-# We could cache this...
+# Result of parsing = Parts
+# Cached on workspace records
 
 (get_parts_cache, set_parts_cache) = prop.get_set(prop.declare_property("parts_cache", inherit=False))
 

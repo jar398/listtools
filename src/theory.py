@@ -2,7 +2,7 @@
 
 import math
 import property as prop
-import rcc5, checklist, workspace, simple, exemplar, some_exemplar
+import rcc5, checklist, workspace, simple, exemplar, typify
 
 from util import log
 from checklist import *
@@ -304,7 +304,7 @@ def analyze_blocks(ws):
       for c in get_inferiors(x):  # inferiors in A/B
         e = combine_blocks(e, traverse(c))
 
-      exem = some_exemplar.get_exemplar(u) # returns none or (id, u, v)
+      exem = typify.get_exemplar(u) # returns none or (id, u, v)
       if exem:
         e = adjoin_exemplar(exem[0], e)
       # **************** TBD

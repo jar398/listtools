@@ -117,8 +117,9 @@ def pick_better_record(v1, v2):
     # silently keep choice
     return v1
   m = simple.mrca(y1, y2)
-  if not m is y1: return v1
-  if not m is y2: return v2
+  assert not y1 is y2
+  if m is y1: return v2
+  if m is y2: return v1
   # See whether v2 is an improvement over v1
   # Put this logic in pick_better_record ??
   parts1 = get_parts(v1)
@@ -135,8 +136,8 @@ def pick_better_record(v1, v2):
     log("# %s" % (parts2,))
     log("# middles '%s' '%s'" % (parts1.middle,  parts2.middle))
     log("# %s, %s <= %s" % (blurb(y1), blurb(y2), blurb(m)))
-    log("# typify: Ambiguous: %s -> %s & %s" %
-        (blurb(u), blurb(v1), blurb(v2)))
+    log("# typify: Ambiguous: %s & %s" %
+        (blurb(v1), blurb(v2)))
     return False  # Ambiguous
   return v1       # arbitrary synonym choice; don't want ambiguous
 
