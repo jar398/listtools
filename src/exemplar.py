@@ -8,23 +8,25 @@ from workspace import *
 from util import log, windex
 
 from estimate import get_estimate, find_estimates
-from some_exemplar import find_some_exemplars
 
 from typify import equate_typification_ufs
 from typify import get_exemplar, get_typification_uf
 from typify import get_typification_record, equate_typifications
-from typify import really_get_typification_uf
+from typify import really_get_typification_uf, find_typifications
 
 # listtools's exemplar-finding procedure.  If there is some other way
 # of finding exemplars, that's fine, don't need to use this.
+
+# This is invoked twice - two-pass method.  Purpose of first pass is
+# to be able to compute distances on the second pass.
 
 def find_exemplars(AB):
   log("# Finding subproblems")
   subproblems = linkage.find_subproblems(AB)
   log("#   There are %s subproblems" % len(subproblems))
-  find_some_exemplars(AB, subproblems, lambda _u, _d: None)
-  find_estimates(AB)
-  find_some_exemplars(AB, subproblems, get_estimate)
+  find_typifications(AB, subproblems, lambda _u, _d: None)
+  find_estimates(AB)            # for distance calculations
+  find_typifications(AB, subproblems, get_estimate)
   # maybe compute better estimates - see theory.py
   report_on_exemplars(AB)
 
@@ -41,7 +43,7 @@ def report_on_exemplars(AB):
       if b:
         count += 1
         get_exemplar(u)        # forces xid assignment, return (xid,u,v)
-  log("# Nodes with union/find: %s, nodes with exemplars: %s, exemplars: %s" %
+  log("# Nodes with typification: %s, nodes with exemplars: %s, exemplars: %s" %
       (ufcount, count, len(AB.exemplar_ufs)))
 
 def write_exemplar_list(AB, out=sys.stdout):

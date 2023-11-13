@@ -4,17 +4,38 @@ import util
 import property as prop
 import simple
 
-from util import UnionFindable
+from util import log, UnionFindable
 from rcc5 import EQ, NEQ
-from checklist import get_parts, monitor, get_superior, get_children, is_accepted
+from checklist import get_parts, monitor, get_superior, get_children, \
+  is_accepted, blurb
 from workspace import separated, get_outject, get_workspace
 from workspace import isinA, isinB
+
+def find_typifications(AB, subproblems, get_pre_estimate):
+  # This sets the 'link' property of ... some ... records.
+  log("# Finding some typifications")
+
+  i = 0
+  for (key, (us, vs)) in subproblems.items():
+    if i % 1000 == 0:
+      log("# Subproblem %s %s %s %s %s" % (i, len(us), len(vs), blurb(us[0]), blurb(vs[0])))
+    i += 1
+    for u in us:
+      for v in vs:
+        # classify as A1, A2, A3 (HETEROTYPIC, REVIEW, HOMOTYPIC)
+        # **** COMPUTE DISTANCE if 2nd pass ****
+        dist = compute_distance(u, v, get_pre_estimate)
+        score = compute_score(u, v, dist)
+        if homotypic_score(score):
+          equate_typifications(u, v)
+
+  equate_typifications(AB.in_left(AB.A.top),
+                       AB.in_right(AB.B.top))
 
 # u and v are in workspace but may or may not be from same checklist
 
 def equate_typifications(u, v):     # opposite checklists. u might be species
   if u != v:
-    # assert u descends from v if in same checklist?
     equate_typification_ufs(get_typification_uf(u), get_typification_uf(v))
   return u
 
@@ -27,13 +48,10 @@ def equate_typification_ufs(uf, vf):
   assert u1 or v1
   assert u2 or v2
   # What if ambiguity, i.e. pick_better_record returns False?
-  u = pick_better_record(u1, u2)
-  v = pick_better_record(v1, v2)
-  if u and v:
-    ef = uf.absorb(vf)          # ef is uf
-    r = ef.payload()
-    r[1] = u   # shouldn't have equated in the first place
-    r[2] = v
+  ef = uf.absorb(vf)          # ef happens to be uf
+  r = ef.payload()
+  r[1] = pick_better_record(u1, u2)
+  r[2] = pick_better_record(v1, v2)
   return ef
 
 # Only workspace nodes have uf records

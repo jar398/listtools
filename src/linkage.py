@@ -11,7 +11,8 @@ from checklist import *
 from workspace import *
 from parse import parse_name
 from typify import compute_parts_score, homotypic_score, \
-  compute_distance, compute_score, pick_better_record
+  compute_distance, compute_score, pick_better_record, \
+  really_get_typification_uf
 
 # For each record, get list of matching records.... hmm
 # Future: read exceptions or whole thing from a file
@@ -23,34 +24,8 @@ from typify import compute_parts_score, homotypic_score, \
 
 # 'pre_estimate' = LUB estimate from first pass, if this is second pass.
 
-def really_find_links(AB, subproblems, get_pre_estimate):
-  # This sets the 'link' property of ... some ... records.
 
-  i = 0
-  for (key, (us, vs)) in subproblems.items():
-    if i % 1000 == 0:
-      log("# Subproblem %s %s %s %s %s" % (i, len(us), len(vs), blurb(us[0]), blurb(vs[0])))
-    i += 1
-    # classify as A1, A2, A3 (HETEROTYPIC, REVIEW, HOMOTYPIC)
-    for u in us:
-      for v in vs:
-        # **** COMPUTE DISTANCE if 2nd pass ****
-        dist = compute_distance(u, v, get_pre_estimate)
-        score = compute_score(u, v, dist)
-        if homotypic_score(score):
-          consider_link(u, v)
-          consider_link(v, u)
-  #if get_link(AB.in_left(AB.A.top), None) != AB.in_right(AB.B.top):
-  #  log("tops don't link")
-  report_on_links(AB, subproblems)
-
-# Compare pick_better_record in some_exemplar.py ...
-# We have distances on the second pass, which can either remove or create ambiguities.
-# So, ignore what was there previously.
-
-def consider_link(u, v):
-  set_link(u, pick_better_record(get_link(u, None), v))
-  # equate_exemplars(u, v)
+# Informational.  Requires a rewrite for exemplars.
 
 def report_on_links(AB, subproblems):
   full_count = 0
@@ -83,7 +58,6 @@ def report_on_links(AB, subproblems):
           half_count += 1
   log("#   Links: %s mutual, %s one-sided, %s ambiguous" %
       (full_count, half_count, amb_count))
-
 
 # Find blocks/chunks, one per epithet
 
@@ -131,37 +105,6 @@ def get_subproblem_key(z):
   assert key != None  # MSW has scientificName = '?' ...
   return key
 
-# -----------------------------------------------------------------------------
-
-# Calibration  -- no longer used
-
-# The most dissimilar things that are similar.  Unite records that are 
-# this similar (minimally similar) or more so.
-THRESH1 = compute_parts_score(parse_name("Foo bar Jones, 1927"),
-                              parse_name("Foo bar"),
-                              None)
-THRESH2 = compute_parts_score(parse_name("Foo bar Jones, 1927"),
-                              parse_name("Quux bar (Jones, 1927)"),
-                              5)
-THRESH = min(THRESH1, THRESH2)
-log("# Match predicted if score >= %s = min(%s,%s)" %
-    (THRESH, THRESH1, THRESH2))
-
-THRESH_Q = compute_parts_score(parse_name("Foo bar Jones, 1927"),
-                               parse_name("Quux bar Jones, 1927"),
-                               5)
-log("# For distinct genus starts: %s" % THRESH_Q)
-assert THRESH_Q < THRESH, \
-  (parse_name("Foo bar Jones, 1927"),
-   parse_name("Quux bar Jones, 1927"))
-
-# The most similar things that are dissimilar.  Distinguish records that 
-# are this different (minimally different) or more so.
-NOTHRESH = compute_parts_score(parse_name("Foo bar Jones, 1927"),
-                               parse_name("Foo bar Smith, 1927"))
-log("# Unmatch predicted if score <= %s" % NOTHRESH)
-
-
 # Phase this out?  What's it for?  find_estimate
 
 def get_mutual_link(u, default=-19): # misplaced
@@ -172,9 +115,12 @@ def get_mutual_link(u, default=-19): # misplaced
       return v
   return default
 
-link_prop = prop.declare_property("link", inherit=False)
-(get_link, set_link) = prop.get_set(link_prop)
-
+def get_link(u, default=-19):
+  uf = really_get_typification_uf(u, None)
+  if uf:
+    (xid, u2, v) = uf.payload()
+    return v if separated(u, v) else u2
+  return None
 
 # -----------------------------------------------------------------------------
 # Plumbing
