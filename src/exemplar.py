@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 
 import sys, argparse
-import util, rows, linkage, some_exemplar
-import typify
+import util, rows
 
 from workspace import *
 from util import log, windex
@@ -22,13 +21,61 @@ from typify import really_get_typification_uf, find_typifications
 
 def find_exemplars(AB):
   log("# Finding subproblems")
-  subproblems = linkage.find_subproblems(AB)
+  subproblems = find_subproblems(AB)
   log("#   There are %s subproblems" % len(subproblems))
   find_typifications(AB, subproblems, lambda _u, _d: None)
   find_estimates(AB)            # for distance calculations
   find_typifications(AB, subproblems, get_estimate)
   # maybe compute better estimates - see theory.py
   report_on_exemplars(AB)
+
+# Find blocks/chunks, one per epithet
+
+def find_subproblems(AB):
+  (A_index, B_index) = \
+    map(lambda CD: \
+        index_by_some_key(CD,
+                          # should use genus if epithet is missing
+                          get_subproblem_key),
+        (AB, swap(AB)))
+  subprobs = {}
+  for (val, us) in A_index.items():
+    assert val != MISSING, blurb(us[0])
+    vs = B_index.get(val, None)
+    if vs != None:
+      subprobs[val] = (us, vs)
+      # for u in us: set_subproblem(u, subprob)
+      # for v in vs: set_subproblem(v, subprob)
+  AB.subproblems = subprobs
+  return subprobs
+
+# Returns dict value -> key
+
+def index_by_some_key(AB, fn):
+  index = {}
+  for x in postorder_records(AB.A):
+    u = AB.in_left(x)
+    key = fn(u)
+    #assert key  - MSW has scientificName = ?
+    have = index.get(key, None)
+    if have:
+      have.append(u)
+    else:
+      index[key] = [u]
+  return index
+
+# Each subproblem covers a single epithet (or name, if higher taxon)
+# z is in AB
+
+def get_subproblem_key(z):
+  parts = get_parts(z)
+  ep = parts.epithet
+  assert ep != None
+  key = ep if ep else parts.genus
+  assert key != None  # MSW has scientificName = '?' ...
+  return key
+
+# ------
 
 def report_on_exemplars(AB):
   count = ufcount = 0      # of nodes having exemplars?

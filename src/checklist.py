@@ -689,7 +689,7 @@ def blurb(r):
   elif r == None:
     return "[none]"
   elif r == False:
-    return "[inconsistent]"     # linkage.py
+    return "[inconsistent]"     # typify.py
   else:
     return "[?]"
 

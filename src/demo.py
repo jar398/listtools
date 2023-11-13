@@ -3,8 +3,8 @@
 # Report generation for alignment procedure
 
 import sys, csv, argparse
-import util, workspace, align, linkage, theory, exemplar
-import rows
+import util, rows
+import workspace, align, theory, exemplar
 
 from checklist import *
 from workspace import *
@@ -253,7 +253,7 @@ if __name__ == '__main__':
       with rows.open(b_path) as b_rows:
         AB = ingest_workspace(a_rows.rows(), b_rows.rows(),
                               A_name=a_name, B_name=b_name)
-        linkage.find_links(AB)
+        exemplar.find_exemplars(AB)
         al = list(align.make_alignment(AB))
     if l_path or (not d_path and not e_path):
       with rows.open(l_path, "w") as l_gen:

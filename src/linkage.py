@@ -12,7 +12,7 @@ from workspace import *
 from parse import parse_name
 from typify import compute_parts_score, homotypic_score, \
   compute_distance, compute_score, pick_better_record, \
-  really_get_typification_uf
+  really_get_typification_uf, get_link
 
 # For each record, get list of matching records.... hmm
 # Future: read exceptions or whole thing from a file
@@ -58,69 +58,6 @@ def report_on_links(AB, subproblems):
           half_count += 1
   log("#   Links: %s mutual, %s one-sided, %s ambiguous" %
       (full_count, half_count, amb_count))
-
-# Find blocks/chunks, one per epithet
-
-def find_subproblems(AB):
-  (A_index, B_index) = \
-    map(lambda CD: \
-        index_by_some_key(CD,
-                          # should use genus if epithet is missing
-                          get_subproblem_key),
-        (AB, swap(AB)))
-  subprobs = {}
-  for (val, us) in A_index.items():
-    assert val != MISSING, blurb(us[0])
-    vs = B_index.get(val, None)
-    if vs != None:
-      subprobs[val] = (us, vs)
-      # for u in us: set_subproblem(u, subprob)
-      # for v in vs: set_subproblem(v, subprob)
-  AB.subproblems = subprobs
-  return subprobs
-
-# Returns dict value -> key
-
-def index_by_some_key(AB, fn):
-  index = {}
-  for x in postorder_records(AB.A):
-    u = AB.in_left(x)
-    key = fn(u)
-    #assert key  - MSW has scientificName = ?
-    have = index.get(key, None)
-    if have:
-      have.append(u)
-    else:
-      index[key] = [u]
-  return index
-
-# Each subproblem covers a single epithet (or name, if higher taxon)
-# z is in AB
-
-def get_subproblem_key(z):
-  parts = get_parts(z)
-  ep = parts.epithet
-  assert ep != None
-  key = ep if ep else parts.genus
-  assert key != None  # MSW has scientificName = '?' ...
-  return key
-
-# Phase this out?  What's it for?  find_estimate
-
-def get_mutual_link(u, default=-19): # misplaced
-  v = get_link(u, None)
-  if v:
-    u_back = get_link(v, default)
-    if u_back == u:
-      return v
-  return default
-
-def get_link(u, default=-19):
-  uf = really_get_typification_uf(u, None)
-  if uf:
-    (xid, u2, v) = uf.payload()
-    return v if separated(u, v) else u2
-  return None
 
 # -----------------------------------------------------------------------------
 # Plumbing

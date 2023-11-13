@@ -7,9 +7,8 @@ from util import log
 from checklist import *
 from workspace import *
 from simple import BOTTOM, compare_per_checklist, compare_siblings
-from typify import equate_typifications, get_typification_record
-
-from linkage import get_mutual_link
+from typify import equate_typifications, get_typification_record, \
+  get_link
 
 # -----------------------------------------------------------------------------
 
@@ -116,7 +115,7 @@ def find_estimate(AB, u):
     v3 = v
 
     # See if chains are linked here
-    u3 = get_mutual_link(v3, None)
+    u3 = get_link(v3, None)
     if (u3 and
         get_cross_mrca(u3, None) == v1 and
         get_cross_mrca(v3) == u1):

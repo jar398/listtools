@@ -3,7 +3,7 @@
 import sys, csv, argparse
 import util, property as prop
 import checklist, workspace, exemplar #match_records
-import estimate, theory, span, rows, linkage
+import estimate, theory, span, rows
 
 from util import windex, MISSING
 from property import mep_get, mep_set
@@ -229,7 +229,6 @@ if __name__ == '__main__':
         # compute name matches afresh
         AB = ingest_workspace(a_rows.rows(), b_rows.rows(),
                               A_name=args.Aname, B_name=args.Bname)
-        # linkage.find_links(AB)  -- not needed!
         al = generate_alignment(AB)
         report = simple_report(al)
         util.write_rows(report, sys.stdout)

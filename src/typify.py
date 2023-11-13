@@ -12,7 +12,7 @@ from workspace import separated, get_outject, get_workspace
 from workspace import isinA, isinB
 
 def find_typifications(AB, subproblems, get_pre_estimate):
-  # This sets the 'link' property of ... some ... records.
+  # This sets the 'typification_uf' property of ... some ... records.
   log("# Finding some typifications")
 
   i = 0
@@ -135,7 +135,7 @@ def pick_better_record(v1, v2):
     log("# %s" % (parts2,))
     log("# middles '%s' '%s'" % (parts1.middle,  parts2.middle))
     log("# %s, %s <= %s" % (blurb(y1), blurb(y2), blurb(m)))
-    log("# linkage: Ambiguous: %s -> %s & %s" %
+    log("# typify: Ambiguous: %s -> %s & %s" %
         (blurb(u), blurb(v1), blurb(v2)))
     return False  # Ambiguous
   return v1       # arbitrary synonym choice; don't want ambiguous
@@ -308,4 +308,13 @@ def distance_to_parent(u):
 def lg(x):
   return math.log(x)/log2
 log2 = math.log(2)
+
+# Convenience.  Phase this out?  Or rename it?
+
+def get_link(u, default=-19):
+  uf = really_get_typification_uf(u, None)
+  if uf:
+    (xid, u2, v) = uf.payload()
+    return v if (v and separated(u, v)) else u2
+  return None
 
