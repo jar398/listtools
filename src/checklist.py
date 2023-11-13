@@ -39,7 +39,6 @@ equated_prop = prop.declare_property("equated", inherit=False)    # value is a R
 
 # For record matches made by name(s)
 match_prop = prop.declare_property("match", inherit=False)
-link_prop = prop.declare_property("link", inherit=False)
 
 # For workspaces
 inject_prop = prop.declare_property("inject") # Contextual only!
@@ -62,7 +61,6 @@ outject_prop = prop.declare_property("outject")
   prop.get_set(taxonomic_status_prop)
 
 # One column from the matches table?
-(get_link, really_set_link) = prop.get_set(link_prop)
 (get_match, set_match) = prop.get_set(match_prop)
 
 # Links
@@ -215,7 +213,7 @@ def rows_to_checklist(iterabl, meta):
   for record in prop.get_records(column):
     count += 1
     set_source(record, S)       # not same as EOL "source" column
-    resolve_superior_link(S, record)
+    resolve_superior(S, record)
   roots = list(get_inferiors(S.top))
   if len(roots) > 1:
     log("-- %s roots" % len(roots))
@@ -247,7 +245,7 @@ make_record = prop.constructor(primary_key_prop, source_prop)
 # Create direct references to records, rather than leaving links as
 # ids.  Sets a superior for every record other than top.
 
-def resolve_superior_link(S, record):
+def resolve_superior(S, record):
   if record == S.top: return None
   assert isinstance(record, prop.Record)
   assert not get_superior(record, None)
@@ -448,14 +446,6 @@ def ensure_inferiors_indexed(C):
 
 # -----------------------------------------------------------------------------
 # More
-
-def get_mutual_link(u, default=-19): # misplaced
-  v = get_link(u, None)
-  if v:
-    u_back = get_link(v, default)
-    if u_back == u:
-      return v
-  return default
 
 def assert_local(x, y):
   assert get_source(x) is get_source(y), \

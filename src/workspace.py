@@ -173,11 +173,6 @@ def local_accepted(AB, u):
 def is_accepted_locally(AB, u):
   return is_accepted(get_outject(u))
 
-
-def set_link(x, y):
-  assert y == False or separated(x, y)
-  really_set_link(x, y)
-
 def in_same_tree(AB, x, y):
   return (AB.case(x, lambda x:1, lambda x:2) ==
           AB.case(y, lambda x:1, lambda x:2))

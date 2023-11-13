@@ -3,12 +3,13 @@
 import math
 import property as prop
 import checklist, workspace, simple
-import linkage
 #import exemplar
 
 from util import log, UnionFindable
 from checklist import *
 from workspace import *
+from linkage import get_link, really_find_links
+from linkage import pick_better_record
 
 # Exemplars (representing individual specimens or occurrences with
 # known classification in BOTH checklists) are chosen heuristically
@@ -22,9 +23,9 @@ from workspace import *
 # find_exemplars is defined in exemplar.py.  Does 2 passes.
 # find_some_exemplars is just one pass; invoked twice.
 
-def find_some_exemplars(AB, subproblems, get_pre_estimate, allow_nontipward):
+def find_some_exemplars(AB, subproblems, get_pre_estimate):
   log("# Finding some exemplars")
-  linkage.really_find_links(AB, subproblems, get_pre_estimate)
+  really_find_links(AB, subproblems, get_pre_estimate)
 
   def do_exemplars(CD):
     def traverse(x):      # species is an ancestor of x, in A
@@ -72,32 +73,6 @@ def equate_exemplar_ufs(uf, vf):
   r[2] = pick_better_record(v1, v2)
   assert r[1] or r[2]
   return ef
-
-# u1 and u2 are in workspace, in same checklist
-
-def pick_better_record(u1, u2):
-  if not u2: return u1
-  if not u1: return u2
-  x1 = get_outject(u1)
-  x2 = get_outject(u2)
-  rel = simple.compare_per_checklist(x1, x2)
-  if rel.relationship == LT:
-    return u1                   # Prefer more tipward
-  if rel.relationship == GT:
-    return u2                   # Prefer more tipward
-  # The following is probably not necessary, but it's tidy?
-  # if necessary, should work harder to canonicalize, yes?
-  parts1 = get_parts(x1)
-  parts2 = get_parts(x2)
-  if is_accepted(x2):
-    if False and (not parts1.protonymp and parts2.protonymp and parts2.genus != None):
-      log("# preferring protonym %s to %s" % (blurb(u2), blurb(u1)))
-      return u2                   # Prefer protonym - NOT
-    elif not is_accepted(x1):
-      return u2
-    elif simple.descends_from(x2, x1):
-      return u2
-  return u1
 
 # Only workspace nodes have uf records
 

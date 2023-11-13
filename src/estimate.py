@@ -9,6 +9,8 @@ from workspace import *
 from simple import BOTTOM, compare_per_checklist, compare_siblings
 from some_exemplar import equate_exemplars, get_bare_exemplar
 
+from linkage import get_mutual_link
+
 # -----------------------------------------------------------------------------
 
 (get_estimate, set_estimate) = prop.get_set(prop.declare_property("estimate"))

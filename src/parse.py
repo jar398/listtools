@@ -14,6 +14,7 @@ class Parts(NamedTuple):
   scientific : Any              # what got parsed!
   canonical  : Any              # genus + middle + unstemmed
   genus      : Any
+  middle     : Any              # stuff between genus and epithet
   epithet    : Any              # stem
   authorship : Any              # includes initials, all authors, etc
   token      : Any              # just Lastname of first author
@@ -54,9 +55,9 @@ def parse_name(verbatim,
     if gn_stem == MISSING: gn_stem = gn_full # Space saving kludge
     # Epithet will be stemmed
     if is_polynomial(gn_full):
-      (canonical, g, e) = recover_canonical(gn_full, gn_stem, gn_auth, canonical0)
+      (canonical, g, mid, e) = recover_canonical(gn_full, gn_stem, gn_auth, canonical0)
     else:
-      (canonical, g, e) = (gn_full, gn_full, MISSING)
+      (canonical, g, mid, e) = (gn_full, gn_full, '', '')
     auth = gn_auth
   else:
     canonical = canonical0
@@ -65,13 +66,16 @@ def parse_name(verbatim,
     if is_polynomial(canonical) and ' ' in canonical:
       chunks = canonical.split(' ')
       g = chunks[0]
+      mid = ' '.join(chunks[1:-1])
       e = chunks[-1]              # do our own stemming !? no
     else:
       g = canonical
+      mid = MISSING
       e = MISSING
 
-  if e == '?': e = None
   if g == '?': g = None         # cf. use_gnparse.py, but careful MSW3
+  if mid == '?': mid = None
+  if e == '?': e = None
   (t, y, protonymp) = analyze_authorship(auth)
   (t2, y2, protonymp2) = analyze_authorship(auth0)
   if not t: t = t2              # ???
@@ -93,7 +97,9 @@ def parse_name(verbatim,
      protonymp != protonymp2:
     log("# parse: protonymps differ: gn %s / ad hoc %s" %
         (auth, auth0))
-  return Parts(verbatim, canonical, g, e, auth, t, y, protonymp)
+  return Parts(verbatim, canonical, g, mid, e, auth, t, y, protonymp)
+
+# Recover the canonical name and its part from the gnparser result.
 
 # This ought to be trivial but the problem is that gnparser drops
 # tokens that occur after the last alphabetic epithet.  So we have to
@@ -108,26 +114,28 @@ def recover_canonical(gn_full, gn_stem, gn_auth, hack_canonical):
 
   n_full_chunks = gn_full.count(' ')
   # gnparser "Cryptotis avia  G. M. Allen, 1923 as C. thomasi & C. avia."
-  if n_full_chunks > n_hack_canonical_chunks:
-    # ** Ill formed canonical name: Homo sapiens × Rattus norvegicus fusion cell line
-    log("** Ill formed canonical name: full %s\n / hack %s" % (gn_full, hack_canonical_chunks))
-    extra = []
-  else:
-    # TBD: Should interpolate chunks that are in full but missing
-    # from stemmed into stemmed  (wait, why?  have worked around this)
-    extra = hack_canonical_chunks[n_full_chunks:]
-  stem_chunks = gn_stem.split(' ')
-  if len(extra) > 0:
-    e = extra[-1]
+  if n_full_chunks < n_hack_canonical_chunks:
+    # gnparser has dropped stuff off the end or out of middle.  Do not use.
+    # This is not a good parse if name is not neolatinate.
     c = hack_canonical
-  elif ' ' in gn_stem:
-    e = stem_chunks[-1]
-    c = gn_full
+    g = hack_canonical_chunks[0]
+    mid = ' '.join(hack_canonical_chunks[1:-1])
+    e = hack_canonical_chunks[-1]
   else:
-    e = ''
+    if n_full_chunks > n_hack_canonical_chunks:
+      # ** Ill formed canonical name: Homo sapiens × Rattus norvegicus fusion cell line
+      log("** Ill formed canonical name: full %s\n / hack %s" % (gn_full, hack_canonical_chunks))
     c = gn_full
-  g = stem_chunks[0]
-  return (c, g, e)
+    stem_chunks = gn_stem.split(' ')
+    g = stem_chunks[0]
+    if len(stem_chunks) > 1:
+      mid = ' '.join(stem_chunks[1:-1]) # ?
+      e = stem_chunks[-1]
+    else:
+      # Uninomial (e.g. genus, family)
+      mid = ''
+      e = ''
+  return (c, g, mid, e)
 
 # Split complete into genus, middle, epithet
 
@@ -204,7 +212,7 @@ def is_polynomial(name):
 # Umm... really ought to just combine canonical and authorship
 
 def unparse_parts(parts):
-  (v, c, g, e, a, tok, y, protonymp) = parts
+  (v, c, g, mid, e, a, tok, y, protonymp) = parts
   assert g
 
   # Species name
@@ -214,8 +222,10 @@ def unparse_parts(parts):
   elif ep == '':
     # Higher taxon, genus or above
     canon = g  # Genus epithet
-  else:
+  elif mid == '':
     canon = "%s %s" % (g, ep)  # Genus epithet
+  else:
+    canon = "%s %s %s" % (g, mid, ep)  # Genus middle epithet
 
   # Authorship
   # y and tok are never '' but can be None
@@ -252,9 +262,10 @@ if __name__ == '__main__':
   def qu(x): return "?" if x == None else "'%s'" % x
 
   parts = parse_name(sys.argv[1])
-  (v, c, g, ep, a, tok, y, protonymp) = parts
+  (v, c, g, mid, ep, a, tok, y, protonymp) = parts
   print("canonical %s" % qu(c))
   print(" genus %s" % qu(g))
+  print(" middle %s" % qu(mid))
   print(" epithet %s" % qu(ep))
   print("authorship %s" % qu(a))
   print(" token %s" % qu(tok))

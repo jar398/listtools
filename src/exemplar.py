@@ -18,9 +18,9 @@ def find_exemplars(AB):
   log("# Finding subproblems")
   subproblems = linkage.find_subproblems(AB)
   log("#   There are %s subproblems" % len(subproblems))
-  find_some_exemplars(AB, subproblems, lambda _u, _d: None, False)
+  find_some_exemplars(AB, subproblems, lambda _u, _d: None)
   find_estimates(AB)
-  find_some_exemplars(AB, subproblems, get_estimate, True)
+  find_some_exemplars(AB, subproblems, get_estimate)
   # maybe compute better estimates - see theory.py
   report_on_exemplars(AB)
 
@@ -47,11 +47,10 @@ def generate_exemplars(AB):
   yield ("checklist", "taxonID", "exemplar id", "canonicalName")
   count = [0]
   def doit(ws, which):
-    rcount = ecount = lcount = 0
+    rcount = ecount = 0
     for x in preorder_records(ws.A):
       rcount += 1
       if not is_top(x):               # ?
-        if get_link(x, None): lcount += 1
         u = ws.in_left(x)
         r = get_exemplar(u)     # exemplar record [xid, u, v] or None
         if r:
@@ -59,7 +58,7 @@ def generate_exemplars(AB):
           xid = r[0]
           yield (which, get_primary_key(x), xid, get_canonical(x))
           count[0] += 1
-    log("# preorder: %s, links %s, exemplars: %s" % (rcount, lcount, ecount)) 
+    log("# preorder: %s, exemplars: %s" % (rcount, ecount)) 
   yield from doit(AB, 0)
   yield from doit(swap(AB), 1)
   log("# %s rows in exemplar report" % count[0])
