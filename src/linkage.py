@@ -10,8 +10,8 @@ import simple
 from checklist import *
 from workspace import *
 from parse import parse_name
-from compare import compute_parts_score, homotypic_score, \
-  compute_distance, compute_score
+from typify import compute_parts_score, homotypic_score, \
+  compute_distance, compute_score, pick_better_record
 
 # For each record, get list of matching records.... hmm
 # Future: read exceptions or whole thing from a file
@@ -26,7 +26,11 @@ from compare import compute_parts_score, homotypic_score, \
 def really_find_links(AB, subproblems, get_pre_estimate):
   # This sets the 'link' property of ... some ... records.
 
+  i = 0
   for (key, (us, vs)) in subproblems.items():
+    if i % 1000 == 0:
+      log("# Subproblem %s %s %s %s %s" % (i, len(us), len(vs), blurb(us[0]), blurb(vs[0])))
+    i += 1
     # classify as A1, A2, A3 (HETEROTYPIC, REVIEW, HOMOTYPIC)
     for u in us:
       for v in vs:
@@ -39,6 +43,14 @@ def really_find_links(AB, subproblems, get_pre_estimate):
   #if get_link(AB.in_left(AB.A.top), None) != AB.in_right(AB.B.top):
   #  log("tops don't link")
   report_on_links(AB, subproblems)
+
+# Compare pick_better_record in some_exemplar.py ...
+# We have distances on the second pass, which can either remove or create ambiguities.
+# So, ignore what was there previously.
+
+def consider_link(u, v):
+  set_link(u, pick_better_record(get_link(u, None), v))
+  # equate_exemplars(u, v)
 
 def report_on_links(AB, subproblems):
   full_count = 0
@@ -72,49 +84,6 @@ def report_on_links(AB, subproblems):
   log("#   Links: %s mutual, %s one-sided, %s ambiguous" %
       (full_count, half_count, amb_count))
 
-# Compare pick_better_record in some_exemplar.py ...
-# We have distances on the second pass, which can either remove or create ambiguities.
-# So, ignore what was there previously.
-
-def consider_link(u, v):
-  set_link(u, pick_better_record(get_link(u, None), v))
-
-def pick_better_record(v1, v2):
-  if v2 is None: return v1
-  if v1 is None: return v2                   # One side, not nec. reciprocal
-  if v1 is v2: return v1
-  if v1 == False: return v1   # Propagate ambiguity block
-  if v2 == False: return v2
-  y1 = get_outject(v1)
-  y2 = get_outject(v2)
-  if is_accepted(y2) and not is_accepted(y1):
-    # silently improve the choice
-    return v2
-  if not is_accepted(y2) and is_accepted(y1):
-    # silently keep choice
-    return v1
-  m = simple.mrca(y1, y2)
-  if not m is y1: return v1
-  if not m is y2: return v2
-  # See whether v2 is an improvement over v1
-  # Put this logic in pick_better_record ??
-  parts1 = get_parts(v1)
-  parts2 = get_parts(v2)
-  if len(parts2.middle) > 0 and len(parts1.middle) == 0:
-    # Longer name (subspecies overrides species).
-    return v2          # Go tipward (to v2)
-  if len(parts2.middle) == 0 and len(parts1.middle) > 0:
-    # Shorter name (species overrides subspecies).
-    return v1                    # Keep tipward (v1)
-  if is_accepted(y1) and is_accepted(y2):
-    log('')
-    log("# %s" % (parts1,))
-    log("# %s" % (parts2,))
-    log("# middles '%s' '%s'" % (parts1.middle,  parts2.middle))
-    log("# %s, %s <= %s" % (blurb(y1), blurb(y2), blurb(m)))
-    log("# linkage: Ambiguous: %s -> %s & %s" %
-        (blurb(u), blurb(v1), blurb(v2)))
-  return False  # Ambiguous
 
 # Find blocks/chunks, one per epithet
 

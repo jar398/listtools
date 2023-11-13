@@ -66,12 +66,14 @@ def equate_exemplar_ufs(uf, vf):
   assert i1 == None or i2 == None or i1 == i2
   assert u1 or v1
   assert u2 or v2
-  ef = uf.absorb(vf)
-  assert ef is uf
-  r = ef.payload()
-  r[1] = pick_better_record(u1, u2)
-  r[2] = pick_better_record(v1, v2)
-  assert r[1] or r[2]
+  # What if ambiguity, i.e. pick_better_record returns False?
+  u = pick_better_record(u1, u2)
+  v = pick_better_record(v1, v2)
+  if u and v:
+    ef = uf.absorb(vf)          # ef is uf
+    r = ef.payload()
+    r[1] = u   # shouldn't have equated in the first place
+    r[2] = v
   return ef
 
 # Only workspace nodes have uf records
