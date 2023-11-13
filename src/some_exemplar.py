@@ -10,6 +10,7 @@ from checklist import *
 from workspace import *
 from linkage import get_link, really_find_links
 from linkage import pick_better_record
+from typify import equate_typifications
 
 # Exemplars (representing individual specimens or occurrences with
 # known classification in BOTH checklists) are chosen heuristically
@@ -39,89 +40,18 @@ def find_some_exemplars(AB, subproblems, get_pre_estimate):
           u2 = get_link(v, None)
           if u2 is u:
             # But only if tipward? or overlap??
-            equate_exemplars(u, v)
+            equate_typifications(u, v)
 
     traverse(CD.A.top)
 
   do_exemplars(AB)
   do_exemplars(swap(AB))
-  equate_exemplars(AB.in_left(AB.A.top),
-                   AB.in_right(AB.B.top))
+  equate_typifications(AB.in_left(AB.A.top),
+                       AB.in_right(AB.B.top))
 
 # Issues: 
 #   1. choice of taxa (both sides)
 #   2. choice of name
-
-def equate_exemplars(u, v):     # opposite checklists. u might be species
-  if u != v:
-    # assert u descends from v if in same checklist?
-    equate_exemplar_ufs(get_exemplar_uf(u), get_exemplar_uf(v))
-  return u
-
-def equate_exemplar_ufs(uf, vf):
-  uf = uf.find()
-  vf = vf.find()
-  (i1, u1, v1) = uf.payload()
-  (i2, u2, v2) = vf.payload()
-  assert i1 == None or i2 == None or i1 == i2
-  assert u1 or v1
-  assert u2 or v2
-  # What if ambiguity, i.e. pick_better_record returns False?
-  u = pick_better_record(u1, u2)
-  v = pick_better_record(v1, v2)
-  if u and v:
-    ef = uf.absorb(vf)          # ef is uf
-    r = ef.payload()
-    r[1] = u   # shouldn't have equated in the first place
-    r[2] = v
-  return ef
-
-# Only workspace nodes have uf records
-
-def get_exemplar_uf(u):
-  #log("# Thinking about exemplar for %s" % blurb(u))
-  probe = really_get_exemplar_uf(u, None)
-  if probe: return probe
-  AB = get_workspace(u)
-  exem = [None, u, None] if isinA(AB, u) else [None, None, u]
-  uf = UnionFindable(exem)
-  assert exem[1] or exem[2]
-  set_exemplar_uf(u, uf)
-  return uf
-
-# Union-find nodes start out with no xid, then get xid when exemplars are identified
-
-(really_get_exemplar_uf, set_exemplar_uf) = \
-  prop.get_set(prop.declare_property("exemplar_uf"))
-
-
-# Returns exemplar record (xid, u, v) or None.
-
-def get_exemplar(z):
-  uf = really_get_exemplar_uf(z, None)
-  if uf:
-    uf = uf.find()
-    r = uf.payload()
-    (xid, u, v) = r
-    if u and v:
-      if xid == None:
-        # Create exemplar id (for set operations) on demand
-        ws = get_workspace(u)
-        xid = fresh_exemplar_id(ws)
-        r[0] = xid
-        ws.exemplar_ufs[xid] = uf
-        #log("# Exemplar %s: (%s) <-> (%s)" % (xid, blurb(u), blurb(v)))
-      return r
-  return None
-
-def get_bare_exemplar(z):
-  uf = really_get_exemplar_uf(z, None)
-  if uf:
-    r = uf.payload()
-    (xid, u, v) = r
-    if u and v:
-      return r
-  return None
   
 
 # -----------------------------------------------------------------------------

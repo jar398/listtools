@@ -12,6 +12,7 @@ from checklist import *
 from workspace import *
 from theory import cross_compare, is_species
 from estimate import get_estimate, get_equivalent
+from typification import get_typification_record
 
 def align(A_iter, B_iter, A_name='A', B_name='B', matches_iter=None):
   AB = ingest_workspace(a_rows.rows(), b_rows.rows(),
@@ -80,7 +81,7 @@ def generate_alignment(AB, matches=None):
       #if not get_acceptable(AB, u): return   # ?????
 
       # Show species overlaps
-      e = exemplar.get_bare_exemplar(u)
+      e = exemplar.get_typification_record(u)
       if e:
         (_, ue, ve) = e
         if ue is u:

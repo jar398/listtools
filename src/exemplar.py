@@ -2,14 +2,18 @@
 
 import sys, argparse
 import util, rows, linkage, some_exemplar
+import typify
 
 from workspace import *
 from util import log, windex
 
 from estimate import get_estimate, find_estimates
 from some_exemplar import find_some_exemplars
-from some_exemplar import get_exemplar, get_bare_exemplar, get_exemplar_uf
-from some_exemplar import equate_exemplar_ufs, equate_exemplars
+
+from typify import equate_typification_ufs
+from typify import get_exemplar, get_typification_uf
+from typify import get_typification_record, equate_typifications
+from typify import really_get_typification_uf
 
 # listtools's exemplar-finding procedure.  If there is some other way
 # of finding exemplars, that's fine, don't need to use this.
@@ -30,10 +34,10 @@ def report_on_exemplars(AB):
   # but we could just look at AB.exemplar_ufs, instead?
   for x in preorder_records(AB.A):
     u = AB.in_left(x)
-    uf = some_exemplar.really_get_exemplar_uf(u, None)
+    uf = really_get_typification_uf(u, None)
     if uf:
       ufcount += 1
-      b = get_bare_exemplar(u)        # forces xid assignment, return (xid,u,v)
+      b = get_typification_record(u)        # forces xid assignment, return (xid,u,v)
       if b:
         count += 1
         get_exemplar(u)        # forces xid assignment, return (xid,u,v)
@@ -66,7 +70,7 @@ def generate_exemplars(AB):
 # Read list of exemplars from file (given as a Rows)
 
 def read_exemplars(in_rows, AB):
-  equate_exemplars(AB.in_left(AB.A.top), AB.in_right(AB.B.top))
+  equate_typifications(AB.in_left(AB.A.top), AB.in_right(AB.B.top))
   the_rows = in_rows.rows()     # caller will close in_rows
   header = next(the_rows)
   xid_col = windex(header, "exemplar id")
@@ -79,13 +83,13 @@ def read_exemplars(in_rows, AB):
     x = checklist.look_up_record(C, taxonid)
     if x:
       u = AB.in_left(x) if which==0 else AB.in_right(x)
-      uf = get_exemplar_uf(u)
+      uf = get_typification_uf(u)
 
       # row is xid, which, taxonid
       xid = int(row[xid_col])
       #log("# read exemplar #%s in %s = %s" % (xid, which, taxonid))
       if xid in AB.exemplar_ufs:
-        a = equate_exemplar_ufs(AB.exemplar_ufs[xid], uf)
+        a = equate_typification_ufs(AB.exemplar_ufs[xid], uf)
       else:
         AB.exemplar_ufs[xid] = uf
         a = uf

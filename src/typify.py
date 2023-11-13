@@ -4,9 +4,85 @@ import util
 import property as prop
 import simple
 
+from util import UnionFindable
 from rcc5 import EQ, NEQ
 from checklist import get_parts, monitor, get_superior, get_children, is_accepted
-from workspace import separated, get_outject
+from workspace import separated, get_outject, get_workspace
+from workspace import isinA, isinB
+
+# u and v are in workspace but may or may not be from same checklist
+
+def equate_typifications(u, v):     # opposite checklists. u might be species
+  if u != v:
+    # assert u descends from v if in same checklist?
+    equate_typification_ufs(get_typification_uf(u), get_typification_uf(v))
+  return u
+
+def equate_typification_ufs(uf, vf):
+  uf = uf.find()
+  vf = vf.find()
+  (i1, u1, v1) = uf.payload()
+  (i2, u2, v2) = vf.payload()
+  assert i1 == None or i2 == None or i1 == i2
+  assert u1 or v1
+  assert u2 or v2
+  # What if ambiguity, i.e. pick_better_record returns False?
+  u = pick_better_record(u1, u2)
+  v = pick_better_record(v1, v2)
+  if u and v:
+    ef = uf.absorb(vf)          # ef is uf
+    r = ef.payload()
+    r[1] = u   # shouldn't have equated in the first place
+    r[2] = v
+  return ef
+
+# Only workspace nodes have uf records
+
+def get_typification_uf(u):
+  #log("# Thinking about typification for %s" % blurb(u))
+  probe = really_get_typification_uf(u, None)
+  if probe: return probe
+  AB = get_workspace(u)
+  exem = [None, u, None] if isinA(AB, u) else [None, None, u]
+  uf = UnionFindable(exem)
+  assert exem[1] or exem[2]
+  set_typification_uf(u, uf)
+  return uf
+
+# Union-find typification nodes start out with no xid, then get xid
+# when exemplars are identified
+
+(really_get_typification_uf, set_typification_uf) = \
+  prop.get_set(prop.declare_property("typification_uf"))
+
+
+# Returns typification record (xid, u, v) or None.
+
+def get_exemplar(z):
+  uf = really_get_typification_uf(z, None)
+  if uf:
+    uf = uf.find()
+    r = uf.payload()
+    (xid, u, v) = r
+    if u and v:
+      if xid == None:
+        # Create exemplar id (for set operations) on demand
+        ws = get_workspace(u)
+        xid = len(ws.exemplar_ufs)
+        r[0] = xid
+        ws.exemplar_ufs[xid] = uf
+        #log("# Exemplar %s: (%s) <-> (%s)" % (xid, blurb(u), blurb(v)))
+      return r
+  return None
+  
+def get_typification_record(z):
+  uf = really_get_typification_uf(z, None)
+  if uf:
+    r = uf.payload()
+    (xid, u, v) = r
+    if u and v:
+      return r
+  return None
 
 def pick_better_record(v1, v2):
   if v2 is None: return v1

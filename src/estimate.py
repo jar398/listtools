@@ -7,7 +7,7 @@ from util import log
 from checklist import *
 from workspace import *
 from simple import BOTTOM, compare_per_checklist, compare_siblings
-from some_exemplar import equate_exemplars, get_bare_exemplar
+from typify import equate_typifications, get_typification_record
 
 from linkage import get_mutual_link
 
@@ -125,7 +125,7 @@ def find_estimate(AB, u):
         # Candidate's (v3's) partner (u3) belongs to our node u2
         if monitor(u3):
           log("# estimate: Jackpot %s, %s" % (blurb(u2), blurb(v3)))
-        equate_exemplars(u3, v3)
+        equate_typifications(u3, v3)
         note="linked"
         break
       if simple.simple_lt(u2, u3):
@@ -190,7 +190,7 @@ def compute_cross_mrcas(AB):
   def do_cross_mrcas(WS):        # WS is AB or swap(AB)
     def traverse(x):            # arg in A, result in B
       u = WS.in_left(x)          # in WS
-      exem = get_bare_exemplar(u)       # exemplar record (not uf)
+      exem = get_typification_record(u)       # exemplar record (not uf)
       if exem:
         (_, u1, v1) = exem
         assert get_outject(v1), blurb(v1) # fails
