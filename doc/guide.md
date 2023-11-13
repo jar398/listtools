@@ -115,6 +115,7 @@ columns from the `gnparser` output.
     src/use_gnparse < work/A-gnparsed.csv > work/A.csv
 
 ### exemplar
+<a name="exemplar"></a>
 
 This is a name matcher.
 
@@ -142,6 +143,7 @@ id`.  (The same exemplar can also be the type specimen of other taxon
 concepts.)
 
 ## plugin
+<a name="plugin"></a>
 
     src/plugin.py --A work/A.csv --B work/B.csv --exemplars work/AB-exemplars.csv
 
@@ -153,21 +155,23 @@ The output (to standard output) has these columns (subject to change):
  - `A taxon id` - the taxon id of an A row
  - `A taxon name` - the canonicalName of that A record (for human consumption)
  - `B species that intersect` - 
-   If the A row is for a species, a list of relationships (semicolon 
+   If the A record is for a species, a list of relationships (semicolon 
    separated) for species
    whose taxon concepts are inferred to intersect that A taxon concept.
    Each relationship is given as the RCC-5
    relationship of the A concept to the B concept, along
    with the taxon id and canonical name from the B row.
-   A value of '-' means there may be intersecting species but the list was not computed 
+   A value of `-` means there may be intersecting species but the list was not computed 
    because the A row was not for a species.
  - The relationship to the smallest concept in the B checklist 
    that contains the A row's concept.  The relationship 
    is given as above: RCC-5 relationship, taxon id, canonical name.
-   As long as the A
+   If the A
    and B names are accepted, the A concept is either the same (RCC-5 =)
    as the B concept or larger (RCC-5 >) than it.  For synonyms it may
    be hard to tell.
+ - If the A record is for a species, a list of exemplar ids for the exemplars
+   belonging to that species, otherwise `-`
 
 A name written with an asterisk (e.g. `Rana pipiens*`) indicates a synonym.
 
