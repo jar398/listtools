@@ -31,29 +31,46 @@ Also required is `gnparser`, which has download instructions
 
 ## Semantics
 
+### Individuals
+
+I'll use the neutral word 'individual' for the entities that we are
+classifying; it's meant to subsume various terms in taxonomy and
+biodiversity informatics such as 'organism', 'specimen', and
+'observation'.
+
 ### Taxon concepts
 
 Each record of each checklist has an associated "taxon concept"
 determined by the fields of the record with the checklist as context.
+
+Say that an individual "falls under" a taxon concept meaning that the
+individual is classified under, or belongs to, that taxon concept.
 
 We may not know much about the taxon concept, and it would be
 challenging to find out (it would usually require a literature
 search).  However, that doesn't prevent us from reasoning about it
 using information in the checklist.
 
+The individuals falling under a taxon concept are its 'extension'.
+
+According to the way the word 'taxon' is typically used, a taxon is
+tied to a name and its extension changes following speech acts such as
+'redescription' or 'lumping' or 'splitting'.  By contrast, a taxon
+concept is rigid: whether an individual falls under a taxon concept
+does not change over time and is insensitive to what happens in the
+taxonomic literature.
+
 ### Type specimens
 
 Each record of each checklist has a name ('scientific' if it includes authority 
 information; 'canonical' if not),
-and the name has an associated type specimen (or just 'type') under
-control of the rules of biological nomenclature (again, we may not have any
-details at hand on the type - that's OK).  If it's not
-clear whether two records have the same type or not,
-information beyond just the name may allow this determination.
+and the name has a designated individual (its type specimen,
+or just 'type') according to
+the rules of biological nomenclature.
 
 Therefore, each record has an associated type, via its name, in context.
 
-We know that the type associated with a record falls under
+The type associated with a record falls under
 the taxon concept associated with that record.
 
 We generally don't know much about a type - we don't know where it is
@@ -76,13 +93,37 @@ with respect to checklists A and B.
 We take sets of exemplars to be computable approximations to (unknown)
 taxon concepts, in the sense that if exemplar set S = E(C) = {e: e is
 an exemplar in C} for concept C, and similarly T = E(D), then an RCC-5
-relationship between concepts induces the same RCC-5 relationship
+relationship (see below) between concepts induces the same RCC-5 relationship
 between the exemplar sets.  The opposite also holds, except in some
 cases where S = T, in which case contextual information can be used to
 infer a distinction between C and D [work in progress].
 
 Exemplars play a role similar to that played by protonyms in the
 Pyle/Remsen formulation.
+
+### RCC-5
+
+RCC-5 (region connection calculus) is a simple system for classifying
+relationships between 'regions'.  What constitutes a region depends on
+how RCC-5 is being used - we could be talking sets, or geographic
+regions - but in our case we're talking about taxon concepts.  The
+RCC-5 relationships, exactly one of which holds for any
+two regions, are
+ * A = B: A and B are the same; the same individuals fall under both
+ * A < B: A is contained in B but isn't the same as B; 
+   the individuals in A all fall under B but not vice versa
+ * A > B: same as B < A
+ * A ! B: A and B are disjoint; no individual falls under both
+ * A >< B: A and B overlap but neither is contained in the other.
+   There are individuals falling under A and B, and under just A,
+   and under just B.
+   By convention we'll refer to this situation as 'overlap'.
+
+In cases where the precise RCC-5 relationship isn't known, we can also write
+ * A <= B: A < B or A = B
+ * A >= B: A > B or A = B
+ * A not! B: it is not the case that A ! B (i.e. at least one individual falls under both)
+ * A ? B: RCC-5 relationship is unknown
 
 
 ## The tools
@@ -183,8 +224,9 @@ columns from the `gnparser` output.
 ### exemplar
 <a name="exemplar"></a>
 
-This is a heuristic name matcher; matching names denote taxon concepts
-that share a type specimen.  It understands changes in genus, changes
+This is a heuristic name matcher.  Its purpose is to find groups of
+taxon concepts that share a type specimen.
+It understands changes in genus, changes
 in gender, and other vagaries of the nomenclatural system.
 
 Given input checklists A and B in Darwin Core form, finds groups of A
@@ -226,64 +268,86 @@ The output (to standard output) has these columns (subject to change):
  - `A taxon id` - The taxon id of an A row
  - `A taxon name` - The canonicalName of that A record (for human consumption)
  - `B species that intersect` - 
-   If the A record is for a species, a list of relationships (semicolon 
-   separated) for species
-   whose taxon concepts are inferred to intersect that A taxon concept.
-   Each relationship is given as the RCC-5
-   relationship of the A concept to the B concept, along
-   with the taxon id and canonical name from the B row.
-   A value of `-` means there may be intersecting species but the list was not computed 
+   If the A record indicates rank 'species', this is a semicolon-separated
+   list of relationship/id/name for
+   B taxon concepts with rank 'species' that are inferred to intersect the A 
+   taxon concept.
+   The relationship is the RCC-5
+   relationship of the A concept to the B concept, the id
+   is the taxon id of the B concept's record, and the name is
+   canonical name from the B record.
+   A value of `-` means there may be intersecting concepts but the list was not computed 
    because the A row was not for a species.
  - `LUB in B` - 
-   The relationship to the smallest concept in the B checklist 
-   that contains the A row's concept.  The relationship 
-   is given as above: RCC-5 relationship, taxon id, canonical name.
+   The relationship/id/name of the A concept to its least upper bound (LUB)
+   in the B checklist.  The least upper bound is the smallest B concept
+   that contains the A concept.  
    If the A
    and B names are accepted, the A concept is either the same (RCC-5 =)
-   as the B concept or larger (RCC-5 >) than it.  For synonyms it may
-   be hard to tell what the precise relationship is.
+   as the B concept or smaller (RCC-5 <) than it.  For synonyms it may
+   be hard to tell what the precise relationship is so it <= or ? will show.
  - `exemplar ids` - 
-   If the A record is for a species, a list of exemplar ids for the exemplars
+   If the A record is indicates a species, a list of exemplar ids for the exemplars
    belonging to that species, otherwise `-`
 
 A name written with an asterisk (e.g. `Rana pipiens*`) indicates a synonym.
 
-The canonical names in the output are present for human readability;
-for a more compact report they might be omitted, and obtained as
+The canonical names in the output are there for human readability.
+For a more compact ('normalized') report they might be omitted, and obtained as
 needed from the checklists using the taxon id.
 
-Report rows for synonyms matching synonyms or matching nothing are suppressed.
+Report rows for synonyms that match synonyms or that have no match
+nothing are suppressed.  (this may need to be revised.)
 
 How to read the report:
 
 If you're mainly concerned with the impact on a data set of advancing
 from one version of a checklist to the next (from A to B), then focus
-on lines with semicolons, i.e. species intersections with more than
-one species.  These rows indicate splits, meaning that data using the
+on lines with semicolons, i.e. intersections with more than
+one B concept.  These rows indicate splits, meaning that data using the
 taxon name in A would have to be re-curated to use the correct
-intersecting species in B, if one wanted to make the data consistent
+intersecting species (concept) in B, if one wanted to make the data consistent
 with checklist B.
 
 Probably of most interest for understanding the impact of changes in
-taxonomy going from A to B are the rows with multiple species given in
-the intersecting species column.  These are situations where an A
-species concept corresponds to multiple B species concepts,
+taxonomy going from A to B are the rows with multiple concepts given in
+the intersecting concepts column.  These are situations where an A
+species concept corresponds to multiple B concepts,
 potentially creating mislabeled data or requiring re-curation to
 replace each use of an A species name with the appropriate B species
 name.
 
-This splits in the report will only be an exhaustive list if enough
-synonyms and infraspecific taxa are present in A.  For example, if a
-species name is new in B (does not occur in name), then it will look
-like a de novo species, rather than a split, if it does not somehow
-link back to the split taxon in A via synonym and other records.
-To accommodate A taxa splitting into taxa with names not in A, add the new 
-names to A as synonyms.
+It may be that a record in B having a name not occurring in A is
+intended to indicate a new concept, call it Y, split off from a
+concept in A, call that one X.  Sometimes Y can be connected with X
+via a synonym or subspecies in A, but if not there simply isn't enough
+information in the checklists to permit the inference that 
+that the B name is the result of a 'split', i.e. X < Y.
+
+(In the future maybe we can come up with a good way to add this
+information so that the checklist comparison can be complete.  For
+example, the A checklist could be amended with the new B name
+as a heterotypic synonym for the A name.)
 
 
-[TBD: there should be some indication of name changes; these are hard
-to detect on a quick scan otherwise.  Maybe a separate column with
-'rename', 'lump', 'split' information.]
+[TBD: the report should give some indication of name changes; otherwise
+they are hard to detect on a quick scan.  Maybe a separate
+column with 'rename', 'lump', 'split' information.]
+
+Example (excerpt of a larger comparison):
+
+A taxon id | A taxon name | B species that intersect | LUB in B | exemplar ids |
+---|---|---|---|---|
+35492802 | Platyrrhinus lineatus |  > 4JY2M Platyrrhinus lineatus; >< 4JY2R Platyrrhinus umbratus |  < 6S3Q Platyrrhinus | 15672;15673;15674;15675 |
+35504725 | Platyrrhinus lineatus nigellus | - |  < 4JY2R Platyrrhinus umbratus | -
+35504048 | Platyrrhinus lineatus lineatus | - |  = 4JY2M Platyrrhinus lineatus | -
+35492801 | Platyrrhinus infuscus |  = 4JY2L Platyrrhinus infuscus |  = 4JY2L Platyrrhinus infuscus | 15676
+35492805 | Platyrrhinus vittatus |  = 4JY2S Platyrrhinus vittatus |  = 4JY2S Platyrrhinus vittatus | 15677
+35492804 | Platyrrhinus umbratus |  > 874KL Platyrrhinus aquilus; >< 4JY2R Platyrrhinus umbratus |  < 6S3Q Platyrrhinus | 15678;15679;15680;15681;15682;15683
+35505347 | Platyrrhinus umbratus aquilus | - |  = 874KL Platyrrhinus aquilus | -
+35504727 | Platyrrhinus umbratus oratus | - |  < 4JY2R Platyrrhinus umbratus | -
+35504049 | Platyrrhinus umbratus umbratus | - |  < 4JY2R Platyrrhinus umbratus | 15678
+
 
 
 
