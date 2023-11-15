@@ -46,6 +46,9 @@ determined by the fields of the record with the checklist as context.
 Say that an individual "falls under" a taxon concept meaning that the
 individual is classified under, or belongs to, that taxon concept.
 
+I'll write '_Hyla_ sec. C' for the taxon concept for the record in the C
+checklist record having name '_Hyla_'.
+
 We may not know much about the taxon concept, and it would be
 challenging to find out (it would usually require a literature
 search).  However, that doesn't prevent us from reasoning about it
@@ -339,8 +342,8 @@ Example (excerpt of a larger comparison):
 A taxon id | A taxon name | B species that intersect | LUB in B | exemplar ids |
 ---|---|---|---|---|
 35492802 | Platyrrhinus lineatus |  > 4JY2M Platyrrhinus lineatus; >< 4JY2R Platyrrhinus umbratus |  < 6S3Q Platyrrhinus | 15672;15673;15674;15675 |
-35504725 | Platyrrhinus lineatus nigellus | - |  < 4JY2R Platyrrhinus umbratus | -
-35504048 | Platyrrhinus lineatus lineatus | - |  = 4JY2M Platyrrhinus lineatus | -
+35504725 | Platyrrhinus lineatus nigellus | - |  < 4JY2R Platyrrhinus umbratus | 15673;15674
+35504048 | Platyrrhinus lineatus lineatus | - |  = 4JY2M Platyrrhinus lineatus | 15672;15675
 35492801 | Platyrrhinus infuscus |  = 4JY2L Platyrrhinus infuscus |  = 4JY2L Platyrrhinus infuscus | 15676
 35492805 | Platyrrhinus vittatus |  = 4JY2S Platyrrhinus vittatus |  = 4JY2S Platyrrhinus vittatus | 15677
 35492804 | Platyrrhinus umbratus |  > 874KL Platyrrhinus aquilus; >< 4JY2R Platyrrhinus umbratus |  < 6S3Q Platyrrhinus | 15678;15679;15680;15681;15682;15683
@@ -348,7 +351,26 @@ A taxon id | A taxon name | B species that intersect | LUB in B | exemplar ids |
 35504727 | Platyrrhinus umbratus oratus | - |  < 4JY2R Platyrrhinus umbratus | -
 35504049 | Platyrrhinus umbratus umbratus | - |  < 4JY2R Platyrrhinus umbratus | 15678
 
+Row 1: _P. lineatus_ sec. A is not in the B checklist, but
+its individuals belong to _P. lineatus_ sec. B, which it strictly contains, and
+_P. umbratus_ sec. B, which it overlaps (><) but does not contain.  The nearest B 
+concept covering all of _P. lineatus_ sec. A is the genus _Platyrrhinus_.
 
+Row 2: _P. lineatus nigellus_ sec. A is strictly contained in
+_P. umbratus_ sec. B.
+
+Row 4: Subspecies promoted to species.
+
+Rows 5, 6: Species carried over unchanged.
+
+Row 7: _P umbratus_ sec. A (the concept) is not in B, but is represented by
+_P. aquilus_ sec. B (which it contains) and _P umbratus_ sec. B (which it overlaps).
+
+Row 8: Subspecies promoted to species.
+
+Row 9: _P. umbratus oratus_ sec. A doesn't have its own record in B,
+but rather has been lumped into _P. umbratus_ sec. B (which, remember, only overlaps
+_P. umbratus_ sec. A).
 
 
 ### ncbi_to_dwc

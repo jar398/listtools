@@ -2,13 +2,15 @@
 
 import property as prop
 import checklist, workspace, simple
+import exemplar
 
 from util import log
 from checklist import *
 from workspace import *
 from simple import BOTTOM, compare_per_checklist, compare_siblings
 from typify import equate_typifications, get_typification_record, \
-  get_link
+  get_link, get_exemplar
+from typify import xid_to_record, xid_to_opposite_record
 
 # -----------------------------------------------------------------------------
 
@@ -19,6 +21,7 @@ def find_estimates(AB):
   #  (LUBs get tighter/smaller on 2nd pass).
   #  Easily overwritten.
   compute_cross_mrcas(AB)          # does set_cross_mrca(...)
+  analyze_blocks(AB)               # does set_block(...)
 
   counts = [0, 0]
   def findem(AB):
@@ -54,9 +57,90 @@ def find_estimate(AB, u):
     if not sup:
       # u2 is top
       return relation(ship, u2, "estimate = top")
-    assert sup, blurb(u2)       # not at root
+    ship = sup.relationship if ship == EQ else LT
     u2 = sup.record
-    ship = LT
+
+  a = get_block(u2)
+  b = get_block(v)
+  assert b >= a
+  if b != a:                  # b > a
+    return relation(LT, v, "more exemplars")
+
+  # ship is LT or LE or EQ
+  # we'll turn EQ into LE if there are multiple options
+
+  # If u2 is at top of chain, EQ is still an option.  Otherwise has to be LE.
+
+  sup = local_sup(AB, u2)
+  if sup and a == get_block(sup.record):
+    if ship == EQ: ship = LE
+
+  while True:
+    sup = local_sup(AB, v)         # B.Tupaia montana
+    if not sup:
+      return relation(ship, v, "at top")
+    v2 = sup.record
+    b2 = get_block(v2)
+    if b2 > b:
+      return relation(ship, v, "top of chain")
+    # There is a choice to be made, between v and v2
+    # Kind of a kludge
+    if False and get_canonical(v) == get_canonical(u2):
+      if monitor(u2):
+        log("## Choosing same-named %s over top of chain (next up: %s)" %
+            (blurb(v), blurb(v2)))
+      return relation(ship, v, "in chain, same name")
+    if ship == EQ: ship = LE 
+    v = v2
+    b = b2
+
+  # The above loop should always return.  Following are two previous
+  # versions of the code.
+
+  # Find a v ancestor that's sure to have u <= v.
+  # Try to do it without
+  # Question:  A.Galemys pyrenaicus < B.Galemys pyrenaicus pyrenaicus  ?
+  while True:
+    # Searching for v3 such that u <= v3.  We know that v3 >= v.
+    # u2 -> v -> u1
+    u1 = get_cross_mrca(v, None)
+    if u1 == u2:
+      # Infer u2 == v
+      if monitor(u2): log("## reflected %s -> %s(LUB) -> %s" %
+                          (blurb(u2), blurb(v), blurb(u1)))
+      break
+    if simple.simple_lt(u1, u2):
+      # u2 > v = u1.  Need a bigger v
+      ship = LT
+      # v might be < u2.  Consider a bigger v
+      if monitor(u2): log("## dropped %s -> %s -> %s" %
+                          (blurb(u2), blurb(v), blurb(u1)))
+      v = local_sup(AB, v)         # B.Tupaia montana
+      assert v, blurb(u2)          # shouldn't happen
+      u3 = get_cross_mrca(v, None)
+      assert u1 == u3
+      if u3 != u1:             # possibly u3 == u3
+        # v3 is plenty big, use v or v3, which?
+        # v = v3 ??
+        if monitor(u2):
+          log("## %s < %s, %s < %s" % (blurb(u2), blurb(u3), blurb(v), blurb(v3)))
+        break                   # v is good
+      # v3 might be big enough, but make sure
+      v = v3                    # Loop
+    else:
+      ship = LE
+      # u1 > u2
+      # We can infer that u2 > v
+      #   (u2 < v would imply u2 < u1, and u2 = v would imply v -> u2)
+      # so v is good enough, yes?
+      if monitor(u2): log("## raised %s < %s(LUB) <= %s ?" %
+                          (blurb(u2), blurb(v), blurb(u1)))
+      # ??? or look for name = ???
+      break                     # u1 >= u2
+    
+  if True:
+    # Skip all that other logic down there, forget about chains
+    return relation(ship, v, "cross_mrca")
 
   # v is lower bound on u2's estimate (and therefore u's estimate)
 
@@ -137,6 +221,7 @@ def find_estimate(AB, u):
 
   return relation(ship, v, note)
 
+
 # is u correct here?
 
 def set_scene(AB, u, u1, v1, u2):
@@ -171,6 +256,30 @@ def get_equivalent(AB, u):
   est = get_estimate(u, None)
   if est and est.relationship == EQ: return est
   else: return None
+
+# -----------------------------------------------------------------------------
+
+# The records on z's "side" corresponding to the exemplars
+# in the block for z.  (z is in AB)
+
+def exemplar_records(AB, z):
+  return (xid_to_record(AB, id, z) for id in exemplar_ids(AB, z))
+
+def opposite_exemplar_records(AB, z):
+  return (xid_to_opposite_record(AB, id, z) for id in exemplar_ids(AB, z))
+
+# record -> list of exemplar ids
+
+def exemplar_ids(AB, z):
+  return list(get_block(z))
+
+# For debugging
+
+def show_exemplars(z, tag, AB):
+  def foo(id):
+    return blurb(xid_to_record(AB, id, z))
+  log("# estimate: %s: {%s}" %
+      (tag, ", ".join(map(foo, get_block(z)))))
 
 # -----------------------------------------------------------------------------
 
@@ -212,3 +321,93 @@ def compute_cross_mrcas(AB):
 
 (get_cross_mrca, set_cross_mrca) = \
   prop.get_set(prop.declare_property("cross_mrca"))
+
+# -----------------------------------------------------------------------------
+# Precompute 'blocks' (exemplar sets, implemented in one of various ways).
+# A block is represented as a set of exemplar ids.
+# Blocks are stored on nodes in AB.
+# Assumes exemplars have already been chosen and are available
+# via `get_exemplar`.
+
+def analyze_blocks(ws):
+  def doit(AB):
+    def traverse(x):
+      u = AB.in_left(x)
+      if monitor(u): log("# estimate: computing block for %s" % (blurb(u),))
+      # initial e = exemplars from descendants
+      e = BOTTOM_BLOCK
+      mono = True
+      for c in get_inferiors(x):  # inferiors in A/B
+        b = traverse(c)
+        if not is_empty_block(b):
+          e = combine_blocks(e, b)
+          mono = c if mono == True else None
+      if mono != True and mono != None: set_mono(u, AB.in_left(mono))
+      exem = get_exemplar(u) # returns None or (id, u, v)
+      if exem:
+        e = adjoin_exemplar(exem[0], e)
+      # **************** TBD
+      set_block(u, e)
+      if monitor(u):
+        show_exemplars(u, blurb(u), ws)
+      return e
+    traverse(AB.A.top)
+  doit(ws)
+  doit(swap(ws))
+
+  # Sanity check
+  b1 = get_block(ws.in_left(ws.A.top))
+  b2 = get_block(ws.in_right(ws.B.top))
+  if b1 != b2:
+    assert b1 == b2
+  if b1 == BOTTOM_BLOCK:
+    assert b1 != BOTTOM_BLOCK
+
+def adjoin_exemplar(exemplar_id, e):
+  return combine_blocks(e, {exemplar_id})
+
+# -----------------------------------------------------------------------------
+# Implementation of blocks as Python sets of 'exemplars'.
+# A 'block' is just a set of exemplars, implemented as ... a python set.
+# The term 'block' comes from the mathematical treatment of partitions.
+
+def get_block(x):
+  return really_get_block(x, BOTTOM_BLOCK)
+
+(really_get_block, set_block) = prop.get_set(prop.declare_property("block"))
+(get_mono, set_mono) = prop.get_set(prop.declare_property("mono"))
+
+# RCC-5 relationship between two blocks
+
+def block_relationship(e1, e2):   # can assume intersecting
+  if e1 == e2: return EQ          # same block
+  elif e1.issubset(e2): return LT
+  elif e2.issubset(e1): return GT
+  elif e1.isdisjoint(e2): return DISJOINT
+  else: return OVERLAP
+
+def same_block(e1, e2):
+  return e1 == e2
+
+def block_ge(e1, e2):
+  return e1 >= e2
+
+def block_lt(e1, e2):
+  return e1 < e1
+
+def block_le(e1, e2):
+  return block_ge(e2, e1)
+
+def block_size(e):
+  return len(e)
+
+# Lattice join (union) of two blocks
+
+def combine_blocks(e1, e2):
+  if e1 == BOTTOM_BLOCK: return e2
+  if e2 == BOTTOM_BLOCK: return e1
+  return e1 | e2
+
+BOTTOM_BLOCK = set()
+def same_block(e1, e2): return e1 == e2
+def is_empty_block(e): return e == BOTTOM_BLOCK

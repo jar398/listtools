@@ -11,7 +11,9 @@ from rcc5 import rcc5_symbol
 
 import exemplar
 import estimate
-from estimate import get_estimate, get_equivalent
+from estimate import find_estimates, get_estimate, get_equivalent
+from estimate import is_empty_block, get_block, BOTTOM_BLOCK
+from estimate import block_relationship, same_block, opposite_exemplar_records
 
 # Assumes that name matches are already stored in AB.
 
@@ -23,8 +25,7 @@ def theorize(AB, compute_exemplars=True):
     exemplar.find_exemplars(AB)
   # else: read them from a file
 
-  estimate.find_estimates(AB)
-  analyze_blocks(AB)               # does set_block(...)
+  find_estimates(AB)
 
 #-----------------------------------------------------------------------------
 # compare: The implementation of the RCC-5 theory of AB (A+B).
@@ -103,11 +104,11 @@ def compare_centrally(AB, u, v):
   assert b1 != BOTTOM_BLOCK
   assert b2 != BOTTOM_BLOCK
   ship = block_relationship(b1, b2)
-  if ship == EQ:
+  if b1 == b2:
     #! In same block.  Use names to figure out relationships.
     return compare_within_block(AB, u, v)
   else:
-    # ship is not EQ (i.e. exemplar sets are different)
+    # i.e. exemplar sets are different
     return optimize_relation(AB, u,
                              relation(ship, v, note="exemplar set comparison"))
 
@@ -143,11 +144,11 @@ def compare_within_block(AB, u, v):
 
   # Take intersection to see where they agree
   ship = parallel_relationship(ship1, rev_ship2)
-
-  if ((monitor(u) or monitor(v)) and
-      ((ship & (LT|GT)) == LT|GT or ship == INCONSISTENT)):
-    log("# Path %s from %s to %s" % ("inconsistency" if ship == INCONSISTENT else "incompleteness",
-                                     blurb(u), blurb(v)))
+  rel = relation(ship, v, "parallel")
+  # ship == NOINFO  probably means sibling synonyms
+  if ship == INCONSISTENT:
+    log("# Baffled: %s || %s = %s" %
+        (rcc5_symbol(ship1), rcc5_symbol(rev_ship2), rcc5_symbol(ship)))
     log("#   u        : %s" % blurb(u))         # u
     log("#     %s m    :  %s" % (rcc5_symbol(rel_um.relationship), blurb(rel_um)))
     log("#         %s v:   %s" % (rcc5_symbol(rel_mv.relationship), blurb(rel_mv)))
@@ -158,17 +159,6 @@ def compare_within_block(AB, u, v):
     log("#   v   %s   u:  %s" % (rcc5_symbol(rel_vu.relationship), blurb(rel_vu)))
     log('')
 
-  if ship == ship1:
-    rel = rel_uv
-  elif ship == rev_ship2:
-    rel = rev_rel_vu
-  elif ship == NOINFO:
-    log("# Baffled: %s" % rcc5_symbol(ship))
-    rel = relation(INTERSECT, v, "tightened")
-  elif ship == INCONSISTENT:
-    if monitor(u) or monitor(v):
-      log("# Recovering %s ! %s from inconsistency" % (blurb(u), blurb(v)))
-    rel = relation(INTERSECT, v, "recovered")
   return rel
 
 def compose_final(u, rel1, rel2, rel3):
@@ -196,6 +186,8 @@ def compose_paths(z, rel1, rel2):
                              rcc5_symbol(rel2.relationship),
                              rcc5_symbol(rel.relationship)))
   return rel
+
+# Both relationships hold
 
 def parallel_relationship(ship1, ship2):
   return ship1 & ship2
@@ -288,51 +280,6 @@ def find_cross_sup_rel(AB, u, v):
   return rel if q == v else None
 
 # -----------------------------------------------------------------------------
-# Precompute 'blocks' (exemplar sets, implemented in one of various ways).
-# A block is represented as a set of exemplar ids.
-# Blocks are stored on nodes in AB.
-# Assumes exemplars have already been chosen and are available
-# via `get_exemplar`.
-
-def analyze_blocks(ws):
-  def doit(AB):
-    def traverse(x):
-      u = AB.in_left(x)
-      if monitor(u): log("# theory: computing block for %s" % (blurb(u),))
-      # initial e = exemplars from descendants
-      e = BOTTOM_BLOCK
-      for c in get_inferiors(x):  # inferiors in A/B
-        e = combine_blocks(e, traverse(c))
-
-      exem = typify.get_exemplar(u) # returns none or (id, u, v)
-      if exem:
-        e = adjoin_exemplar(exem[0], e)
-      # **************** TBD
-      set_block(u, e)
-      if monitor(u):
-        show_exemplars(u, blurb(u), ws)
-      return e
-    traverse(AB.A.top)
-  doit(ws)
-  doit(swap(ws))
-
-  # Sanity check
-  b1 = get_block(ws.in_left(ws.A.top))
-  b2 = get_block(ws.in_right(ws.B.top))
-  if b1 != b2:
-    assert b1 == b2
-  if b1 == BOTTOM_BLOCK:
-    assert b1 != BOTTOM_BLOCK
-
-# For debugging
-
-def show_exemplars(z, tag, AB):
-  def foo(id):
-    return blurb(xid_to_record(AB, id, z))
-  log("# theory: %s: {%s}" %
-      (tag, ", ".join(map(foo, get_block(z)))))
-
-# -----------------------------------------------------------------------------
 
 def get_intersecting_species(u):
   o = []
@@ -344,20 +291,6 @@ def get_intersecting_species(u):
       ids = ids | {s.id}
       o.append(s)
   return o
-
-# The records on z's "side" corresponding to the exemplars
-# in the block for z.  (z is in AB)
-
-def exemplar_records(AB, z):
-  return (xid_to_record(AB, id, z) for id in exemplar_ids(AB, z))
-
-def opposite_exemplar_records(AB, z):
-  return (xid_to_opposite_record(AB, id, z) for id in exemplar_ids(AB, z))
-
-# record -> list of exemplar ids
-
-def exemplar_ids(AB, z):
-  return list(get_block(z))
 
 def get_species(u):
   AB = get_workspace(u)
@@ -372,64 +305,3 @@ def is_species(u):              # z local
   if u == False: return False
   x = get_outject(u)
   return get_rank(x, None) == 'species' and is_accepted(x)
-
-# Apply this to an exemplar id to obtain an exemplar union/find node,
-# and return the associated taxon record that's in same checklist as z.
-
-def xid_to_record(AB, xid, z):
-  uf = AB.exemplar_ufs[xid]
-  (_, u, v) = uf.payload()
-  return u if isinA(AB, z) else v
-
-def xid_to_opposite_record(AB, xid, z):
-  uf = AB.exemplar_ufs[xid]
-  (_, u, v) = uf.payload()
-  return v if isinA(AB, z) else u
-
-# -----------------------------------------------------------------------------
-# Implementation of blocks as Python sets of 'exemplars'.
-# A 'block' is just a set of exemplars, implemented as ... a python set.
-# The term 'block' comes from the mathematical treatment of partitions.
-
-def get_block(x):
-  return really_get_block(x, BOTTOM_BLOCK)
-
-(really_get_block, set_block) = prop.get_set(prop.declare_property("block"))
-
-# RCC-5 relationship between two blocks
-
-def block_relationship(e1, e2):   # can assume intersecting
-  if e1 == e2: return EQ          # same block
-  elif e1.issubset(e2): return LT
-  elif e2.issubset(e1): return GT
-  elif e1.isdisjoint(e2): return DISJOINT
-  else: return OVERLAP
-
-def same_block(e1, e2):
-  return e1 == e2
-
-def block_ge(e1, e2):
-  return e1 >= e2
-
-def block_lt(e1, e2):
-  return e1 < e1
-
-def block_le(e1, e2):
-  return block_ge(e2, e1)
-
-def block_size(e):
-  return len(e)
-
-def adjoin_exemplar(exemplar_id, e):
-  return combine_blocks(e, {exemplar_id})
-
-# Lattice join (union) of two blocks
-
-def combine_blocks(e1, e2):
-  if e1 == BOTTOM_BLOCK: return e2
-  if e2 == BOTTOM_BLOCK: return e1
-  return e1 | e2
-
-BOTTOM_BLOCK = set()
-def same_block(e1, e2): return e1 == e2
-def is_empty_block(e): return e == BOTTOM_BLOCK

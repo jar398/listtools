@@ -16,7 +16,7 @@ def generate_plugin_report(AB):
          "exemplar ids",
          )
   i = 0
-  frequency = 1000
+  frequency = 5000
   for x in preorder_records(AB.A):
     if not is_top(x):
       u = AB.in_left(x)
@@ -25,27 +25,33 @@ def generate_plugin_report(AB):
       if i % frequency == 0:
         log("%s %s" % (i, blurb(u)))
 
-      xids = theory.exemplar_ids(AB, u)
-      if theory.is_species(u):
+      if theory.is_species(u) or is_infraspecific(u):
         o = theory.get_intersecting_species(u)
         inter = ';'.join(map(lambda s:show_articulation(u, s),
                              o))
+        xids = estimate.exemplar_ids(AB, u)
         exemplars = ";".join(map(str, sorted(xids)))
       else:
         o = []
         inter = '-'
-        exemplars = ";".join(map(str, sorted(xids))) if len(xids) <= 1 else '-'
+        exemplars = '-'
 
       if is_accepted(x) or o:
         # filter out uninteresting synonyms
         est = estimate.get_estimate(u, None).record
-        # est = local_accepted(est)
         yield (get_primary_key(x),
                blurb(x),
                inter,
                show_articulation(u, est),
                exemplars,
                )
+
+def is_infraspecific(u):
+  x = get_outject(u)
+  r = get_rank(x, None)
+  # Kludge.  Will miss some.  Can improve this.
+  return r == 'subspecies' or r == 'infraspecific name'    # COL
+
 
 def show_articulation(u, v):
   if v:
@@ -54,7 +60,7 @@ def show_articulation(u, v):
     rcc5 = rcc5_symbol(rel.relationship)
     # leading space prevents interpretation as excel formula
     return " %s %s" % (rcc5_symbol(rel.relationship),
-                      get_primary_key_for_report(y))
+                       get_primary_key_for_report(y))
   else:
     return MISSING
 

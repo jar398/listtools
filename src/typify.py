@@ -15,13 +15,18 @@ def find_typifications(AB, subproblems, get_pre_estimate):
   # This sets the 'typification_uf' property of ... some ... records.
   log("# Finding some typifications")
 
-  i = 0
+  n = 1
   for (key, (us, vs)) in subproblems.items():
-    if i % 1000 == 0:
-      log("# Subproblem %s %s %s %s %s" % (i, len(us), len(vs), blurb(us[0]), blurb(vs[0])))
-    i += 1
-    for u in us:
-      for v in vs:
+    if n % 1000 == 0:
+      log("# Subproblem %s %s %s %s %s" % (n, len(us), len(vs), blurb(us[0]), blurb(vs[0])))
+    n += 1
+    try_in_same_checklist(us)
+    try_in_same_checklist(vs)
+    for i in range(0, len(us)):
+      u = us[i]
+      # If it's a synonym, see if it matches any accepted in same checklist?
+      for j in range(i, len(vs)):
+        v = vs[j]
         # classify as A1, A2, A3 (HETEROTYPIC, REVIEW, HOMOTYPIC)
         # **** COMPUTE DISTANCE if 2nd pass ****
         dist = compute_distance(u, v, get_pre_estimate)
@@ -31,6 +36,16 @@ def find_typifications(AB, subproblems, get_pre_estimate):
 
   equate_typifications(AB.in_left(AB.A.top),
                        AB.in_right(AB.B.top))
+
+def try_in_same_checklist(us):
+  for i in range(0, len(us)):
+    u1 = us[i]
+    for j in range(i+1, len(us)):
+      u2 = us[j]
+      dist = distance_in_checklist(get_outject(u1), get_outject(u2)) * 2
+      score = compute_score(u1, u2, dist)
+      if homotypic_score(score):
+        equate_typifications(u1, u2)
 
 # u and v are in workspace but may or may not be from same checklist
 
@@ -102,6 +117,8 @@ def get_typification_record(z):
       return r
   return None
 
+# This chooses the 'best' record to represent a given exemplar
+
 def pick_better_record(v1, v2):
   if v2 is None: return v1
   if v1 is None: return v2                   # One side, not nec. reciprocal
@@ -121,7 +138,6 @@ def pick_better_record(v1, v2):
   if m is y1: return v2
   if m is y2: return v1
   # See whether v2 is an improvement over v1
-  # Put this logic in pick_better_record ??
   parts1 = get_parts(v1)
   parts2 = get_parts(v2)
   if len(parts2.middle) > 0 and len(parts1.middle) == 0:
@@ -252,8 +268,8 @@ def explain(score):
 # 5 is an estimate of typical max distance between a species and 
 #  any descendant... hmm...  there has to be a better way
 
-def homotypic(u, species):
-  return homotypic_score(compute_score(u, species))
+def homotypic(u, v, dist):
+  return homotypic_score(compute_score(u, v))
 
 def homotypic_score(score):
   return score > 0 and (score & mask1 == mask1 or
@@ -289,18 +305,21 @@ def compute_half_distance(u, v, up):
   # u < u1 <= (v1 < m > v)
   assert separated(u, v)
   v1 = up.record
-  y  = get_outject(v)
-  y1 = get_outject(v1)
-  m = simple.mrca(y1, y)
-  dist = (distance_on_lineage(y1, m) +
-          distance_on_lineage(y, m))
+  dist = distance_in_checklist(get_outject(v), get_outject(v1))
   return dist
 
-def distance_on_lineage(u1, u2):
-  if u1 == u2:
+def distance_in_checklist(x1, x2):
+  m = simple.mrca(x1, x2)
+  assert m
+  return (distance_on_lineage(x1, m) +
+          distance_on_lineage(x2, m))
+
+def distance_on_lineage(x, m):
+  assert simple.simple_le(x, m)
+  if x == m:
     return 0
-  return (distance_to_parent(u1) +
-          distance_on_lineage(get_superior(u1).record, u2))
+  return (distance_to_parent(x) +
+          distance_on_lineage(get_superior(x).record, m))
 
 def distance_to_parent(u):
   sup = get_superior(u)
@@ -319,3 +338,19 @@ def get_link(u, default=-19):
     return v if (v and separated(u, v)) else u2
   return None
 
+
+# -----------------------------------------------------------------------------
+# Exemplars (separate module maybe?)
+
+# Apply this to an exemplar id to obtain an exemplar union/find node,
+# and return the associated taxon record that's in same checklist as z.
+
+def xid_to_record(AB, xid, z):
+  uf = AB.exemplar_ufs[xid]
+  (_, u, v) = uf.payload()
+  return u if isinA(AB, z) else v
+
+def xid_to_opposite_record(AB, xid, z):
+  uf = AB.exemplar_ufs[xid]
+  (_, u, v) = uf.payload()
+  return v if isinA(AB, z) else u
