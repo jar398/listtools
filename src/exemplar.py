@@ -6,7 +6,7 @@ import util, rows
 from workspace import *
 from util import log, windex
 
-from estimate import get_estimate, find_estimates
+from estimate import find_estimates, get_estimate
 
 from typify import equate_typification_ufs
 from typify import get_exemplar, get_typification_uf
@@ -19,12 +19,14 @@ from typify import really_get_typification_uf, find_typifications
 # This is invoked twice - two-pass method.  Purpose of first pass is
 # to be able to compute distances on the second pass.
 
-def find_exemplars(AB):
+def find_exemplars(get_estimate, AB):
   log("# Finding subproblems")
   subproblems = find_subproblems(AB)
   log("#   There are %s subproblems" % len(subproblems))
+  log("# Finding pass 1 typifications (for distance calculations)")
   find_typifications(AB, subproblems, lambda _u, _d: None)
   find_estimates(AB)            # for distance calculations
+  log("# Finding pass 2 typifications (using distance calculations)")
   find_typifications(AB, subproblems, get_estimate)
   # maybe compute better estimates - see theory.py
   report_on_exemplars(AB)
@@ -169,5 +171,5 @@ if __name__ == '__main__':
       # compute name matches afresh
       AB = ingest_workspace(a_rows.rows(), b_rows.rows(),
                             A_name=a_name, B_name=b_name)
-      find_exemplars(AB)
+      find_exemplars(get_estimate, AB)
       write_exemplar_list(AB)

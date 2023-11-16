@@ -13,7 +13,6 @@ from workspace import isinA, isinB
 
 def find_typifications(AB, subproblems, get_pre_estimate):
   # This sets the 'typification_uf' property of ... some ... records.
-  log("# Finding some typifications")
 
   n = 1
   for (key, (us, vs)) in subproblems.items():
@@ -59,7 +58,9 @@ def equate_typification_ufs(uf, vf):
   vf = vf.find()
   (i1, u1, v1) = uf.payload()
   (i2, u2, v2) = vf.payload()
-  assert i1 == None or i2 == None or i1 == i2
+  if i2 == None: i = i1
+  elif i1 == None: i = i2
+  else: i = min(i1, i2)         # Not sure if this will work
   assert u1 or v1
   assert u2 or v2
   # What if ambiguity, i.e. pick_better_record returns False?
@@ -157,6 +158,13 @@ def pick_better_record(v1, v2):
     return False  # Ambiguous
   return v1       # arbitrary synonym choice; don't want ambiguous
 
+def known_same_typification(u, v):
+  uf = really_get_typification_uf(u, None)
+  if uf:
+    vf = really_get_typification_uf(v, None)
+    if vf:
+      return uf.payload() is vf.payload()
+  return False
 
 
 HOMOTYPIC   = EQ           # Hmm, not sure about this

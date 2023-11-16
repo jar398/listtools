@@ -2,7 +2,6 @@
 
 import property as prop
 import checklist, workspace, simple
-import exemplar
 
 from util import log
 from checklist import *

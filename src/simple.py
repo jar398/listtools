@@ -11,9 +11,11 @@ from checklist import *
 # Returns a Relation explaining justification
 
 def compare_per_checklist(x, y):             # Within a single checklist
+  if x is y:
+    return relation(EQ, y)              # even if synonym
   x1 = get_accepted(x)
   y1 = get_accepted(y)
-  if x1 == y1:                    # same accepted
+  if x1 is y1:                    # same accepted
     return compare_siblings(x, x1, y1, y)
   return compare_accepted_in_checklist(x, y)
 
@@ -47,12 +49,7 @@ def compare_accepted_in_checklist(x, y):
 
 def compare_siblings(x, x1, y1, y):
   if x != x1 and y != y1:       # x <= x1 = y1 >= y
-    if False and known_different_exemplars(x, y):
-      return relation(NEQ, y, "sibling heterotypic synonyms", span=2)
-    elif False and known_same_exemplar(x, y):                # Need fuzzy protonym compare
-      return relation (EQ, y, "sibling homotypic synonyms", span=2)
-    else:
-      return relation(NOINFO, y, "sibling synonyms", span=2)
+    return relation(NOINFO, y, "sibling synonyms", span=2)
   elif x != x1:
     # LT -> heterotypic, EQ -> homotypic (?), SYNONYM -> unknown
     return relation(synonym_relationship(x, x1), y, "synonym of", span=1)

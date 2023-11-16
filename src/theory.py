@@ -14,6 +14,7 @@ import estimate
 from estimate import find_estimates, get_estimate, get_equivalent
 from estimate import is_empty_block, get_block, BOTTOM_BLOCK
 from estimate import block_relationship, same_block, opposite_exemplar_records
+from typify import known_same_typification
 
 # Assumes that name matches are already stored in AB.
 
@@ -35,7 +36,7 @@ def compare(AB, v, w):
   if separated(v, w):
     return cross_compare(AB, v, w)
   else:
-    return simple.compare_per_checklist(get_outject(v), get_outject(w))
+    return compare_locally(AB, v, w)
 
 # v and w are Records in AB, not in A or B
 # Returns a Relative to w
@@ -147,8 +148,8 @@ def compare_within_block(AB, u, v):
   rel = relation(ship, v, "parallel")
   # ship == NOINFO  probably means sibling synonyms
   if ship == INCONSISTENT:
-    log("# Baffled: %s || %s = %s" %
-        (rcc5_symbol(ship1), rcc5_symbol(rev_ship2), rcc5_symbol(ship)))
+    log("# Baffled: %s is inconsistent with %s" %
+        (rcc5_symbol(ship1), rcc5_symbol(rev_ship2)))
     log("#   u        : %s" % blurb(u))         # u
     log("#     %s m    :  %s" % (rcc5_symbol(rel_um.relationship), blurb(rel_um)))
     log("#         %s v:   %s" % (rcc5_symbol(rel_mv.relationship), blurb(rel_mv)))
@@ -170,6 +171,9 @@ def compose_final(u, rel1, rel2, rel3):
 
 def compare_locally(u, v):
   rel = simple.compare_per_checklist(get_outject(u), get_outject(v)) # in A or B
+  if rel.relationship == NOINFO and known_same_typification(u, v):
+    # They're not disjoint because type is in both
+    return relation(INTERSECT, v, "homotypic synonyms")
   return relation(rel.relationship,
                   v,
                   note=rel.note,

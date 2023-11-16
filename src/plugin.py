@@ -7,12 +7,14 @@ import theory, exemplar, estimate
 from workspace import ingest_workspace
 from checklist import *
 from rcc5 import rcc5_symbol
+from estimate import get_estimate
 
 def generate_plugin_report(AB):
   yield ("A taxon id",
          "A taxon name",
-         "B species that intersect",
-         "LUB in B",
+         "intersecting B concepts (species only)",
+         "containing B concept",
+         "change from A to B",
          "exemplar ids",
          )
   i = 0
@@ -39,6 +41,13 @@ def generate_plugin_report(AB):
       if is_accepted(x) or o:
         # filter out uninteresting synonyms
         est = estimate.get_estimate(u, None).record
+        if len(o) > 1:
+          status = "split"
+        # lump    if relationship is <
+        # rename  if relationship is = and canonical differs
+        # ?  if synonym promoted to accepted (sort of a split)
+        else:
+          status = MISSING
         yield (get_primary_key(x),
                blurb(x),
                inter,
@@ -55,14 +64,16 @@ def is_infraspecific(u):
 
 def show_articulation(u, v):
   if v:
-    rel = theory.compare(AB, u, v)
-    y = get_outject(v)
-    rcc5 = rcc5_symbol(rel.relationship)
-    # leading space prevents interpretation as excel formula
-    return " %s %s" % (rcc5_symbol(rel.relationship),
-                       get_primary_key_for_report(y))
+    return show_relation(theory.compare(AB, u, v))
   else:
     return MISSING
+
+def show_relation(rel):
+  y = get_outject(rel.record)
+  rcc5 = rcc5_symbol(rel.relationship)
+  # leading space prevents interpretation as excel formula
+  return " %s %s" % (rcc5_symbol(rel.relationship),
+                     get_primary_key_for_report(y))
 
 def get_primary_key_for_report(x):
   assert get_primary_key(x)
@@ -92,7 +103,7 @@ if __name__ == '__main__':
       if args.exemplars:
         exemplar.read_exemplars(rows.open(args.exemplars), AB)
       else:
-        exemplar.find_exemplars(AB)
+        exemplar.find_exemplars(get_estimate, AB)
       log("# %s AB.exemplar_ufs" % len(AB.exemplar_ufs))
       theory.theorize(AB, False)
       with rows.open(d_path, "w") as d_gen:

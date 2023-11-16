@@ -125,7 +125,9 @@ two regions, are
 In cases where the precise RCC-5 relationship isn't known, we can also write
  * A <= B: A < B or A = B
  * A >= B: A > B or A = B
- * A not! B: it is not the case that A ! B (i.e. at least one individual falls under both)
+ * A not! B: A and B intersect; are not disjoint;
+   it is not the case that A ! B;
+   at least one individual falls under both
  * A ? B: RCC-5 relationship is unknown
 
 
@@ -341,6 +343,8 @@ Example (excerpt of a larger comparison):
 
 A taxon id | A taxon name | B species that intersect | LUB in B | exemplar ids |
 ---|---|---|---|---|
+
+
 35492802 | Platyrrhinus lineatus |  > 4JY2M Platyrrhinus lineatus; >< 4JY2R Platyrrhinus umbratus |  < 6S3Q Platyrrhinus | 15672;15673;15674;15675 |
 35504725 | Platyrrhinus lineatus nigellus | - |  < 4JY2R Platyrrhinus umbratus | 15673;15674
 35504048 | Platyrrhinus lineatus lineatus | - |  = 4JY2M Platyrrhinus lineatus | 15672;15675
