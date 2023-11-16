@@ -364,14 +364,15 @@ concept covering all of _P. lineatus_ sec. A is the genus _Platyrrhinus_.
 Row 2: _P. lineatus nigellus_ sec. A is strictly contained in
 _P. umbratus_ sec. B, i.e. it has been moved out of _P. lineatus_.
 
-Row 3: Subspecies _P. lineatus lineatus_ promoted to species.
+Row 3: _P. lineatus lineatus_ sec. A promoted to species, i.e. its name in B is _P. lineatus lineatus_.
 
 Rows 4, 5: Species carried over unchanged.
 
-Row 6: _P umbratus_ sec. A (the concept) is not in the B checklist, but is represented by
-_P. aquilus_ sec. B (which it contains) and _P umbratus_ sec. B (which it overlaps).
+Row 6: _P. umbratus_ sec. A (the concept) is not in the B checklist, but is represented by
+_P. aquilus_ sec. B (which it contains) and by part of _P. umbratus_ sec. B 
+(that is, it overlaps _P. umbratus_ sec. B without containing it completely).
 
-Row 7: Subspecies _aquilas_ promoted to species.
+Row 7: Subspecies _aquilas_ promoted to species; a clerical change in how the concept is named.
 
 Row 8: _P. umbratus oratus_ sec. A doesn't have its own record in B except as a synonym.
 It has been lumped into _P. umbratus_ sec. B (which, remember, differs from
