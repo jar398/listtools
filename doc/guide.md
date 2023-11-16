@@ -43,13 +43,14 @@ biodiversity informatics such as 'organism', 'specimen', and
 Each record of each checklist has an associated "taxon concept"
 determined by the fields of the record with the checklist as context.
 
-Say that an individual "falls under" a taxon concept meaning that the
-individual is classified under, or belongs to, that taxon concept.
+Say that an individual "falls under" a taxon concept to mean that the
+individual is classified under, or belongs to, that taxon concept, or
+the taxon concept applies to the individual.
 
-I'll write '_Hyla_ sec. C' for the taxon concept for the record in the C
-checklist record having name '_Hyla_'.
+I'll write '_Hyla_ sec. C' to denote the taxon concept described in
+source C under the name '_Hyla_'.  (C might be a checklist.)
 
-We may not know much about the taxon concept, and it would be
+We may not know much about the taxon concept, and it could be
 challenging to find out (it would usually require a literature
 search).  However, that doesn't prevent us from reasoning about it
 using information in the checklist.
@@ -65,13 +66,13 @@ taxonomic literature.
 
 ### Type specimens
 
-Each record of each checklist has a name ('scientific' if it includes authority 
-information; 'canonical' if not),
-and the name has a designated individual (its type specimen,
-or just 'type') according to
-the rules of biological nomenclature.
+Each record of each checklist has a name ('scientific name' if it
+includes authority information; 'canonical name' if not).  The
+record's name has a designated individual known as the name's
+type specimen, or just 'type', according to the rules of biological
+nomenclature.
 
-Therefore, each record has an associated type, via its name, in context.
+Therefore, each record has an associated type.
 
 The type associated with a record falls under
 the taxon concept associated with that record.
@@ -96,7 +97,7 @@ with respect to checklists A and B.
 We take sets of exemplars to be computable approximations to (unknown)
 taxon concepts, in the sense that if exemplar set S = E(C) = {e: e is
 an exemplar in C} for concept C, and similarly T = E(D), then an RCC-5
-relationship (see below) between concepts induces the same RCC-5 relationship
+relationship (see below) between concepts induces the sames RCC-5 relationship
 between the exemplar sets.  The opposite also holds, except in some
 cases where S = T, in which case contextual information can be used to
 infer a distinction between C and D [work in progress].
@@ -112,9 +113,9 @@ how RCC-5 is being used - we could be talking sets, or geographic
 regions - but in our case we're talking about taxon concepts.  The
 RCC-5 relationships, exactly one of which holds for any
 two regions, are
- * A = B: A and B are the same; the same individuals fall under both
+ * A = B: A and B are the same, at least inasmuch as the same individuals fall under both
  * A < B: A is contained in B but isn't the same as B; 
-   the individuals in A all fall under B but not vice versa
+   the individuals that fall under A all fall under B but not vice versa
  * A > B: same as B < A
  * A ! B: A and B are disjoint; no individual falls under both
  * A >< B: A and B overlap but neither is contained in the other.
@@ -256,6 +257,8 @@ indicated taxon concept is the exemplar identified by `exemplar id`.
 (Of course the same exemplar can also be the type specimen of other
 taxon concepts.)
 
+Sample output: [col-19-23-exemplars.csv](col-19-23-exemplars.csv)
+
 ## plugin
 <a name="plugin"></a>
 
@@ -343,38 +346,43 @@ Example (excerpt of a larger comparison):
 
 A taxon id | A taxon name | B species that intersect | LUB in B | exemplar ids |
 ---|---|---|---|---|
-
-
-35492802 | Platyrrhinus lineatus |  > 4JY2M Platyrrhinus lineatus; >< 4JY2R Platyrrhinus umbratus |  < 6S3Q Platyrrhinus | 15672;15673;15674;15675 |
-35504725 | Platyrrhinus lineatus nigellus | - |  < 4JY2R Platyrrhinus umbratus | 15673;15674
-35504048 | Platyrrhinus lineatus lineatus | - |  = 4JY2M Platyrrhinus lineatus | 15672;15675
-35492801 | Platyrrhinus infuscus |  = 4JY2L Platyrrhinus infuscus |  = 4JY2L Platyrrhinus infuscus | 15676
-35492805 | Platyrrhinus vittatus |  = 4JY2S Platyrrhinus vittatus |  = 4JY2S Platyrrhinus vittatus | 15677
-35492804 | Platyrrhinus umbratus |  > 874KL Platyrrhinus aquilus; >< 4JY2R Platyrrhinus umbratus |  < 6S3Q Platyrrhinus | 15678;15679;15680;15681;15682;15683
-35505347 | Platyrrhinus umbratus aquilus | - |  = 874KL Platyrrhinus aquilus | -
-35504727 | Platyrrhinus umbratus oratus | - |  < 4JY2R Platyrrhinus umbratus | -
-35504049 | Platyrrhinus umbratus umbratus | - |  < 4JY2R Platyrrhinus umbratus | 15678
+35492802 | Platyrrhinus lineatus |  > 4JY2M Platyrrhinus lineatus; >< 4JY2R Platyrrhinus umbratus |  < 6S3Q Platyrrhinus | 3935;3936
+35504725 | Platyrrhinus lineatus nigellus |  <= 4JY2R Platyrrhinus umbratus |  = 855Z5 Platyrrhinus lineatus nigellus* | 3935
+35504048 | Platyrrhinus lineatus lineatus |  = 4JY2M Platyrrhinus lineatus |  = 4JY2M Platyrrhinus lineatus | 3936
+35492801 | Platyrrhinus infuscus |  = 4JY2L Platyrrhinus infuscus |  = 4JY2L Platyrrhinus infuscus | 5577
+35492805 | Platyrrhinus vittatus |  = 4JY2S Platyrrhinus vittatus |  = 4JY2S Platyrrhinus vittatus | 3937
+35492804 | Platyrrhinus umbratus |  > 874KL Platyrrhinus aquilus; >< 4JY2R Platyrrhinus umbratus |  < 6S3Q Platyrrhinus | 3938;3939;3940
+35505347 | Platyrrhinus umbratus aquilus |  = 874KL Platyrrhinus aquilus |  = 874KL Platyrrhinus aquilus | 3938
+35504727 | Platyrrhinus umbratus oratus |  <= 4JY2R Platyrrhinus umbratus |  = 855Z8 Platyrrhinus umbratus oratus* | 3939
+35504049 | Platyrrhinus umbratus umbratus |  < 4JY2R Platyrrhinus umbratus |  < 4JY2R Platyrrhinus umbratus | 3940
 
 Row 1: _P. lineatus_ sec. A is not in the B checklist, but
-its individuals belong to _P. lineatus_ sec. B, which it strictly contains, and
-_P. umbratus_ sec. B, which it overlaps (><) but does not contain.  The nearest B 
+it fully contains _P. lineatus_ sec. B, and
+it contains some of _P. umbratus_ sec. B (it overlaps (><) but does not contain it).  The nearest (smallest) B 
 concept covering all of _P. lineatus_ sec. A is the genus _Platyrrhinus_.
 
 Row 2: _P. lineatus nigellus_ sec. A is strictly contained in
-_P. umbratus_ sec. B.
+_P. umbratus_ sec. B, i.e. it has been moved out of _P. lineatus_.
 
-Row 4: Subspecies promoted to species.
+Row 3: Subspecies _P. lineatus lineatus_ promoted to species.
 
-Rows 5, 6: Species carried over unchanged.
+Rows 4, 5: Species carried over unchanged.
 
-Row 7: _P umbratus_ sec. A (the concept) is not in B, but is represented by
+Row 6: _P umbratus_ sec. A (the concept) is not in the B checklist, but is represented by
 _P. aquilus_ sec. B (which it contains) and _P umbratus_ sec. B (which it overlaps).
 
-Row 8: Subspecies promoted to species.
+Row 7: Subspecies _aquilas_ promoted to species.
 
-Row 9: _P. umbratus oratus_ sec. A doesn't have its own record in B,
-but rather has been lumped into _P. umbratus_ sec. B (which, remember, only overlaps
-_P. umbratus_ sec. A).
+Row 8: _P. umbratus oratus_ sec. A doesn't have its own record in B except as a synonym.
+It has been lumped into _P. umbratus_ sec. B (which, remember, differs from
+_P. umbratus_ sec. A).  The B checklist has a synonym record for it.k
+
+Row 9: _P. umbratus umbratus_ sec. A has been lumped into
+_P. umbratus_ sec. B, and there is no synonym record in B.  
+(Personally, I'm of the opinion that when a checklist is revised. the revision
+should always have synonym records for names previous checklists.)
+
+Sample output: [col-19-23-report.csv](col-19-23-report.csv)
 
 
 ### ncbi_to_dwc

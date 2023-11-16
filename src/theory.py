@@ -171,7 +171,8 @@ def compose_final(u, rel1, rel2, rel3):
 
 def compare_locally(u, v):
   rel = simple.compare_per_checklist(get_outject(u), get_outject(v)) # in A or B
-  if rel.relationship == NOINFO and known_same_typification(u, v):
+  if rel.relationship & DISJOINT and known_same_typification(u, v):
+    # rel.relationship is NOINFO or DISJOINT
     # They're not disjoint because type is in both
     return relation(INTERSECT, v, "homotypic synonyms")
   return relation(rel.relationship,

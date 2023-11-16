@@ -14,7 +14,7 @@ def generate_plugin_report(AB):
          "A taxon name",
          "intersecting B concepts (species only)",
          "containing B concept",
-         "change from A to B",
+         # "change from A to B",
          "exemplar ids",
          )
   i = 0

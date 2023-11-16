@@ -19,6 +19,8 @@ def compare_per_checklist(x, y):             # Within a single checklist
     return compare_siblings(x, x1, y1, y)
   return compare_accepted_in_checklist(x, y)
 
+# x and y are accepted, no synonyming around.
+
 def compare_accepted_in_checklist(x, y):
   (x_peer, y_peer) = find_peers(x, y)    # Decrease levels as needed
   if x_peer == y_peer:     # x <= x_peer = y_peer >= y
@@ -43,6 +45,7 @@ def compare_accepted_in_checklist(x, y):
           (blurb(x), blurb(x_peer), blurb(y_peer), blurb(y)))
     return relation(DISJOINT, y, note="x < xp = yp > y")
 
+# Either x or y is a synonym (maybe both).
 # Compare x to y under the assumption that accepted(x) = accepted(y).
 # x and y might be in different checklists.
 # Requires review.

@@ -4,14 +4,14 @@ import util
 import property as prop
 import simple
 
-from util import log, UnionFindable
-from rcc5 import EQ, NEQ
+from util import log, MISSING, UnionFindable
+from rcc5 import EQ, NEQ, DISJOINT
 from checklist import get_parts, monitor, get_superior, get_children, \
-  is_accepted, blurb
+  is_accepted, blurb, get_scientific
 from workspace import separated, get_outject, get_workspace
 from workspace import isinA, isinB
 
-def find_typifications(AB, subproblems, get_pre_estimate):
+def find_typifications(AB, subproblems, get_pre_estimate, second):
   # This sets the 'typification_uf' property of ... some ... records.
 
   n = 1
@@ -19,32 +19,68 @@ def find_typifications(AB, subproblems, get_pre_estimate):
     if n % 1000 == 0:
       log("# Subproblem %s %s %s %s %s" % (n, len(us), len(vs), blurb(us[0]), blurb(vs[0])))
     n += 1
-    try_in_same_checklist(us)
-    try_in_same_checklist(vs)
+    try_in_same_checklist(us, second)
+    try_in_same_checklist(vs, second)
     for i in range(0, len(us)):
+      # Sorted by unimportance
       u = us[i]
       # If it's a synonym, see if it matches any accepted in same checklist?
-      for j in range(i, len(vs)):
+      v0 = None
+      for j in range(i+1, len(vs)):
         v = vs[j]
         # classify as A1, A2, A3 (HETEROTYPIC, REVIEW, HOMOTYPIC)
         # **** COMPUTE DISTANCE if 2nd pass ****
         dist = compute_distance(u, v, get_pre_estimate)
         score = compute_score(u, v, dist)
         if homotypic_score(score):
-          equate_typifications(u, v)
+          if v0 == None:
+            equate_typifications(u, v)
+            v0 = v
+          elif typification_compatible(v, v0):
+            equate_typifications(u, v)
+          else:
+            log("* Ambiguous match %s %s" % (blurb(v0), blurb(v)))
+            # v0 = False
 
   equate_typifications(AB.in_left(AB.A.top),
                        AB.in_right(AB.B.top))
 
-def try_in_same_checklist(us):
+# In same checklist
+
+def typification_compatible(u, v):
+  uf = really_get_typification_uf(u, None)
+  if uf:
+    vf = really_get_typification_uf(v, None)
+    if vf:
+      return uf.payload() is vf.payload()
+  return True
+
+def unimportance(u):
+  p = get_parts(u)
+  if p.epithet == MISSING: imp = 4      # Foo
+  if p.middle == p.epithet: imp = 1     # Foo bar bar
+  elif p.middle == MISSING: imp = 2     # Foo bar
+  else: imp = 3                         # Foo bar baz
+  if not is_accepted(get_outject(u)):
+    imp += 10
+  return imp
+
+def try_in_same_checklist(us, second):
   for i in range(0, len(us)):
     u1 = us[i]
-    for j in range(i+1, len(us)):
+    for j in range(i, len(us)):
       u2 = us[j]
-      dist = distance_in_checklist(get_outject(u1), get_outject(u2)) * 2
+      x1 = get_outject(u1)
+      x2 = get_outject(u2)
+      dist = distance_in_checklist(x1, x2) * 2
       score = compute_score(u1, u2, dist)
       if homotypic_score(score):
-        equate_typifications(u1, u2)
+        rel = simple.compare_per_checklist(x1, x2)
+        if rel.relationship != DISJOINT:
+          equate_typifications(u1, u2)
+        elif second and is_accepted(x1) and is_accepted(x2):
+          # Never happens in CoL mammals, but possible
+          log("## Ruling out %s contypic with %s" % (blurb(u1), blurb(u2)))
 
 # u and v are in workspace but may or may not be from same checklist
 
@@ -61,8 +97,6 @@ def equate_typification_ufs(uf, vf):
   if i2 == None: i = i1
   elif i1 == None: i = i2
   else: i = min(i1, i2)         # Not sure if this will work
-  assert u1 or v1
-  assert u2 or v2
   # What if ambiguity, i.e. pick_better_record returns False?
   ef = uf.absorb(vf)          # ef happens to be uf
   r = ef.payload()
@@ -124,7 +158,7 @@ def pick_better_record(v1, v2):
   if v2 is None: return v1
   if v1 is None: return v2                   # One side, not nec. reciprocal
   if v1 is v2: return v1
-  if v1 == False: return v1   # Propagate ambiguity block
+  if v1 == False: return v1   # Propagate ambiguity block ... ???
   if v2 == False: return v2
   y1 = get_outject(v1)
   y2 = get_outject(v2)
@@ -134,10 +168,12 @@ def pick_better_record(v1, v2):
   if not is_accepted(y2) and is_accepted(y1):
     # silently keep choice
     return v1
+
   m = simple.mrca(y1, y2)
   assert not y1 is y2
   if m is y1: return v2
   if m is y2: return v1
+
   # See whether v2 is an improvement over v1
   parts1 = get_parts(v1)
   parts2 = get_parts(v2)
@@ -148,14 +184,19 @@ def pick_better_record(v1, v2):
     # Shorter name (species overrides subspecies).
     return v1                    # Keep tipward (v1)
   if is_accepted(y1) and is_accepted(y2):
-    log('')
-    log("# %s" % (parts1,))
-    log("# %s" % (parts2,))
-    log("# middles '%s' '%s'" % (parts1.middle,  parts2.middle))
-    log("# %s, %s <= %s" % (blurb(y1), blurb(y2), blurb(m)))
-    log("# typify: Ambiguous: %s & %s" %
-        (blurb(v1), blurb(v2)))
-    return False  # Ambiguous
+    if heterotypic_score(compute_score(v1, v2)):
+      log('')
+      log("# %s" % (parts1,))
+      log("# %s" % (parts2,))
+      log("# middles '%s' '%s'" % (parts1.middle,  parts2.middle))
+      log("# %s, %s <= %s" % (blurb(y1), blurb(y2), blurb(m)))
+      log("# typify: Ambiguous: %s & %s" %
+          (blurb(v1), blurb(v2)))
+      return False  # Ambiguous
+    elif get_scientific(v1) < get_scientific(v2):
+      return v1
+    else:
+      return v2
   return v1       # arbitrary synonym choice; don't want ambiguous
 
 def known_same_typification(u, v):
@@ -240,7 +281,7 @@ def compute_parts_score(p, q, distance=None):
     pmid = p.epithet if p.middle == '' else p.middle
     qmid = q.epithet if q.middle == '' else q.middle
     if pmid == qmid: hits |= MIDDLE_MASK
-    else: misses |= MIDDLE_MASK
+    else: pass    # Unmatched middle does not imply mismatch
 
   if misses > 0: return NEUTRAL - misses
   else: return NEUTRAL + hits
@@ -282,6 +323,9 @@ def homotypic(u, v, dist):
 def homotypic_score(score):
   return score > 0 and (score & mask1 == mask1 or
                         score & mask2 == mask2)
+
+def heterotypic_score(score):
+  return score < 0
 
 mask1 = (EPITHET_MASK | GENUS_MASK | YEAR_MASK)
 mask2 = (EPITHET_MASK | VICINITY_MASK)

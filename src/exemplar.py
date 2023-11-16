@@ -12,6 +12,7 @@ from typify import equate_typification_ufs
 from typify import get_exemplar, get_typification_uf
 from typify import get_typification_record, equate_typifications
 from typify import really_get_typification_uf, find_typifications
+from typify import unimportance
 
 # listtools's exemplar-finding procedure.  If there is some other way
 # of finding exemplars, that's fine, don't need to use this.
@@ -24,10 +25,10 @@ def find_exemplars(get_estimate, AB):
   subproblems = find_subproblems(AB)
   log("#   There are %s subproblems" % len(subproblems))
   log("# Finding pass 1 typifications (for distance calculations)")
-  find_typifications(AB, subproblems, lambda _u, _d: None)
+  find_typifications(AB, subproblems, lambda _u, _d: None, False)
   find_estimates(AB)            # for distance calculations
   log("# Finding pass 2 typifications (using distance calculations)")
-  find_typifications(AB, subproblems, get_estimate)
+  find_typifications(AB, subproblems, get_estimate, True)
   # maybe compute better estimates - see theory.py
   report_on_exemplars(AB)
 
@@ -45,9 +46,9 @@ def find_subproblems(AB):
     assert val != MISSING, blurb(us[0])
     vs = B_index.get(val, None)
     if vs != None:
+      us.sort(key=unimportance)
+      vs.sort(key=unimportance)
       subprobs[val] = (us, vs)
-      # for u in us: set_subproblem(u, subprob)
-      # for v in vs: set_subproblem(v, subprob)
   AB.subproblems = subprobs
   return subprobs
 

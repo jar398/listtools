@@ -1,0 +1,17 @@
+#!/bin/bash
+# E.g. src/prepare work/col19-mammals
+set -e
+base=$1
+in=in/${base}
+work=work/${base}
+if [ ! -r ${in}.zip ]; then
+  echo "No zip file" 2>&1; exit 1
+fi
+mkdir -p ${work}.dump
+unzip -d ${work}.dump ${in}.zip
+src/clean.py --pk taxonID --input `src/find_taxa.py ${work}.dump` \
+   > ${work}-clean.csv
+src/extract_names.py < ${work}-clean.csv \
+| gnparser -s \
+| src/use_gnparse.py --source ${work}-clean.csv > ${work}.csv
+echo Wrote ${work}.csv
