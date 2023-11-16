@@ -51,7 +51,7 @@ I'll write '_Hyla_ sec. C' to denote the taxon concept described in
 source C under the name '_Hyla_'.  (C might be a checklist.)
 
 We may not know much about the taxon concept, and it could be
-challenging to find out (it would usually require a literature
+challenging to find anything out (it would usually require a literature
 search).  However, that doesn't prevent us from reasoning about it
 using information in the checklist.
 
@@ -69,7 +69,7 @@ taxonomic literature.
 Each record of each checklist has a name ('scientific name' if it
 includes authority information; 'canonical name' if not).  The
 record's name has a designated individual known as the name's
-type specimen, or just 'type', according to the rules of biological
+type specimen, or just 'type', according to the rules of taxonomic
 nomenclature.
 
 Therefore, each record has an associated type.
