@@ -27,7 +27,7 @@ def find_typifications(AB, subproblems, get_pre_estimate, second):
       u = us[i]
       # If it's a synonym, see if it matches any accepted in same checklist?
       v0 = None
-      for j in range(i+1, len(vs)):
+      for j in range(i, len(vs)):
         v = vs[j]
         # classify as A1, A2, A3 (HETEROTYPIC, REVIEW, HOMOTYPIC)
         # **** COMPUTE DISTANCE if 2nd pass ****
@@ -44,7 +44,7 @@ def find_typifications(AB, subproblems, get_pre_estimate, second):
           else:
             log("* Ambiguous match %s %s" % (blurb(v0), blurb(v)))
             # v0 = False
-    if not success:
+    if not success and False:
       log("* No match via %s in %s x %s; best %s" %
           (key, len(us), len(vs), explain(partial_comparison)))
 

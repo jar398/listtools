@@ -27,10 +27,12 @@ def generate_plugin_report(AB):
       if i % frequency == 0:
         log("%s %s" % (i, blurb(u)))
 
+      status = '?'
+
       if theory.is_species(u) or is_infraspecific(u):
         o = theory.get_intersecting_species(u)
-        inter = ';'.join(map(lambda s:show_articulation(AB, u, s),
-                             o))
+        inter = '. ' + ';'.join(map(lambda s:show_articulation(AB, u, s),
+                                    o))
         xids = estimate.exemplar_ids(AB, u)
         exemplars = ";".join(map(str, sorted(xids)))
       else:
@@ -41,9 +43,11 @@ def generate_plugin_report(AB):
       if is_accepted(x) or o:
         # filter out uninteresting synonyms
         est = estimate.get_estimate(u, None).record
+        lub = show_articulation(AB, u, est)
+        if lub != MISSING: lub = ". " + lub
         if len(o) > 1:
           status = "split"
-        # lump    if relationship is <
+        # lump    if inter relationship is <
         # rename  if relationship is = and canonical differs
         # ?  if synonym promoted to accepted (sort of a split)
         else:
@@ -51,7 +55,7 @@ def generate_plugin_report(AB):
         yield (get_primary_key(x),
                blurb(x),
                inter,
-               show_articulation(AB, u, est),
+               lub,
                exemplars,
                )
 
@@ -72,7 +76,7 @@ def show_relation(rel):
   y = get_outject(rel.record)
   rcc5 = rcc5_symbol(rel.relationship)
   # leading space prevents interpretation as excel formula
-  return " %s %s" % (rcc5_symbol(rel.relationship),
+  return "%s %s" % (rcc5_symbol(rel.relationship),
                      get_primary_key_for_report(y))
 
 def get_primary_key_for_report(x):
