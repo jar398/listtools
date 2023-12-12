@@ -69,30 +69,6 @@ concept is rigid: whether an individual falls under a taxon concept
 does not change over time and is insensitive to what happens in the
 taxonomic literature.
 
-### Exemplars
-
-An individual is an _exemplar_ for a comparison of checklists A and B
-if taxon concepts in both A and B are known such that the individual
-falls under both of the concepts.  The individual is proof that the
-taxon concepts intersect.
-
-It is most useful if each taxon concept is as small or as 'fine' as it
-can be in its checklist; that is, it contains as few other concepts as
-possible from that checklist.  This is not a requirement of the
-analysis, but it is a way to improve its accuracy and performance.
-
-'Exemplar' is a semantic ideal rather than an operational notion.  To
-make the exemplar idea practical when we don't have direct information
-about individuals and the taxon concepts under which they fall, we can
-use type specimens as the individuals in the analysis, and take the
-type specimens to be exemplars when their classification is known in both checklists.
-This is explained below under the `exemplar.py` command.
-
-The pragmatic representation of an exemplar, when exemplars are based
-on type specimens, is therefore a set of 'matched' records sharing the
-same type specimen, and containing at least one record from each
-checklist.
-
 ### RCC-5
 
 RCC-5 (region connection calculus) is a simple system for classifying
@@ -118,6 +94,25 @@ In cases where the precise RCC-5 relationship isn't known, we can also write
    it is not the case that A ! B;
    at least one individual falls under both
  * A ? B: RCC-5 relationship is unknown
+
+### Exemplars
+
+Call an individual an _exemplar_ for a comparison of checklists A and B
+if taxon concepts in both A and B are known such that the individual
+falls under both of the taxon concepts.  The individual is proof that the
+extensions of the taxon concepts intersect.
+
+'Exemplar' is a semantic ideal rather than an operational notion.  To
+make the exemplar idea practical when we don't have direct information
+about individuals and the taxon concepts under which they fall, we can
+use type specimens as the individuals in the analysis, and take the
+type specimens to be exemplars when their classification is known in both checklists.
+This is explained below under the `exemplar.py` command.
+
+The pragmatic representation of an exemplar, when exemplars are based
+on type specimens, is therefore a set of 'matched' records sharing the
+same type specimen, and containing at least one record from each
+checklist.
 
 ### Exemplar sets
 
@@ -194,8 +189,8 @@ independently if it can be made in some other way.  This section
 should be of interest if you don't want or don't need to use
 `exemplar.py`.
 
-An exemplar file has one output row for each inference (or any kind of
-statement) that an exemplar falls under some taxon concept.
+An exemplar file has one output row for each statement
+that an exemplar falls under some taxon concept.
 
  - `checklist`: 0 for the A checklist, 1 for B
  - `taxonID`: the checklist record for a taxon concept
@@ -203,15 +198,22 @@ statement) that an exemplar falls under some taxon concept.
    (not globally)
 
 By construction, each exemplar id will have at least one exemplar file
-row giving an A record for a taxon concept it falls under, and one
+row giving an A record for a taxon concept the exemplar falls under, and one
 giving a B record for a taxon concept it falls under.
 
-If an individual E belongs to taxon concept T, then E is trivially
-seen to fall under all ancestors of T.  Therefore the exemplar file
-doesn't need to include these redundant statements about ancestors.
-By the same token, it is desirable to find the most specific taxon
-concepts containing E (as described above).
+If preparing your own exemplars rather than using `exemplar.py` to do so:
 
+First, note that if an exemplar belongs to a taxon concept, it
+also belongs to that taxon concept's ancestors.  It is not necessary
+to list all the ancestors as taxon concepts containing the exemplar.
+However, it is not harmful to include a few extras (e.g. the species when
+the type subspecies of the species is listed).
+
+Second, it is desirable to list all of the most specific taxon
+concepts containing an exemplar and not just some of their ancestors.
+E.g. if an exemplar belongs to a species then it may also belong to
+the species's type subspecies, and the subspecies should be listed as
+a taxon concept containing the exemplar.
 
 
 ## The tools
