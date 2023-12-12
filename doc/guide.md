@@ -40,12 +40,12 @@ biodiversity informatics such as 'organism', 'specimen', and
 
 ### Taxon concepts
 
-Each record of each checklist has an associated "taxon concept"
+Each record of each checklist file (see below) has an associated "taxon concept"
 determined by the fields of the record with the checklist as context.
 
 Say that an individual "falls under" a taxon concept to mean that the
 individual is classified under, or belongs to, that taxon concept, or
-the taxon concept applies to the individual.
+that the taxon concept applies to the individual.
 
 I'll write '_Hyla_ sec. C' to denote the taxon concept described in
 source C under the name '_Hyla_'.  (C might be a checklist.)
@@ -72,37 +72,21 @@ falls under both of the concepts.  The individual is proof that the
 taxon concepts intersect.
 
 It is most useful if each taxon concept is as small or as 'fine' as it
-can be in its checklist; that is, it contains as few concepts as
+can be in its checklist; that is, it contains as few other concepts as
 possible from that checklist.  This is not a requirement of the
-analysis, but it is a way to improve its performance.
+analysis, but it is a way to improve its accuracy and performance.
 
-Exemplar is a semantic ideal rather than an operational notion.  To
+'Exemplar' is a semantic ideal rather than an operational notion.  To
 make the exemplar idea practical when we don't have direct information
 about individuals and the taxon concepts under which they fall, we can
-use type specimens as the individuals in the analysis, and take those
-individuals to be exemplars when they are known in both checklists.
+use type specimens as the individuals in the analysis, and take the
+type specimens to be exemplars when their classification is known in both checklists.
 This is explained below under the `exemplar.py` command.
 
 The pragmatic representation of an exemplar, when exemplars are based
-on type specimens, is therefore a set of 'matched' records containing
-at least one record from each checklist.
-
-### Exemplar sets
-
-We take sets of exemplars to be computable approximations to (unknown)
-taxon concepts, in the sense that if exemplar set 
-
-&nbsp;&nbsp;&nbsp;&nbsp;S = E(C) = {e: e is an exemplar in C}
-
-for concept C, and similarly
-
-&nbsp;&nbsp;&nbsp;&nbsp;T = E(D),
-
-then an RCC-5 relationship (see below) between concepts induces the
-sames RCC-5 relationship between the exemplar sets.  The opposite also
-holds, except in some cases where S = T, in which case contextual
-information can be used to infer a distinction between C and D [work
-in progress].
+on type specimens, is therefore a set of 'matched' records sharing the
+same type specimen, and containing at least one record from each
+checklist.
 
 ### RCC-5
 
@@ -129,6 +113,26 @@ In cases where the precise RCC-5 relationship isn't known, we can also write
    it is not the case that A ! B;
    at least one individual falls under both
  * A ? B: RCC-5 relationship is unknown
+
+### Exemplar sets
+
+We take sets of exemplars to be computable approximations to (unknown)
+taxon concepts, in the sense that if exemplar set 
+
+&nbsp;&nbsp;&nbsp;&nbsp;S = E(C) = {e: e is an exemplar in C}
+
+for taxon concept C, and similarly
+
+&nbsp;&nbsp;&nbsp;&nbsp;T = E(D) = {e: e is an exemplar in D}
+
+for taxon concept D,
+then an RCC-5 relationship (see below) between taxon concepts suggests
+the same RCC-5 relationship between the exemplar sets and vice versa.
+I saw "suggests" because C < D (for example) may collapse to E(C) = E(D) if there
+aren't exemplars to distinguish them, but if there are "enough"
+exemplars then the correspondence will hold.  Even if E(C) = E(D)
+there may be ways to deduce C < D based on other information such as
+in the checklists (such as parent links) (work in progress).
 
 
 ## File formats
@@ -162,12 +166,16 @@ Here are Darwin Core headings used by one or more of the tools.
  - `scientificName`: the full taxonomic name with authorship information
  - `canonicalName`: the taxonomic name without authorship
  - `scientificNameAuthorship`: the authorship (e.g. Smith, 1825)
- - `namePublishedInYear`: year of publication; part of authorship (e.g. 1825)
+ - `namePublishedInYear`: year of publication (e.g. 1825)
  - `taxonRank`: `species`, `subspecies`, `genus`, and so on
- - `taxonomicStatus`: `accepted`, `synonym`, or any of a few variants
-   of this [document]
- - `nomenclaturalStatus`: 
- - `taxonRemarksCitation`: 
+ - `taxonomicStatus`: if `accepted`, `valid`, or `doubtful`, the taxon is
+   to be not a synonym in this checklist.  Otherwise
+   (e.g. `synonym`) it is treated as a synonym.
+   Case matters.
+ - `parentNameUsageID` - `taxonID` of parent, or empty if a root
+ - `acceptedNameUsageID` - `taxonID` of accepted concept, or empty if
+     not a synonym (if `taxonID` = `acceptedNameUsageID` that also
+     indicates it's not a synonym)
 
 One of `scientificName` or `canonicalName` must be given.
 
@@ -209,27 +217,6 @@ whatever you learn from using the `--help` option, e.g.
 
 Some tools operate on arbitrary CSV files, while some assume they're
 working with Darwin Core files.
-
-### find_taxa
-
-Locates the Darwin Core taxon file within a .zip file.  Let `A.dump/`
-be a directory containing the files resulting from unzipping the .zip
-file.  Then:
-
-    src/find_taxa.py A.dump
-
-writes the name of the taxon file within the .zip file, e.g. 
-
-    A.dump/Taxon.tsv
-
-It's usually clear by inspection which file is the taxon file, but
-spelling details vary.  This command is intended for use in scripts.
-
-The taxon file is suitable as input to `clean.py`, see below.
-
-TBD: This currently operates by examining file names heuristically.
-But it really ought to look in the meta.xml file, which provides the
-taxon file name explicitly.
 
 ### clean
 
@@ -277,6 +264,29 @@ identifiers' (an idea I made up).  E.g. if a row's taxonID contains
 `359` then the string `gbid:359` will be placed in the `managed_id`
 column.  This will then be used for matching operations (well... not
 currently... but it has done so in the past).
+
+### find_taxa
+
+Locates the Darwin Core Taxon file within a .zip file.  Let `A.dump/`
+be a directory containing the files resulting from unzipping the .zip
+file.  Then:
+
+    src/find_taxa.py A.dump
+
+writes the name of the taxon file within the .zip file, e.g. 
+
+    A.dump/Taxon.tsv
+
+It's usually clear by inspection which file is the taxon file, but
+spelling details vary.  This command is intended for use in scripts.
+
+The taxon file is suitable as input to `clean.py`:
+
+    src/clean.py `src/find_taxa.py A.dump`
+
+TBD: This currently operates by examining file names heuristically.
+But it really ought to look in the meta.xml file, which provides the
+taxon file name explicitly.
 
 
 ### extract_names
@@ -549,3 +559,20 @@ This program supports an idiosyncratic syntax for synonyms (useful
 since the main use for this feature is testing): an asterisk `*`
 suffixed to a name says that the name is to be considered a synonym
 (i.e. not accepted).
+
+## Typical pipeline
+
+A typical processing pipeline to generate a "plugin" style report would be:
+
+ 1. Obtain two .zip files, DwCAs for the two checklists
+ 1. Extract the Taxon file names using `find_taxa.py`
+ 1. (Optional: use `subset.py` to extract subtree of interest)
+ 1. Prepare checklists for further processing using `clean.py`
+ 1. Use `gnparse` to obtain stemming and other useful information.
+    This requires multiple steps.  For each checklist:
+     1. Prepare list of names by applying `extract_names.py` to checklist
+     1. Run `gnparse` on that list
+     1. Fold the `gnparse` output into checklist
+ 1. Run `exemplar.py` on checklists to obtain file exemplars.csv
+ 1. Apply `plugin.py` to checklists and to `exemplars.csv` to obtain report
+

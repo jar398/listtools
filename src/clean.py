@@ -39,7 +39,7 @@ def start_csv(inport, params, outport, args):
   accepted_pos = windex(in_header, "acceptedNameUsageID")
   parent_pos = windex(in_header, "parentNameUsageID")
   tax_status_pos = windex(in_header, "taxonomicStatus")
-  auth_pos = windex(in_header, "Authorship")
+  auth_pos = windex(in_header, "scientificNameAuthorship")
   taxon_id_pos = windex(in_header, "taxonID")
 
   if taxon_id_pos == None:
@@ -156,7 +156,7 @@ def start_csv(inport, params, outport, args):
 
     # Clean up if wrong values in canonical and/or scientific name columns
     if cleanp:
-      if clean_name(out_row, can_pos, sci_pos):
+      if clean_name(out_row, can_pos, sci_pos, auth_pos):
         names_cleaned += 1
       if clean_rank(out_row, rank_pos, can_pos):
         ranks_cleaned += 1
@@ -243,14 +243,18 @@ Case analysis:
 
 # Returns True if a change was made
 
-def clean_name(row, can_pos, sci_pos):
+def clean_name(row, can_pos, sci_pos, auth_pos):
   mod = False
   c = row[can_pos].strip() if can_pos != None else MISSING
   s = row[sci_pos].strip() if sci_pos != None else MISSING
+  a = row[auth_pos].strip() if auth_pos != None else MISSING
   if s == MISSING:
     if is_scientific(c):
       s = c
       c = MISSING    # ?
+    elif a != MISSING and c != MISSING:
+      # For checklistbank
+      s = "%s %s" % (c, a)
   elif is_scientific(s):
     pass
   # s is nonnull and not 'scientific'
