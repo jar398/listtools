@@ -578,7 +578,7 @@ A typical processing pipeline to generate a "plugin" style report would be:
  1. Prepare checklists for further processing using `clean.py`
  1. Use `gnparse` to obtain stemming and other information useful to `exemplar.py`.
     This requires multiple steps.  For each checklist:
-     1. Prepare list of names by applying `extract_names.py` to checklist
+     1. Prepare list of scientific names by applying `extract_names.py` to checklist
      1. Run `gnparse` on that list
      1. Fold the `gnparse` output into checklist
  1. Run `exemplar.py` on the checklists to obtain file `exemplars.csv`
