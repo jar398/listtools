@@ -41,13 +41,18 @@ biodiversity informatics such as 'organism', 'specimen', and
 ### Taxon concepts
 
 Each record of each checklist file (see below) has an associated "taxon concept"
-determined by the fields of the record with the checklist as context.
+described by the fields of the record with the checklist as context.
+(Full details of the taxon concept would be easily available if the
+record linked to appropriate taxonomic literature, but this is often
+not the case.  We just make do with what we have, which is
+parent links, disjointness of sibling accepted taxa, and the ability
+to search the literature by the names provided.)
 
 Say that an individual "falls under" a taxon concept to mean that the
 individual is classified under, or belongs to, that taxon concept, or
 that the taxon concept applies to the individual.
 
-I'll write '_Hyla_ sec. C' to denote the taxon concept described in
+I'll write '_Hyla_ sec. C' (for example) to denote the taxon concept described in
 source C under the name '_Hyla_'.  (C might be a checklist.)
 
 We may not know much about the taxon concept, and it could be
@@ -102,7 +107,7 @@ two regions, are
  * A > B: same as B < A
  * A ! B: A and B are disjoint; no individual falls under both
  * A >< B: A and B overlap but neither is contained in the other.
-   There are individuals falling under A and B, and under just A,
+   There are individuals falling under both A and B, and under just A,
    and under just B.
    By convention we'll refer to this situation as 'overlap'.
 
@@ -128,10 +133,10 @@ for taxon concept C, and similarly
 for taxon concept D,
 then an RCC-5 relationship (see below) between taxon concepts suggests
 the same RCC-5 relationship between the exemplar sets and vice versa.
-I saw "suggests" because C < D (for example) may collapse to E(C) = E(D) if there
-aren't exemplars to distinguish them, but if there are "enough"
+I say "suggests" because C < D (for example) may collapse to E(C) = E(D) if there
+aren't exemplars to distinguish C from D, but if there are "enough"
 exemplars then the correspondence will hold.  Even if E(C) = E(D)
-there may be ways to deduce C < D based on other information such as
+there may be ways to deduce C < D based on other information
 in the checklists (such as parent links) (work in progress).
 
 
@@ -141,7 +146,7 @@ in the checklists (such as parent links) (work in progress).
 
 A checklist is given as a tabular text file.  If the extension is
 `.csv` it is assumed to be CSV (comma-separated); otherwise it's
-assumed to be TSV (tab-separated).  Each row is a 'record'.
+assumed to be TSV (tab-separated).  Each row other than the header is a 'record'.
 
 A checklist should use [Darwin Core
 Taxon](https://dwc.tdwg.org/terms/#taxon) column headings for
@@ -168,13 +173,14 @@ Here are Darwin Core headings used by one or more of the tools.
  - `scientificNameAuthorship`: the authorship (e.g. Smith, 1825)
  - `namePublishedInYear`: year of publication (e.g. 1825)
  - `taxonRank`: `species`, `subspecies`, `genus`, and so on
- - `taxonomicStatus`: if `accepted`, `valid`, or `doubtful`, the taxon is
-   to be not a synonym in this checklist.  Otherwise
+ - `taxonomicStatus`: if `accepted`, `valid`, or `doubtful`, the name is
+   to be considered not a synonym in this checklist.  Otherwise
    (e.g. `synonym`) it is treated as a synonym.
    Case matters.
  - `parentNameUsageID` - `taxonID` of parent, or empty if a root
- - `acceptedNameUsageID` - `taxonID` of accepted concept, or empty if
-     not a synonym (if `taxonID` = `acceptedNameUsageID` that also
+ - `acceptedNameUsageID` - `taxonID` of non-synonym concept of which
+     this is a synonym, or empty if
+     not a synonym (also: if `taxonID` = `acceptedNameUsageID`, that
      indicates it's not a synonym)
 
 One of `scientificName` or `canonicalName` must be given.
@@ -355,7 +361,9 @@ checklist and B as 'proposed successor'.  (This is not the only use case.)
 If `--exemplars` is not given, the exemplars are computed just as the
 `exemplar.py` command would.
 
-The output (to standard output) has these columns (subject to change):
+The checklists should derive through a pipeline beginning with `clean.py`.
+
+The output (to standard output) of `plugin.py` has these columns (subject to change):
  - `A taxon id` - The taxon id of an A row
  - `A taxon name` - The canonicalName of that A record (for human consumption)
  - `B species that intersect` - 
@@ -565,14 +573,14 @@ suffixed to a name says that the name is to be considered a synonym
 A typical processing pipeline to generate a "plugin" style report would be:
 
  1. Obtain two .zip files, DwCAs for the two checklists
- 1. Extract the Taxon file names using `find_taxa.py`
+ 1. Find the Taxon file names in the DwCAs using `find_taxa.py`
  1. (Optional: use `subset.py` to extract subtree of interest)
  1. Prepare checklists for further processing using `clean.py`
- 1. Use `gnparse` to obtain stemming and other useful information.
+ 1. Use `gnparse` to obtain stemming and other information useful to `exemplar.py`.
     This requires multiple steps.  For each checklist:
      1. Prepare list of names by applying `extract_names.py` to checklist
      1. Run `gnparse` on that list
      1. Fold the `gnparse` output into checklist
- 1. Run `exemplar.py` on checklists to obtain file exemplars.csv
- 1. Apply `plugin.py` to checklists and to `exemplars.csv` to obtain report
+ 1. Run `exemplar.py` on the checklists to obtain file `exemplars.csv`
+ 1. Apply `plugin.py` to the checklists and to `exemplars.csv` to obtain report
 
