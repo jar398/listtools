@@ -95,6 +95,14 @@ In cases where the precise RCC-5 relationship isn't known, we can also write
    at least one individual falls under both
  * A ? B: RCC-5 relationship is unknown
 
+Applied to taxon concepts, we write 
+ * A = B when extension(A) = extension(B)
+ * A < B when extension(A) ⊂ extension(B) (A's extension is a proper subset of B's extension)
+ * A > B when extension(B) ⊂ extension(A)
+ * A ! B when extension(A) ∩ extension(B) = ∅
+ * A >< B otherwise
+
+
 ### Exemplars
 
 Call an individual an _exemplar_ for a comparison of checklists A and B
@@ -116,7 +124,10 @@ checklist.
 
 ### Exemplar sets
 
-We take sets of exemplars to be computable approximations to (unknown)
+The central problem in comparing checklists is comparing the taxon
+concepts of one with the taxon concepts of the other.
+
+We take sets of exemplars to be computable approximations to
 taxon concepts, in the sense that if exemplar set 
 
 &nbsp;&nbsp;&nbsp;&nbsp;S = E(C) = {e: e is an exemplar in C}
@@ -126,13 +137,14 @@ for taxon concept C, and similarly
 &nbsp;&nbsp;&nbsp;&nbsp;T = E(D) = {e: e is an exemplar in D}
 
 for taxon concept D,
-then an RCC-5 relationship (see below) between taxon concepts suggests
-the same RCC-5 relationship between the exemplar sets and vice versa.
-I say "suggests" because C < D (for example) may collapse to E(C) = E(D) if there
-aren't exemplars to distinguish C from D, but if there are "enough"
-exemplars then the correspondence will hold.  Even if E(C) = E(D)
-there may be ways to deduce C < D based on other information
-in the checklists (such as parent links) (work in progress).
+then the set relationship between S and T suggests
+an RCC-5 relationship C and D and vice versa.
+If S and T are different, e.g. S ⊂ T, then "suggests" means it's a
+good bet that C < D (and similarly for the other relationships >, ><,
+and !).  S = T is not informative on its own, but there may be ways to
+deduce the relationship between C and D based on other information in
+the checklists (such as parent links and process of elimination).
+Having "enough" exemplars reduces the chance that S = T when C ≠ D.
 
 
 ## File formats
