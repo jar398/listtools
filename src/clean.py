@@ -248,27 +248,19 @@ def clean_name(row, can_pos, sci_pos, auth_pos):
   c = row[can_pos].strip() if can_pos != None else MISSING
   s = row[sci_pos].strip() if sci_pos != None else MISSING
   a = row[auth_pos].strip() if auth_pos != None else MISSING
-  if s == MISSING:
-    if is_scientific(c):
-      s = c
-      c = MISSING    # ?
-    elif a != MISSING and c != MISSING:
-      # For checklistbank
-      s = "%s %s" % (c, a)
-  elif is_scientific(s):
+  if is_scientific(s):
     pass
-  # s is nonnull and not 'scientific'
-  elif c == MISSING:
-    # swap
-    c = s
-    s = MISSING
-    # log("clean: c := s") - frequent in DH 1.1
-  elif c == s:
-    if is_scientific(c):
-      c = MISSING
-    else:
-      s = MISSING
-    # log("clean: flush s") - frequent in DH 1.1
+  elif is_scientific(c):
+    # Reversed: c is scientific but s isn't.  Swap.
+    temp = c
+    s = c
+    c = temp
+  elif a != MISSING:
+    if c == MISSING: c = s
+    # Synthesize scientific from canonical + authorship.
+    # For checklistbank
+    s = "%s %s" % (c, a)
+
   # Remove subgenus: Foo (Bar) -> Foo
   s = remove_subgenus(s)
   s = s.replace(' and ', ' & ') # frequent in DH 1.1 ?

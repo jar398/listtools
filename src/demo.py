@@ -9,7 +9,7 @@ import workspace, align, theory, exemplar
 from checklist import *
 from workspace import *
 from eulerx import generate_eulerx
-from estimate import get_equivalent
+from estimate import get_equivalent, get_estimate
 from align import is_species, is_acceptable_locally
 
 # Returns a row generator
@@ -253,7 +253,7 @@ if __name__ == '__main__':
       with rows.open(b_path) as b_rows:
         AB = ingest_workspace(a_rows.rows(), b_rows.rows(),
                               A_name=a_name, B_name=b_name)
-        exemplar.find_exemplars(AB)
+        exemplar.find_exemplars(get_estimate, AB)
         al = list(align.make_alignment(AB))
     if l_path or (not d_path and not e_path):
       with rows.open(l_path, "w") as l_gen:

@@ -12,7 +12,7 @@ from checklist import *
 from workspace import *
 from theory import cross_compare, is_species
 from estimate import get_estimate, get_equivalent
-from typification import get_typification_record
+from typify import get_typification_record
 
 def align(A_iter, B_iter, A_name='A', B_name='B', matches_iter=None):
   AB = ingest_workspace(a_rows.rows(), b_rows.rows(),

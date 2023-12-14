@@ -49,8 +49,8 @@ CODE=$P/demo.py $P/align.py $P/theory.py $P/simple.py $P/workspace.py \
 
 # ----- General rules, top down
 
-A=test1
-B=test2
+A=work/test1
+B=work/test2
 ANAME?=A
 BNAME?=B
 TAXON?=Mammalia

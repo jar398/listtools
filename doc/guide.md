@@ -55,28 +55,24 @@ that the taxon concept applies to the individual.
 I'll write '_Hyla_ sec. C' (for example) to denote the taxon concept described in
 source C under the name '_Hyla_'.  (C might be a checklist.)
 
-We may not know much about the taxon concept, and it could be
-challenging to find out (it would usually require a literature
-search).  However, that doesn't prevent us from reasoning about it
-using information in the checklist.
-
-The individuals falling under a taxon concept are its 'extension'.
+The individuals falling under a taxon concept are called its 'extension'.
 
 According to the way the word 'taxon' is typically used, a taxon is
-tied to a name, and its extension changes following speech acts such as
-'redescription' or 'lumping' or 'splitting'.  By contrast, a taxon
-concept is rigid: whether an individual falls under a taxon concept
-does not change over time and is insensitive to what happens in the
-taxonomic literature.
+tied to a name, and its extension changes following speech acts such
+as 'redescription' or 'lumping' or 'splitting'.  That is, individuals
+enter and leave a taxon as a result of human activity.  By contrast, a
+taxon concept is rigid: whether an individual falls under a taxon
+concept does not change over time and is insensitive to what happens
+in the taxonomic literature.
 
 ### RCC-5
 
 RCC-5 (region connection calculus) is a simple system for classifying
 relationships between 'regions'.  What constitutes a region depends on
 how RCC-5 is being used - we could be talking sets, or geographic
-regions - but in our case we're talking about taxon concepts.  The
-RCC-5 relationships, exactly one of which holds for any
-two regions, are
+regions - but in our case we're talking about taxon concepts.  
+Exactly one of the five RCC-5 relationships holds between any
+two regions.  These relationships are
  * A = B: A and B are the same, at least inasmuch as the same individuals fall under both
  * A < B: A is contained in B but isn't the same as B; 
    the individuals that fall under A all fall under B but not vice versa
@@ -106,19 +102,20 @@ Applied to taxon concepts, we write
 ### Exemplars
 
 Call an individual an _exemplar_ for a comparison of checklists A and B
-if taxon concepts in both A and B are known such that the individual
+if taxon concepts in both A and B are known with the property that the individual
 falls under both of the taxon concepts.  The individual is proof that the
 extensions of the taxon concepts intersect.
 
 'Exemplar' is a semantic ideal rather than an operational notion.  To
 make the exemplar idea practical when we don't have direct information
-about individuals and the taxon concepts under which they fall, we can
+about individuals and the taxon concepts under which they fall, we might
 use type specimens as the individuals in the analysis, and take the
-type specimens to be exemplars when their classification is known in both checklists.
+type specimens to be exemplars when their classification is known in both checklists,
+i.e. when their associated names are the same or otherwise "match".
 This is explained below under the `exemplar.py` command.
 
 The pragmatic representation of an exemplar, when exemplars are based
-on type specimens, is therefore a set of 'matched' records sharing the
+on type specimens, is therefore a set of "matched" records sharing the
 same type specimen, and containing at least one record from each
 checklist.
 
@@ -128,7 +125,7 @@ The central problem in comparing checklists is comparing the taxon
 concepts of one with the taxon concepts of the other.
 
 We take sets of exemplars to be computable approximations to
-taxon concepts, in the sense that if exemplar set 
+taxon concepts, in the sense that if
 
 &nbsp;&nbsp;&nbsp;&nbsp;S = E(C) = {e: e is an exemplar in C}
 
@@ -140,11 +137,13 @@ for taxon concept D,
 then the set relationship between S and T suggests
 an RCC-5 relationship C and D and vice versa.
 If S and T are different, e.g. S ⊂ T, then "suggests" means it's a
-good bet that C < D (and similarly for the other relationships >, ><,
-and !).  S = T is not informative on its own, but there may be ways to
+good heuristic bet that C < D (and similarly for the other relationships >, ><,
+and ! and their set equivalents).  S = T is not informative on its
+own, but there may be ways to
 deduce the relationship between C and D based on other information in
 the checklists (such as parent links and process of elimination).
-Having "enough" exemplars reduces the chance that S = T when C ≠ D.
+Having "enough" exemplars reduces the chance that S = T when C ≠ D,
+meaning that C = D is a good heuristic bet when S = T.
 
 
 ## File formats
@@ -177,18 +176,19 @@ Here are Darwin Core headings used by one or more of the tools.
  - `taxonID`: the record's primary key, uniquely specifying a record within a checklist
  - `scientificName`: the full taxonomic name with authorship information
  - `canonicalName`: the taxonomic name without authorship
- - `scientificNameAuthorship`: the authorship (e.g. Smith, 1825)
- - `namePublishedInYear`: year of publication (e.g. 1825)
+ - `scientificNameAuthorship`: the authorship (e.g. `Smith, 1825`)
+ - `namePublishedInYear`: year of publication (e.g. `1825`) (not
+     currently used)
  - `taxonRank`: `species`, `subspecies`, `genus`, and so on
  - `taxonomicStatus`: if `accepted`, `valid`, or `doubtful`, the name is
    to be considered not a synonym in this checklist.  Otherwise
    (e.g. `synonym`) it is treated as a synonym.
    Case matters.
- - `parentNameUsageID` - `taxonID` of parent, or empty if a root
- - `acceptedNameUsageID` - `taxonID` of non-synonym concept of which
+ - `parentNameUsageID` - `taxonID` of the parent record, or empty if a root
+ - `acceptedNameUsageID` - `taxonID` of non-synonym record of which
      this is a synonym, or empty if
-     not a synonym (also: if `taxonID` = `acceptedNameUsageID`, that
-     indicates it's not a synonym)
+     not a synonym (also: `taxonID` = `acceptedNameUsageID` is another
+     way to indicate it's not a synonym)
 
 One of `scientificName` or `canonicalName` must be given.
 
@@ -196,10 +196,10 @@ One of `scientificName` or `canonicalName` must be given.
 ### Exemplar file format
 
 Some commands read or write files that specify exemplars.  An exemplar
-file can be computed by the `exemplar.py` command or provided
-independently if it can be made in some other way.  This section
+file can be either computed by the `exemplar.py` command or provided
+independently if there is some other way.  This section
 should be of interest if you don't want or don't need to use
-`exemplar.py`.
+`exemplar.py`, for example if you have your own name matcher.
 
 An exemplar file has one output row for each statement
 that an exemplar falls under some taxon concept.
@@ -226,6 +226,10 @@ concepts containing an exemplar and not just some of their ancestors.
 E.g. if an exemplar belongs to a species then it may also belong to
 the species's type subspecies, and the subspecies should be listed as
 a taxon concept containing the exemplar.
+
+In a checklist of genera with no species, the exemplars would be
+chosen one per matched genus name pair.  In general, one should match
+matchable names whenever no descendant matches, regardless of rank.
 
 
 ## The tools
@@ -314,8 +318,8 @@ taxon file name explicitly.
 This extracts `scientificName`s in a form suitable for consumption by `gnparser`.
 If there is no `scientificName` then the `canonicalName` is extracted.
 
-    src/extract_names.py < work/A-clean.csv > work/A-names.txt
-    gnparser -s < work/A-names.txt > work/A-gnparsed.csv
+    src/extract_names.py < A-clean.csv > A-names.txt
+    gnparser -s < A-names.txt > A-gnparsed.csv
 
 ### use_gnparse
 
@@ -323,7 +327,7 @@ This consumes the output of `gnparser` and combines it with the table
 that was the input to `extract_names`, enriching the table with the addition of 
 new columns copied from the `gnparser` output.
 
-    src/use_gnparse.py < work/A-gnparsed.csv > work/A.csv
+    src/use_gnparse.py < A-gnparsed.csv > A.csv
 
 ### exemplar
 <a name="exemplar"></a>
@@ -336,19 +340,20 @@ standard output.
 
 For example,
 
-    src/exemplar.py --A work/A.csv --B work/B.csv > work/AB-exemplars.csv
+    src/exemplar.py --A A.csv --B B.csv > AB-exemplars.csv
 
 To do this, noting that each record in each checklist has a taxonomic
 name, we posit that each record has a type specimen (the type specimen
 for its name).  The type specimen is then an individual that, if found
 in taxon concepts in both checklists, can be taken to be an exemplar.
 
-To determine that a type specimen is an exemplar we must find a record
-in the other checklist that has the same type specimen.  That is, the
+To determine that a type specimen in A is an exemplar we must find a record
+in B that has the same type specimen.  That is, the
 records must be 'matched'.  (Note that it is records, not their taxon
 concepts, that are matched.)  The matcher understands changes in
 genus, changes in gender, and other vagaries of the nomenclatural
-system, such as the possibility of collisions (homonyms).
+system leading to name changes, as well as the possibility of collisions (homonyms).
+But most of the time name matches are exact.
 
 The meaning of an output row is that the individual (exemplar)
 identified by `exemplar id` falls under the taxon concept / record identified
@@ -365,7 +370,7 @@ to that played by protonyms in the Pyle/Remsen formulation.
 ### plugin
 <a name="plugin"></a>
 
-    src/plugin.py --A work/A.csv --B work/B.csv --exemplars work/AB-exemplars.csv
+    src/plugin.py --A A.csv --B B.csv --exemplars AB-exemplars.csv
 
 This writes an analysis report to standard output.
 
@@ -379,7 +384,8 @@ The checklists should derive through a pipeline beginning with `clean.py`.
 
 The output (to standard output) of `plugin.py` has these columns (subject to change):
  - `A taxon id` - The taxon id of an A row
- - `A taxon name` - The canonicalName of that A record (for human consumption)
+ - `A taxon name` - The canonicalName of that A record (for human
+   consumption).  A suffixed `*` indicates a synonym.
  - `B species that intersect` - 
    If the A record indicates rank 'species', this is a semicolon-separated
    list of relationship/id/name for
@@ -525,7 +531,7 @@ With `--drop`, it drops particular columns, keeping all the rest:
 `subset` generates a subset of the rows of a given file, starting from
 a specified root.
 
-    src/subset.py --root 40674 < work/all.csv > work/some.csv
+    src/subset.py --root 40674 < all.csv > some.csv
 
 It assumes the usual Darwin Core hierarchical structure, given by
 these columns: 
@@ -539,14 +545,14 @@ these columns:
 
 You can specify the root using its `canonicalName` it that's unique:
 
-    src/subset.py --root Mammalia < work/all.csv > work/some.csv
+    src/subset.py --root Mammalia < all.csv > some.csv
 
 ### sortcsv
 
 `sortcsv` sorts standard input by the contents of the given `--pk`
 (pk = primary key) column, and writes the result to standard output.
 
-    src/sortscv.py --pk taxonID <foo.csv >foo-sorted.csv
+    src/sortscv.py --pk taxonID < foo.csv > foo-sorted.csv
 
 
 ### newick
@@ -581,6 +587,7 @@ This program supports an idiosyncratic syntax for synonyms (useful
 since the main use for this feature is testing): an asterisk `*`
 suffixed to a name says that the name is to be considered a synonym
 (i.e. not accepted).
+
 
 ## Typical pipeline
 

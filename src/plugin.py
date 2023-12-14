@@ -29,7 +29,7 @@ def generate_plugin_report(AB):
 
       if theory.is_species(u) or is_infraspecific(u):
         o = theory.get_intersecting_species(u)
-        inter = ';'.join(map(lambda s:show_articulation(u, s),
+        inter = ';'.join(map(lambda s:show_articulation(AB, u, s),
                              o))
         xids = estimate.exemplar_ids(AB, u)
         exemplars = ";".join(map(str, sorted(xids)))
@@ -51,7 +51,7 @@ def generate_plugin_report(AB):
         yield (get_primary_key(x),
                blurb(x),
                inter,
-               show_articulation(u, est),
+               show_articulation(AB, u, est),
                exemplars,
                )
 
@@ -62,8 +62,8 @@ def is_infraspecific(u):
   return r == 'subspecies' or r == 'infraspecific name'    # COL
 
 
-def show_articulation(u, v):
-  if v:
+def show_articulation(AB, u, v):
+  if v and not is_toplike(v):
     return show_relation(theory.compare(AB, u, v))
   else:
     return MISSING
