@@ -1,4 +1,3 @@
-
 import math
 import util
 import property as prop
@@ -21,18 +20,22 @@ def find_typifications(AB, subproblems, get_pre_estimate, second):
     n += 1
     try_in_same_checklist(us, second)
     try_in_same_checklist(vs, second)
+    success = False
+    partial_comparison = (0,0)
     for i in range(0, len(us)):
       # Sorted by unimportance
       u = us[i]
       # If it's a synonym, see if it matches any accepted in same checklist?
       v0 = None
-      for j in range(i+1, len(vs)):
+      for j in range(i, len(vs)):
         v = vs[j]
         # classify as A1, A2, A3 (HETEROTYPIC, REVIEW, HOMOTYPIC)
         # **** COMPUTE DISTANCE if 2nd pass ****
         dist = compute_distance(u, v, get_pre_estimate)
-        score = compute_score(u, v, dist)
-        if homotypic_score(score):
+        comparison = compare_records(u, v, dist)
+        if comparison > partial_comparison: partial_comparison = comparison
+        if homotypic_comparison(comparison):
+          success = True
           if v0 == None:
             equate_typifications(u, v)
             v0 = v
@@ -41,6 +44,9 @@ def find_typifications(AB, subproblems, get_pre_estimate, second):
           else:
             log("* Ambiguous match %s %s" % (blurb(v0), blurb(v)))
             # v0 = False
+    if not success and False:
+      log("* No match via %s in %s x %s; best %s" %
+          (key, len(us), len(vs), explain(partial_comparison)))
 
   equate_typifications(AB.in_left(AB.A.top),
                        AB.in_right(AB.B.top))
@@ -73,8 +79,8 @@ def try_in_same_checklist(us, second):
       x1 = get_outject(u1)
       x2 = get_outject(u2)
       dist = distance_in_checklist(x1, x2) * 2
-      score = compute_score(u1, u2, dist)
-      if homotypic_score(score):
+      comparison = compare_records(u1, u2, dist)
+      if homotypic_comparison(comparison):
         rel = simple.compare_per_checklist(x1, x2)
         if rel.relationship != DISJOINT:
           equate_typifications(u1, u2)
@@ -184,7 +190,7 @@ def pick_better_record(v1, v2):
     # Shorter name (species overrides subspecies).
     return v1                    # Keep tipward (v1)
   if is_accepted(y1) and is_accepted(y2):
-    if heterotypic_score(compute_score(v1, v2)):
+    if heterotypic_comparison(compare_records(v1, v2)):
       log('')
       log("# %s" % (parts1,))
       log("# %s" % (parts2,))
@@ -212,7 +218,7 @@ HOMOTYPIC   = EQ           # Hmm, not sure about this
 HETEROTYPIC = NEQ
 REVIEW      = HOMOTYPIC | HETEROTYPIC
 
-# For combining negative and positive scores:
+# For combining negative and positive comparisons:
 NEUTRAL = 0
 
 
@@ -220,15 +226,15 @@ NEUTRAL = 0
 # distance is distance (perhaps estimated) between u and v in combined model.
 # If distance (in tree) is close, give a pass on genus mismatch.
 
-def compute_score(u, v, distance=None):
-  score = compute_parts_score(get_parts(u),
-                              get_parts(v),
-                              distance)
-  if (monitor(u) or monitor(v)) and score >= NEUTRAL:
-    log("# Score (%s, %s) = %s" % (blurb(u), blurb(v), score))
+def compare_records(u, v, distance=None):
+  comparison = compare_parts(get_parts(u),
+                             get_parts(v),
+                             distance)
+  if (monitor(u) or monitor(v)):
+    log("# Comparison (%s, %s) = %s" % (blurb(u), blurb(v), comparison))
     #log("#  %s" % (get_parts(u),))
     #log("#  %s" % (get_parts(v),))
-  return score
+  return comparison
 
 EPITHET_MASK = 32
 VICINITY_MASK = 16
@@ -237,9 +243,10 @@ TOKEN_MASK = 4
 GENUS_MASK = 2
 MIDDLE_MASK = 1
 
-# Score potentially contypic names from 0 to 100
+# Compare potentially homotypic names.  Returns (m1, m2) where m1 and
+# m2 are integer masks, m1 for differences and m2 for similarities.
 
-def compute_parts_score(p, q, distance=None):
+def compare_parts(p, q, distance=None):
   hits = misses = 0
 
   if p.epithet != None and q.epithet != None:
@@ -283,10 +290,9 @@ def compute_parts_score(p, q, distance=None):
     if pmid == qmid: hits |= MIDDLE_MASK
     else: pass    # Unmatched middle does not imply mismatch
 
-  if misses > 0: return NEUTRAL - misses
-  else: return NEUTRAL + hits
+  return (misses, hits)
 
-def explain(score):
+def explain(comparison):
   def explode(things):
     return ', '.join((z
                       for (i, z)
@@ -300,16 +306,16 @@ def explain(score):
                               "vicinity", # VICINITY_MASK
                              ))
                       if (things & (1<<i)) != 0))
-  if score == NEUTRAL:
-    word = "neutral"
-    bits = 0
-  if score > NEUTRAL:
-    word = "homotypic" if homotypic_score(score) else "similar, review"
-    bits = score - NEUTRAL
-  else:
+  if homotypic_comparison(comparison):
+    word = "homotypic"
+  if heterotypic_comparison(comparison):
     word = "heterotypic"
-    bits = NEUTRAL - score
-  return "%s %s(%s)" % (word, explode(bits))
+  else:
+    word = "equivocal"
+
+  (misses, hits) = comparison
+  return ("%s. hits(%s) misses(%s)" %
+          (word, explode(hits), explode(misses)))
     
 # u and species assumed to be in the same checklist, yes?
 # Assumes both are descended from the same species (or genus?).
@@ -318,21 +324,24 @@ def explain(score):
 #  any descendant... hmm...  there has to be a better way
 
 def homotypic(u, v, dist):
-  return homotypic_score(compute_score(u, v))
+  return homotypic_comparison(compare_records(u, v))
 
-def homotypic_score(score):
-  return score > 0 and (score & mask1 == mask1 or
-                        score & mask2 == mask2)
-
-def heterotypic_score(score):
-  return score < 0
+def homotypic_comparison(comparison):
+  (misses, hits) = comparison
+  return (misses == 0 and
+          (hits & mask1 == mask1 or
+           hits & mask2 == mask2))
 
 mask1 = (EPITHET_MASK | GENUS_MASK | YEAR_MASK)
 mask2 = (EPITHET_MASK | VICINITY_MASK)
 
-def score_to_ship(score):
-  if homotypic_score(score): return HOMOTYPIC    # EQ
-  elif score <  NEUTRAL:     return HETEROTYPIC  # NEQ
+def heterotypic_comparison(comparison):
+  (misses, hits) = comparison
+  return misses > 0
+
+def comparison_to_ship(comparison):
+  if homotypic_comparison(comparison): return HOMOTYPIC    # EQ
+  elif heterotypic_comparison(comparison): return HETEROTYPIC  # NEQ
   else: return REVIEW                         # NOINFO
 
 # -----------------------------------------------------------------------------

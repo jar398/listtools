@@ -21,7 +21,6 @@ managed_id_prop = prop.declare_property("managed_id")
 stemmed_prop = prop.declare_property("canonicalStem")
 taxonomic_status_prop = prop.declare_property("taxonomicStatus")
 nomenclatural_status_prop = prop.declare_property("nomenclaturalStatus")
-taxon_remarks_citation_prop = prop.declare_property("taxonRemarksCitation")
 
 # Other checklist properties
 source_prop = prop.declare_property("source", inherit=False)    # which checklist does this belong to?
@@ -55,8 +54,6 @@ outject_prop = prop.declare_property("outject")
 (get_stemmed, set_stemmed) = prop.get_set(stemmed_prop)
 (get_nomenclatural_status, set_nomenclatural_status) = \
   prop.get_set(nomenclatural_status_prop)
-(get_taxon_remarks_citation, set_taxon_remarks_citation) = \
-  prop.get_set(taxon_remarks_citation_prop)
 (get_taxonomic_status, set_taxonomic_status) = \
   prop.get_set(taxonomic_status_prop)
 

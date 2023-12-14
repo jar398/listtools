@@ -49,8 +49,8 @@ CODE=$P/demo.py $P/align.py $P/theory.py $P/simple.py $P/workspace.py \
 
 # ----- General rules, top down
 
-A=test1
-B=test2
+A=work/test1
+B=work/test2
 ANAME?=A
 BNAME?=B
 TAXON?=Mammalia
@@ -61,17 +61,19 @@ taxon?=mammals
 PLUGIN=work/$(shell basename $A)-$(shell basename $B)-plugin.csv
 EXEMPLARS=work/$(shell basename $A)-$(shell basename $B)-exemplars.csv
 
-# E.g. make A=work/col23.1-mammals B=work/gbif20230902-mammals exemplars
+# E.g. 
+# make A=work/col23.1-mammals B=work/gbif20230902-mammals exemplars
+# make A=work/col19-mammals B=work/col23.1-mammals plugin
 
 exemplars: $(EXEMPLARS)
-$(EXEMPLARS): $(CODE) $A.csv $B.csv
+$(EXEMPLARS): $(CODE) $A.csv $B.csv $P/exemplar.py
 	@echo
 	$P/exemplar.py --A $A.csv --B $B.csv --Aname $(ANAME) --Bname $(BNAME) \
 	  > $@.new
 	@mv -f $@.new $@
 
 plugin: $(PLUGIN)
-$(PLUGIN): $(CODE) $A.csv $B.csv $(EXEMPLARS)
+$(PLUGIN): $(CODE) $A.csv $B.csv $(EXEMPLARS) $P/plugin.py
 	@echo
 	$P/plugin.py --exemplars work/$(shell basename $A)-$(shell basename $B)-exemplars.csv \
 		   --A $A.csv --B $B.csv --Aname $(ANAME) --Bname $(BNAME) \

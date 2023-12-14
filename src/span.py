@@ -19,7 +19,7 @@ import checklist, match_records, workspace
 from checklist import monitor
 from rcc5 import *
 from util import log
-from theory import block_size
+from estimate import block_size
 
 # Assign a parent to every node of AB except for the top.
 

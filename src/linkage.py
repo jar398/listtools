@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
 
 # Record linkage
-# This doesn't calculate a match score or probability, but has
-# some of that spirit, for which see wikipedia record linkage article...
 
 import util
 import parse, rows
@@ -10,8 +8,8 @@ import simple
 from checklist import *
 from workspace import *
 from parse import parse_name
-from typify import compute_parts_score, homotypic_score, \
-  compute_distance, compute_score, pick_better_record, \
+from typify import compare_parts, homotypic_comparison, \
+  compute_distance, compare_records, pick_better_record, \
   really_get_typification_uf, get_link
 
 # For each record, get list of matching records.... hmm
@@ -63,12 +61,12 @@ def report_on_links(AB, subproblems):
 # Plumbing
 
 def generate_linkage_report(AB):
-  yield ('from', 'to', 'score')
+  yield ('from', 'to', 'comparison')
   for x in all_records(AB.A):
     u = AB.in_left(x)
     v = get_link(u, None)
     if v:
-      yield (blurb(u), blurb(v), compute_score(u, v))
+      yield (blurb(u), blurb(v), compare_records(u, v))    # distance
     elif v == False:
       yield (blurb(u), 'ambiguous', MISSING)
 
@@ -85,9 +83,9 @@ if __name__ == '__main__':
   args=parser.parse_args()
 
   if args.test:
-    print(compute_parts_score(parse_name("Sturnira angeli"),
-                              parse_name("Sturnira magna"),
-                              3))
+    print(compare_parts(parse_name("Sturnira angeli"),
+                        parse_name("Sturnira magna"),
+                        3))
   else:
     a_name = 'A'; b_name = 'B'
     a_path = args.A

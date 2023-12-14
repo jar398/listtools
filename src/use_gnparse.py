@@ -53,7 +53,6 @@ def use_parse(gn_iter, check_iter):
   # May need to consult the source record too
   scientific_pos = windex(checklist_header, "scientificName")
   canonical_pos = windex(checklist_header, "canonicalName")
-  status_pos = windex(checklist_header, "nomenclaturalStatus")
 
   n_added_columns = (len(out_header) - len(checklist_header))
 
