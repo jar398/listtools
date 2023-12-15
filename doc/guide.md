@@ -460,7 +460,7 @@ column with 'rename', 'lump', 'split' information.]
 Example (excerpt of a larger comparison):
 
 | A taxon id | A taxon name | B species that intersect | LUB in B | exemplar ids |
----|---|---|---|---|---|
+|---|---|---|---|---|---|
 (1) | 35492802 | Platyrrhinus lineatus |  > 4JY2M Platyrrhinus lineatus; >< 4JY2R Platyrrhinus umbratus |  < 6S3Q Platyrrhinus | 3935;3936
 (2) | 35504725 | Platyrrhinus lineatus nigellus |  <= 4JY2R Platyrrhinus umbratus |  = 855Z5 Platyrrhinus lineatus nigellus* | 3935
 (3) | 35504048 | Platyrrhinus lineatus lineatus |  = 4JY2M Platyrrhinus lineatus |  = 4JY2M Platyrrhinus lineatus | 3936
