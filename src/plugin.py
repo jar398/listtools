@@ -29,7 +29,7 @@ def generate_plugin_report(AB):
 
       status = '?'
 
-      if theory.is_species(u) or is_infraspecific(u):
+      if theory.is_species(u):  # or is_infraspecific(u):  ??
         o = theory.get_intersecting_species(u)
         inter = '. ' + ';'.join(map(lambda s:show_articulation(AB, u, s),
                                     o))
