@@ -122,11 +122,12 @@ def start_csv(inport, params, outport, args):
       if accepted_pos and parent_pos and in_row[accepted_pos] and in_row[parent_pos]:
         out_row[parent_pos] = MISSING
 
-    stat = in_row[tax_status_pos]
-    indication_2 = (stat.startswith("accepted") or
-                    stat.startswith("valid") or
-                    stat.startswith("dubious") or
-                    stat == "provisionally accepted")  #seen in GBIF
+    if tax_status_pos != None:
+      stat = in_row[tax_status_pos].lower()
+      indication_2 = (stat.startswith("accepted") or
+                      stat.startswith("valid") or
+                      stat.startswith("dubious") or
+                      stat.endswith("accepted"))  #"provisionally accepted" seen in GBIF
 
     # Two ways to test whether a usage is accepted/dubious
     pk = in_row[pk_pos_in]

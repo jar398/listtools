@@ -136,7 +136,7 @@ for taxon concept C, and similarly
 
 for taxon concept D,
 then the set relationship between S and T suggests
-an RCC-5 relationship C and D and vice versa.
+an RCC-5 relationship between C and D and vice versa.
 If S and T are different, e.g. S ⊂ T, then "suggests" means it's a
 good heuristic bet that C < D (and similarly for the other relationships >, ><,
 and ! and their set equivalents).  S = T is not informative on its
@@ -166,7 +166,7 @@ A prefix `dwc:` on column headings is optional.
 `canonicalName` is an additional column that is not from Darwin Core
 but is important.
 
-`managed_id` is a column used internally to the tools but it not
+`managed_id` is a column used internally to the tools but is not
 relevant to most users.  (It is used for distinguishing the case of
 aligning checklists with a 'managed' identifier space (e.g. versions
 of GBIF or NCBI Taxonomy) from checklists that could have accidental
@@ -176,23 +176,28 @@ identifier collisions.)
 Here are Darwin Core headings used by one or more of the tools.
 
  - `taxonID`: the record's primary key, uniquely specifying a record within a checklist
- - `scientificName`: the full taxonomic name with authorship information
+ - `scientificName`: the full taxonomic name, with or without authorship information
  - `canonicalName`: the taxonomic name without authorship
- - `scientificNameAuthorship`: the authorship (e.g. `Smith, 1825`)
+ - `scientificNameAuthorship`: the authorship (e.g. `Smith, 1825`).
+   Optional but the matcher is more accurate if authorship is present
+   either here or in `scientificName`
  - `namePublishedInYear`: year of publication (e.g. `1825`) (not
-     currently used)
- - `taxonRank`: `species`, `subspecies`, `genus`, and so on
+     currently used; optional)
+ - `taxonRank`: `species`, `subspecies`, `genus`, and so on.
+   Important but not required
  - `taxonomicStatus`: if `accepted`, `valid`, or `doubtful`, the name is
    to be considered not a synonym in this checklist.  Otherwise
    (e.g. `synonym`) it is treated as a synonym.
    Case matters.
  - `parentNameUsageID` - `taxonID` of the parent record, or empty if a root
  - `acceptedNameUsageID` - `taxonID` of non-synonym record of which
-     this is a synonym, or empty if
-     not a synonym (also: `taxonID` = `acceptedNameUsageID` is another
-     way to indicate it's not a synonym)
+     this is a synonym, empty if
+     not a synonym
 
 One of `scientificName` or `canonicalName` must be given.
+
+Putting the `taxonID` = the `acceptedNameUsageID` is another
+way to indicate something is not a synonym.
 
 
 ### Exemplar file format

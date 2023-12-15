@@ -44,6 +44,7 @@ def find_typifications(AB, subproblems, get_pre_estimate, second):
           else:
             log("* Ambiguous match %s %s" % (blurb(v0), blurb(v)))
             # v0 = False
+            equate_typifications(u, v) # be brave
     if not success and False:
       log("* No match via %s in %s x %s; best %s" %
           (key, len(us), len(vs), explain(partial_comparison)))
