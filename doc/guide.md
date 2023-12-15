@@ -86,9 +86,9 @@ two regions.  These relationships are
 In cases where the precise RCC-5 relationship isn't known, we can also write
  * A <= B: A < B or A = B
  * A >= B: A > B or A = B
- * A not! B: A and B intersect; are not disjoint;
-   it is not the case that A ! B;
-   at least one individual falls under both
+ * A not! B: A and B intersect; equivalently, are not disjoint;
+   equivalently, it is not the case that A ! B;
+   equivalently, at least one individual falls under both
  * A ? B: RCC-5 relationship is unknown
 
 Applied to taxon concepts, we write 
@@ -101,10 +101,11 @@ Applied to taxon concepts, we write
 
 ### Exemplars
 
-Call an individual an _exemplar_ for a comparison of checklists A and B
-if taxon concepts in both A and B are known with the property that the individual
-falls under both of the taxon concepts.  The individual is proof that the
-extensions of the taxon concepts intersect.
+Call an individual an _exemplar_ for a comparison of checklists A and
+B if taxon concepts in both A and B are known with the property that
+the individual falls under both of the taxon concepts.  The individual
+is proof that the extensions of the taxon concepts intersect
+(i.e. have one or more individuals in common).
 
 'Exemplar' is a semantic ideal rather than an operational notion.  To
 make the exemplar idea practical when we don't have direct information
@@ -143,7 +144,8 @@ own, but there may be ways to
 deduce the relationship between C and D based on other information in
 the checklists (such as parent links and process of elimination).
 Having "enough" exemplars reduces the chance that S = T when C ≠ D,
-meaning that C = D is a good heuristic bet when S = T.
+in which case C = D is a good heuristic bet (parsimonious
+assumption) when S = T.
 
 
 ## File formats
@@ -380,7 +382,7 @@ checklist and B as 'proposed successor'.  (This is not the only use case.)
 If `--exemplars` is not given, the exemplars are computed just as the
 `exemplar.py` command would.
 
-The checklists should derive through a pipeline beginning with `clean.py`.
+The checklist inputs should be derived through a pipeline that begins with `clean.py`.
 
 The output (to standard output) of `plugin.py` has these columns (subject to change):
  - `A taxon id` - The taxon id of an A row
@@ -395,12 +397,14 @@ The output (to standard output) of `plugin.py` has these columns (subject to cha
    relationship of the A concept to the B concept, the id
    is the taxon id of the B concept's record, and the name is
    canonical name from the B record.
+   An initial `.` prevents Excel from treating values as formulas.
    A value of `-` means there may be intersecting concepts but the list was not computed 
    because the A row was not for a species.
  - `LUB in B` - 
    The relationship/id/name of the A concept to its least upper bound (LUB)
    in the B checklist.  The least upper bound is the smallest B concept
-   that contains the A concept.  
+   that contains the all of the A concept.
+   An initial `.` prevents Excel from treating values as formulas.
    If the A
    and B names are accepted, the A concept is either the same (RCC-5 =)
    as the B concept or smaller (RCC-5 <) than it.  For synonyms it may
@@ -455,44 +459,45 @@ column with 'rename', 'lump', 'split' information.]
 
 Example (excerpt of a larger comparison):
 
-A taxon id | A taxon name | B species that intersect | LUB in B | exemplar ids |
----|---|---|---|---|
-35492802 | Platyrrhinus lineatus |  > 4JY2M Platyrrhinus lineatus; >< 4JY2R Platyrrhinus umbratus |  < 6S3Q Platyrrhinus | 3935;3936
-35504725 | Platyrrhinus lineatus nigellus |  <= 4JY2R Platyrrhinus umbratus |  = 855Z5 Platyrrhinus lineatus nigellus* | 3935
-35504048 | Platyrrhinus lineatus lineatus |  = 4JY2M Platyrrhinus lineatus |  = 4JY2M Platyrrhinus lineatus | 3936
-35492801 | Platyrrhinus infuscus |  = 4JY2L Platyrrhinus infuscus |  = 4JY2L Platyrrhinus infuscus | 5577
-35492805 | Platyrrhinus vittatus |  = 4JY2S Platyrrhinus vittatus |  = 4JY2S Platyrrhinus vittatus | 3937
-35492804 | Platyrrhinus umbratus |  > 874KL Platyrrhinus aquilus; >< 4JY2R Platyrrhinus umbratus |  < 6S3Q Platyrrhinus | 3938;3939;3940
-35505347 | Platyrrhinus umbratus aquilus |  = 874KL Platyrrhinus aquilus |  = 874KL Platyrrhinus aquilus | 3938
-35504727 | Platyrrhinus umbratus oratus |  <= 4JY2R Platyrrhinus umbratus |  = 855Z8 Platyrrhinus umbratus oratus* | 3939
-35504049 | Platyrrhinus umbratus umbratus |  < 4JY2R Platyrrhinus umbratus |  < 4JY2R Platyrrhinus umbratus | 3940
+| A taxon id | A taxon name | B species that intersect | LUB in B | exemplar ids |
+---|---|---|---|---|---|
+(1) | 35492802 | Platyrrhinus lineatus |  > 4JY2M Platyrrhinus lineatus; >< 4JY2R Platyrrhinus umbratus |  < 6S3Q Platyrrhinus | 3935;3936
+(2) | 35504725 | Platyrrhinus lineatus nigellus |  <= 4JY2R Platyrrhinus umbratus |  = 855Z5 Platyrrhinus lineatus nigellus* | 3935
+(3) | 35504048 | Platyrrhinus lineatus lineatus |  = 4JY2M Platyrrhinus lineatus |  = 4JY2M Platyrrhinus lineatus | 3936
+(4) | 35492801 | Platyrrhinus infuscus |  = 4JY2L Platyrrhinus infuscus |  = 4JY2L Platyrrhinus infuscus | 5577
+(5) | 35492805 | Platyrrhinus vittatus |  = 4JY2S Platyrrhinus vittatus |  = 4JY2S Platyrrhinus vittatus | 3937
+(6) | 35492804 | Platyrrhinus umbratus |  > 874KL Platyrrhinus aquilus; >< 4JY2R Platyrrhinus umbratus |  < 6S3Q Platyrrhinus | 3938;3939;3940
+(7) | 35505347 | Platyrrhinus umbratus aquilus |  = 874KL Platyrrhinus aquilus |  = 874KL Platyrrhinus aquilus | 3938
+(8) | 35504727 | Platyrrhinus umbratus oratus |  <= 4JY2R Platyrrhinus umbratus |  = 855Z8 Platyrrhinus umbratus oratus* | 3939
+(9) | 35504049 | Platyrrhinus umbratus umbratus |  < 4JY2R Platyrrhinus umbratus |  < 4JY2R Platyrrhinus umbratus | 3940
 
-Row 1: _P. lineatus_ sec. A is not in the B checklist, but
+(1) _P. lineatus_ sec. A is not in the B checklist, but
 it fully contains _P. lineatus_ sec. B, and
 it contains some of _P. umbratus_ sec. B (it overlaps (><) but does not contain it).  The nearest (smallest) B 
 concept covering all of _P. lineatus_ sec. A is the genus _Platyrrhinus_.
 
-Row 2: _P. lineatus nigellus_ sec. A is strictly contained in
+(2) _P. lineatus nigellus_ sec. A is strictly contained in
 _P. umbratus_ sec. B, i.e. it has been moved out of _P. lineatus_.
 
-Row 3: _P. lineatus lineatus_ sec. A promoted to species, i.e. its name in B is _P. lineatus lineatus_.
+(3) _P. lineatus lineatus_ sec. A promoted to species, i.e. its name in B is _P. lineatus lineatus_.
 
-Rows 4, 5: Species carried over unchanged.
+(4), (5) Species carried over, same concept in both checklists
 
-Row 6: _P. umbratus_ sec. A (the concept) is not in the B checklist, but is represented by
+(6) _P. umbratus_ sec. A (the concept) is not in the B checklist, but is represented by
 _P. aquilus_ sec. B (which it contains) and by part of _P. umbratus_ sec. B 
 (that is, it overlaps _P. umbratus_ sec. B without containing it completely).
 
-Row 7: Subspecies _aquilas_ promoted to species; a clerical change in how the concept is named.
+(7) Subspecies _aquilas_ promoted to species; a clerical change in how the concept is named.
 
-Row 8: _P. umbratus oratus_ sec. A doesn't have its own record in B except as a synonym.
+(8) _P. umbratus oratus_ sec. A doesn't have its own record in B except as a synonym.
 It has been lumped into _P. umbratus_ sec. B (which, remember, differs from
 _P. umbratus_ sec. A).  The B checklist has a synonym record for it.k
 
-Row 9: _P. umbratus umbratus_ sec. A has been lumped into
+(9) _P. umbratus umbratus_ sec. A has been lumped into
 _P. umbratus_ sec. B, and there is no synonym record in B.  
 (Personally, I'm of the opinion that when a checklist is revised. the revision
-should always have synonym records for names previous checklists.)
+should always have synonym records deprecated names in previous checklists.  But
+this is not always the case.)
 
 Sample output: [col-19-23-report.csv](col-19-23-report.csv)
 
