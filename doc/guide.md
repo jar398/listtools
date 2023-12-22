@@ -9,7 +9,7 @@ pipelines using '|' if desired.  CSV files uniformly have a single
 header row giving column names.
 
 I have found it convenient to run the tools by using `make` applied to
-a suitable `makefile'.  This way, intermediate objects can be cached
+a suitable 'makefile'.  This way, intermediate objects can be cached
 in the local file system, avoiding expensive regeneration steps when
 inputs have not changed.
 
@@ -23,7 +23,7 @@ invoked from the shell out of a clone of this `git` repository.
 
 Python 3 is assumed.
 
-Install the python3 `regex` module.
+Install the python3 `regex` module using `pip3`.
 
 Also required is `gnparser`, which has download instructions
 [here](https://github.com/gnames/gnparser#installation).
@@ -215,6 +215,7 @@ that an exemplar falls under some taxon concept.
  - `taxonID`: the checklist record for a taxon concept
  - `exemplar id`: identifies an exemplar, locally to this file
    (not globally)
+ - `canonicalName`: given only for purposes of human inspection or debugging
 
 By construction, each exemplar id will have at least one exemplar file
 row giving an A record for a taxon concept the exemplar falls under, and one
@@ -611,7 +612,7 @@ A typical processing pipeline to generate a "plugin" style report would be:
     This requires multiple steps.  For each checklist:
      1. Prepare list of scientific names by applying `extract_names.py` to checklist
      1. Run `gnparse` on that list
-     1. Fold the `gnparse` output into checklist
+     1. Fold the `gnparse` output into checklist with `use_gnparse.py`
  1. Run `exemplar.py` on the checklists to obtain file `exemplars.csv`
  1. Apply `plugin.py` to the checklists and to `exemplars.csv` to obtain report
 
