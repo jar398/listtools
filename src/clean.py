@@ -242,6 +242,7 @@ Case analysis:
 """
 
 # Returns True if a change was made
+# TBD: Remove extraneous '.' from end of names (for MSW)
 
 def clean_name(row, can_pos, sci_pos, auth_pos):
   mod = False
