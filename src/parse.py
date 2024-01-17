@@ -33,6 +33,8 @@ def parse_name(verbatim,
   verbatim = verbatim.replace('  ', ' ')     # two -> one
   canonical = canonical.strip()
   authorship = authorship.strip()
+  if authorship.endswith('.'): authorship = authorship[0:-1] # for MDD
+
   # If authorship is ill-formed, discard it e.g. Depéret, 1895 (Gervais, 1847)
   if (authorship.endswith(')') and
       not authorship.startswith('(')):
@@ -95,8 +97,10 @@ def parse_name(verbatim,
   if protonymp == None: protonymp = protonymp2
   if protonymp != None and protonymp2 != None and \
      protonymp != protonymp2:
+    # parse: protonymps differ: gn Hinton 1919 / ad hoc (Fitzinger, 1867) wroughtoni Hinton, 1919
     log("# parse: protonymps differ: gn %s / ad hoc %s" %
         (auth, auth0))
+    protonymp = protonymp2
   return Parts(verbatim, canonical, g, mid, e, auth, t, y, protonymp)
 
 # Recover the canonical name and its part from the gnparser result.
@@ -141,7 +145,6 @@ def recover_canonical(gn_full, gn_stem, gn_auth, hack_canonical):
 
 def analyze_authorship(auth):
   if not auth: return (None, None, None) # moved? don't know
-  if auth.endswith(').'): auth = auth[0:-1] # for MDD
 
   # GBIF sometimes has (yyyy) where it should have yyyy
   m = parenyear_re.search(auth)
