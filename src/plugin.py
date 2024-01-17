@@ -4,14 +4,15 @@ import sys, csv, argparse
 import rcc5, rows, checklist, workspace
 import theory, exemplar, estimate
 
-from workspace import ingest_workspace
+from workspace import ingest_workspace, is_accepted_locally
 from checklist import *
-from rcc5 import rcc5_symbol
+from rcc5 import *
 from estimate import get_estimate
 
 def generate_plugin_report(AB):
   yield ("A taxon id",
          "A taxon name",
+         "operation",
          "intersecting B concepts (species only)",
          "containing B concept",
          # "change from A to B",
@@ -27,26 +28,55 @@ def generate_plugin_report(AB):
       if i % frequency == 0:
         log("%s %s" % (i, blurb(u)))
 
-      status = '?'
+      operation = MISSING
 
       if theory.is_species(u):  # or is_infraspecific(u):  ??
-        o = theory.get_intersecting_species(u)
-        inter = '. ' + ';'.join(map(lambda s:show_articulation(AB, u, s),
-                                    o))
+        rels = list(map(lambda v: theory.compare(AB, u, v),
+                        theory.get_intersecting_species(u)))
+        if len(rels) == 0:
+          operation = "removed"
+        elif len(rels) > 1:
+          operation = "split"
+        else:
+          rel = rels[0]
+          v = rel.record
+          if rel.relationship == LT:
+            operation = "lumped"
+          elif rel.relationship == EQ:
+            if (get_canonical(u) and get_canonical(v) and
+                get_canonical(u) != get_canonical(v)):
+              operation = "renamed"
+            if (is_accepted(x) and
+                not is_accepted_locally(AB, v)):
+              operation = "synonymized"
+            if (not is_accepted(x) and
+                is_accepted_locally(AB, v)):
+              operation = "desynonymized"
+            else:
+              operation = "unchanged"
+          elif ((rel.relationship & EQ) != 0 and
+                get_canonical(u) and get_canonical(v) and
+                get_canonical(u) == get_canonical(v)):
+            operation = "related"
+          # Else: LE GE NOINFO  (never DISJOINT, OVERLAP, INCONSISTENT)
+          # I think: never GT DISJOINT
+          else:
+            operation = "other"                # Not sure what to say
+
+        inter = '. ' + ';'.join(map(show_relation, rels))
         xids = estimate.exemplar_ids(AB, u)
         exemplars = ";".join(map(str, sorted(xids)))
       else:
-        o = []
+        rels = []
         inter = '-'
         exemplars = '-'
+        operation = "de novo"
 
-      if is_accepted(x) or o:
-        # filter out uninteresting synonyms
+      # filter out uninteresting synonyms
+      if is_accepted(x) or len(rels) > 0:
         est = estimate.get_estimate(u, None).record
         lub = show_articulation(AB, u, est)
         if lub != MISSING: lub = ". " + lub
-        if len(o) > 1:
-          status = "split"
         # lump    if inter relationship is <
         # rename  if relationship is = and canonical differs
         # ?  if synonym promoted to accepted (sort of a split)
@@ -54,6 +84,7 @@ def generate_plugin_report(AB):
           status = MISSING
         yield (get_primary_key(x),
                blurb(x),
+               operation,
                inter,
                lub,
                exemplars,
@@ -67,17 +98,17 @@ def is_infraspecific(u):
 
 
 def show_articulation(AB, u, v):
-  if v and not is_toplike(v):
-    return show_relation(theory.compare(AB, u, v))
-  else:
-    return MISSING
+  return show_relation(theory.compare(AB, u, v))
 
 def show_relation(rel):
-  y = get_outject(rel.record)
-  rcc5 = rcc5_symbol(rel.relationship)
-  # leading space prevents interpretation as excel formula
-  return "%s %s" % (rcc5_symbol(rel.relationship),
-                     get_primary_key_for_report(y))
+  if not is_toplike(rel.record):
+    y = get_outject(rel.record)
+    rcc5 = rcc5_symbol(rel.relationship)
+    # leading space prevents interpretation as excel formula
+    return "%s %s" % (rcc5_symbol(rel.relationship),
+                       get_primary_key_for_report(y))
+  else:
+    return MISSING
 
 def get_primary_key_for_report(x):
   assert get_primary_key(x)

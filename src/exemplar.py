@@ -73,9 +73,10 @@ def index_by_some_key(AB, fn):
 def get_subproblem_key(z):
   parts = get_parts(z)
   ep = parts.epithet
-  assert ep != None
   key = ep if ep else parts.genus
-  assert key != None  # MSW has scientificName = '?' ...
+  if key == None:
+    log("* No name: %s" % (parts,))
+    key = '?'
   return key
 
 # ------

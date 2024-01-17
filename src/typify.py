@@ -117,7 +117,7 @@ def try_in_same_checklist(us, second):
           # looks like it's always Genus sp subsp <-> Genus subsp,
           # and those can always be equated, i.e. they aren't disjoint.
           # Will this confuse downstream analysis ???
-          log("## Determining that %s ! %s are contypic" % (blurb(u1), blurb(u2)))
+          log("## Determining that %s ! %s are homotypic" % (blurb(u1), blurb(u2)))
           equate_typifications(u1, u2)
 
 # u and v are in workspace but may or may not be from same checklist

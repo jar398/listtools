@@ -19,7 +19,8 @@ outofdate:
 	@echo "  diff       show new/removed/changed records"
 	@echo "  round      demo diff/patch round trip"
 	@echo "  report     report on NCBI extensions differences 2015-2020"
-	@echo "  mdd-report report on MDD extensions differences 1.6-1.7"
+	@echo "  mdd-demo   report on MDD extensions differences 1.0-1.10"
+	@echo "  mdd-plugin report on MDD differences 1.0-1.10 (plugin form)"
 
 .SECONDARY:
 
@@ -45,7 +46,7 @@ RAKE?=cd ../plotter && rake
 
 CODE=$P/demo.py $P/align.py $P/theory.py $P/simple.py $P/workspace.py \
      $P/checklist.py $P/rcc5.py $P/eulerx.py $P/linkage.py $P/estimate.py \
-     $P/exemplar.py $P/plugin.py $P/parse.py $P/util.py $P/plugin.py
+     $P/exemplar.py $P/plugin.py $P/parse.py $P/util.py
 
 # ----- General rules, top down
 
@@ -367,6 +368,9 @@ work/gbif20230828.dwca-url:
 #   https://github.com/jar/MDD-DwC-mapping/ 
 # Automation for all this is on the to-do list... don't know if I'll
 # ever get around to it
+
+mdd-plugin:
+	$(MAKE) A=work/msw3 B=work/mdd1.10 ANAME=MSW3 BNAME=MDD1_10 plugin
 
 mdd-demo:
 	$(MAKE) A=work/msw3 B=work/mdd1.0 ANAME=MSW3 BNAME=MDD1_1 demo
