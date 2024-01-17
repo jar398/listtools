@@ -35,7 +35,10 @@ for row in reader:
         name = "%s %s %s" % (row[gen_pos], row[spec_pos], row[infra_pos])
   if status_pos != None and 'common' in row[status_pos]:
     name = MISSING  #name.lower()   # force Quality = 0
+
+  # We want gnparse to treat ? as if it were alphabetic
   if name.startswith('? ') or  name == '?':
-    name = 'Wildcard' + name[1:]     # Undone in use_gnparse.py
+    name = 'Xyzzy' + name[1:]     # Undone in use_gnparse.py
+  name = name.replace('?', 'xyzzy')
   print(name, file=sys.stdout)
 print("# Found %s scientific names" % sci_count, file=sys.stderr)

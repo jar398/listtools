@@ -67,36 +67,27 @@ def use_parse(gn_iter, check_iter):
     out_row = checklist_row + n_added_columns*[MISSING]
 
     # Kludge to allow gnparse to parse names of the form '? foo'
-    gn_full = gn_row[canonical_full_pos]
-    if gn_full.startswith('Wildcard '):
-      gn_full = '?' + gn_full[8:]
+    gn_full = fix_question_mark(gn_row[canonical_full_pos])
+    gn_stem = fix_question_mark(gn_row[canonical_stem_pos])
+    gn_verb = fix_question_mark(gn_row[verbatim_pos])
+    gn_auth = fix_question_mark(gn_row[auth_pos])
 
-    if out_row[out_canon_pos] == MISSING:
-      out_row[out_canon_pos] = gn_full
-    if out_row[out_sci_pos] == MISSING:
-      out_row[out_sci_pos] = gn_row[verbatim_pos]
-
-    if scientific_pos:
-      sci_name = out_row[scientific_pos]
-    else:
-      sci_name = out_row[out_canon_pos]
-
-
-
-    gn_stem = gn_row[canonical_stem_pos]
-    if gn_stem.startswith('Wildcard '):
-      gn_stem = '?' + gn_stem[8:]
     if gn_full.endswith('ii') and gn_stem.endswith('i'):
       # Fixed in gnparse, but I'm still using older version
       gn_stem = gn_stem[0:-1]
     if gn_stem == gn_full:
       gn_stem = MISSING         # kludge to make csv a little easier to read
 
+    if out_row[out_canon_pos] == MISSING:
+      out_row[out_canon_pos] = gn_full
+    if out_row[out_sci_pos] == MISSING:
+      out_row[out_sci_pos] = gn_verb
+
     q = int(gn_row[quality_pos])
     if q < 4:
       out_row[out_gn_full_pos] = gn_full
       out_row[out_gn_stem_pos] = gn_stem
-      out_row[out_gn_auth_pos] = gn_row[auth_pos]
+      out_row[out_gn_auth_pos] = gn_auth
     else:
       loser_count += 1
 
@@ -105,6 +96,11 @@ def use_parse(gn_iter, check_iter):
   log("-- use_gnparse: %s rows" % (row_count,))
   if loser_count > 0:
     log("-- %s rows had gnparse quality >= 4" % loser_count)
+
+def fix_question_mark(s):
+  if s.startswith('Xyzzy'):
+    s = '?' + s[5:]
+  return s.replace('xyzzy', '?')
 
 if __name__ == '__main__':
   parser = argparse.ArgumentParser(description="""
