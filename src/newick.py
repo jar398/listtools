@@ -10,7 +10,7 @@ tokenize = re.compile("[^,()]+")
 def parse_newick(newick):
   yield ("taxonID", "canonicalName",
          "parentNameUsageID", "acceptedNameUsageID",
-         "taxonomicStatus")
+         "taxonomicStatus", "taxonRank")
 
   id_counter = [0]
   def gen_id():
@@ -57,7 +57,13 @@ def parse_newick(newick):
     # taxonID, canonicalName,
     #           parentNameUsageID, acceptedNameUsageID,
     #           taxonomicStatus
-    yield (str(id), can.strip(), str(parent), str(accepted), status)
+    can = can.strip()
+    rank = MISSING
+    if can[0].isupper():
+      parts = can.split(' ')
+      if len(parts) == 2 and parts[1].islower():
+        rank = 'species'
+    yield (str(id), can, str(parent), str(accepted), status, rank)
 
   yield from parse(MISSING)
   if False:
