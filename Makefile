@@ -46,7 +46,7 @@ RAKE?=cd ../plotter && rake
 
 CODE=$P/demo.py $P/align.py $P/theory.py $P/simple.py $P/workspace.py \
      $P/checklist.py $P/rcc5.py $P/eulerx.py $P/linkage.py $P/estimate.py \
-     $P/exemplar.py $P/plugin.py $P/parse.py $P/util.py
+     $P/exemplar.py $P/parse.py $P/util.py
 
 # ----- General rules, top down
 

@@ -28,67 +28,69 @@ def generate_plugin_report(AB):
       if i % frequency == 0:
         log("%s %s" % (i, blurb(u)))
 
-      operation = MISSING
+      operation = None
 
       if theory.is_species(u):  # or is_infraspecific(u):  ??
         rels = list(map(lambda v: theory.compare(AB, u, v),
                         theory.get_intersecting_species(u)))
         if len(rels) == 0:
-          operation = "removed"
+          operation = "removed or lumped"
         elif len(rels) > 1:
           operation = "split"
         else:
-          rel = rels[0]
-          v = rel.record
-          if rel.relationship == LT:
-            operation = "lumped"
-          elif rel.relationship == EQ:
-            if (get_canonical(u) and get_canonical(v) and
-                get_canonical(u) != get_canonical(v)):
-              operation = "renamed"
-            if (is_accepted(x) and
-                not is_accepted_locally(AB, v)):
-              operation = "synonymized"
-            if (not is_accepted(x) and
-                is_accepted_locally(AB, v)):
-              operation = "desynonymized"
-            else:
-              operation = "unchanged"
-          elif ((rel.relationship & EQ) != 0 and
-                get_canonical(u) and get_canonical(v) and
-                get_canonical(u) == get_canonical(v)):
-            operation = "related"
-          # Else: LE GE NOINFO  (never DISJOINT, OVERLAP, INCONSISTENT)
-          # I think: never GT DISJOINT
-          else:
-            operation = "other"                # Not sure what to say
+          operation = impute_operation(u, rels[0])
 
         inter = '. ' + ';'.join(map(show_relation, rels))
         xids = estimate.exemplar_ids(AB, u)
         exemplars = ";".join(map(str, sorted(xids)))
       else:
+        # Not a species
         rels = []
         inter = '-'
         exemplars = '-'
-        operation = "de novo"
 
       # filter out uninteresting synonyms
       if is_accepted(x) or len(rels) > 0:
-        est = estimate.get_estimate(u, None).record
-        lub = show_articulation(AB, u, est)
+        est_rel = estimate.get_estimate(u, None)
+        if not operation:
+          operation = impute_operation(u, est_rel)
+        lub = show_relation(est_rel)
         if lub != MISSING: lub = ". " + lub
         # lump    if inter relationship is <
         # rename  if relationship is = and canonical differs
         # ?  if synonym promoted to accepted (sort of a split)
-        else:
-          status = MISSING
         yield (get_primary_key(x),
                blurb(x),
-               operation,
+               operation or '-',
                inter,
                lub,
                exemplars,
                )
+
+def impute_operation(u, rel):
+  v = rel.record
+  if rel.relationship == LT:
+    operation = "lumped"
+  elif rel.relationship == EQ:
+    if (is_accepted_locally(AB, u) and
+        not is_accepted_locally(AB, v)):
+      operation = "synonymized"
+    elif (not is_accepted_locally(AB, u) and
+          is_accepted_locally(AB, v)):
+      # won't happen since synonyms aren't reported on, but
+      operation = "accepted"
+    elif get_canonical(u, None) == get_canonical(v, None):
+      operation = "unchanged"
+    else:
+      operation = "renamed"     # ? could be added or removed
+  elif ((rel.relationship & EQ) != 0 and
+        get_canonical(u, None) == get_canonical(v, None)):
+    operation = "related"
+  # Else: LE GE NOINFO  (never DISJOINT, OVERLAP, INCONSISTENT)
+  # I think: never GT DISJOINT
+  else:
+    operation = "other"                # Not sure what to say
+  return operation
 
 def is_infraspecific(u):
   x = get_outject(u)
@@ -96,9 +98,6 @@ def is_infraspecific(u):
   # Kludge.  Will miss some.  Can improve this.
   return r == 'subspecies' or r == 'infraspecific name'    # COL
 
-
-def show_articulation(AB, u, v):
-  return show_relation(theory.compare(AB, u, v))
 
 def show_relation(rel):
   if not is_toplike(rel.record):
