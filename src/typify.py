@@ -10,6 +10,8 @@ from checklist import get_parts, monitor, get_superior, get_children, \
 from workspace import separated, get_outject, get_workspace
 from workspace import isinA, isinB
 
+# This runs twice.  'second' means we're on the second pass.
+
 def find_typifications(AB, subproblems, get_pre_estimate, second):
   # This sets the 'typification_uf' property of ... some ... records.
 
@@ -21,12 +23,13 @@ def find_typifications(AB, subproblems, get_pre_estimate, second):
     try_in_same_checklist(us, second)
     try_in_same_checklist(vs, second)
     success = False
-    partial_comparison = (0,0)
+    partial_comparison = (0,0)  # So far
     for i in range(0, len(us)):
       # Sorted by unimportance
       u = us[i]
       # If it's a synonym, see if it matches any accepted in same checklist?
-      v0 = None
+      winners = []
+      ambiguous = False
       for j in range(i, len(vs)):
         v = vs[j]
         # classify as A1, A2, A3 (HETEROTYPIC, REVIEW, HOMOTYPIC)
@@ -36,15 +39,20 @@ def find_typifications(AB, subproblems, get_pre_estimate, second):
         if comparison > partial_comparison: partial_comparison = comparison
         if homotypic_comparison(comparison):
           success = True
-          if v0 == None:
-            equate_typifications(u, v)
-            v0 = v
-          elif typification_compatible(v, v0):
-            equate_typifications(u, v)
-          else:
-            log("* Ambiguous match %s %s" % (blurb(v0), blurb(v)))
-            # v0 = False
-            equate_typifications(u, v) # be brave
+          winners.append(v)
+      losers = find_ambiguity(winners)
+      if losers and not second:
+        # silently treat ambiguities as mismatches in first pass.
+        # this will fail if e.g. every species has its type species.
+        # may show up as typification_compatible(v1, v2)
+        log("* Ambiguous pass 1 match %s -> %s, %s" %
+            (blurb(u), blurb(losers[0]), blurb(losers[1])))
+      else:
+        if losers:
+          log("* Ambiguous pass 2 match %s -> %s, %s" %
+              (blurb(u), blurb(losers[0]), blurb(losers[1])))
+        for v in winners:
+          equate_typifications(u, v)
     if not success and False:
       log("* No match via %s in %s x %s; best %s" %
           (key, len(us), len(vs), explain(partial_comparison)))
@@ -52,7 +60,16 @@ def find_typifications(AB, subproblems, get_pre_estimate, second):
   equate_typifications(AB.in_left(AB.A.top),
                        AB.in_right(AB.B.top))
 
-# In same checklist
+def find_ambiguity(winners):
+  v0 = None
+  for v in winners:
+    if (v0 != None and
+        not typification_compatible(v, v0)):
+      return (v0, v)
+  return None
+
+# This implements transitivity of equality, I think?
+# u and v are in the same checklist
 
 def typification_compatible(u, v):
   uf = really_get_typification_uf(u, None)
@@ -61,6 +78,15 @@ def typification_compatible(u, v):
     if vf:
       return uf.payload() is vf.payload()
   return True
+
+# duplicate.  weird.  used? yes, in theory.py
+def known_same_typification(u, v):
+  uf = really_get_typification_uf(u, None)
+  if uf:
+    vf = really_get_typification_uf(v, None)
+    if vf:
+      return uf.payload() is vf.payload()
+  return False
 
 def unimportance(u):
   p = get_parts(u)
@@ -76,6 +102,7 @@ def try_in_same_checklist(us, second):
   for i in range(0, len(us)):
     u1 = us[i]
     for j in range(i, len(us)):
+      # if i == j: continue  ???
       u2 = us[j]
       x1 = get_outject(u1)
       x2 = get_outject(u2)
@@ -86,8 +113,12 @@ def try_in_same_checklist(us, second):
         if rel.relationship != DISJOINT:
           equate_typifications(u1, u2)
         elif second and is_accepted(x1) and is_accepted(x2):
-          # Never happens in CoL mammals, but possible
-          log("## Ruling out %s contypic with %s" % (blurb(u1), blurb(u2)))
+          # Occurs in COL mussels 2022 vs. 2023...
+          # looks like it's always Genus sp subsp <-> Genus subsp,
+          # and those can always be equated, i.e. they aren't disjoint.
+          # Will this confuse downstream analysis ???
+          log("## Determining that %s ! %s are contypic" % (blurb(u1), blurb(u2)))
+          equate_typifications(u1, u2)
 
 # u and v are in workspace but may or may not be from same checklist
 
@@ -205,14 +236,6 @@ def pick_better_record(v1, v2):
     else:
       return v2
   return v1       # arbitrary synonym choice; don't want ambiguous
-
-def known_same_typification(u, v):
-  uf = really_get_typification_uf(u, None)
-  if uf:
-    vf = really_get_typification_uf(v, None)
-    if vf:
-      return uf.payload() is vf.payload()
-  return False
 
 
 HOMOTYPIC   = EQ           # Hmm, not sure about this
@@ -333,7 +356,7 @@ def homotypic_comparison(comparison):
           (hits & mask1 == mask1 or
            hits & mask2 == mask2))
 
-mask1 = (EPITHET_MASK | GENUS_MASK | YEAR_MASK)
+mask1 = (EPITHET_MASK | GENUS_MASK)   # Formerly: YEAR_MASK, now ambiguity check
 mask2 = (EPITHET_MASK | VICINITY_MASK)
 
 def heterotypic_comparison(comparison):

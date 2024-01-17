@@ -101,11 +101,8 @@ def start_csv(inport, params, outport, args):
       in_row = in_row[0:len(in_header)]
       trimmed += 1
     elif len(in_row) < len(in_header):
-      log(("** clean: Unexpected number of columns: have %s want %s" %
-             (len(in_row), len(in_header))))
-      log(("** clean: in_row is %s" % (in_row,)))
-      log(("** clean: in_header is %s" % (in_header,)))
-      assert False
+      log(("** clean: Not enough columns: row %s have %s want %s" %
+             (count, len(in_row), len(in_header))))
 
     # Filter out senior synonyms
     if tax_status_pos != None and in_row[tax_status_pos] == "senior synonym":
@@ -128,6 +125,8 @@ def start_csv(inport, params, outport, args):
                       stat.startswith("valid") or
                       stat.startswith("dubious") or
                       stat.endswith("accepted"))  #"provisionally accepted" seen in GBIF
+    else:
+      indication_2 = True
 
     # Two ways to test whether a usage is accepted/dubious
     pk = in_row[pk_pos_in]

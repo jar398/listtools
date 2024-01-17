@@ -78,6 +78,7 @@ def find_peers(x, y):
   j = get_level(y)
   while get_level(x) > j:
     x = get_parent(x)
+  # assert get_level(x) == get_level(y)
   return (x, y)
 
 # MRCA within the same tree
