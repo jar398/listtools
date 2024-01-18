@@ -380,7 +380,9 @@ to that played by protonyms in the Pyle/Remsen formulation.
 
     src/plugin.py --A A.csv --B B.csv --exemplars AB-exemplars.csv
 
-This writes an analysis report to standard output.
+This writes an analysis report to standard output.  Concepts are
+imputed for all of the A and B records, and RCC-5 relationships
+between those concepts are estimated.
 
 If you're doing regression analysis, think of A as the 'baseline' 
 checklist and B as 'proposed successor'.  (This is not the only use case.)
@@ -390,10 +392,19 @@ If `--exemplars` is not given, the exemplars are computed just as the
 
 The checklist inputs should be derived through a pipeline that begins with `clean.py`.
 
+When there is a B concept of the same taxonomic
+name (allowing for non-semantic changes like genus moves and
+spelling corrections) the B concept is called the A concept's "buddy".
+
 The output (to standard output) of `plugin.py` has these columns (subject to change):
  - `A taxon id` - The taxon id of an A row
  - `A taxon name` - The canonicalName of that A record (for human
    consumption).  A suffixed `*` indicates a synonym.
+ - `operation` - short description of what "happens" to the name
+   and/or concept as one "changes" the A checklist to its successor, the B checklist.
+   (This is not to say that a temporal order between the
+   checklists is required in reality.)
+   Work in progress.
  - `B species that intersect` - 
    If the A record indicates rank 'species', this is a semicolon-separated
    list of relationship/id/name for
@@ -415,9 +426,13 @@ The output (to standard output) of `plugin.py` has these columns (subject to cha
    and B names are accepted, the A concept is either the same (RCC-5 =)
    as the B concept or smaller (RCC-5 <) than it.  For synonyms it may
    be hard to tell what the precise relationship is so it <= or ? will show.
- - `exemplar ids` - 
-   If the A record is indicates a species, a list of exemplar ids for the exemplars
-   belonging to that species, otherwise `-`
+ - `A and B` - list of ids of exemplars that occur in both the A
+   concept and the name's B concept (the "buddy" concept)
+ - `A not B` - list of ids of exemplars that occur in the A
+   concept bot not the name's B concept
+ - `B not A` - list of ids of exemplars that occur in the 
+   concept bot not the name's A concept
+
 
 A name written with an asterisk (e.g. `Rana pipiens*`) indicates a synonym.
 
