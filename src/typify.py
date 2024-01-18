@@ -246,7 +246,7 @@ REVIEW      = HOMOTYPIC | HETEROTYPIC
 NEUTRAL = 0
 
 
-# Compare potentially contypic taxa.
+# Compare potentially homotypic taxa.
 # distance is distance (perhaps estimated) between u and v in combined model.
 # If distance (in tree) is close, give a pass on genus mismatch.
 
@@ -267,6 +267,9 @@ TOKEN_MASK = 4
 GENUS_MASK = 2
 MIDDLE_MASK = 1
 
+NEAR_THRESHOLD = 7
+FAR_THRESHOLD = 13              # this is the important one
+
 # Compare potentially homotypic names.  Returns (m1, m2) where m1 and
 # m2 are integer masks, m1 for differences and m2 for similarities.
 
@@ -282,8 +285,8 @@ def compare_parts(p, q, distance=None):
     # 15 = too far apart to link
     # 9 = neutral, most distant linkable
     # 0 = equated, exact hit
-    if distance <= 9: hits |= VICINITY_MASK
-    elif distance > 15: misses |= VICINITY_MASK
+    if distance <= NEAR_THRESHOLD: hits |= VICINITY_MASK
+    elif distance > FAR_THRESHOLD: misses |= VICINITY_MASK
 
   if p.year != None and q.year != None:
     if p.year == q.year: hits |= YEAR_MASK
@@ -422,7 +425,6 @@ def get_link(u, default=-19):
     (xid, u2, v) = uf.payload()
     return v if (v and separated(u, v)) else u2
   return None
-
 
 # -----------------------------------------------------------------------------
 # Exemplars (separate module maybe?)

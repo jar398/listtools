@@ -14,7 +14,7 @@ import estimate
 from estimate import find_estimates, get_estimate, get_equivalent
 from estimate import is_empty_block, get_block, BOTTOM_BLOCK
 from estimate import block_relationship, same_block, opposite_exemplar_records
-from typify import known_same_typification
+from typify import known_same_typification, get_exemplar
 
 # Assumes that name matches are already stored in AB.
 
@@ -310,3 +310,36 @@ def is_species(u):              # z local
   if u == False: return False
   x = get_outject(u)
   return get_rank(x, None) == 'species' and is_accepted(x)
+
+# A c = A b c, but A b b != A b  ... ?
+
+def same_protonym(u, v):
+  e = get_exemplar(u)
+  if e:
+    f = get_exemplar(v)
+    if f:
+      # want (e[1] is u) == (e[2] is v) ???  No.
+      return e[0] == f[0]
+  return False
+
+def get_buddy(AB, u):
+  e = get_exemplar(u)
+  if not e: return False
+  if in_same_tree(AB, u, e[1]):
+    v = e[2]
+  else:
+    v = e[1]
+  # TBD: climb upward from v seeking "best" match to name and rank of u
+  v_sup = local_sup(AB, v)       # Goo
+  q = v_sup.record
+  return buddy1(u, v) or buddy1(u, q)
+
+# Matching (exemplar computation) deals with genus changes.
+# The problem here is that we want Aus aus to match Aus aus but not
+# Aus aus aus.  Unless that is the only possibility.
+# This is a temporary kludge - ought to be more clever than this.
+
+def buddy1(u, v):
+  if (get_rank(u, None) == get_rank(v, None)):
+    return v
+  return False
