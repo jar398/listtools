@@ -4,26 +4,30 @@ import sys, csv, argparse
 import rcc5, rows, checklist, workspace
 import theory, exemplar, estimate
 
-from workspace import ingest_workspace, is_accepted_locally, local_sup
+from workspace import ingest_workspace, is_accepted_locally, local_sup, \
+  isinA, isinB
 from checklist import *
 from rcc5 import *
 from estimate import get_estimate, get_block, is_empty_block
 from property import mep, mep_get, mep_set
-
+from typify import xid_epithet
 def generate_plugin_report(AB):
   yield ("A taxon id",
-         "A taxon name",
+         "A name",
          "operation",
+         "B taxon id",
+         "B name",
          "intersecting B concepts (species only)",
          "containing B concept",
          # "change from A to B",
-         "kept",
-         "removed",
-         "added",
+         "in both A and B concepts",
+         "in A concept but not in B concept",
+         "in B concept but not in A concept",
          )
   i = [0]
   frequency = 5000
 
+  # species in B that should be adopted by taxa in A
   adoptees = find_adoptees(AB)
 
   def process_subtree(x):
@@ -32,20 +36,25 @@ def generate_plugin_report(AB):
     infs.sort(key=plugin_sort_key)
     for c in infs:
       yield from process_subtree(c)
+    process_new_species(AB.in_left(x))
 
-    u = AB.in_left(x)
+  # TBD: Deal with situation where one of these comes from a
+  # subspecies or synonym in A
+  def process_new_species(u):
     for v in mep_get(adoptees, u, ()):
-      v_sup = local_sup(AB, v)
-      v_ids = get_block(v)
-      b_not_a = show_xid_set(v_ids)
-      yield (MISSING,           # not in A
-             MISSING,           # not in A
+      # v a non-synonym species
+      y = get_outject(v)
+      v_not_u = show_xid_set(AB, get_block(v))
+      yield (MISSING,           # concept not in A
+             MISSING,           # concept not in A
              "de novo or split off",
-             ". " + show_relation(relation(NOINFO, v)),  # inters in B
-             ". " + show_relation(v_sup),      # lub in B
+             get_primary_key(y),
+             blurb(y),
+             MISSING,                                # intersecting
+             ". " + show_relation(local_sup(AB, v)),     # lub in B?
              MISSING,                          # in A and B
              MISSING,                          # in A but not B
-             b_not_a,                          # in B but not A
+             v_not_u,                          # in B but not A
              )
 
   def plugin_sort_key(x):
@@ -64,98 +73,131 @@ def generate_plugin_report(AB):
 
       operation = None
 
-      a_and_b = MISSING
-      a_not_b = MISSING
-      b_not_a = MISSING
+      inters = theory.get_intersecting_species(u)
+      rels = list(map(lambda w: theory.compare(AB, u, w), inters))
+      inter = '. ' + ';'.join(map(show_relation, rels))
 
-      p = local_sup(AB, u).record
-      if theory.is_species(u) or theory.is_species(p):
-        rels = list(map(lambda v: theory.compare(AB, u, v),
-                        theory.get_intersecting_species(u)))
-        if len(rels) == 0:
-          operation = "removed or lumped"
-        elif len(rels) > 1:
-          operation = "split"
-        else:
-          operation = impute_operation(u, rels[0])
+      lub = show_relation(estimate.get_estimate(u, None))
+      if lub != MISSING: lub = ". " + lub
 
-        # Among rels, find the one that is to a B concept of the same name...?
-        # That would v such that get_exemplar(u) is in v's block.
-        u_ids = get_block(u)
-        v = theory.get_buddy(AB, u)
-        if v:
+      if theory.is_species(u):
+        bud = theory.get_buddy(AB, u)   # B taxon containing type
+        if bud:
+          assert isinB(AB, bud), (blurb(u), blurb(bud))
+          v = theory.get_species(bud)
+          assert v, blurb(bud)
+          assert isinB(AB, v), (blurb(bud), blurb(v))
+          assert len(inters) > 0
+          assert v in inters, blurb(v)
+          operation = impute_operation(AB, u, bud, v)
+          u_ids = get_block(u)
           v_ids = get_block(v)
-          a_and_b = show_xid_set(u_ids & v_ids)
-          a_not_b = show_xid_set(u_ids - v_ids)
-          b_not_a = show_xid_set(v_ids - u_ids)
-        if a_not_b == MISSING:
-          a_not_b = show_xid_set(u_ids)
-        # Sort ???  there are usually only two
-        inter = '. ' + ';'.join(map(show_relation, rels))
-      else:
-        # Not a species
-        rels = []
-        inter = '-'
+          u_and_v = show_xid_set(AB, u_ids & v_ids)
+          u_not_v = show_xid_set(AB, u_ids - v_ids)
+          v_not_u = show_xid_set(AB, v_ids - u_ids)
+          #if u_not_v == MISSING:
+          #  u_not_v = show_xid_set(AB, u_ids) # ??
+          # Sort ???  there are usually only two
 
-      # filter out uninteresting synonyms
-      if is_accepted(x) or len(rels) > 0:
-        est_rel = estimate.get_estimate(u, None)
-        if not operation:
-          operation = impute_operation(u, est_rel)
-        lub = show_relation(est_rel)
-        if lub != MISSING: lub = ". " + lub
-        yield (get_primary_key(x),
-               blurb(x),
-               operation or '-',
-               inter,
-               lub,
-               a_and_b, a_not_b, b_not_a,
-               )
+          z = get_outject(bud) if bud else None
+          y = get_outject(v)
+          yield (get_primary_key(x),
+                 blurb(x),
+                 operation or '-',
+                 get_primary_key(y),
+                 blurb(y),
+                 inter,
+                 lub,
+                 u_and_v, u_not_v, v_not_u,
+                 )
+
+        else:                   # No v
+          # How can we have intersecting species but no buddy??
+          # !!! They match only via synonyms, not via the type.
+          # assert len(inters) == 0, blurb(u)
+
+          # or (v and theory.is_species(v) and v is bud)):
+          yield (get_primary_key(x),
+                 blurb(x),
+                 "lumped or removed",
+                 MISSING,
+                 MISSING,
+                 inter,
+                 lub,
+                 MISSING, MISSING, MISSING,
+                 )
 
   yield from process_subtree(AB.A.top)
 
-def show_xid_set(s):
-  # was return ";".join(map(str, sorted(s))) + ";"
-  return "{%s}" % ",".join(map(str, sorted(s)))
+# s is a set of exemplar ids
 
-def impute_operation(u, rel):
-  v = rel.record
+def show_xid_set(AB, s):
+  return "{%s}" % ",".join(map(lambda s:"%s %s" % (s, xid_epithet(AB, s)),
+                               sorted(s)))
+
+# Could be:
+#   Change of rank (promotion/demotion).
+#   Change of acceptedness (accepted/synonymized).
+#   Change of epithet / gender (regendered).
+#   Change of genus (moved).
+#   Change of concept (lumped / split / changed).
+#   Possible change of concept (perhaps lumped / perhaps split)
+
+def impute_operation(AB, u, bud, v):
+  ops = []
+  if bud is v:
+    if get_rank(u, None) != get_rank(v, None):
+      if get_rank(u, None) == "subspecies":
+        ops.append("promoted")
+      elif get_rank(v, None) == "subspecies":
+        ops.append("demoted")
+      else:
+        ops.append("change of rank")
+    if (is_accepted_locally(AB, u) !=
+        is_accepted_locally(AB, v)):
+      if (is_accepted_locally(AB, u)):
+        ops.append("synonymized")
+      else:
+        ops.append("accepted")
+
+    p1 = get_parts(get_outject(u))
+    p2 = get_parts(get_outject(v))
+    if p1.epithet != p2.epithet:
+      ops.append("epithet")
+    if p1.genus != p2.genus:
+      ops.append("moved")
+
+  rel = theory.compare(AB, u, v)
   if rel.relationship == LT:
-    operation = "lumped"
-  elif rel.relationship == EQ:
-    if (is_accepted_locally(AB, u) and
-        not is_accepted_locally(AB, v)):
-      operation = "synonymized"
-    elif (not is_accepted_locally(AB, u) and
-          is_accepted_locally(AB, v)):
-      # won't happen since synonyms aren't reported on, but
-      operation = "accepted"
-    elif get_canonical(u, None) == get_canonical(v, None):
-      operation = "unchanged"
-    else:
-      operation = "renamed"     # ? could be added or removed
-  elif ((rel.relationship & EQ) != 0 and
-        get_canonical(u, None) == get_canonical(v, None)):
-    operation = "related"
-  # Else: LE GE NOINFO  (never DISJOINT, OVERLAP, INCONSISTENT)
-  # I think: never GT DISJOINT
+    ops.append("lumped")
+  elif rel.relationship == LE:
+    ops.append("perhaps lumped")
+  elif rel.relationship == GT:
+    ops.append("split")
+  elif rel.relationship == GE:
+    ops.append("perhaps split")
+  elif rel.relationship != EQ:
+    ops.append("concept")
+  if len(ops) == 0:
+    return "unchanged"
   else:
-    operation = "other"                # Not sure what to say
-  return operation
+    return ";".join(ops)
 
-# Find species in B that should be adoped by taxa in A
+# Find species in B that could have been split off from taxa in A
 
 def find_adoptees(AB):
   ad = mep()
   for y in all_records(AB.B):
     v = AB.in_right(y)
-    if theory.is_species(v) and is_empty_block(get_block(v)):
-      est = get_estimate(v)
-      u = est.record
-      ads = mep_get(ad, u, None)
-      if ads == None: ads = []
-      ads.append(v)
-      mep_set(ad, u, ads)
+    if theory.is_species(v):  # implies is_accepted_locally(v)
+      if is_empty_block(get_block(v)):
+        est = get_estimate(v)
+        u = est.record
+        ads = mep_get(ad, u, None)
+        if ads == None:
+          ads = []
+          mep_set(ad, u, ads)
+        ads.append(v)
   return ad
 
 def is_infraspecific(u):

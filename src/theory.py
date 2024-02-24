@@ -130,7 +130,7 @@ def compare_within_block(AB, u, v):
   rel_um = get_estimate(u, None)      # u <= m   in same checklist
   m = rel_um.record
   assert separated(u, m)
-  rel_mv = compare_locally(m, v)
+  rel_mv = compare_locally(AB, m, v)
   rel_uv = compose_paths(u, rel_um, rel_mv)
   ship1 = rel_uv.relationship   # u <= m ? v
 
@@ -138,7 +138,7 @@ def compare_within_block(AB, u, v):
   rel_vn = get_estimate(v, None)     # n = v
   n = rel_vn.record
   assert separated(v, n)
-  rel_nu = compare_locally(n, u)
+  rel_nu = compare_locally(AB, n, u)
   rel_vu = compose_paths(v, rel_vn, rel_nu)
   rev_rel_vu = reverse_relation(v, rel_vu)
   rev_ship2 = rev_rel_vu.relationship   # u ? v
@@ -169,7 +169,7 @@ def compose_final(u, rel1, rel2, rel3):
   rel13 = compose_paths(u, rel1, compose_paths(rel1.record, rel2, rel3))
   return rel13
 
-def compare_locally(u, v):
+def compare_locally(AB, u, v):
   rel = simple.compare_per_checklist(get_outject(u), get_outject(v)) # in A or B
   if rel.relationship & DISJOINT and known_same_typification(u, v):
     # rel.relationship is NOINFO or DISJOINT
@@ -286,16 +286,18 @@ def find_cross_sup_rel(AB, u, v):
 
 # -----------------------------------------------------------------------------
 
+# Returns [v1, v2, ...]
+
 def get_intersecting_species(u):
-  o = []
+  inters = []
   ids = set()
   AB = get_workspace(u)
   for v in opposite_exemplar_records(AB, u):
     s = get_species(v)
     if s and not s.id in ids:
       ids = ids | {s.id}
-      o.append(s)
-  return o
+      inters.append(s)
+  return inters
 
 def get_species(u):
   AB = get_workspace(u)
@@ -322,6 +324,9 @@ def same_protonym(u, v):
       return e[0] == f[0]
   return False
 
+# Taxon in v with same epithet, and also same rank if possible.
+# Might be a synonym or subspecies; use get_species if a species is needed.
+
 def get_buddy(AB, u):
   e = get_exemplar(u)
   if not e: return False
@@ -329,17 +334,11 @@ def get_buddy(AB, u):
     v = e[2]
   else:
     v = e[1]
-  # TBD: climb upward from v seeking "best" match to name and rank of u
-  v_sup = local_sup(AB, v)       # Goo
-  q = v_sup.record
-  return buddy1(u, v) or buddy1(u, q)
-
-# Matching (exemplar computation) deals with genus changes.
-# The problem here is that we want Aus aus to match Aus aus but not
-# Aus aus aus.  Unless that is the only possibility.
-# This is a temporary kludge - ought to be more clever than this.
-
-def buddy1(u, v):
-  if (get_rank(u, None) == get_rank(v, None)):
+  if get_rank(u, None) == get_rank(v, None):
     return v
-  return False
+  q = local_sup(AB, v).record
+  if get_exemplar(q) is e:
+    if get_rank(u, None) == get_rank(q, None):
+      return q
+  # Ranks don't match - maybe it's a promotion/demotion
+  return v

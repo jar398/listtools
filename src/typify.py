@@ -162,6 +162,7 @@ def get_typification_uf(u):
   prop.get_set(prop.declare_property("typification_uf"))
 
 
+# z is in AB.
 # Returns typification record (xid, u, v) or None.
 
 def get_exemplar(z):
@@ -441,3 +442,9 @@ def xid_to_opposite_record(AB, xid, z):
   uf = AB.exemplar_ufs[xid]
   (_, u, v) = uf.payload()
   return v if isinA(AB, z) else u
+
+def xid_epithet(AB, xid):
+  uf = AB.exemplar_ufs[xid]
+  (_, u, v) = uf.payload()
+  parts = get_parts(u)
+  return parts.epithet or parts.genus 
