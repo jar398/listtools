@@ -15,8 +15,7 @@ def generate_plugin_report(AB):
   yield ("A taxon id",
          "A name",
          "operation",
-         "B taxon id",
-         "B name",
+         "B concept with same name",
          "intersecting B concepts (species only)",
          "containing B concept",
          # "change from A to B",
@@ -48,9 +47,8 @@ def generate_plugin_report(AB):
       yield (MISSING,           # concept not in A
              MISSING,           # concept not in A
              "de novo or split off",
-             get_primary_key(y),
-             blurb(y),
-             MISSING,                                # intersecting
+             ". " + show_relation(relation(NOINFO, y)),
+             MISSING,           # intersecting
              ". " + show_relation(local_sup(AB, v)),     # lub in B?
              MISSING,                          # in A and B
              MISSING,                          # in A but not B
@@ -82,6 +80,9 @@ def generate_plugin_report(AB):
 
       if theory.is_species(u):
         bud = theory.get_buddy(AB, u)   # B taxon containing type
+        if not bud and len(rels) == 1 and rels[0].relationship == EQ:
+          # Kludge; not sure why this is needed
+          bud = rels[0].record
         if bud:
           assert isinB(AB, bud), (blurb(u), blurb(bud))
           v = theory.get_species(bud)
@@ -99,13 +100,10 @@ def generate_plugin_report(AB):
           #  u_not_v = show_xid_set(AB, u_ids) # ??
           # Sort ???  there are usually only two
 
-          z = get_outject(bud) if bud else None
-          y = get_outject(v)
           yield (get_primary_key(x),
                  blurb(x),
                  operation or '-',
-                 get_primary_key(y),
-                 blurb(y),
+                 ". " + show_relation(theory.compare(AB, u, v)),
                  inter,
                  lub,
                  u_and_v, u_not_v, v_not_u,
@@ -120,7 +118,6 @@ def generate_plugin_report(AB):
           yield (get_primary_key(x),
                  blurb(x),
                  "lumped or removed",
-                 MISSING,
                  MISSING,
                  inter,
                  lub,

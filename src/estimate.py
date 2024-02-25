@@ -65,7 +65,7 @@ def find_estimate(AB, u):
   if b != a:                  # b > a
     return relation(LT, v, "more exemplars")
 
-  # ship is LT or LE or EQ
+  # ship is LT or EQ
   # we'll turn EQ into LE if there are multiple options
 
   # If u2 is at top of chain, EQ is still an option.  Otherwise has to be LE.
