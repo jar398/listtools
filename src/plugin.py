@@ -10,12 +10,12 @@ from checklist import *
 from rcc5 import *
 from estimate import get_estimate, get_block, is_empty_block
 from property import mep, mep_get, mep_set
-from typify import xid_epithet
+from typify import xid_epithet, explain, compare_records
 def generate_plugin_report(AB):
   yield ("A taxon id",
          "A name",
          "operation",
-         "B concept with same name",
+         "B concept via type",
          "intersecting B concepts (species only)",
          "containing B concept",
          # "change from A to B",
@@ -64,41 +64,48 @@ def generate_plugin_report(AB):
   def process_record(x):
     if not is_top(x):
       u = AB.in_left(x)
-
-      i[0] += 1
-      if i[0] % frequency == 0:
-        log("%s %s" % (i[0], blurb(u)))
-
-      operation = None
-
-      inters = theory.get_intersecting_species(u)
-      rels = list(map(lambda w: theory.compare(AB, u, w), inters))
-      inter = '. ' + ';'.join(map(show_relation, rels))
-
-      lub = show_relation(estimate.get_estimate(u, None))
-      if lub != MISSING: lub = ". " + lub
-
       if theory.is_species(u):
-        bud = theory.get_buddy(AB, u)   # B taxon containing type
-        if not bud and len(rels) == 1 and rels[0].relationship == EQ:
-          # Kludge; not sure why this is needed
-          bud = rels[0].record
-        if bud:
-          assert isinB(AB, bud), (blurb(u), blurb(bud))
-          v = theory.get_species(bud)
-          assert v, blurb(bud)
+
+        i[0] += 1
+        if i[0] % frequency == 0:
+          log("%s %s" % (i[0], blurb(u)))
+
+        operation = None
+
+        lub = show_relation(estimate.get_estimate(u, None))
+        if lub != MISSING: lub = ". " + lub
+
+        inters = theory.get_intersecting_species(u)
+        rels = list(map(lambda w: theory.compare(AB, u, w), inters))
+
+        # or, if get_species(u) and bud == v
+        bud = theory.get_buddy(AB, u)   # B taxon containing u's type
+        v = theory.get_species(bud) if bud else None
+        if v:
+          if not v in inters:
+            log("** Intersection expected but missing: %s ?! %s" %
+                (blurb(u), blurb(v)))
+          rels2 = (rel for rel in rels if not v is rel.record)
+        else:
+          rels2 = rels
+          if len(rels) == 1 and rels[0].relationship == EQ:
+            # Curation issue probably (e.g. MSW3)
+            v1 = rels[0].record
+            if True or monitor(u) or monitor(v1):
+              p = get_parts(get_outject(u))
+              q = get_parts(get_outject(v1))
+              log("** Equality inferred between putatively heterotypic taxa: %s\n   %s ?= %s" %
+                  (explain(compare_records(u, v1)), blurb(u), blurb(v1)))
+
+        inter = '. ' + ';'.join(map(show_relation, rels2))
+        if v:
           assert isinB(AB, v), (blurb(bud), blurb(v))
-          assert len(inters) > 0
-          assert v in inters, blurb(v)
           operation = impute_operation(AB, u, bud, v)
           u_ids = get_block(u)
           v_ids = get_block(v)
           u_and_v = show_xid_set(AB, u_ids & v_ids)
           u_not_v = show_xid_set(AB, u_ids - v_ids)
           v_not_u = show_xid_set(AB, v_ids - u_ids)
-          #if u_not_v == MISSING:
-          #  u_not_v = show_xid_set(AB, u_ids) # ??
-          # Sort ???  there are usually only two
 
           yield (get_primary_key(x),
                  blurb(x),
@@ -109,7 +116,7 @@ def generate_plugin_report(AB):
                  u_and_v, u_not_v, v_not_u,
                  )
 
-        else:                   # No v
+        else:                   # No bud, no v
           # How can we have intersecting species but no buddy??
           # !!! They match only via synonyms, not via the type.
           # assert len(inters) == 0, blurb(u)
@@ -117,7 +124,7 @@ def generate_plugin_report(AB):
           # or (v and theory.is_species(v) and v is bud)):
           yield (get_primary_key(x),
                  blurb(x),
-                 "lumped or removed",
+                 "confusing" if rels else "lumped or removed",
                  MISSING,
                  inter,
                  lub,

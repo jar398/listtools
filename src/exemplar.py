@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 
+from parse import PROBE
+
 import sys, argparse
 import util, rows
 
@@ -42,25 +44,36 @@ def find_subproblems(AB):
                           get_subproblem_key),
         (AB, swap(AB)))
   subprobs = {}
-  for (val, us) in A_index.items():
-    assert val != MISSING, blurb(us[0])
-    vs = B_index.get(val, None)
+  for (key, us) in A_index.items():
+    assert key != MISSING, blurb(us[0])
+    vs = B_index.get(key, None)
     if vs != None:
       us.sort(key=unimportance)
       vs.sort(key=unimportance)
-      subprobs[val] = (us, vs)
+      subprobs[key] = (us, vs)
+      if (any(monitor(u) for u in us) or
+          any(monitor(v) for v in vs)):
+        log("# Subproblem %s" % key)
+        log("#  us = %s" % (list(map(blurb, us)),))
+        log("#  vs = %s" % (list(map(blurb, vs)),))
+    else:
+      if PROBE in key:
+        log("# Null subproblem %s" % key)
   AB.subproblems = subprobs
   return subprobs
 
 # Returns dict value -> key
+# fn is a function over AB records
 
 def index_by_some_key(AB, fn):
   index = {}
   for x in postorder_records(AB.A):
     u = AB.in_left(x)
     key = fn(u)
+    if monitor(u):
+      log("# Indexing %s %s" % (key, blurb(u)))
     #assert key  - MSW has scientificName = ?
-    have = index.get(key, None)
+    have = index.get(key, None) # part
     if have:
       have.append(u)
     else:
@@ -71,12 +84,18 @@ def index_by_some_key(AB, fn):
 # z is in AB
 
 def get_subproblem_key(z):
-  parts = get_parts(z)
-  ep = parts.epithet
+  parts = get_parts(get_outject(z))
+  ep = parts.epithet            # stemmed
   key = ep if ep else parts.genus
   if key == None:
     log("* No name: %s" % (parts,))
     key = '?'
+  else:
+    if key:
+      if monitor(z):
+        log("# Subproblem key is %s (%s)" % (key, blurb(z)))
+    else:
+      log("# Falsish subproblem key is %s (%s)" % (key, blurb(z)))
   return key
 
 # ------

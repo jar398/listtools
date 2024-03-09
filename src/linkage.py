@@ -8,7 +8,7 @@ import simple
 from checklist import *
 from workspace import *
 from parse import parse_name
-from typify import compare_parts, homotypic_comparison, \
+from typify import compare_parts, \
   compute_distance, compare_records, pick_better_record, \
   really_get_typification_uf, get_link
 

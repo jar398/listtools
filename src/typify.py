@@ -1,3 +1,5 @@
+from parse import PROBE
+
 import math
 import util
 import property as prop
@@ -17,56 +19,32 @@ def find_typifications(AB, subproblems, get_pre_estimate, second):
 
   n = 1
   for (key, (us, vs)) in subproblems.items():
-    if n % 1000 == 0:
+    if n % 1000 == 0 or PROBE in key:
       log("# Subproblem %s %s %s %s %s" % (n, len(us), len(vs), blurb(us[0]), blurb(vs[0])))
     n += 1
     try_in_same_checklist(us, second)
     try_in_same_checklist(vs, second)
-    success = False
-    partial_comparison = (0,0)  # So far
     for i in range(0, len(us)):
       # Sorted by unimportance
       u = us[i]
       # If it's a synonym, see if it matches any accepted in same checklist?
       winners = []
-      ambiguous = False
-      for j in range(i, len(vs)):
+      for j in range(0, len(vs)):
         v = vs[j]
-        # classify as A1, A2, A3 (HETEROTYPIC, REVIEW, HOMOTYPIC)
+        # classify as (HETEROTYPIC, REVIEW, HOMOTYPIC)
         # **** COMPUTE DISTANCE if 2nd pass ****
         dist = compute_distance(u, v, get_pre_estimate)
         comparison = compare_records(u, v, dist)
-        if comparison > partial_comparison: partial_comparison = comparison
-        if homotypic_comparison(comparison):
-          success = True
+        if is_homotypic_comparison(comparison):
           winners.append(v)
-      losers = find_ambiguity(winners)
-      if losers and not second:
-        # silently treat ambiguities as mismatches in first pass.
-        # this will fail if e.g. every species has its type species.
-        # may show up as typification_compatible(v1, v2)
-        log("* Ambiguous pass 1 match %s -> %s, %s" %
-            (blurb(u), blurb(losers[0]), blurb(losers[1])))
-      else:
-        if losers:
-          log("* Ambiguous pass 2 match %s -> %s, %s" %
-              (blurb(u), blurb(losers[0]), blurb(losers[1])))
-        for v in winners:
-          equate_typifications(u, v)
-    if not success and False:
-      log("* No match via %s in %s x %s; best %s" %
-          (key, len(us), len(vs), explain(partial_comparison)))
+        if monitor(u) or monitor(v):
+          log("# Comparison: %s %s %s %s" %
+              (blurb(u), blurb(v), explain(comparison), dist))
+      for v in winners:
+        equate_typifications(u, v)
 
   equate_typifications(AB.in_left(AB.A.top),
                        AB.in_right(AB.B.top))
-
-def find_ambiguity(winners):
-  v0 = None
-  for v in winners:
-    if (v0 != None and
-        not typification_compatible(v, v0)):
-      return (v0, v)
-  return None
 
 # This implements transitivity of equality, I think?
 # u and v are in the same checklist
@@ -89,7 +67,7 @@ def known_same_typification(u, v):
   return False
 
 def unimportance(u):
-  p = get_parts(u)
+  p = get_parts(get_outject(u))
   if p.epithet == MISSING: imp = 4      # Foo
   if p.middle == p.epithet: imp = 1     # Foo bar bar
   elif p.middle == MISSING: imp = 2     # Foo bar
@@ -108,7 +86,7 @@ def try_in_same_checklist(us, second):
       x2 = get_outject(u2)
       dist = distance_in_checklist(x1, x2) * 2
       comparison = compare_records(u1, u2, dist)
-      if homotypic_comparison(comparison):
+      if is_homotypic_comparison(comparison):
         rel = simple.compare_per_checklist(x1, x2)
         if rel.relationship != DISJOINT:
           equate_typifications(u1, u2)
@@ -117,7 +95,8 @@ def try_in_same_checklist(us, second):
           # looks like it's always Genus sp subsp <-> Genus subsp,
           # and those can always be equated, i.e. they aren't disjoint.
           # Will this confuse downstream analysis ???
-          log("## Determining that %s ! %s are homotypic" % (blurb(u1), blurb(u2)))
+          log("** Taxa %s, %s are given as disjoint but must be homotypic" %
+              (blurb(u1), blurb(u2)))
           equate_typifications(u1, u2)
 
 # u and v are in workspace but may or may not be from same checklist
@@ -132,12 +111,17 @@ def equate_typification_ufs(uf, vf):
   vf = vf.find()
   (i1, u1, v1) = uf.payload()
   (i2, u2, v2) = vf.payload()
-  if i2 == None: i = i1
-  elif i1 == None: i = i2
-  else: i = min(i1, i2)         # Not sure if this will work
-  # What if ambiguity, i.e. pick_better_record returns False?
+
   ef = uf.absorb(vf)          # ef happens to be uf
   r = ef.payload()
+
+  if False:                     # Not needed??
+    if i2 == None: i = i1
+    elif i1 == None: i = i2
+    else: i = min(i1, i2)         # Not sure if this will work
+    r[0] = i
+
+  # What if ambiguity, i.e. pick_better_record returns False?
   r[1] = pick_better_record(u1, u2)
   r[2] = pick_better_record(v1, v2)
   return ef
@@ -214,8 +198,8 @@ def pick_better_record(v1, v2):
   if m is y2: return v1
 
   # See whether v2 is an improvement over v1
-  parts1 = get_parts(v1)
-  parts2 = get_parts(v2)
+  parts1 = get_parts(get_outject(v1))
+  parts2 = get_parts(get_outject(v2))
   if len(parts2.middle) > 0 and len(parts1.middle) == 0:
     # Longer name (subspecies overrides species).
     return v2          # Go tipward (to v2)
@@ -223,7 +207,7 @@ def pick_better_record(v1, v2):
     # Shorter name (species overrides subspecies).
     return v1                    # Keep tipward (v1)
   if is_accepted(y1) and is_accepted(y2):
-    if heterotypic_comparison(compare_records(v1, v2)):
+    if is_heterotypic_comparison(compare_records(v1, v2)):
       log('')
       log("# %s" % (parts1,))
       log("# %s" % (parts2,))
@@ -252,13 +236,13 @@ NEUTRAL = 0
 # If distance (in tree) is close, give a pass on genus mismatch.
 
 def compare_records(u, v, distance=None):
-  comparison = compare_parts(get_parts(u),
-                             get_parts(v),
+  comparison = compare_parts(get_parts(get_outject(u)),
+                             get_parts(get_outject(v)),
                              distance)
   if (monitor(u) or monitor(v)):
     log("# Comparison (%s, %s) = %s" % (blurb(u), blurb(v), comparison))
-    #log("#  %s" % (get_parts(u),))
-    #log("#  %s" % (get_parts(v),))
+    #log("#  %s" % (get_parts(get_outject(u)),))
+    #log("#  %s" % (get_parts(get_outject(v)),))
   return comparison
 
 EPITHET_MASK = 32
@@ -283,18 +267,27 @@ def compare_parts(p, q, distance=None):
 
   # Proximity within the hierarchy essential if no genus match
   if distance != None:
-    # 15 = too far apart to link
-    # 9 = neutral, most distant linkable
-    # 0 = equated, exact hit
     if distance <= NEAR_THRESHOLD: hits |= VICINITY_MASK
     elif distance > FAR_THRESHOLD: misses |= VICINITY_MASK
 
   if p.year != None and q.year != None:
     if p.year == q.year: hits |= YEAR_MASK
+    elif (p.genus and p.genus == q.genus and
+          q.token and p.token == q.token):
+      # Ignore year mismatch if genus and token match
+      if PROBE in p.scientific or PROBE in q.scientific:
+        log("# Ignoring year mismatch %s %s" % (p, q))
+      pass
     else: misses |= YEAR_MASK
 
   if p.token != None and q.token != None:
     if p.token == q.token: hits |= TOKEN_MASK
+    elif (p.genus and p.genus == q.genus and
+          q.year and p.year == q.year):
+      # Ignore token mismatch if genus and year match
+      if PROBE in p.scientific or PROBE in q.scientific:
+        log("# Ignoring token mismatch %s %s" % (p, q))
+      pass
     else: misses |= TOKEN_MASK
 
   if p.genus != None and q.genus != None:
@@ -304,7 +297,8 @@ def compare_parts(p, q, distance=None):
       hits |= GENUS_MASK
     elif p.protonymp == True and q.protonymp == True:
       # If both are protonyms, the genera have to match
-      #log("# 4 comparing %s, %s -> miss" % (p.genus, q.genus))
+      if False and (PROBE in p.scientific or PROBE in q.scientific):
+        log("# 4 comparing %s, %s -> miss" % (p.genus, q.genus))
       misses |= GENUS_MASK
     else:
       # Allow motion between genera as long as it's flagged with ()
@@ -326,17 +320,17 @@ def explain(comparison):
                       for (i, z)
                       in zip(range(0, 6),
                              (
-                              "middle",   # MIDDLE_MASK
+                              "middle",   # MIDDLE_MASK = 1 << 1
                               "genus",    # GENUS_MASK = 2 << 1
-                              "epithet",  # EPITHET_MASK
                               "token",    # TOKEN_MASK
                               "year",     # YEAR_MASK
                               "vicinity", # VICINITY_MASK
+                              "epithet",  # EPITHET_MASK
                              ))
                       if (things & (1<<i)) != 0))
-  if homotypic_comparison(comparison):
+  if is_homotypic_comparison(comparison):
     word = "homotypic"
-  if heterotypic_comparison(comparison):
+  elif is_heterotypic_comparison(comparison):
     word = "heterotypic"
   else:
     word = "equivocal"
@@ -352,25 +346,20 @@ def explain(comparison):
 #  any descendant... hmm...  there has to be a better way
 
 def homotypic(u, v, dist):
-  return homotypic_comparison(compare_records(u, v))
+  return is_homotypic_comparison(compare_records(u, v))
 
-def homotypic_comparison(comparison):
+def is_homotypic_comparison(comparison):
   (misses, hits) = comparison
   return (misses == 0 and
-          (hits & mask1 == mask1 or
-           hits & mask2 == mask2))
+          ((hits & mask1) == mask1 or
+           (hits & mask2) == mask2))
 
 mask1 = (EPITHET_MASK | GENUS_MASK)   # Formerly: YEAR_MASK, now ambiguity check
 mask2 = (EPITHET_MASK | VICINITY_MASK)
 
-def heterotypic_comparison(comparison):
+def is_heterotypic_comparison(comparison):
   (misses, hits) = comparison
   return misses > 0
-
-def comparison_to_ship(comparison):
-  if homotypic_comparison(comparison): return HOMOTYPIC    # EQ
-  elif heterotypic_comparison(comparison): return HETEROTYPIC  # NEQ
-  else: return REVIEW                         # NOINFO
 
 # -----------------------------------------------------------------------------
 
@@ -446,5 +435,5 @@ def xid_to_opposite_record(AB, xid, z):
 def xid_epithet(AB, xid):
   uf = AB.exemplar_ufs[xid]
   (_, u, v) = uf.payload()
-  parts = get_parts(u)
+  parts = get_parts(get_outject(u))
   return parts.epithet or parts.genus 

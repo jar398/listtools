@@ -104,7 +104,7 @@ def start_csv(inport, params, outport, args):
       log(("** clean: Not enough columns: row %s have %s want %s" %
              (count, len(in_row), len(in_header))))
 
-    # Filter out senior synonyms
+    # Filter out senior synonyms... is this right?
     if tax_status_pos != None and in_row[tax_status_pos] == "senior synonym":
       senior += 1
       continue
@@ -267,6 +267,7 @@ def clean_name(row, can_pos, sci_pos, auth_pos):
   s = s.replace(' and ', ' & ') # frequent in DH 1.1 ?
   s = s.replace(',,', ',')    # kludge for MDD 1.0
   s = s.replace('  ', ' ')    # kludge for MSW 3
+  s = s.replace(' *', ' ')    # frequent in MSW 3
   if s.endswith(').'): s = s[0:-1] # for MSW 3
   if s != row[sci_pos]:
     row[sci_pos] = s

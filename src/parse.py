@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 
+PROBE='cancrivorus'
+
 # Combine existing info from start.py output with parsed info from gnparse
 # to obtain meaningful parts.
 # Intended mainly for protonym sameness checks, which are for exemplar selection.
@@ -28,7 +30,7 @@ class Parts(NamedTuple):
 # columns of the original DwC - if they're present.
 
 def parse_name(verbatim,
-               gn_full=MISSING, gn_stem=MISSING, gn_auth=MISSING, \
+               gn_full=MISSING, gn_stem=MISSING, gn_auth=MISSING, 
                canonical=MISSING, authorship=MISSING):
   verbatim = verbatim.replace('  ', ' ')     # two -> one
   canonical = canonical.strip()
@@ -54,13 +56,15 @@ def parse_name(verbatim,
     if False and gn_full.count(' ') + auth_n != verbatim.count(' '):
       log("** chunk count mismatch: %s + %s != %s" %
           (gn_full, gn_auth, verbatim))
-    if gn_stem == MISSING: gn_stem = gn_full # Space saving kludge
     # Epithet will be stemmed
     if is_polynomial(gn_full):
       (canonical, g, mid, e) = recover_canonical(gn_full, gn_stem, gn_auth, canonical0)
     else:
       (canonical, g, mid, e) = (gn_full, gn_full, '', '')
     auth = gn_auth
+    if PROBE in verbatim:
+      log("# Parsed stem '%s' as '%s' '%s'" % (gn_stem, g, e))
+
   else:
     canonical = canonical0
     auth = auth0
@@ -74,6 +78,8 @@ def parse_name(verbatim,
       g = canonical
       mid = MISSING
       e = MISSING
+    if PROBE in verbatim:
+      log("# Parsed canonical '%s' as '%s' '%s'" % (canonical, g, e))
 
   if g == '?': g = None         # cf. use_gnparse.py, but careful MSW3
   if mid == '?': mid = None
@@ -101,9 +107,12 @@ def parse_name(verbatim,
     log("# parse: protonymps differ: gn %s / ad hoc %s" %
         (auth, auth0))
     protonymp = protonymp2
-  return Parts(verbatim, canonical, g, mid, e, auth, t, y, protonymp)
+  parts = Parts(verbatim, canonical, g, mid, e, auth, t, y, protonymp)
+  if PROBE in verbatim: log("# Parts: %s" % (parts,))
+  return parts
 
 # Recover the canonical name and its part from the gnparser result.
+# N.g. the returned epithet will be stemmed.
 
 # This ought to be trivial but the problem is that gnparser drops
 # tokens that occur after the last alphabetic epithet.  So we have to
@@ -116,7 +125,7 @@ def recover_canonical(gn_full, gn_stem, gn_auth, hack_canonical):
   hack_canonical_chunks = hack_canonical.split(' ')
   n_hack_canonical_chunks = len(hack_canonical_chunks)
 
-  n_full_chunks = gn_full.count(' ')
+  n_full_chunks = gn_full.count(' ') + 1
   # gnparser "Cryptotis avia  G. M. Allen, 1923 as C. thomasi & C. avia."
   if n_full_chunks < n_hack_canonical_chunks:
     # gnparser has dropped stuff off the end or out of middle.  Do not use.
@@ -125,10 +134,19 @@ def recover_canonical(gn_full, gn_stem, gn_auth, hack_canonical):
     g = hack_canonical_chunks[0]
     mid = ' '.join(hack_canonical_chunks[1:-1])
     e = hack_canonical_chunks[-1]
+    # TBD: make use of gnparse' stemming
+    if PROBE in hack_canonical:
+      log("# Recovered ad hoc '%s' '%s' '%s'" % (g, mid, e))
+      log("#  because '%s' '%s'" %
+          (gn_full, hack_canonical))
   else:
     if n_full_chunks > n_hack_canonical_chunks:
       # ** Ill formed canonical name: Homo sapiens × Rattus norvegicus fusion cell line
-      log("** Ill formed canonical name: full %s\n / hack %s" % (gn_full, hack_canonical_chunks))
+      # This could be the symptom of an ill-formed authority
+      # ** Using gn_full 'Sorex ? megalotis' not ad hoc 'Sorex ?'
+      # ** Using gn_full 'Taphozous swirae sudani' not ad hoc 'Taphozous swirae'
+      log("** canonicalName '%s' is truncated; gn_full is '%s'" %
+          (hack_canonical, gn_full))
     c = gn_full
     stem_chunks = gn_stem.split(' ')
     g = stem_chunks[0]
@@ -139,6 +157,8 @@ def recover_canonical(gn_full, gn_stem, gn_auth, hack_canonical):
       # Uninomial (e.g. genus, family)
       mid = ''
       e = ''
+    if PROBE in e:
+      log("# Recovered GN '%s' '%s' '%s'" % (g, mid, e))
   return (c, g, mid, e)
 
 # Split complete into genus, middle, epithet
@@ -173,7 +193,7 @@ LP = "\\("
 RP = "\\)"
 split_re = \
   regex.compile(u"(.+?) (((%s)?)\p{Uppercase_Letter}[\p{Letter}.'-]+.*)$" % LP)
-token_re = regex.compile(u"\p{Uppercase_Letter}[\p{Letter}{3}-]+")
+token_re = regex.compile(u"\p{Uppercase_Letter}[\p{Letter}-]{3,}")
 # Loses with Van Beneden & Gervais, 1868-79
 year_re_string = '\\b([12][0-9]{3})\\b'
 year_re = regex.compile(year_re_string)

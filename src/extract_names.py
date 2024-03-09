@@ -25,6 +25,7 @@ for row in reader:
   if name == MISSING:
     if can_pos != None and row[can_pos] != MISSING:
       name = row[can_pos]
+      # clean_name takes care of appending canonical + authority
     elif rank_pos != None and gen_pos != None and spec_pos != None:
       # genericName,specificEpithet  if rank is species
       # genericName,specificEpithet,infraspecificEpithet  if rank is subspecies

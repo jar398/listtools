@@ -75,27 +75,27 @@ def use_parse(gn_iter, check_iter):
     if gn_full.endswith('ii') and gn_stem.endswith('i'):
       # Fixed in gnparse, but I'm still using older version
       gn_stem = gn_stem[0:-1]
-    if gn_stem == gn_full:
-      gn_stem = MISSING         # kludge to make csv a little easier to read
 
     if out_row[out_canon_pos] == MISSING:
       out_row[out_canon_pos] = gn_full
     if out_row[out_sci_pos] == MISSING:
       out_row[out_sci_pos] = gn_verb
 
+    out_row[out_gn_full_pos] = gn_full
+    out_row[out_gn_stem_pos] = gn_stem
+    out_row[out_gn_auth_pos] = gn_auth
+
     q = int(gn_row[quality_pos])
-    if q < 4:
-      out_row[out_gn_full_pos] = gn_full
-      out_row[out_gn_stem_pos] = gn_stem
-      out_row[out_gn_auth_pos] = gn_auth
-    else:
+    if gn_full == MISSING or gn_stem == MISSING or q >= 4:
+      log("** %s: gnparse failure, quality %s: '%s'" %
+          (row_count, q, gn_verb))
       loser_count += 1
 
     yield out_row
 
   log("-- use_gnparse: %s rows" % (row_count,))
   if loser_count > 0:
-    log("-- %s rows had gnparse quality >= 4" % loser_count)
+    log("-- %s rows with poor gnparse quality" % loser_count)
 
 def fix_question_mark(s):
   if s.startswith('Xyzzy'):
