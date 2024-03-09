@@ -87,15 +87,12 @@ def get_subproblem_key(z):
   parts = get_parts(get_outject(z))
   ep = parts.epithet            # stemmed
   key = ep if ep else parts.genus
-  if key == None:
-    log("* No name: %s" % (parts,))
-    key = '?'
+  if key:
+    if monitor(z):
+      log("# Subproblem key is %s (%s)" % (key, blurb(z)))
   else:
-    if key:
-      if monitor(z):
-        log("# Subproblem key is %s (%s)" % (key, blurb(z)))
-    else:
-      log("# Falsish subproblem key is %s (%s)" % (key, blurb(z)))
+    log("## Falsish name: %s" % (parts,))
+    key = '?'
   return key
 
 # ------

@@ -58,7 +58,7 @@ def parse_name(verbatim,
           (gn_full, gn_auth, verbatim))
     # Epithet will be stemmed
     if is_polynomial(gn_full):
-      (canonical, g, mid, e) = recover_canonical(gn_full, gn_stem, gn_auth, canonical0)
+      (canonical, g, mid, e) = recover_canonical(gn_full, gn_stem, canonical0)
     else:
       (canonical, g, mid, e) = (gn_full, gn_full, '', '')
     auth = gn_auth
@@ -119,7 +119,7 @@ def parse_name(verbatim,
 # recover them from the original non-GN scientific name ('verbatim').
 # Returns (canonical, genus, epithet)
 
-def recover_canonical(gn_full, gn_stem, gn_auth, hack_canonical):
+def recover_canonical(gn_full, gn_stem, hack_canonical):
   # Recover parts that gnparse stripped off, from verbatim
   hack_canonical = hack_canonical.strip()
   hack_canonical_chunks = hack_canonical.split(' ')
@@ -127,19 +127,7 @@ def recover_canonical(gn_full, gn_stem, gn_auth, hack_canonical):
 
   n_full_chunks = gn_full.count(' ') + 1
   # gnparser "Cryptotis avia  G. M. Allen, 1923 as C. thomasi & C. avia."
-  if n_full_chunks < n_hack_canonical_chunks:
-    # gnparser has dropped stuff off the end or out of middle.  Do not use.
-    # This is not a good parse if name is not neolatinate.
-    c = hack_canonical
-    g = hack_canonical_chunks[0]
-    mid = ' '.join(hack_canonical_chunks[1:-1])
-    e = hack_canonical_chunks[-1]
-    # TBD: make use of gnparse' stemming
-    if PROBE in hack_canonical:
-      log("# Recovered ad hoc '%s' '%s' '%s'" % (g, mid, e))
-      log("#  because '%s' '%s'" %
-          (gn_full, hack_canonical))
-  else:
+  if n_full_chunks >= n_hack_canonical_chunks and gn_full and gn_stem:
     if n_full_chunks > n_hack_canonical_chunks:
       # ** Ill formed canonical name: Homo sapiens × Rattus norvegicus fusion cell line
       # This could be the symptom of an ill-formed authority
@@ -159,6 +147,20 @@ def recover_canonical(gn_full, gn_stem, gn_auth, hack_canonical):
       e = ''
     if PROBE in e:
       log("# Recovered GN '%s' '%s' '%s'" % (g, mid, e))
+    assert e or g, ("good", stem_chunks)
+  else:
+    # gnparser has dropped stuff off the end or out of middle.  Do not use.
+    # This is not a good parse if name is not neolatinate.
+    c = hack_canonical
+    g = hack_canonical_chunks[0]
+    mid = ' '.join(hack_canonical_chunks[1:-1])
+    e = hack_canonical_chunks[-1]
+    # TBD: make use of gnparse' stemming
+    if PROBE in hack_canonical:
+      log("# Recovered ad hoc '%s' '%s' '%s'" % (g, mid, e))
+      log("#  because '%s' '%s'" %
+          (gn_full, hack_canonical))
+    assert e or g, "bad"
   return (c, g, mid, e)
 
 # Split complete into genus, middle, epithet
