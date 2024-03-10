@@ -29,13 +29,13 @@ def generate_plugin_report(AB):
   # species in B that should be adopted by taxa in A
   adoptees = find_adoptees(AB)
 
-  def process_subtree(x):
+  def process_subtree(AB, x):
     yield from process_record(x)
     infs = list(get_inferiors(x))
     infs.sort(key=plugin_sort_key)
     for c in infs:
-      yield from process_subtree(c)
-    process_new_species(AB.in_left(x))
+      yield from process_subtree(AB, c)
+    yield from process_new_species(AB.in_left(x))
 
   # TBD: Deal with situation where one of these comes from a
   # subspecies or synonym in A
@@ -46,8 +46,8 @@ def generate_plugin_report(AB):
       v_not_u = show_xid_set(AB, get_block(v))
       yield (MISSING,           # concept not in A
              MISSING,           # concept not in A
-             "de novo or split off",
-             ". " + show_relation(relation(NOINFO, y)),
+             "added name",
+             ". " + show_relation(relation(NOINFO, v)),
              MISSING,           # intersecting
              ". " + show_relation(local_sup(AB, v)),     # lub in B?
              MISSING,                          # in A and B
@@ -88,14 +88,12 @@ def generate_plugin_report(AB):
           rels2 = (rel for rel in rels if not v is rel.record)
         else:
           rels2 = rels
-          if len(rels) == 1 and rels[0].relationship == EQ:
+          if len(rels) == 1:  # and rels[0].relationship == EQ:
             # Curation issue probably (e.g. MSW3)
             v1 = rels[0].record
-            if True or monitor(u) or monitor(v1):
-              p = get_parts(get_outject(u))
-              q = get_parts(get_outject(v1))
-              log("** Equality inferred between putatively heterotypic taxa: %s\n   %s ?= %s" %
-                  (explain(compare_records(u, v1)), blurb(u), blurb(v1)))
+            log("** Concepts inferred to be homotypic: %s, %s" %
+                (blurb(u), blurb(v1)))
+            v = v1
 
         inter = '. ' + ';'.join(map(show_relation, rels2))
         if v:
@@ -124,14 +122,14 @@ def generate_plugin_report(AB):
           # or (v and theory.is_species(v) and v is bud)):
           yield (get_primary_key(x),
                  blurb(x),
-                 "confusing" if rels else "lumped or removed",
+                 "unclear" if rels else "removed name",
                  MISSING,
                  inter,
                  lub,
                  MISSING, MISSING, MISSING,
                  )
 
-  yield from process_subtree(AB.A.top)
+  yield from process_subtree(AB, AB.A.top)
 
 # s is a set of exemplar ids
 
@@ -164,13 +162,6 @@ def impute_operation(AB, u, bud, v):
       else:
         ops.append("accepted")
 
-    p1 = get_parts(get_outject(u))
-    p2 = get_parts(get_outject(v))
-    if p1.epithet != p2.epithet:
-      ops.append("epithet")
-    if p1.genus != p2.genus:
-      ops.append("moved")
-
   rel = theory.compare(AB, u, v)
   if rel.relationship == LT:
     ops.append("lumped")
@@ -180,7 +171,14 @@ def impute_operation(AB, u, bud, v):
     ops.append("split")
   elif rel.relationship == GE:
     ops.append("perhaps split")
-  elif rel.relationship != EQ:
+  elif rel.relationship == EQ:
+    p1 = get_parts(get_outject(u))
+    p2 = get_parts(get_outject(v))
+    if p1.genus != p2.genus:
+      ops.append("moved")
+    if p1.epithet != p2.epithet:
+      ops.append("epithet")
+  else:                         # OVERLAP etc.
     ops.append("concept")
   if len(ops) == 0:
     return "unchanged"

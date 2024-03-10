@@ -10,7 +10,7 @@ from checklist import *
 
 # Returns a Relation explaining justification
 
-def compare_per_checklist(x, y):             # Within a single checklist
+def compare_per_checklist_1(x, y):             # Within a single checklist
   if x is y:
     return relation(EQ, y)              # even if synonym
   x1 = get_accepted(x)
@@ -19,18 +19,34 @@ def compare_per_checklist(x, y):             # Within a single checklist
     return compare_siblings(x, x1, y1, y)
   return compare_accepted_in_checklist(x, y)
 
+def compare_per_checklist(x, y):             # Within a single checklist
+  x1 = get_accepted(x)
+  y1 = get_accepted(y)
+  rel = compare_accepted_in_checklist(x1, y1)
+  if not x is x1:
+    syn = relation(synonym_relationship(x, x1), x1, "synonym of", span=1)
+    rel = compose_relations(syn, rel)
+  if not y is y1:
+    syn = relation(reverse_relationship(synonym_relationship(y, y1)),
+                   y, "has synonym", span=1)
+    rel = compose_relations(rel, syn)
+  return rel
+
 # x and y are accepted, no synonyming around.
 
 def compare_accepted_in_checklist(x, y):
   (x_peer, y_peer) = find_peers(x, y)    # Decrease levels as needed
   if x_peer == y_peer:     # x <= x_peer = y_peer >= y
-    if x_peer == x:     # x = x_peer = y_peer > y, so x > y
+    peer = x_peer
+    if peer == x and peer == y:     # x = peer > y, so x > y
+      return relation(EQ, y)   # x = peer = y
+    elif peer == x:
       sup = get_superior(y)
       if sup and x == sup.record:
         return reverse_relation(y, sup)
       else:
         return relation(GT, y, note="x = xp = yp > y")
-    elif y_peer == y:
+    elif peer == y:              # x < peer = y, so x < y
       # if x_peer is parent of y, then use sup relation
       sup = get_superior(x)
       if sup and y == sup.record:
@@ -38,7 +54,7 @@ def compare_accepted_in_checklist(x, y):
       else:
         return relation(LT, y, note="x < xp = yp = y")
     else:
-      return relation(EQ, y)   # x = x_peer = y_peer = y
+      assert False
   else:
     if False:
       log("# peers: %s <= %s != %s >= %s" %

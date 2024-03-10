@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-PROBE='cancrivorus'
+PROBE='zzzz'
 
 # Combine existing info from start.py output with parsed info from gnparse
 # to obtain meaningful parts.
@@ -104,8 +104,9 @@ def parse_name(verbatim,
   if protonymp != None and protonymp2 != None and \
      protonymp != protonymp2:
     # parse: protonymps differ: gn Hinton 1919 / ad hoc (Fitzinger, 1867) wroughtoni Hinton, 1919
-    log("# parse: protonymps differ: gn %s / ad hoc %s" %
-        (auth, auth0))
+    if False:   #too much of this in msw3
+     log("# parse: protonymps differ: gn %s / ad hoc %s" %
+         (auth, auth0))
     protonymp = protonymp2
   parts = Parts(verbatim, canonical, g, mid, e, auth, t, y, protonymp)
   if PROBE in verbatim: log("# Parts: %s" % (parts,))

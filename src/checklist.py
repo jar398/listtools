@@ -691,9 +691,10 @@ def blurb(r):
     return "[?]"
 
 def monitor(x):
+  if True: return False
   if not x: return False
   name = get_canonical(x, '')
-  return (name == "Procyon cancrivorus"
+  return (#name == "Procyon cancrivorus"
           #name == "Holochilus vulpinus" #or
           #name == "Holochilus brasiliensis" or
           #name == "Holochilus darwini"

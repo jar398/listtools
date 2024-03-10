@@ -114,11 +114,6 @@ def start_csv(inport, params, outport, args):
 
     out_row = in_row + [MISSING] * (len(out_header) - len(in_row))
 
-    # Shouldn't have both accepted and parent
-    if False:                   # why disabled?
-      if accepted_pos and parent_pos and in_row[accepted_pos] and in_row[parent_pos]:
-        out_row[parent_pos] = MISSING
-
     if tax_status_pos != None:
       stat = in_row[tax_status_pos].lower()
       indication_2 = (stat.startswith("accepted") or
@@ -219,8 +214,8 @@ def normalize_accepted(row, taxon_id_pos, parent_pos, accepted_pos):
         row[accepted_pos] == row[taxon_id_pos]):
       row[accepted_pos] = MISSING
       return True
-    elif False and parent_pos != None and row[accepted_pos] != row[parent_pos]:
-      # Norwegian national checklist has bogus parent pointers for synonyms
+    if parent_pos != None and row[parent_pos] != MISSING:
+      # Norwegian national checklist has bogus parent pointers for synonyms...?
       row[parent_pos] = MISSING
       return True
   return False

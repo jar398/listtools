@@ -33,7 +33,7 @@ def theorize(AB, compute_exemplars=True):
 # Returns a relation.
 
 def compare(AB, v, w):
-  if separated(v, w):
+  if separated(v, w):           # in different checklists?
     return cross_compare(AB, v, w)
   else:
     return compare_locally(AB, v, w)
@@ -104,12 +104,12 @@ def compare_centrally(AB, u, v):
   b2 = get_block(v)
   assert b1 != BOTTOM_BLOCK
   assert b2 != BOTTOM_BLOCK
-  ship = block_relationship(b1, b2)
   if b1 == b2:
     #! In same block.  Use names to figure out relationships.
     return compare_within_block(AB, u, v)
   else:
     # i.e. exemplar sets are different
+    ship = block_relationship(b1, b2)
     return optimize_relation(AB, u,
                              relation(ship, v, note="exemplar set comparison"))
 

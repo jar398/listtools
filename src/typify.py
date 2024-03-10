@@ -8,7 +8,7 @@ import simple
 from util import log, MISSING, UnionFindable
 from rcc5 import EQ, NEQ, DISJOINT
 from checklist import get_parts, monitor, get_superior, get_children, \
-  is_accepted, blurb, get_scientific
+  is_accepted, blurb, get_scientific, get_primary_key
 from workspace import separated, get_outject, get_workspace
 from workspace import isinA, isinB
 
@@ -35,11 +35,14 @@ def find_typifications(AB, subproblems, get_pre_estimate, second):
         # **** COMPUTE DISTANCE if 2nd pass ****
         dist = compute_distance(u, v, get_pre_estimate)
         comparison = compare_records(u, v, dist)
-        if is_homotypic_comparison(comparison):
-          winners.append(v)
         if monitor(u) or monitor(v):
           log("# Comparison: %s %s %s %s" %
               (blurb(u), blurb(v), explain(comparison), dist))
+        if is_homotypic_comparison(comparison):
+          winners.append(v)
+          break  # Experimental
+      # What to do if some winners are disjoint from others
+      # (separate exemplars)?
       for v in winners:
         equate_typifications(u, v)
 
@@ -69,20 +72,19 @@ def known_same_typification(u, v):
 def unimportance(u):
   p = get_parts(get_outject(u))
   if p.epithet == MISSING: imp = 4      # Foo
-  if p.middle == p.epithet: imp = 1     # Foo bar bar
   elif p.middle == MISSING: imp = 2     # Foo bar
+  elif p.middle == p.epithet: imp = 1     # Foo bar bar
   else: imp = 3                         # Foo bar baz
   if not is_accepted(get_outject(u)):
     imp += 10
-  return imp
+  return (imp, get_primary_key(u))
 
 def try_in_same_checklist(us, second):
   for i in range(0, len(us)):
     u1 = us[i]
-    for j in range(i, len(us)):
-      # if i == j: continue  ???
+    x1 = get_outject(u1)
+    for j in range(i+1, len(us)):
       u2 = us[j]
-      x1 = get_outject(u1)
       x2 = get_outject(u2)
       dist = distance_in_checklist(x1, x2) * 2
       comparison = compare_records(u1, u2, dist)
@@ -90,19 +92,19 @@ def try_in_same_checklist(us, second):
         rel = simple.compare_per_checklist(x1, x2)
         if rel.relationship != DISJOINT:
           equate_typifications(u1, u2)
-        elif second and is_accepted(x1) and is_accepted(x2):
+        elif second:  # and is_accepted(x1) and is_accepted(x2):
           # Occurs in COL mussels 2022 vs. 2023...
           # looks like it's always Genus sp subsp <-> Genus subsp,
           # and those can always be equated, i.e. they aren't disjoint.
           # Will this confuse downstream analysis ???
-          log("** Taxa %s, %s are given as disjoint but must be homotypic" %
+          log("** Taxa %s, %s are given as disjoint but seem to be homotypic" %
               (blurb(u1), blurb(u2)))
-          equate_typifications(u1, u2)
+          # equate_typifications(u1, u2)
 
 # u and v are in workspace but may or may not be from same checklist
 
 def equate_typifications(u, v):     # opposite checklists. u might be species
-  if u != v:
+  if u is not v:
     equate_typification_ufs(get_typification_uf(u), get_typification_uf(v))
   return u
 
@@ -208,13 +210,7 @@ def pick_better_record(v1, v2):
     return v1                    # Keep tipward (v1)
   if is_accepted(y1) and is_accepted(y2):
     if is_heterotypic_comparison(compare_records(v1, v2)):
-      log('')
-      log("# %s" % (parts1,))
-      log("# %s" % (parts2,))
-      log("# middles '%s' '%s'" % (parts1.middle,  parts2.middle))
-      log("# %s, %s <= %s" % (blurb(y1), blurb(y2), blurb(m)))
-      log("# typify: Ambiguous: %s & %s" %
-          (blurb(v1), blurb(v2)))
+      log("** Apparent duplicate / ambiguity: %s %s" % (blurb(v1), blurb(v2)))
       return False  # Ambiguous
     elif get_scientific(v1) < get_scientific(v2):
       return v1
@@ -276,7 +272,7 @@ def compare_parts(p, q, distance=None):
           q.token and p.token == q.token):
       # Ignore year mismatch if genus and token match
       if PROBE in p.scientific or PROBE in q.scientific:
-        log("# Ignoring year mismatch %s %s" % (p, q))
+        log("# Ignoring year mismatch '%s' '%s'" % (p.scientific, q.scientific))
       pass
     else: misses |= YEAR_MASK
 
@@ -286,7 +282,7 @@ def compare_parts(p, q, distance=None):
           q.year and p.year == q.year):
       # Ignore token mismatch if genus and year match
       if PROBE in p.scientific or PROBE in q.scientific:
-        log("# Ignoring token mismatch %s %s" % (p, q))
+        log("# Ignoring token mismatch '%s' '%s'" % (p.scientific, q.scientific))
       pass
     else: misses |= TOKEN_MASK
 
