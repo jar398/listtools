@@ -42,24 +42,18 @@ def compare(AB, v, w):
 # Returns a Relative to w
 
 # u <= u1 ? w1 >= w
-def cross_compare(AB, u, w):
-  assert separated(u, w)
-  rel3r = get_accepted_relation(w)     # w <= w1
-  rel1 = get_accepted_relation(u)      # u <= u1
-  u1 = rel1.record
-  w1 = rel3r.record
-  rel3 = reverse_relation(w, rel3r)    # w1 >= w
-  assert get_workspace(rel3.record) # ***********************
-  # compare rel1 and rel3, which are accepted, in opposite checklists
-  assert separated(u1, w1)
-  rel2 = compare_accepted(AB, u1, w1)
-  if rel2.relationship == EQ:
-    # Species and one synonym, or two synonyms
-    rel = simple.compare_siblings(u, u1, w1, w)
-    assert get_workspace(rel.record) # ***********************
-  else:
-    rel = compose_final(u, rel1, rel2, rel3)
-    assert get_workspace(rel.record) # ***********************
+def cross_compare(AB, u, v):
+  assert separated(u, v)
+  u1 = get_accepted(u)
+  v1 = get_accepted(v)
+  rel = compare_accepted(AB, u1, v1)
+  # Cf. simple.compare_per_checklist
+  if not u is u1:
+    syn = get_superior(u)
+    rel = compose_relations(syn, rel)
+  if not v is v1:
+    syn = reverse_relation(v1, get_superior(v))
+    rel = compose_relations(rel, syn)
   return rel
 
 # Compare two nodes that are known to be accepted

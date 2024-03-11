@@ -43,16 +43,15 @@ def generate_plugin_report(AB):
     for v in mep_get(adoptees, u, ()):
       # v a non-synonym species
       y = get_outject(v)
-      v_not_u = show_xid_set(AB, get_block(v))
       yield (MISSING,           # concept not in A
              MISSING,           # concept not in A
              "added name",
              ". " + show_relation(relation(NOINFO, v)),
              MISSING,           # intersecting
-             ". " + show_relation(local_sup(AB, v)),     # lub in B?
+             ". " + show_relation(theory.get_central(AB, v)),     # lub in B?
              MISSING,                          # in A and B
              MISSING,                          # in A but not B
-             v_not_u,                          # in B but not A
+             MISSING,                          # in B but not A
              )
 
   def plugin_sort_key(x):
@@ -104,11 +103,15 @@ def generate_plugin_report(AB):
           u_and_v = show_xid_set(AB, u_ids & v_ids)
           u_not_v = show_xid_set(AB, u_ids - v_ids)
           v_not_u = show_xid_set(AB, v_ids - u_ids)
+          if bud:
+            via_type = ". " + show_relation(theory.compare(AB, u, v))
+          else:
+            via_type = MISSING
 
           yield (get_primary_key(x),
                  blurb(x),
                  operation or '-',
-                 ". " + show_relation(theory.compare(AB, u, v)),
+                 via_type,
                  inter,
                  lub,
                  u_and_v, u_not_v, v_not_u,

@@ -10,74 +10,44 @@ from checklist import *
 
 # Returns a Relation explaining justification
 
-def compare_per_checklist_1(x, y):             # Within a single checklist
-  if x is y:
-    return relation(EQ, y)              # even if synonym
-  x1 = get_accepted(x)
-  y1 = get_accepted(y)
-  if x1 is y1:                    # same accepted
-    return compare_siblings(x, x1, y1, y)
-  return compare_accepted_in_checklist(x, y)
-
 def compare_per_checklist(x, y):             # Within a single checklist
   x1 = get_accepted(x)
   y1 = get_accepted(y)
   rel = compare_accepted_in_checklist(x1, y1)
+  # Cf. theory.cross_compare
   if not x is x1:
-    syn = relation(synonym_relationship(x, x1), x1, "synonym of", span=1)
-    rel = compose_relations(syn, rel)
+    syn = get_superior(x)               # x <= x1
+    rel = compose_relations(syn, rel)   # x <= x1 ? y1
   if not y is y1:
-    syn = relation(reverse_relationship(synonym_relationship(y, y1)),
-                   y, "has synonym", span=1)
-    rel = compose_relations(rel, syn)
+    syn = reverse_relation(y1, get_superior(y))  # y1 >= y
+    rel = compose_relations(rel, syn)   # x <= x1 ? y1 >= y
   return rel
 
 # x and y are accepted, no synonyming around.
 
 def compare_accepted_in_checklist(x, y):
   (x_peer, y_peer) = find_peers(x, y)    # Decrease levels as needed
-  if x_peer == y_peer:     # x <= x_peer = y_peer >= y
+  if x_peer is y_peer:     # x <= x_peer = y_peer >= y
     peer = x_peer
-    if peer == x and peer == y:     # x = peer > y, so x > y
+    if x is y:
       return relation(EQ, y)   # x = peer = y
-    elif peer == x:
+    elif peer is x:
       sup = get_superior(y)
-      if sup and x == sup.record:
+      if sup and x is sup.record:
         return reverse_relation(y, sup)
       else:
         return relation(GT, y, note="x = xp = yp > y")
-    elif peer == y:              # x < peer = y, so x < y
+    elif peer is y:              # x < peer = y, so x < y
       # if x_peer is parent of y, then use sup relation
       sup = get_superior(x)
-      if sup and y == sup.record:
+      if sup and y is sup.record:
         return sup
       else:
         return relation(LT, y, note="x < xp = yp = y")
     else:
       assert False
   else:
-    if False:
-      log("# peers: %s <= %s != %s >= %s" %
-          (blurb(x), blurb(x_peer), blurb(y_peer), blurb(y)))
     return relation(DISJOINT, y, note="x < xp = yp > y")
-
-# Either x or y is a synonym (maybe both).
-# Compare x to y under the assumption that accepted(x) = accepted(y).
-# x and y might be in different checklists.
-# Requires review.
-
-def compare_siblings(x, x1, y1, y):
-  if x != x1 and y != y1:       # x <= x1 = y1 >= y
-    return relation(NOINFO, y, "sibling synonyms", span=2)
-  elif x != x1:
-    # LT -> heterotypic, EQ -> homotypic (?), SYNONYM -> unknown
-    return relation(synonym_relationship(x, x1), y, "synonym of", span=1)
-  elif y != y1:
-    return relation(reverse_relationship(synonym_relationship(y, y1)),
-                    y, "has synonym", span=1)
-  else:
-    # Provide match info ??
-    return relation(EQ, y, MISSING if x == y else "equivalent", span=0)
 
 # (ship, note) =     return relation(ship, y, note=note)
 

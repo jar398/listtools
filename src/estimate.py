@@ -6,7 +6,7 @@ import checklist, workspace, simple
 from util import log
 from checklist import *
 from workspace import *
-from simple import BOTTOM, compare_per_checklist, compare_siblings
+from simple import BOTTOM, compare_per_checklist
 from typify import equate_typifications, get_typification_record, \
   get_link, get_exemplar
 from typify import xid_to_record, xid_to_opposite_record

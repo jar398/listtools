@@ -107,6 +107,7 @@ def relation(ship, record, note=MISSING, span=None):
   return Relation(ship, record, span, note)
 
 def reverse_relation(starting, rel):
+  assert isinstance(rel, Relation)
   return Relation(reverse_relationship(rel.relationship),
                   starting,
                   rel.span,
