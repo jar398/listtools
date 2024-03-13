@@ -87,8 +87,9 @@ def use_parse(gn_iter, check_iter):
 
     q = int(gn_row[quality_pos])
     if gn_full == MISSING or gn_stem == MISSING or q >= 4:
-      log("** %s: gnparse failure, quality %s: '%s'" %
-          (row_count, q, gn_verb))
+      if q > 0:                 # e.g. BOLD:ACH7315
+        log("** %s: gnparse failure, quality %s: '%s'" %
+            (row_count, q, gn_verb))
       loser_count += 1
 
     yield out_row

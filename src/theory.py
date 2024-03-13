@@ -328,11 +328,13 @@ def get_buddy(AB, u):
     v = e[2]
   else:
     v = e[1]
-  if get_rank(u, None) == get_rank(v, None):
-    return v
-  q = local_sup(AB, v).record
-  if get_exemplar(q) is e:
+  v = local_accepted(AB, v)
+  if get_rank(u, None) != get_rank(v, None):
+    # e.g. u rank is species, v rank is subspecies
+    q = local_sup(AB, v).record
     if get_rank(u, None) == get_rank(q, None):
-      return q
-  # Ranks don't match - maybe it's a promotion/demotion
-  return v
+      # Ranks don't match - maybe it's a promotion/demotion?
+      v = q
+  if get_exemplar(v) is e:
+    return v
+  return None

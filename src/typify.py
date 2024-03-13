@@ -1,6 +1,5 @@
 from parse import PROBE
 
-import math
 import util
 import property as prop
 import simple
@@ -14,7 +13,7 @@ from workspace import isinA, isinB
 
 # This runs twice.  'second' means we're on the second pass.
 
-def find_typifications(AB, subproblems, get_pre_estimate, second):
+def find_typifications(AB, subproblems, get_estimate, second):
   # This sets the 'typification_uf' property of ... some ... records.
 
   n = 1
@@ -33,7 +32,10 @@ def find_typifications(AB, subproblems, get_pre_estimate, second):
         v = vs[j]
         # classify as (HETEROTYPIC, REVIEW, HOMOTYPIC)
         # **** COMPUTE DISTANCE if 2nd pass ****
-        dist = compute_distance(u, v, get_pre_estimate)
+        if second:
+          dist = compute_distance(u, v, get_estimate)
+        else:
+          dist = None
         comparison = compare_records(u, v, dist)
         if monitor(u) or monitor(v):
           log("# Comparison: %s %s %s %s" %
@@ -86,20 +88,12 @@ def try_in_same_checklist(us, second):
     for j in range(i+1, len(us)):
       u2 = us[j]
       x2 = get_outject(u2)
-      dist = distance_in_checklist(x1, x2) * 2
+      dist = simple.distance_in_checklist(x1, x2)
       comparison = compare_records(u1, u2, dist)
       if is_homotypic_comparison(comparison):
         rel = simple.compare_per_checklist(x1, x2)
         if rel.relationship != DISJOINT:
           equate_typifications(u1, u2)
-        elif second:  # and is_accepted(x1) and is_accepted(x2):
-          # Occurs in COL mussels 2022 vs. 2023...
-          # looks like it's always Genus sp subsp <-> Genus subsp,
-          # and those can always be equated, i.e. they aren't disjoint.
-          # Will this confuse downstream analysis ???
-          log("** Taxa %s, %s are given as disjoint but seem to be homotypic" %
-              (blurb(u1), blurb(u2)))
-          # equate_typifications(u1, u2)
 
 # u and v are in workspace but may or may not be from same checklist
 
@@ -210,7 +204,8 @@ def pick_better_record(v1, v2):
     return v1                    # Keep tipward (v1)
   if is_accepted(y1) and is_accepted(y2):
     if is_heterotypic_comparison(compare_records(v1, v2)):
-      log("** Apparent duplicate / ambiguity: %s %s" % (blurb(v1), blurb(v2)))
+      log("** Apparent duplicate / ambiguity: %s %s" %
+          (get_scientific(v1), get_scientific(v2)))
       return False  # Ambiguous
     elif get_scientific(v1) < get_scientific(v2):
       return v1
@@ -248,8 +243,8 @@ TOKEN_MASK = 4
 GENUS_MASK = 2
 MIDDLE_MASK = 1
 
-NEAR_THRESHOLD = 7
-FAR_THRESHOLD = 13              # this is the important one
+NEAR_THRESHOLD = 35
+FAR_THRESHOLD = 1000
 
 # Compare potentially homotypic names.  Returns (m1, m2) where m1 and
 # m2 are integer masks, m1 for differences and m2 for similarities.
@@ -263,8 +258,10 @@ def compare_parts(p, q, distance=None):
 
   # Proximity within the hierarchy essential if no genus match
   if distance != None:
-    if distance <= NEAR_THRESHOLD: hits |= VICINITY_MASK
-    elif distance > FAR_THRESHOLD: misses |= VICINITY_MASK
+    if distance <= NEAR_THRESHOLD:
+      hits |= VICINITY_MASK
+    elif distance > FAR_THRESHOLD:
+      misses |= VICINITY_MASK
 
   if p.year != None and q.year != None:
     if p.year == q.year: hits |= YEAR_MASK
@@ -365,43 +362,18 @@ def is_heterotypic_comparison(comparison):
 # For mammals, tip to root is expected to be about 13... 
 # For 2M species, tip to root is expected to be about 20... 
 
-def compute_distance(u, v, get_pre_estimate):
+def compute_distance(u, v, get_estimate):
   assert separated(u, v)
-  up = get_pre_estimate(u, None)
-  vp = get_pre_estimate(v, None)
-  if up and vp:
-    return int((compute_half_distance(u, v, up) +
-                compute_half_distance(v, u, vp))/2)
-  else:
-    return None
+  half1 = compute_half_distance(u, v, get_estimate)
+  half2 = compute_half_distance(v, u, get_estimate)
+  return int((half1 + half2)//2)
 
-def compute_half_distance(u, v, up):
+def compute_half_distance(u, v, get_estimate):
+  assert separated(u, v)
+  u_est = get_estimate(u, None)
   # u < u1 <= (v1 < m > v)
-  assert separated(u, v)
-  v1 = up.record
-  dist = distance_in_checklist(get_outject(v), get_outject(v1))
+  dist = simple.distance_in_checklist(get_outject(v), get_outject(u_est.record))
   return dist
-
-def distance_in_checklist(x1, x2):
-  m = simple.mrca(x1, x2)
-  assert m
-  return (distance_on_lineage(x1, m) +
-          distance_on_lineage(x2, m))
-
-def distance_on_lineage(x, m):
-  assert simple.simple_le(x, m)
-  if x == m:
-    return 0
-  return (distance_to_parent(x) +
-          distance_on_lineage(get_superior(x).record, m))
-
-def distance_to_parent(u):
-  sup = get_superior(u)
-  return lg(max(1,len(get_children(sup.record, ()))))
-
-def lg(x):
-  return math.log(x)/log2
-log2 = math.log(2)
 
 # Convenience.  Phase this out?  Or rename it?
 

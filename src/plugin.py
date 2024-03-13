@@ -90,8 +90,8 @@ def generate_plugin_report(AB):
           if len(rels) == 1:  # and rels[0].relationship == EQ:
             # Curation issue probably (e.g. MSW3)
             v1 = rels[0].record
-            log("** Concepts inferred to be homotypic: %s, %s" %
-                (blurb(u), blurb(v1)))
+            #log("** Concepts inferred to be homotypic: %s, %s" %
+            #    (blurb(u), blurb(v1)))
             v = v1
 
         inter = '. ' + ';'.join(map(show_relation, rels2))
@@ -132,7 +132,16 @@ def generate_plugin_report(AB):
                  MISSING, MISSING, MISSING,
                  )
 
-  yield from process_subtree(AB, AB.A.top)
+  counts = {}
+  for row in process_subtree(AB, AB.A.top):
+    op = row[2]
+    if op in counts:
+      counts[op] += 1
+    else:
+      counts[op] = 1
+    yield row
+  for (op, count) in counts.items():
+    log("* %6d %s" % (count, op))
 
 # s is a set of exemplar ids
 
@@ -168,12 +177,12 @@ def impute_operation(AB, u, bud, v):
   rel = theory.compare(AB, u, v)
   if rel.relationship == LT:
     ops.append("lumped")
-  elif rel.relationship == LE:
-    ops.append("perhaps lumped")
+  #elif rel.relationship == LE:
+  #  ops.append("perhaps lumped")
   elif rel.relationship == GT:
     ops.append("split")
-  elif rel.relationship == GE:
-    ops.append("perhaps split")
+  #elif rel.relationship == GE:
+  #  ops.append("perhaps split")
   elif rel.relationship == EQ:
     p1 = get_parts(get_outject(u))
     p2 = get_parts(get_outject(v))

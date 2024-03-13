@@ -255,7 +255,8 @@ def clean_name(row, can_pos, sci_pos, auth_pos):
     if c == MISSING: c = s
     # Synthesize scientific from canonical + authorship.
     # For checklistbank
-    s = "%s %s" % (c, a)
+    if s == MISSING:
+      s = "%s %s" % (c, a)
 
   # Remove subgenus: Foo (Bar) -> Foo
   s = remove_subgenus(s)
@@ -264,11 +265,17 @@ def clean_name(row, can_pos, sci_pos, auth_pos):
   s = s.replace('  ', ' ')    # kludge for MSW 3
   s = s.replace(' *', ' ')    # frequent in MSW 3
   if s.endswith(').'): s = s[0:-1] # for MSW 3
+  s = s.replace(' ,', ',')   # GBIF 'Pliopithecus , 1850'
+  a = a.replace(' ,', ',')
+
   if s != row[sci_pos]:
     row[sci_pos] = s
     mod = True
-  if can_pos and c != row[can_pos]:
+  if can_pos != None and c != row[can_pos]:
     row[can_pos] = c
+    mod = True
+  if auth_pos != None and a != row[auth_pos]:
+    row[auth_pos] = a
     mod = True
   return mod
 
@@ -282,7 +289,8 @@ def remove_subgenus(name):
     return name
 
 # This may be too liberal... insist on there being a year?
-has_auth_re = regex.compile(u' (\(?)\p{Uppercase_Letter}[\p{Letter}-]+')
+has_auth_re = regex.compile(u' .*\p{Uppercase_Letter}.*\p{Letter}')
+#has_auth_re = regex.compile(u' (\(?)\p{Uppercase_Letter}[\p{Letter}-]+')
 
 def is_scientific(name):
   return has_auth_re.search(name)
