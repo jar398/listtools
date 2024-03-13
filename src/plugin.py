@@ -125,7 +125,7 @@ def generate_plugin_report(AB):
           # or (v and theory.is_species(v) and v is bud)):
           yield (get_primary_key(x),
                  blurb(x),
-                 "unclear" if rels else "removed name",
+                 "removed name",
                  MISSING,
                  inter,
                  lub,
@@ -177,12 +177,12 @@ def impute_operation(AB, u, bud, v):
   rel = theory.compare(AB, u, v)
   if rel.relationship == LT:
     ops.append("lumped")
-  #elif rel.relationship == LE:
-  #  ops.append("perhaps lumped")
+  elif rel.relationship == LE:
+    pass  # unchanged
   elif rel.relationship == GT:
     ops.append("split")
-  #elif rel.relationship == GE:
-  #  ops.append("perhaps split")
+  elif rel.relationship == GE:
+    pass # unchanged
   elif rel.relationship == EQ:
     p1 = get_parts(get_outject(u))
     p2 = get_parts(get_outject(v))
@@ -190,6 +190,8 @@ def impute_operation(AB, u, bud, v):
       ops.append("moved")
     if p1.epithet != p2.epithet:
       ops.append("epithet")
+  elif rel.relationship == NOINFO:
+    pass   # ops.append("related")
   else:                         # OVERLAP etc.
     ops.append("concept")
   if len(ops) == 0:
