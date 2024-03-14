@@ -8,7 +8,7 @@ from checklist import *
 from workspace import *
 from simple import BOTTOM, compare_per_checklist
 from typify import equate_typifications, get_typification_record, \
-  get_link, get_exemplar
+  get_link, get_exemplar, get_exemplar_id
 from typify import xid_to_record, xid_to_opposite_record
 
 # -----------------------------------------------------------------------------
@@ -185,9 +185,9 @@ def analyze_blocks(ws):
           e = combine_blocks(e, b)
           mono = c if mono == True else None
       if mono != True and mono != None: set_mono(u, AB.in_left(mono))
-      exem = get_exemplar(u) # returns None or (id, u, v)
+      exem = get_exemplar(u) # returns None or (xid, u, v)
       if exem:
-        e = adjoin_exemplar(exem[0], e)
+        e = adjoin_exemplar(get_exemplar_id(exem), e)
       # **************** TBD
       set_block(u, e)
       if monitor(u):

@@ -11,10 +11,10 @@ from util import log, windex
 from estimate import find_estimates, get_estimate
 
 from typify import equate_typification_ufs
-from typify import get_exemplar, get_typification_uf
+from typify import get_exemplar, get_exemplar_id, get_typification_uf
 from typify import get_typification_record, equate_typifications
 from typify import really_get_typification_uf, find_typifications
-from typify import unimportance
+from typify import unimportance, endo_typifications
 
 # listtools's exemplar-finding procedure.  If there is some other way
 # of finding exemplars, that's fine, don't need to use this.
@@ -26,11 +26,17 @@ def find_exemplars(get_estimate, AB):
   log("# Finding subproblems")
   subproblems = find_subproblems(AB)
   log("#   There are %s subproblems" % len(subproblems))
+  endo_typifications(AB, subproblems)
   log("# Finding pass 1 typifications (for distance calculations)")
-  find_typifications(AB, subproblems, None, False)
-  find_estimates(AB)            # for distance calculations
-  log("# Finding pass 2 typifications (using distance calculations)")
-  find_typifications(AB, subproblems, get_estimate, True)
+
+  if True:
+    find_typifications(AB, subproblems, None, True)
+  else:                         # two-pass
+    find_typifications(AB, subproblems, None, False)
+    find_estimates(AB)            # for distance calculations
+    log("# Finding pass 2 typifications (using distance calculations)")
+    find_typifications(AB, subproblems, get_estimate, True)
+
   # maybe compute better estimates - see theory.py
   report_on_exemplars(AB)
 
@@ -109,7 +115,7 @@ def report_on_exemplars(AB):
       b = get_typification_record(u)        # forces xid assignment, return (xid,u,v)
       if b:
         count += 1
-        get_exemplar(u)        # forces xid assignment, return (xid,u,v)
+        get_exemplar_id(uf)        # forces xid assignment  ??
   log("# Nodes with typification: %s, nodes with exemplars: %s, exemplars: %s" %
       (ufcount, count, len(AB.exemplar_ufs)))
 
@@ -128,7 +134,7 @@ def generate_exemplars(AB):
         r = get_exemplar(u)     # exemplar record [xid, u, v] or None
         if r:
           ecount += 1
-          xid = r[0]
+          xid = get_exemplar_id(r)
           yield (which, get_primary_key(x), xid, get_canonical(x))
           count[0] += 1
     log("# preorder: %s, exemplars: %s" % (rcount, ecount)) 

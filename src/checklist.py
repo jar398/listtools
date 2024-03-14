@@ -695,7 +695,11 @@ def monitor(x):
   if True: return False
   if not x: return False
   name = get_canonical(x, '')
-  return (#name == "Procyon cancrivorus"
+  return (name == "Pogonomelomys mayeri" or
+          name == "Pseudochirops corinnae" or
+          name == "Pseudohydromys fuscus"
+
+          #name == "Procyon cancrivorus"
           #name == "Holochilus vulpinus" #or
           #name == "Holochilus brasiliensis" or
           #name == "Holochilus darwini"

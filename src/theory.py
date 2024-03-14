@@ -14,7 +14,7 @@ import estimate
 from estimate import find_estimates, get_estimate, get_equivalent
 from estimate import is_empty_block, get_block, BOTTOM_BLOCK
 from estimate import block_relationship, same_block, opposite_exemplar_records
-from typify import known_same_typification, get_exemplar
+from typify import known_same_typification, get_exemplar, same_exemplar
 
 # Assumes that name matches are already stored in AB.
 
@@ -314,20 +314,19 @@ def same_protonym(u, v):
   if e:
     f = get_exemplar(v)
     if f:
-      # want (e[1] is u) == (e[2] is v) ???  No.
-      return e[0] == f[0]
+      return same_exemplar(e, f)
   return False
 
 # Taxon in v with same epithet, and also same rank if possible.
 # Might be a synonym or subspecies; use get_species if a species is needed.
 
 def get_buddy(AB, u):
-  e = get_exemplar(u)
-  if not e: return False
-  if in_same_tree(AB, u, e[1]):
-    v = e[2]
-  else:
-    v = e[1]
+  uf = get_exemplar(u)
+  if not uf: return False
+  r = uf.payload()
+  (_, u2, v) = r
+  if in_same_tree(AB, u, v):
+    v = u2
   v = local_accepted(AB, v)
   if get_rank(u, None) != get_rank(v, None):
     # e.g. u rank is species, v rank is subspecies
@@ -335,6 +334,7 @@ def get_buddy(AB, u):
     if get_rank(u, None) == get_rank(q, None):
       # Ranks don't match - maybe it's a promotion/demotion?
       v = q
-  if get_exemplar(v) is e:
+  vf = get_exemplar(v)
+  if vf and same_exemplar(uf, vf):
     return v
   return None
