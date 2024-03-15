@@ -177,23 +177,26 @@ def impute_operation(AB, u, bud, v):
   rel = theory.compare(AB, u, v)
   if rel.relationship == LT:
     ops.append("lumped")
-  elif rel.relationship == LE:
-    pass  # unchanged
   elif rel.relationship == GT:
     ops.append("split")
-  elif rel.relationship == GE:
-    pass # unchanged
-  elif rel.relationship == EQ:
+  elif rel.relationship == OVERLAP:
+    ops.append("concept")
+  else:
     p1 = get_parts(get_outject(u))
     p2 = get_parts(get_outject(v))
     if p1.genus != p2.genus:
       ops.append("moved")
     if p1.epithet != p2.epithet:
       ops.append("epithet")
-  elif rel.relationship == NOINFO:
-    pass   # ops.append("related")
-  else:                         # OVERLAP etc.
-    ops.append("concept")
+    if p1.token != p2.token:
+      ops.append("author")
+    if p1.year != p2.year:
+      ops.append("year")
+    if not(rel.relationship == EQ or
+           rel.relationship == LE or
+           rel.relationship == GE or
+           rel.relationship == NOINFO):
+      ops.append("concept")
   if len(ops) == 0:
     return "unchanged"
   else:

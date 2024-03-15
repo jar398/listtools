@@ -12,7 +12,7 @@ from estimate import find_estimates, get_estimate
 
 from typify import equate_typification_ufs
 from typify import get_exemplar, get_exemplar_id, get_typification_uf
-from typify import get_typification_record, equate_typifications
+from typify import equate_typifications
 from typify import really_get_typification_uf, find_typifications
 from typify import unimportance, endo_typifications
 
@@ -23,18 +23,17 @@ from typify import unimportance, endo_typifications
 # to be able to compute distances on the second pass.
 
 def find_exemplars(get_estimate, AB):
-  log("# Finding subproblems")
   subproblems = find_subproblems(AB)
-  log("#   There are %s subproblems" % len(subproblems))
   endo_typifications(AB, subproblems)
-  log("# Finding pass 1 typifications (for distance calculations)")
 
   if True:
+    log("* Finding typifications (single pass):")
     find_typifications(AB, subproblems, None, True)
   else:                         # two-pass
+    log("* Finding pass 1 typifications (for distance calculations):")
     find_typifications(AB, subproblems, None, False)
     find_estimates(AB)            # for distance calculations
-    log("# Finding pass 2 typifications (using distance calculations)")
+    log("* Finding pass 2 typifications (using distance calculations):")
     find_typifications(AB, subproblems, get_estimate, True)
 
   # maybe compute better estimates - see theory.py
@@ -43,6 +42,7 @@ def find_exemplars(get_estimate, AB):
 # Find blocks/chunks, one per epithet
 
 def find_subproblems(AB):
+  log("* Finding subproblems:")
   (A_index, B_index) = \
     map(lambda CD: \
         index_by_some_key(CD,
@@ -54,18 +54,18 @@ def find_subproblems(AB):
     assert key != MISSING, blurb(us[0])
     vs = B_index.get(key, None)
     if vs != None:
-      us.sort(key=unimportance)
-      vs.sort(key=unimportance)
+      # us.sort(key=unimportance)
+      # vs.sort(key=unimportance)
       subprobs[key] = (us, vs)
       if (any(monitor(u) for u in us) or
           any(monitor(v) for v in vs)):
-        log("# Subproblem %s" % key)
-        log("#  us = %s" % (list(map(blurb, us)),))
-        log("#  vs = %s" % (list(map(blurb, vs)),))
+        log("# Added subproblem %s e.g. %s.  %s x %s" %
+            (key, blurb(us[0]), len(list(map(blurb, us))), len(list(map(blurb, vs)))))
     else:
       if PROBE in key:
         log("# Null subproblem %s" % key)
   AB.subproblems = subprobs
+  log("* There are %s subproblems." % len(subprobs))
   return subprobs
 
 # Returns dict value -> key
@@ -76,8 +76,9 @@ def index_by_some_key(AB, fn):
   for x in postorder_records(AB.A):
     u = AB.in_left(x)
     key = fn(u)
-    if monitor(u):
-      log("# Indexing %s %s" % (key, blurb(u)))
+    if False and monitor(u):
+      log("# 1 Indexing %s, key %s, monitored? %s" % (blurb(u), key, monitor(u)))
+      log("# 2 Indexing %s, key %s, monitored? %s" % (blurb(u), key, monitor(x)))
     #assert key  - MSW has scientificName = ?
     have = index.get(key, None) # part
     if have:
@@ -90,15 +91,16 @@ def index_by_some_key(AB, fn):
 # z is in AB
 
 def get_subproblem_key(z):
-  parts = get_parts(get_outject(z))
+  x = get_outject(z)
+  parts = get_parts(x)
   ep = parts.epithet            # stemmed
   key = ep if ep else parts.genus
   if key:
-    if monitor(z):
-      log("# Subproblem key is %s (%s)" % (key, blurb(z)))
+    if False and monitor(x):
+      log("# Subproblem key is %s for %s" % (key, blurb(x)))
   else:
-    log("## Falsish name: %s" % (parts,))
-    key = '?'
+    log("** Name missing or ill-formed: %s" % (parts,))
+    key = '?' + get_primary_key(x)
   return key
 
 # ------
@@ -112,7 +114,7 @@ def report_on_exemplars(AB):
     uf = really_get_typification_uf(u, None)
     if uf:
       ufcount += 1
-      b = get_typification_record(u)        # forces xid assignment, return (xid,u,v)
+      b = get_exemplar(u)        # forces xid assignment, return (xid,u,v)
       if b:
         count += 1
         get_exemplar_id(uf)        # forces xid assignment  ??

@@ -7,7 +7,7 @@ from util import log
 from checklist import *
 from workspace import *
 from simple import BOTTOM, compare_per_checklist
-from typify import equate_typifications, get_typification_record, \
+from typify import equate_typifications, get_exemplar_record, \
   get_link, get_exemplar, get_exemplar_id
 from typify import xid_to_record, xid_to_opposite_record
 
@@ -140,7 +140,7 @@ def compute_cross_mrcas(AB):
   def do_cross_mrcas(WS):        # WS is AB or swap(AB)
     def traverse(x):            # arg in A, result in B
       u = WS.in_left(x)          # in WS
-      exem = get_typification_record(u)       # exemplar record (not uf)
+      exem = get_exemplar_record(u)       # exemplar record (not uf)
       if exem:
         (_, u1, v1) = exem
         assert get_outject(v1), blurb(v1) # fails

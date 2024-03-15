@@ -692,15 +692,17 @@ def blurb(r):
     return "[?]"
 
 def monitor(x):
-  if True: return False
   if not x: return False
-  name = get_canonical(x, '')
-  return (name == "Pogonomelomys mayeri" or
-          name == "Pseudochirops corinnae" or
-          name == "Pseudohydromys fuscus"
+  name = get_ok_name(x)
+  return (name == "Tragelaphus typicus" or
+          #name == "Pogonomelomys mayeri" or
+          #name == "Pseudochirops corinnae" or
+          #name == "Pseudohydromys fuscus" or
+          #name == "Burramys parvus" or
+          False
 
-          #name == "Procyon cancrivorus"
-          #name == "Holochilus vulpinus" #or
+          #name == "Procyon cancrivorus" or
+          #name == "Holochilus vulpinus" or
           #name == "Holochilus brasiliensis" or
           #name == "Holochilus darwini"
           # name == "Gorilla beringei"

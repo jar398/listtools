@@ -10,7 +10,7 @@ from workspace import *
 from parse import parse_name
 from typify import compare_parts, \
   compute_distance, compare_records, pick_better_record, \
-  really_get_typification_uf, get_link
+  get_link
 
 # For each record, get list of matching records.... hmm
 # Future: read exceptions or whole thing from a file

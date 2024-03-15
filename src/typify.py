@@ -10,14 +10,53 @@ from checklist import get_parts, monitor, get_superior, get_children, \
   is_accepted, blurb, get_scientific, get_primary_key, get_rank, \
   get_canonical, get_source_tag
 from workspace import separated, get_outject, get_workspace, local_sup, get_source
-from workspace import isinA, isinB
-
-# This runs twice.  'last' means we're on the last pass.
+from workspace import isinA, isinB, local_accepted
+from simple import simple_le, distance_in_checklist
 
 def endo_typifications(AB, subproblems):
+  log("* Matching within the A checklist:")
   for (key, (us, vs)) in subproblems.items():
-    try_in_same_checklist(AB, us, False)
-    try_in_same_checklist(AB, vs, False)
+    find_subproblem_endohomotypics(us)
+  log("* Matching within the B checklist:")
+  for (key, (us, vs)) in subproblems.items():
+    find_subproblem_endohomotypics(vs)
+
+def find_subproblem_endohomotypics(us):
+  for i in range(0, len(us)):
+    u1 = us[i]
+    others = []
+    for j in range(i+1, len(us)):
+      u2 = us[j]
+      result = endohomotypic(u1, u2)     # caches result
+      if False and monitor(u1):
+        log("# Endohomotypic: %s %s => %s" % (blorb(u1), blorb(u2), result))
+
+# Given two records in a workspace coming from the same checklist,
+# are their concepts homotypic?
+
+def endohomotypic(u, v):
+  AB = get_workspace(u)
+  a = local_accepted(AB, u)
+  b = local_accepted(AB, v)
+
+  def hom(u, v, thresh):
+    if same_typification(u, v): return True      # peephole optimization
+    comparison = compare_records(u, v)
+    if classify_comparison(comparison) < thresh:
+      return False
+    x = get_outject(u); y = get_outject(v)
+    if simple_le(x, y) or simple_le(y, x):
+      equate_typifications(u, v)
+      return True
+    return False
+
+  result = (hom(u, a, MOTION) and
+            hom(a, b, HOMOTYPIC) and
+            hom(b, v, MOTION))
+  return result
+
+# This can be configured to run once or run twice.  'last' means we're
+# on the last pass.
 
 def find_typifications(AB, subproblems, get_estimate, last):
   # This sets the 'typification_uf' property of ... some ... records.
@@ -28,11 +67,15 @@ def find_typifications(AB, subproblems, get_estimate, last):
       log("# Subproblem %s %s %s %s %s" % (n, len(us), len(vs), blurb(us[0]), blurb(vs[0])))
     n += 1
     all_movers = []
+    if (any(monitor(u) for u in us) or
+        any(monitor(v) for v in vs)):
+      log("# Subproblem: '%s'" % key)
     for i in range(0, len(us)):
-      # Sorted by unimportance
       u = us[i]
+      if monitor(u):
+        log("# Subproblem row: '%s' '%s'" % (key, blorb(u)))
       # If it's a synonym, see if it matches any accepted in same checklist?
-      winners = []
+      winner = None
       targets = []
       for j in range(0, len(vs)):
         v = vs[j]
@@ -40,17 +83,19 @@ def find_typifications(AB, subproblems, get_estimate, last):
           dist = compute_distance(u, v, get_estimate)
         else:
           dist = None
-        comparison = compare_records(u, v, dist)
-        if monitor(u) or monitor(v):
-          log("# Comparison: %s %s %s %s" %
-              (blurb(u), blurb(v), explain(comparison), dist))
-        # classify as (HETEROTYPIC, REVIEW, HOMOTYPIC)
+        comparison = compare_records(u, v, dist) # shows!
         classified = classify_comparison(comparison)
         if classified == HOMOTYPIC:
-          winners.append(v)
-          break  # Experimental
+          if True:  #same_vicinity(u, v):
+            if winner:
+              if not same_typification(winner, v):
+                log("# Induced homotypism: %s\n#   %s ~ %s" % (blorb(u), blorb(v), blorb(winner)))
+            equate_typifications(u, v)
+            winner = v
+            # break
         elif classified == HETEROTYPIC:
-          pass
+          if False and (monitor(u) or monitor(v)):
+            log("# Heterotypic: '%s' '%s'" % (blorb(u), blorb(v)))
         elif classified == MOTION:
           if last:
             # **** COMPUTE DISTANCE if 2nd pass ****
@@ -62,15 +107,13 @@ def find_typifications(AB, subproblems, get_estimate, last):
                   log("# Too far apart: %s -> %s" %
                       (blorb(u), blorb(v)))
         else:                   # REVIEW
-          pass
-          # log("# Review: '%s' '%s'" % (blorb(u), blorb(v)))
+          if monitor(u) or monitor(v):
+            log("* Review: '%s' '%s'" % (blorb(u), blorb(v)))
       # end j loop
 
-      if len(winners) > 1:
-        log("# %s winners for %s" % (len(winners), blorb(u)))
-      for v in winners:
-        equate_typifications(u, v)
-      if len(targets) > 0 and get_rank(u) == 'species':
+      if winner:
+        pass
+      elif len(targets) > 0 and get_rank(u) == 'species':
         all_movers.append((u, targets))
     # end i loop
 
@@ -84,19 +127,19 @@ def find_typifications(AB, subproblems, get_estimate, last):
       for (u, targets) in all_movers:
         for v in targets:       # list
           if v.id in u_by_vicinity:
-            u_by_vicinity[v.id] = False
+            u_by_vicinity[v.id] = True
           u_by_vicinity[v.id] = u
           if u.id in v_by_vicinity:
-            v_by_vicinity[u.id] = False
+            v_by_vicinity[u.id] = True
           v_by_vicinity[u.id] = v
       for (u_id, v) in v_by_vicinity.items():
-        if v == False:
+        if v == True:
           log("# Ambiguous motion %s -> ..." %
               (blorb(u),))
         else:
           u = us_by_id[u_id]
           u_rev = u_by_vicinity[v.id]
-          if u_rev == False:
+          if u_rev == True:
             log("# Ambiguous motion %s, ... -> %s" %
                 (blorb(u), blorb(v)))
           else:
@@ -116,11 +159,11 @@ def find_typifications(AB, subproblems, get_estimate, last):
 def same_vicinity(u0, v0):
   f = get_family(u0)
   if not f:
-    log("# no family: %s" % blurb(u0))
+    log("# No family: %s" % blorb(u0))
     return False
   g = get_family(v0)
   if not g:
-    log("# no family: %s" % blurb(v0))
+    log("# No family: %s" % blorb(v0))
     return False
   return f == g
 
@@ -132,7 +175,7 @@ def get_family(u):              # returns canonical name
   while get_rank(u) != 'family':
     sup = local_sup(get_source(u), u)
     if sup == None:
-      log("# No sup: %s %s" % (get_primary_key(u), blurb(u)))
+      log("# No sup: %s %s" % (get_primary_key(u), blorb(u)))
       return None
     u = sup.record
   return get_canonical(u)
@@ -148,75 +191,17 @@ def typification_compatible(u, v):
       return uf.payload() is vf.payload()
   return True
 
-# duplicate.  weird.  used? yes, in theory.py
-def known_same_typification(u, v):
-  uf = really_get_typification_uf(u, None)
-  if uf:
-    vf = really_get_typification_uf(v, None)
-    if vf:
-      return uf.payload() is vf.payload()
-  return False
-
-def unimportance(u):
-  p = get_parts(get_outject(u))
-  if p.epithet == MISSING: imp = 4      # Foo
-  elif p.middle == MISSING: imp = 2     # Foo bar
-  elif p.middle == p.epithet: imp = 1     # Foo bar bar
-  else: imp = 3                         # Foo bar baz
-  if not is_accepted(get_outject(u)):
-    imp += 10
-  return (imp, get_primary_key(u))
-
-def try_in_same_checklist(AB, us, last):
-  which = 'A' if isinA(AB, us[0]) else 'B'
-  for i in range(0, len(us)):
-    u1 = us[i]
-    x1 = get_outject(u1)
-    others = []
-    for j in range(i+1, len(us)):
-      u2 = us[j]
-      x2 = get_outject(u2)
-      dist = simple.distance_in_checklist(x1, x2)
-      comparison = compare_records(u1, u2, dist)
-      classified = classify_comparison(comparison)
-      if classified == HOMOTYPIC:
-        rel = simple.compare_per_checklist(x1, x2)
-        if rel.relationship != DISJOINT:
-          equate_typifications(u1, u2)
-        else:
-          # Synonyms not classified properly?
-          others.append(x2)
-      elif classified == HETEROTYPIC:
-        pass
-      elif classified == MOTION:
-        # treat as heterotypic within checklist...
-        pass                    # ?
-      elif monitor(u1) or monitor(u2):
-        # Possible missed synonymy ??  Collate by token/year ?
-        log("# To review in %s: '%s' '%s'" %
-            (which, blorb(x1), blorb(x2)))
-    if len(others) > 0:
-      for o in others:
-        b1 = blorb(x1)
-        b2 = blorb(o)
-        if b1 == b2:
-          log("** Duplicate record in %s: '%s'" % (which, b1))
-        else:
-          log("** Duplicate record in %s: '%s', '%s'" % (which, b1, b2))
-    else:
-      pass
-
 # u and v are in workspace but may or may not be from same checklist
 
 def equate_typifications(u, v):     # opposite checklists. u might be species
   if u is not v:
     equate_typification_ufs(get_typification_uf(u), get_typification_uf(v))
     if monitor(u) or monitor(v):
-      log("# Equating type '%s' = type '%s'", (u, v))
+      log("# Unifying exemplar(%s) = exemplar(%s)" % (blorb(u), blorb(v)))
   return u
 
 def equate_typification_ufs(uf, vf):
-  if same_exemplar(uf, vf): return
+  if same_typification_ufs(uf, vf): return
 
   (i1, u1, v1) = uf.payload()
   (i2, u2, v2) = vf.payload()
@@ -234,10 +219,17 @@ def equate_typification_ufs(uf, vf):
   r[2] = pick_better_record(v1, v2)
   return ef
 
+def same_typification_ufs(uf1, uf2):
+  return uf1.find() is uf2.find()
+
+def same_typification(u, v):
+  return same_typification_ufs(get_typification_uf(u),
+                               get_typification_uf(v))
+
 # Only workspace nodes have uf records
 
 def get_typification_uf(u):
-  #log("# Thinking about typification for %s" % blurb(u))
+  #log("# Thinking about typification for %s" % blorb(u))
   probe = really_get_typification_uf(u, None)
   if probe: return probe
   AB = get_workspace(u)
@@ -264,6 +256,15 @@ def get_exemplar(z):
       return uf
   return None
   
+def get_exemplar_record(z):
+  uf = really_get_typification_uf(z, None)
+  if uf:
+    r = uf.payload()
+    (_, u, v) = r
+    if u and v:
+      return r
+  return None
+
 def get_exemplar_id(uf):
   r = uf.payload()
   (xid, u, v) = r
@@ -274,69 +275,37 @@ def get_exemplar_id(uf):
     xid = len(ws.exemplar_ufs)
     r[0] = xid
     ws.exemplar_ufs[xid] = uf
-    #log("# Exemplar %s: (%s) <-> (%s)" % (xid, blurb(u), blurb(v)))
+    #log("# Exemplar %s: (%s) <-> (%s)" % (xid, blorb(u), blorb(v)))
   return xid
-
-def get_typification_record(z):
-  uf = really_get_typification_uf(z, None)
-  if uf:
-    r = uf.payload()
-    (_, u, v) = r
-    if u and v:
-      return r
-  return None
-
-def same_exemplar(uf1, uf2):
-  return uf1.find() is uf2.find()
 
 # This chooses the 'best' record to represent a given exemplar
 
 def pick_better_record(v1, v2):
-  if v2 is None: return v1
-  if v1 is None: return v2                   # One side, not nec. reciprocal
-  if v1 is v2: return v1
-  if v1 == False: return v1   # Propagate ambiguity block ... ???
-  if v2 == False: return v2
-  y1 = get_outject(v1)
-  y2 = get_outject(v2)
-  if is_accepted(y2) and not is_accepted(y1):
-    # silently improve the choice
-    return v2
-  if not is_accepted(y2) and is_accepted(y1):
-    # silently keep choice
-    return v1
-
-  m = simple.mrca(y1, y2)
-  assert not y1 is y2
-  if m is y1: return v2
-  if m is y2: return v1
-
-  # See whether v2 is an improvement over v1
-  parts1 = get_parts(get_outject(v1))
-  parts2 = get_parts(get_outject(v2))
-
-  g1 = badness(parts1)
-  g2 = badness(parts2)
-  if g1 < g2:
+  # See whether v2 is an improvement over v1 (lower unimportance value)
+  if v1 == None: return v2
+  if v2 == None: return v1
+  g1 = unimportance(v1)
+  g2 = unimportance(v2)
+  if g1 < g2:                   # 1 is less important than 2
     return v2
   elif g1 > g2:
     return v1
-
-  # Fall through - ties all the way
-  if get_scientific(v1) < get_scientific(v2):
-    return v1
   else:
-    return v2
+    assert False
     
-# A b b before A c b before A b
-# I think that A c b shouldn't happen
-def badness(parts):
-  if parts.middle == None or parts.middle == '':
-    return 3
-  if parts.middle == parts.epithet:
-    return 1
-  else:
-    return 2
+# More important -> lower number, earlier in sequence
+
+def unimportance(u):
+  parts = get_parts(u)
+  if parts.epithet == MISSING: imp = 4      # Foo
+  elif parts.middle == parts.epithet: imp = 1     # Foo bar bar
+  elif parts.middle == None or parts.middle == '':  imp = 2     # Foo bar
+  else: imp = 3                         # Foo bar baz
+  x = get_outject(u)
+  return (1 if is_accepted(x) else 2,
+          imp,
+          get_scientific(x, None),
+          get_primary_key(x))
 
 
 HOMOTYPIC   = 10
@@ -349,14 +318,9 @@ HETEROTYPIC = 0
 # If distance (in tree) is close, give a pass on genus mismatch.
 
 def compare_records(u, v, distance=None):
-  comparison = compare_parts(get_parts(get_outject(u)),
-                             get_parts(get_outject(v)),
-                             distance)
-  if (monitor(u) or monitor(v)):
-    log("# Comparison (%s, %s) = %s" % (blurb(u), blurb(v), comparison))
-    #log("#  %s" % (get_parts(get_outject(u)),))
-    #log("#  %s" % (get_parts(get_outject(v)),))
-  return comparison
+  return compare_parts(get_parts(get_outject(u)),
+                       get_parts(get_outject(v)),
+                       distance)
 
 EPITHET_MASK = 32
 VICINITY_MASK = 16
@@ -486,7 +450,7 @@ def compute_half_distance(u, v, get_estimate):
   assert separated(u, v)
   u_est = get_estimate(u, None)
   # u < u1 <= (v1 < m > v)
-  dist = simple.distance_in_checklist(get_outject(v), get_outject(u_est.record))
+  dist = distance_in_checklist(get_outject(v), get_outject(u_est.record))
   return dist
 
 # Convenience.  Phase this out?  Or rename it?
