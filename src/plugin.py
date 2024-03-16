@@ -42,12 +42,14 @@ def generate_row(AB, u, v, hom, est):
     v_rel = None
     v_rel_field = MISSING
 
+  sidep = False
   if u == True:
     op_field = "operation"
   else:
     ops = impute_operation(AB, u, v_rel, hom)
     op_field = "; ".join(ops)
-    for op in ["side"] if "side" in ops else ops:
+    sidep = "side" in ops
+    for op in ["side"] if sidep else ops:
       if op in counts:
         counts[op] += 1
       else:
@@ -57,7 +59,7 @@ def generate_row(AB, u, v, hom, est):
   if est == True:
     est_field = "containing B concept"
   elif est:
-    if est.relationship != EQ:
+    if est.relationship != EQ and not sidep:
       est_field = description_for_report(est.record)
 
   if u == True:
