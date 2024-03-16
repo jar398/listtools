@@ -694,7 +694,7 @@ def blurb(r):
 def monitor(x):
   if not x: return False
   name = get_ok_name(x)
-  return (name == "Tragelaphus typicus" or
+  return (#name == "Tragelaphus typicus" or
           #name == "Pogonomelomys mayeri" or
           #name == "Pseudochirops corinnae" or
           #name == "Pseudohydromys fuscus" or
