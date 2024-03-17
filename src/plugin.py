@@ -273,7 +273,7 @@ def description_for_report(u):
   x = get_outject(u)
   return "%s.%s.%s%s" % (get_source_tag(x),
                          get_primary_key(x),
-                         get_canonical(u),
+                         get_canonical(u, None) or get_scientific(u, None),
                          "" if get_accepted(x) else "*")
 
 def hamming(u, v):
