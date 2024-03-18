@@ -15,7 +15,7 @@
  Copied from ../cldiff/src/ncbi_to_dwc.py on 2021-08-24
 """
 
-import sys, os, csv, argparse
+import sys, os, csv, argparse, regex as re
 
 from util import stable_hash
 
@@ -44,30 +44,34 @@ def emit_dwc(accepteds, synonyms, scinames, authorities, merged, outfile):
   # Accepted names
   for (taxid, parent_id, rank) in accepteds:
     sci = scinames.get(taxid, None)
+    can = authorities.get(taxid, None)
     write_row(writer,
-              taxid, managed_id(taxid), parent_id, rank,
-              None, authorities.get(taxid, None), sci,
+              taxid, managed_id(taxid), parent_id, clean_rank(rank, can),
+              None, sci, can,
               "accepted", None)
-  # Synonyms
+  # Synonyms.  taxonID is the id of the synonym; taxid of the accepted
   for (taxid, text, kind, spin) in synonyms:
     # synonym is a taxonomic status, not a nomenclatural status
     if kind == "synonym": kind = None
     taxonID = taxid + "." + spin      # primary key in this file
+    rank = None
     if kind == "authority":    # shouldn't happen, but does
+      can = None
       write_row(writer,
-                taxonID, None, None, None,
-                taxid, text, None,    # scientificName
+                taxonID, None, None, clean_rank(rank, can),
+                taxid, text, can,
                 "synonym", kind)
     else:
+      can = text   # canonicalName
       write_row(writer,
-                taxonID, None, None, None,
-                taxid, None, text,   # canonicalName
+                taxonID, None, None, clean_rank(rank, can),
+                taxid, None, can,
                 "synonym", kind)
   for (old_id, new_id) in merged:
-    canonical = "deprecated taxon that had taxid %s" % old_id
+    can = "deprecated taxon that had taxid %s" % old_id
     write_row(writer,
               old_id, managed_id(old_id), None, None,
-              new_id, None, canonical,
+              new_id, None, can,
               "synonym", "merged id")
 
 def managed_id(taxid):
@@ -123,7 +127,7 @@ def read_accepteds(nodes_path):
       rank = row[4]
       if rank == "clade" or rank == "no rank":
         rank = None
-      accepteds.append((row[0], row[2], rank))
+      accepteds.append((row[0], row[2], rank)) # id, superior id, rank
   print ("# %s accepted names" % len(accepteds), file=sys.stderr)
   return accepteds
 
@@ -174,10 +178,31 @@ def read_merged(merged_path):
   print ("# %s merged taxa" % len(merged), file=sys.stderr)
   return merged
 
+def clean_rank(rank, can):
+  if not rank:
+
+    # Lose.  This turns up too many common names.  The right thing would be to get the rank from the
+    # record for the accepted name.
+
+    if False and can and binomial_re.match(can):
+      if (can.endswith('virus') or can.endswith('group') or # NCBI
+          can.endswith('clade') or can.endswith('complex') or
+          can.endswith('viruses') or can.endswith('isolates') or
+          can.endswith('plasma') or can.endswith('phage')):
+        pass
+      else:
+        print("# Assigning species rank to %s" % can,
+              file=sys.stderr)
+        return 'species'
+  return rank
+
+binomial_re = re.compile('\p{Uppercase_Letter}\p{Lowercase_Letter}+ \p{Lowercase_Letter}{2,}$')
+
 # When invoked from command line:
 
 if __name__ == '__main__':
-  parser = argparse.ArgumentParser()
-  parser.add_argument('taxdump', help='directory containing NCBI taxdump files')
+  parser = argparse.ArgumentParser(prog='ncbi_to_dwc',
+                                   description="Writes a CSV file in Darwin Core form to standard output")
+  parser.add_argument('taxdump', help='directory containing NCBI dump i.e. names.txt, merged.txt, and so on')
   args = parser.parse_args()
   ncbi_to_dwc(args.taxdump, sys.stdout)

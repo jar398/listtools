@@ -63,6 +63,8 @@ def parse_newick(newick):
       parts = can.split(' ')
       if len(parts) == 2 and parts[1].islower():
         rank = 'species'
+      elif len(parts) == 3 and parts[1].islower() and parts[2].islower():
+        rank = 'subspecies'
     yield (str(id), can, str(parent), str(accepted), status, rank)
 
   yield from parse(MISSING)

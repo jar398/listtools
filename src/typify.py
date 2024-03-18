@@ -14,12 +14,27 @@ from workspace import isinA, isinB, local_accepted
 from simple import simple_le, distance_in_checklist
 
 def endo_typifications(AB, subproblems):
+  find_extra_homotypics(AB)
   log("* Matching within the A checklist:")
   for (key, (us, vs)) in subproblems.items():
     find_subproblem_endohomotypics(us)
   log("* Matching within the B checklist:")
   for (key, (us, vs)) in subproblems.items():
     find_subproblem_endohomotypics(vs)
+
+def find_extra_homotypics(AB):
+  log("* Scanning for declared homotypic synonyms:")
+  def scan(AB):
+    for x in all_records(AB.A):
+      if 'homotypic' in get_nomenclatural_status(x, ''):
+        # GBIF has 400,000 of these
+        p = AB.in_left(get_accepted(x))
+        u = AB.in_left(x)
+        if get_parts(p).epithet != get_parts(q).epithet:
+          log("# Homotypic synonym %s ~ %s" % (blurb(u), blurb(p)))
+        equate_typifications(u, p)
+  scan(AB)
+  scan(AB.swap())
 
 def find_subproblem_endohomotypics(us):
   for i in range(0, len(us)):

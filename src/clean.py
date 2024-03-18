@@ -153,8 +153,6 @@ def start_csv(inport, params, outport, args):
     if cleanp:
       if clean_name(out_row, can_pos, sci_pos, auth_pos):
         names_cleaned += 1
-      if clean_rank(out_row, rank_pos, can_pos):
-        ranks_cleaned += 1
       if auth_pos != None:      # clean_auth ...
         a = in_row[auth_pos]
         a = a.strip()
@@ -244,28 +242,39 @@ def clean_name(row, can_pos, sci_pos, auth_pos):
   c = row[can_pos].strip() if can_pos != None else MISSING
   s = row[sci_pos].strip() if sci_pos != None else MISSING
   a = row[auth_pos].strip() if auth_pos != None else MISSING
-  if is_scientific(s):
-    pass
-  elif is_scientific(c):
-    # Reversed: c is scientific but s isn't.  Swap.
-    temp = c
-    s = c
-    c = temp
-  elif a != MISSING:
-    if c == MISSING: c = s
-    # Synthesize scientific from canonical + authorship.
-    # For checklistbank
-    if s == MISSING:
-      s = "%s %s" % (c, a)
 
-  # Remove subgenus: Foo (Bar) -> Foo
-  s = remove_subgenus(s)
+  # TBD:
+  # If c and s are missing, but we have a rank and values in the
+  # genericName and specificEpithet and maybe infraspecificEpithet
+  # columns, then synthesize a canonicalName from those values
+  # (who needs this??)
+
+  # Synthesize scientific from canonical + authorship.
+  if s == MISSING and c != MISSING and a != MISSING:
+    log("# Synthesizing scientific %s + %s" % (c, a))
+    s = "%s %s" % (c, a)
+
+  # Extract canonical as prefix of scientific
+  elif c == MISSING and s != MISSING and a != MISSING:
+    if s.endswith(a):
+      c = s[0:-len(a)].strip()
+      log("# Extracting canonical '%s' from '%s'" % (c, s))
+
+  # Extract authorship as suffix of scientific
+  elif a == MISSING and s != MISSING and c != MISSING:
+    if s.startswith(c):
+      a = s[len(c):].strip()
+      if False:
+        # Works copiously with NCBI Taxonomy
+        log("# Extracting authorship '%s' from '%s'" % (a, s))
+
   s = s.replace(' and ', ' & ') # frequent in DH 1.1 ?
   s = s.replace(',,', ',')    # kludge for MDD 1.0
   s = s.replace('  ', ' ')    # kludge for MSW 3
   s = s.replace(' *', ' ')    # frequent in MSW 3
   if s.endswith(').'): s = s[0:-1] # for MSW 3
   s = s.replace(' ,', ',')   # GBIF 'Pliopithecus , 1850'
+  s = remove_subgenus(s)     # NCBI  ?
   a = a.replace(' ,', ',')
 
   if s != row[sci_pos]:
@@ -279,30 +288,36 @@ def clean_name(row, can_pos, sci_pos, auth_pos):
     mod = True
   return mod
 
-has_subgenus_re = regex.compile(u'(\p{Uppercase_Letter}[\p{Letter}-]+)( \(\p{Uppercase_Letter}[\p{Letter}-]+\))(.*)')
+genus_re = u'\p{Uppercase_Letter}[\p{Lowercase_Letter}-]+'
+epithet_re = u'[\p{Lowercase_Letter}-]+'
 
-def remove_subgenus(name):
-  m = has_subgenus_re.match(name)
+has_subgenus_re_1 = regex.compile(u'%s( (Subgenus|subg\.|subgenus\.) %s) %s' %
+                                   (genus_re, genus_re, epithet_re))
+has_subgenus_re_2 = regex.compile(u'%s( \(%s\)) %s' %
+                                   (genus_re, genus_re, epithet_re))
+
+def remove_subgenus(s):
+  m = (has_subgenus_re_1.match(s) or
+       has_subgenus_re_2.match(s))
   if m:
-    return m[1] + m[3]
+    cleaned = s[0:m.start(1)] + s[m.end(1):]
+    log("# Removing subgenus: %s -> %s" % (m[0], cleaned))
+    return cleaned
   else:
-    return name
+    return s
 
+
+# I used to attempt to distinguish scientific names (those with
+# authority) from others, but it's a losing cause (look at NCBI).
+# Now just leave it all up to gnparser.
+#
 # This may be too liberal... insist on there being a year?
-has_auth_re = regex.compile(u' .*\p{Uppercase_Letter}.*\p{Letter}')
+# NCBI: Flavobacterium sp. SC12154
+#has_auth_re = regex.compile(u' .*\p{Uppercase_Letter}.*\p{Lowercase_Letter}')
 #has_auth_re = regex.compile(u' (\(?)\p{Uppercase_Letter}[\p{Letter}-]+')
-
-def is_scientific(name):
-  return has_auth_re.search(name)
-
-def clean_rank(row, rank_pos, can_pos):
-  if rank_pos != None and row[rank_pos] == MISSING and \
-     can_pos and binomial_re.match(row[can_pos]):
-    row[rank_pos] = 'species'
-    return True
-  return False
-
-binomial_re = regex.compile("[A-Z][a-z]+ [a-z]{2,}")
+#
+#def is_scientific(name):
+#  return has_auth_re.search(name)
 
 
 if __name__ == '__main__':
