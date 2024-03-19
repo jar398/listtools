@@ -1,4 +1,4 @@
-from parse import PROBE
+from parse import PROBE, duplicate_parts
 
 import util
 import property as prop
@@ -8,19 +8,24 @@ from util import log, MISSING, UnionFindable
 from rcc5 import EQ, NEQ, OVERLAP, DISJOINT
 from checklist import get_parts, monitor, get_superior, get_children, \
   is_accepted, blurb, get_scientific, get_primary_key, get_rank, \
-  get_canonical, get_source_tag
+  get_canonical, get_source_tag, get_nomenclatural_status, \
+  get_children, get_synonyms
 from workspace import separated, get_outject, get_workspace, local_sup, get_source
-from workspace import isinA, isinB, local_accepted
+from workspace import isinA, isinB, local_accepted, all_records
 from simple import simple_le, distance_in_checklist
 
-def endo_typifications(AB, subproblems):
-  find_extra_homotypics(AB)
+ENDOHOMOTYPIC = 10
+HOMOTYPIC     = 9
+MOTION        = 6
+REVIEW        = 5
+HETEROTYPIC   = 0
+
+def endo_typifications(AB, subprobs):
   log("* Matching within the A checklist:")
-  for (key, (us, vs)) in subproblems.items():
-    find_subproblem_endohomotypics(us)
+  find_endohomotypics(AB, subprobs, lambda xy: xy[0])
   log("* Matching within the B checklist:")
-  for (key, (us, vs)) in subproblems.items():
-    find_subproblem_endohomotypics(vs)
+  find_endohomotypics(AB, subprobs, lambda xy: xy[1])
+  find_extra_homotypics(AB)
 
 def find_extra_homotypics(AB):
   log("* Scanning for declared homotypic synonyms:")
@@ -30,54 +35,95 @@ def find_extra_homotypics(AB):
         # GBIF has 400,000 of these
         p = AB.in_left(get_accepted(x))
         u = AB.in_left(x)
-        if get_parts(p).epithet != get_parts(q).epithet:
+        if get_parts(p).epithet != get_parts(u).epithet:
           log("# Homotypic synonym %s ~ %s" % (blurb(u), blurb(p)))
         equate_typifications(u, p)
   scan(AB)
   scan(AB.swap())
 
-def find_subproblem_endohomotypics(us):
+def find_endohomotypics(AB, subprobs, getit):
+  dups = []
+
+  for both in subprobs.values():
+    # both = (us, vs)
+    find_subproblem_endohomotypics(AB, getit(both), dups)
+
+  count = 0
+  log("# %s duplicates" % len(dups))
+  for dup in dups:
+    if count < 10:
+      log("** Dup class %s, mrca = '%s'\n**   %s '%s' (%s) ~ %s '%s' (%s)" %
+          dup)
+    count += 1
+
+def find_subproblem_endohomotypics(AB, us, dups):
   for i in range(0, len(us)):
     u1 = us[i]
-    others = []
-    for j in range(i+1, len(us)):
-      u2 = us[j]
-      result = endohomotypic(u1, u2)     # caches result
-      if False and monitor(u1):
-        log("# Endohomotypic: %s %s => %s" % (blorb(u1), blorb(u2), result))
+    if not get_duplicated(u1, False):
+      for j in range(i+1, len(us)):
+        u2 = us[j]
+
+        classified = endohomotypic(u1, u2)     # caches classified
+        if monitor(u1) or monitor(u2):
+          log("# %s: '%s' ~ '%s'" % (explain_classified(classified), blorb(u1), blorb(u2)))
+        if classified >= ENDOHOMOTYPIC:
+          assert same_typification(u1, u2)
+        if duplicates(u1, u2):
+          if inferior_count(u2) == 0:
+            set_duplicated(u2, True)
+            x1 = get_outject(u1)
+            x2 = get_outject(u2)
+            dups.append((explain_classified(classified), blurb(simple.mrca(x1, x2)),
+                         get_primary_key(x1), blorb(u1), inferior_count(u1),
+                         get_primary_key(x2), blorb(u2), inferior_count(u2)))
+          else:
+            log("# Duplicate has children: %s" % blorb(u2))
+
+def duplicates(u, v):
+  return (duplicate_parts(get_parts(u), get_parts(v)) and
+          (not get_rank(u) or
+           not get_rank(v) or
+           get_rank(u) == get_rank(v)))
+
+(get_duplicated, set_duplicated) = \
+  prop.get_set(prop.declare_property("duplicated"))
 
 # Given two records in a workspace coming from the same checklist,
 # are their concepts homotypic?
 
-def endohomotypic(u, v):
-  AB = get_workspace(u)
-  a = local_accepted(AB, u)
-  b = local_accepted(AB, v)
+def endohomotypic(u1, u2):
+  AB = get_workspace(u1)
+  a = local_accepted(AB, u1)
+  b = local_accepted(AB, u2)
 
-  def hom(u, v, thresh):
-    if same_typification(u, v): return True      # peephole optimization
-    comparison = compare_records(u, v)
-    if classify_comparison(comparison) < thresh:
-      return False
-    x = get_outject(u); y = get_outject(v)
-    if simple_le(x, y) or simple_le(y, x):
-      equate_typifications(u, v)
-      return True
-    return False
+  def hom(u1, u2, thresh):
+    if same_typification(u1, u2): return ENDOHOMOTYPIC      # peephole optimization
+    comparison = compare_records(u1, u2)
+    classified = classify_comparison(comparison)
+    if classified >= thresh:
+      x = get_outject(u1); y = get_outject(u2)
+      if simple_le(x, y) or simple_le(y, x):
+        # Might be duplicate records e.g. MDD1.10 Acomys johannis
+        equate_typifications(u1, u2)  # Cache it
+        classified = ENDOHOMOTYPIC
+    return classified
 
-  result = (hom(u, a, MOTION) and
-            hom(a, b, HOMOTYPIC) and
-            hom(b, v, MOTION))
-  return result
+  answer = min(hom(u1, a, MOTION),
+               hom(a, b, HOMOTYPIC), 
+               hom(b, u2, MOTION))
+  return answer
+
+def inferior_count(u):
+  return len(get_children(u, ())) + len(get_synonyms(u, ()))
 
 # This can be configured to run once or run twice.  'last' means we're
 # on the last pass.
 
-def find_typifications(AB, subproblems, get_estimate, last):
+def find_typifications(AB, subprobs, get_estimate, last):
   # This sets the 'typification_uf' property of ... some ... records.
 
   n = 1
-  for (key, (us, vs)) in subproblems.items():
+  for (key, (us, vs)) in subprobs.items():
     if n % 1000 == 0 or PROBE in key:
       log("# Subproblem %s %s %s %s %s" % (n, len(us), len(vs), blurb(us[0]), blurb(vs[0])))
     n += 1
@@ -87,6 +133,7 @@ def find_typifications(AB, subproblems, get_estimate, last):
       log("# Subproblem: '%s'" % key)
     for i in range(0, len(us)):
       u = us[i]
+      if get_duplicated(u, False): continue
       if monitor(u):
         log("# Subproblem row: '%s' '%s'" % (key, blorb(u)))
       # If it's a synonym, see if it matches any accepted in same checklist?
@@ -94,33 +141,40 @@ def find_typifications(AB, subproblems, get_estimate, last):
       targets = []
       for j in range(0, len(vs)):
         v = vs[j]
+        if get_duplicated(v, False): continue
         if get_estimate:
           dist = compute_distance(u, v, get_estimate)
         else:
           dist = None
+        if same_typification(u, v): break
         comparison = compare_records(u, v, dist) # shows!
         classified = classify_comparison(comparison)
-        if classified == HOMOTYPIC:
-          if True:  #same_vicinity(u, v):
-            if winner:
-              if not same_typification(winner, v):
-                log("# Induced homotypism: %s\n#   %s ~ %s" % (blorb(u), blorb(v), blorb(winner)))
+        if classified >= HOMOTYPIC:
+          if not winner:
             equate_typifications(u, v)
             winner = v
-            # break
-        elif classified == HETEROTYPIC:
-          if False and (monitor(u) or monitor(v)):
-            log("# Heterotypic: '%s' '%s'" % (blorb(u), blorb(v)))
+          elif same_typification(winner, v):
+            pass
+          else:
+            x3 = simple.mrca(get_outject(winner), get_outject(v))
+            if (local_accepted(AB, v) is local_accepted(AB, winner)
+                and get_children(v, () == ())):
+              # Siblings without children can safely be equated??
+              # log("# Homotypism induced by %s, allowed, mrca = %s:\n#   %s ~ %s" % (blorb(u), blorb(x3), blorb(v), blorb(winner)))
+              equate_typifications(winner, v)
+            else:
+              log("# Ambiguous matches for %s, mrca = %s:\n#   %s ~ %s" % (blorb(u), blorb(x3), blorb(v), blorb(winner)))
         elif classified == MOTION:
           if last:
-            # **** COMPUTE DISTANCE if 2nd pass ****
-            if get_rank(v) == 'species':
+            if get_rank(u) == 'species' and get_rank(v) == 'species':
               if same_vicinity(u, v):
                 targets.append(v)
               else:
                 if monitor(u) or monitor(v):
                   log("# Too far apart: %s -> %s" %
                       (blorb(u), blorb(v)))
+        elif classified == HETEROTYPIC:
+          pass
         else:                   # REVIEW
           if monitor(u) or monitor(v):
             log("* Review: '%s' '%s'" % (blorb(u), blorb(v)))
@@ -128,7 +182,7 @@ def find_typifications(AB, subproblems, get_estimate, last):
 
       if winner:
         pass
-      elif len(targets) > 0 and get_rank(u) == 'species':
+      elif len(targets) > 0:
         all_movers.append((u, targets))
     # end i loop
 
@@ -319,14 +373,13 @@ def unimportance(u):
   x = get_outject(u)
   return (1 if is_accepted(x) else 2,
           imp,
+          # Prefer to match the duplicate that has children
+          # (or more children)
+          -len(get_children(x, ())),
+          -len(get_synonyms(x, ())),
           get_scientific(x, None),
           get_primary_key(x))
 
-
-HOMOTYPIC   = 10
-MOTION      = 6
-REVIEW      = 5
-HETEROTYPIC = 0
 
 # Compare potentially homotypic taxa.
 # distance is distance (perhaps estimated) between u and v in combined model.
@@ -433,20 +486,26 @@ def explain(comparison):
                               "epithet",  # EPITHET_MASK
                              ))
                       if (things & (1<<i)) != 0))
-  word = "comparison"
-  if False:
-    classified = classify_comparison(comparison)
-    if classified == HOMOTYPIC:
-      word = "homotypic"
-    elif classified == HETEROTYPIC:
-      word = "heterotypic"
-    else:
-      word = "review"
 
   (misses, hits) = comparison
-  return ("%s. hits(%s) misses(%s)" %
-          (word, explode(hits), explode(misses)))
+  return ("hits(%s) misses(%s)" %
+          (explode(hits), explode(misses)))
     
+def explain_classified(classified):
+  if classified == ENDOHOMOTYPIC:
+    word = "endohomotypic"
+  elif classified == HOMOTYPIC:
+    word = "homotypic"
+  elif classified == MOTION:
+    word = "motion"           # kinetypic?
+  elif classified == REVIEW:
+    word = "review"
+  elif classified == HETEROTYPIC:
+    word = "heterotypic"
+  else:
+    word = str(classified)
+  return word
+
 # -----------------------------------------------------------------------------
 
 # distance is thresholded, so it only really matters whether it's small
@@ -500,7 +559,14 @@ def xid_epithet(AB, xid):
   return parts.epithet or parts.genus 
 
 def blorb(u):
-  if is_accepted(u):
-    return get_scientific(u)
+  if u == None:
+    return "None"
+  if get_workspace(u):
+    prefix = get_source_tag(get_outject(u)) + "."
   else:
-    return get_scientific(u) + "*"
+    prefix = get_source_tag(u) + "."
+  if is_accepted(u):
+    name = get_scientific(u)
+  else:
+    name = get_scientific(u) + "*"
+  return prefix + name

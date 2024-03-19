@@ -54,8 +54,8 @@ def find_subproblems(AB):
     assert key != MISSING, blurb(us[0])
     vs = B_index.get(key, None)
     if vs != None:
-      # us.sort(key=unimportance)
-      # vs.sort(key=unimportance)
+      us.sort(key=unimportance)
+      vs.sort(key=unimportance)
       subprobs[key] = (us, vs)
       if (any(monitor(u) for u in us) or
           any(monitor(v) for v in vs)):
@@ -64,8 +64,8 @@ def find_subproblems(AB):
     else:
       if PROBE in key:
         log("# Null subproblem %s" % key)
-  AB.subproblems = subprobs
   log("* There are %s subproblems." % len(subprobs))
+  AB.subproblems = subprobs
   return subprobs
 
 # Returns dict value -> key

@@ -112,6 +112,13 @@ def parse_name(verbatim,
   if PROBE in verbatim: log("# Parts: %s" % (parts,))
   return parts
 
+def duplicate_parts(p1, p2):
+  return (p1.genus == p2.genus and
+          p1.middle == p2.middle and
+          p1.epithet == p2.epithet and
+          p1.token == p2.token and
+          p1.year == p2.year)
+
 # Recover the canonical name and its part from the gnparser result.
 # N.g. the returned epithet will be stemmed.
 
