@@ -150,11 +150,14 @@ def generate_plugin_report(AB):
   for (op, count) in counts.items():
     log(" %6d %s" % (count, op))
 
-# s is a set of exemplar ids
+# s is a set of exemplar ids...
 
-def show_xid_set(AB, s):
-  return "{%s}" % ",".join(map(lambda s:"%s %s" % (s, xid_epithet(AB, s)),
-                               sorted(s)))
+def show_xid_set(AB, block):
+  # xep = (xid, epithet)
+  # Sort by epithet
+  xeps = sorted(map(lambda xid:(xid, xid_epithet(AB, xid)), block),
+                key=lambda xep: xep[1])
+  return "; ".join(map(lambda xep:"%s %s" % xep, xeps))
 
 # Could be:
 #   Change of rank (promotion/demotion).
