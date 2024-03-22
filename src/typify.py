@@ -10,6 +10,7 @@ from checklist import get_parts, monitor, get_superior, get_children, \
   is_accepted, blurb, get_scientific, get_primary_key, get_rank, \
   get_canonical, get_source_tag, get_nomenclatural_status, \
   get_children, get_synonyms
+from checklist import get_duplicate_from, set_duplicate_from
 from workspace import separated, get_outject, get_workspace, local_sup, get_source
 from workspace import isinA, isinB, local_accepted, all_records
 from simple import simple_le, distance_in_checklist
@@ -52,41 +53,37 @@ def find_endohomotypics(AB, subprobs, getit):
   log("# %s duplicates" % len(dups))
   for dup in dups:
     if count < 10:
-      log("** Dup class %s, mrca = '%s'\n**   %s '%s' (%s) ~ %s '%s' (%s)" %
+      log("** Dup: class = %s, mrca = '%s'\n**   %s '%s' (%s) ~ %s '%s' (%s)" %
           dup)
     count += 1
 
 def find_subproblem_endohomotypics(AB, us, dups):
   for i in range(0, len(us)):
     u1 = us[i]
-    if not get_duplicated(u1, False):
-      for j in range(i+1, len(us)):
-        u2 = us[j]
+    x1 = get_outject(u1)
+    for j in range(i+1, len(us)):
+      u2 = us[j]
+      x2 = get_outject(u2)
 
-        classified = endohomotypic(u1, u2)     # caches classified
-        if monitor(u1) or monitor(u2):
-          log("# %s: '%s' ~ '%s'" % (explain_classified(classified), blorb(u1), blorb(u2)))
-        if classified >= ENDOHOMOTYPIC:
-          assert same_typification(u1, u2)
-        if duplicates(u1, u2):
-          if inferior_count(u2) == 0:
-            set_duplicated(u2, True)
-            x1 = get_outject(u1)
-            x2 = get_outject(u2)
-            dups.append((explain_classified(classified), blurb(simple.mrca(x1, x2)),
-                         get_primary_key(x1), blorb(u1), inferior_count(u1),
-                         get_primary_key(x2), blorb(u2), inferior_count(u2)))
-          else:
-            log("# Duplicate has children: %s" % blorb(u2))
+      classified = endohomotypic(u1, u2)     # caches classified
+      if monitor(u1) or monitor(u2):
+        log("# %s: '%s' ~ '%s'" % (explain_classified(classified), blorb(u1), blorb(u2)))
+      if classified >= ENDOHOMOTYPIC:
+        assert same_typification(u1, u2)
+      if duplicates(u1, u2):
+        set_duplicate_from(x2, x1)
+        if inferior_count(x2) == 0:
+          dups.append((explain_classified(classified), blurb(simple.mrca(x1, x2)),
+                       get_primary_key(x1), blorb(u1), inferior_count(x1),
+                       get_primary_key(x2), blorb(u2), inferior_count(x2)))
+        else:
+          log("# Duplicate has children: %s" % blorb(u2))
 
 def duplicates(u, v):
   return (duplicate_parts(get_parts(u), get_parts(v)) and
           (not get_rank(u) or
            not get_rank(v) or
            get_rank(u) == get_rank(v)))
-
-(get_duplicated, set_duplicated) = \
-  prop.get_set(prop.declare_property("duplicated"))
 
 # Given two records in a workspace coming from the same checklist,
 # are their concepts homotypic?
@@ -133,7 +130,7 @@ def find_typifications(AB, subprobs, get_estimate, last):
       log("# Subproblem: '%s'" % key)
     for i in range(0, len(us)):
       u = us[i]
-      if get_duplicated(u, False): continue
+      x = get_outject(u)
       if monitor(u):
         log("# Subproblem row: '%s' '%s'" % (key, blorb(u)))
       # If it's a synonym, see if it matches any accepted in same checklist?
@@ -141,7 +138,7 @@ def find_typifications(AB, subprobs, get_estimate, last):
       targets = []
       for j in range(0, len(vs)):
         v = vs[j]
-        if get_duplicated(v, False): continue
+        y = get_outject(v)
         if get_estimate:
           dist = compute_distance(u, v, get_estimate)
         else:
@@ -157,13 +154,15 @@ def find_typifications(AB, subprobs, get_estimate, last):
             pass
           else:
             x3 = simple.mrca(get_outject(winner), get_outject(v))
+            y = get_outject(v)
             if (local_accepted(AB, v) is local_accepted(AB, winner)
-                and get_children(v, () == ())):
+                and get_children(y, ()) == ()):
               # Siblings without children can safely be equated??
               # log("# Homotypism induced by %s, allowed, mrca = %s:\n#   %s ~ %s" % (blorb(u), blorb(x3), blorb(v), blorb(winner)))
               equate_typifications(winner, v)
             else:
-              log("# Ambiguous matches for %s, mrca = %s:\n#   %s ~ %s" % (blorb(u), blorb(x3), blorb(v), blorb(winner)))
+              pass
+              #log("# Ambiguous matches for %s, mrca = %s:\n#   %s ~ %s" % (blorb(u), blorb(x3), blorb(v), blorb(winner)))
         elif classified == MOTION:
           if last:
             if get_rank(u) == 'species' and get_rank(v) == 'species':

@@ -207,15 +207,6 @@ def cross_le(AB, u, v):
 
 # sort of like: exemplar  ???
 
-def get_cross_glb(u):
-  v = v1 = get_cross_mrca(u)
-  while True:
-    if simple.gt(get_cross_mrca(v1), u):
-      break
-    v = v1
-    v1 = get_superior(v1).record
-  return v                      # Top of chain
-
 # Find a 'central' (non-peripheral) ancestor node (contains at least
 # one exemplar) in SAME checklist, and u's relation to it
 
@@ -338,3 +329,51 @@ def get_buddy(AB, u):
   if vf and same_typification_ufs(uf, vf):
     return v
   return None
+
+# ----------------------------------------
+# Extra stuff
+
+# Least taxon z of AB with u= < z and v <= z
+
+def mrca(AB, u, v):
+  while True:
+    m = AB.in_left(simple.mrca(get_outject(u), get_outject(get_estimate(v))))
+    n = AB.in_right(simple.mrca(get_outject(v), get_outject(get_estimate(u))))
+    rel = compare(AB, m, n)
+    if   rel.relationship == EQ: return n
+    elif rel.relationship == LT: return n
+    elif rel.relationship == LE: return n
+    elif rel.relationship == GT: return m
+    elif rel.relationship == GE: return m
+    elif rel.relationship == OVERLAP:
+      # Does this terminate?  Yes, because simple.mrca always goes
+      # rootward after an overlap.
+      log("# Reducing mrca(%s, %s) to mrca(%s, %s)" %
+          (blurb(x), blurb(y), blurb(m), blurb(n)))
+      u = m
+      v = n
+    else: assert False
+
+# Least taxon q of B such that w < q 
+
+def get_dominator(AB, w):
+  if isinA(AB, w):
+    u = w
+    v = get_estimate(w)
+  else:
+    u = get_estimate(w)
+    v = w
+  p = get_superior(u) if u is w else u
+  q = get_superior(v) if v is w else v
+  while True:
+    rel = compare(AB, p, q)
+    if rel.relationship == EQ: return q
+    elif rel.relationship == LT: return p
+    elif rel.relationship == LE: return p
+    elif rel.relationship == GT: return q
+    elif rel.relationship == GE: return q
+    elif rel.relationship == OVERLAP:
+      log("# Overlap: %s with %s" % (blurb(p), blurb(q)))
+      # iterate
+      p = get_superior(p)       # 'Break' the taxon
+    else: assert False

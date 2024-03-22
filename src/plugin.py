@@ -15,32 +15,23 @@ from typify import xid_epithet, explain, compare_records
 counts = {}
 
 def generate_row(AB, u, v, hom, est):
-  if u == True: u_field = "A concept"
-  elif u: u_field = description_for_report(u)
-  else: u_field = MISSING
+  if u == True:
+    u_fields = ("A concept taxonID", "A concept name")
+  else:
+    u_fields = description_for_report(u)
 
   if v == True:
-    v_field = "B concept"
-  elif v:
-    v_field = description_for_report(v)
+    v_fields = ("B concept taxonID", "B concept name")
   else:
-    v_field = MISSING
+    v_fields = description_for_report(v)
 
   rcc5_field = MISSING
+  v_rel = None
   if v == True:
-    v_rel = None
-    v_rel_field = "B concept"
     rcc5_field = "RCC5"
   elif u and v:
     v_rel = theory.compare(AB, u, v)
-    v_rel_field = ". " + show_relation(v_rel)
     rcc5_field = rcc5_symbol(v_rel.relationship)
-  elif v:
-    v_rel = relation(NOINFO, v)
-    v_rel_field = ". " + show_relation(v_rel)
-  else:
-    v_rel = None
-    v_rel_field = MISSING
 
   sidep = False
   if u == True:
@@ -55,12 +46,12 @@ def generate_row(AB, u, v, hom, est):
       else:
         counts[op] = 1
 
-  est_field = MISSING
   if est == True:
-    est_field = "containing B concept"
-  elif est:
-    if est.relationship != EQ and not sidep:
-      est_field = description_for_report(est.record)
+    est_fields = ("containing B concept id", "containing B concept name")
+  elif est.relationship != EQ and not sidep:
+    est_fields = description_for_report(est.record)
+  else:
+    est_fields = description_for_report(None)
 
   if u == True:
     u_and_v = "in both A and B concepts"
@@ -78,10 +69,10 @@ def generate_row(AB, u, v, hom, est):
     v_not_u = MISSING
 
   return (op_field,
-          u_field,
+          u_fields[0], u_fields[1],
           rcc5_field,
-          v_field,
-          est_field,
+          v_fields[0], v_fields[1],
+          est_fields[0], est_fields[1],
           u_and_v,
           u_not_v,
           v_not_u,
@@ -130,7 +121,6 @@ def generate_plugin_report(AB):
         if i[0] % frequency == 0: log("# %s %s" % (i[0], blurb(u)))
 
         est = estimate.get_estimate(u, None)
-        lub = ". " + show_relation(est)
 
         inters = theory.get_intersecting_species(u)
         rels = list(map(lambda w: theory.compare(AB, u, w), inters))
@@ -175,7 +165,6 @@ def show_xid_set(AB, s):
 #   Possible change of concept (perhaps lumped / perhaps split)
 
 def impute_operation(AB, u, v_rel, hom):
-  v = v_rel.record if v_rel else None
   ops = []
 
   if hom == "hom?":
@@ -184,6 +173,22 @@ def impute_operation(AB, u, v_rel, hom):
     hom2 = None
   else:
     hom2 = "side"
+
+  v = v_rel.record if v_rel else None
+
+  if monitor(u):
+    x = get_outject(u)
+    log("# %s %s has dup_id %s" % (get_primary_key(x), blurb(u),
+        get_duplicate_from(x, "(none)")))
+  if monitor(v):
+    y = get_outject(v)
+    log("# %s %s has dup_id %s" % (get_primary_key(y), blurb(v),
+        get_duplicate_from(y, "(none)")))
+
+  if u and get_duplicate_from(get_outject(u), None):
+    ops.append("dup in A")
+  if v and get_duplicate_from(get_outject(v), None):
+    ops.append("dup in B")
 
   if u == None:
     ops.append("added name")
@@ -260,21 +265,14 @@ def is_infraspecific(u):
   return r == 'subspecies' or r == 'infraspecific name'    # COL
 
 
-def show_relation(rel):
-  if not is_toplike(rel.record):
-    rcc5 = rcc5_symbol(rel.relationship)
-    # leading space prevents interpretation as excel formula
-    return "%s %s" % (rcc5_symbol(rel.relationship),
-                      description_for_report(rel.record))
-  else:
-    return MISSING
-
 def description_for_report(u):
-  x = get_outject(u)
-  return "%s.%s.%s%s" % (get_source_tag(x),
-                         get_primary_key(x),
-                         get_canonical(u, None) or get_scientific(u, None),
-                         "" if get_accepted(x) else "*")
+  if u:
+    x = get_outject(u)
+    return (get_primary_key(x),
+            "%s%s" % (get_canonical(u, None) or get_scientific(u, None),
+                      "" if get_accepted(x) else "*"))
+  else:
+    return (MISSING, MISSING)
 
 def hamming(u, v):
   p1 = get_parts(get_outject(u))

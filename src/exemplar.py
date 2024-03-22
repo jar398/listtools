@@ -15,6 +15,7 @@ from typify import get_exemplar, get_exemplar_id, get_typification_uf
 from typify import equate_typifications
 from typify import really_get_typification_uf, find_typifications
 from typify import unimportance, endo_typifications, xid_epithet
+from checklist import get_duplicate_from, set_duplicate_from
 
 # listtools's exemplar-finding procedure.  If there is some other way
 # of finding exemplars, that's fine, don't need to use this.
@@ -125,7 +126,7 @@ def write_exemplar_list(AB, out=sys.stdout):
   util.write_rows(generate_exemplars(AB), out)
 
 def generate_exemplars(AB):
-  yield ("exemplar id", "epithet", "checklist", "taxonID", "canonicalName")
+  yield ("exemplar id", "epithet", "checklist", "taxonID", "canonicalName", "duplicate of")
   count = [0]
   rows = []
   def doit(ws, which):
@@ -138,12 +139,14 @@ def generate_exemplars(AB):
         if r:
           ecount += 1
           xid = get_exemplar_id(r)
-          ep = xid_epithet(AB, xid)
-          rows.append((xid, ep, which, get_primary_key(x), get_canonical(x)))
+          epithet = xid_epithet(AB, xid)
+          dup = get_duplicate_from(x, None)
+          rows.append((xid, epithet, which, get_primary_key(x), get_canonical(x),
+                       get_primary_key(dup) if dup else MISSING))
           count[0] += 1
     log("# preorder: %s, exemplars: %s" % (rcount, ecount)) 
-  doit(swap(AB), 1)
-  doit(AB, 0)
+  doit(swap(AB), 'B')
+  doit(AB, 'A')
   rows.sort(key=lambda row:(row[0], row[2], row[4]))
   yield from rows
   log("# %s rows in exemplar report" % count[0])
@@ -157,13 +160,33 @@ def read_exemplars(in_rows, AB):
   xid_col = windex(header, "exemplar id")
   which_col = windex(header, "checklist")
   taxonid_col = windex(header, "taxonID")
+  dup_col = windex(header, "duplicate of")
   for row in the_rows:
-    which = int(row[which_col])
     taxonid = row[taxonid_col]
-    C = AB.A if which==0 else AB.B
+    which = row[which_col]
+    if which == 'A':
+      C = AB.A
+    elif which == 'B':
+      C = AB.B
+    else:
+      log("# Invalid checklist indicator %s" % which)
+    dup_id = row[dup_col]
     x = checklist.look_up_record(C, taxonid)
-    if x:
-      u = AB.in_left(x) if which==0 else AB.in_right(x)
+    if not x:
+      log("## read_exemplars: Record not found?! %s" % taxonid)
+    else:
+      u = AB.in_left(x) if which=='A' else AB.in_right(x)
+      if monitor(u):
+        log("# Found %s %s with dup id '%s'" % (taxonid, blurb(u), dup_id))
+
+      if dup_id:
+        drec = checklist.look_up_record(C, dup_id)
+        assert drec
+        set_duplicate_from(x, drec)
+        if monitor(u):
+          log("# %s %s is duplicated from %s %s" %
+              (taxonid, blurb(u), dup_id, blurb(drec)))
+
       uf = get_typification_uf(u)
 
       # row is xid, which, taxonid

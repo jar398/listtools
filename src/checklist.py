@@ -72,10 +72,16 @@ get_gn_full = prop.getter(prop.declare_property("gn_canonical_full"))
 get_gn_stem = prop.getter(prop.declare_property("gn_canonical_stem"))
 get_gn_auth = prop.getter(prop.declare_property("gn_authorship"))
 
+(get_duplicate_from, set_duplicate_from) = \
+  prop.get_set(prop.declare_property("duplicate_from"))
+
 # Merge related links
 get_equated_key = prop.getter(equated_key_prop)
 get_equated_note = prop.getter(equated_note_prop)
 (get_equated, set_equated) = prop.get_set(equated_prop)
+
+# Workspaces
+(get_outject, set_outject) = prop.get_set(outject_prop)
 
 # Records in the matches table
 get_match_key = prop.getter(prop.declare_property("match_id", inherit=False))
@@ -83,8 +89,6 @@ get_match_direction = prop.getter(prop.declare_property("direction", inherit=Fal
 get_match_kind = prop.getter(prop.declare_property("kind", inherit=False))
 get_basis_of_match = prop.getter(prop.declare_property("basis_of_match", inherit=False))
 get_match_relationship = prop.getter(prop.declare_property("relationship", inherit=False))
-
-(get_outject, set_outject) = prop.get_set(outject_prop)
 
 # -----------------------------------------------------------------------------
 # Relations and relationships
@@ -694,7 +698,8 @@ def blurb(r):
 def monitor(x):
   if not x: return False
   name = get_ok_name(x)
-  return (#name == "Rattus satarae" or
+  return (name.startswith("Neophascogale lorentzi") or
+          #name == "Rattus satarae" or
           #name == "Tragelaphus typicus" or
           #name == "Pogonomelomys mayeri" or
           #name == "Pseudochirops corinnae" or
