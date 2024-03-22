@@ -38,11 +38,17 @@ for row in reader:
         poly_count += 1
   if status_pos != None and 'common' in row[status_pos]:
     name = MISSING  #name.lower()   # force Quality = 0 for vernaculars
+  name = name.replace(' [sic]', '')
+  # E.g. Pecten medius Lamarck, 1819 sensu Daniel, 1884
+  probe = name.index(' sensu ')
+  if probe:
+    name = name[:probe]
 
   # We want gnparse to treat ? as if it were alphabetic
   if name.startswith('? ') or  name == '?':
     name = 'Xyzzy' + name[1:]     # Undone in use_gnparse.py
   name = name.replace('?', 'xyzzy')
   print(name, file=sys.stdout)
-log("# Synthesized %s polynomials" % poly_count)
+if poly_count > 0:
+  log("# Synthesized %s polynomials" % poly_count)
 log("# Found %s scientific names" % sci_count)

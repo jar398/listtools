@@ -202,14 +202,14 @@ def analyze_authorship(auth):
 LP = "\\("
 RP = "\\)"
 split_re = \
-  regex.compile(u"(.+?) (((%s)?)\p{Uppercase_Letter}[\p{Letter}.'-]+.*)$" % LP)
-token_re = regex.compile(u"\p{Uppercase_Letter}[\p{Letter}-]{3,}")
+  regex.compile(u"(.+?) (((%s)?)\\p{Uppercase_Letter}[\\p{Letter}.'-]+.*)$" % LP)
+token_re = regex.compile(u"\\p{Uppercase_Letter}[\\p{Letter}-]{3,}")
 # Loses with Van Beneden & Gervais, 1868-79
 year_re_string = '\\b([12][0-9]{3})\\b'
 year_re = regex.compile(year_re_string)
-#year_re = regex.compile(' ([12][0-9]{3})\)?$')
+#year_re = regex.compile(' ([12][0-9]{3})\\)?$')
 starts_auth_re = \
-  regex.compile(u"((%s)?)\p{Uppercase_Letter}[\p{Letter}.'-]" % LP)
+  regex.compile(u"((%s)?)\\p{Uppercase_Letter}[\\p{Letter}.'-]" % LP)
 parenyear_re = \
   regex.compile("%s%s%s" % (LP, year_re_string, RP))
 

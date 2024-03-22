@@ -258,7 +258,8 @@ def clean_name(row, can_pos, sci_pos, auth_pos):
   elif c == MISSING and s != MISSING and a != MISSING:
     if s.endswith(a):
       c = s[0:-len(a)].strip()
-      log("# Extracting canonical '%s' from '%s'" % (c, s))
+      # Happenss copiously with GBIF extracts
+      #log("# Extracting canonical '%s' from '%s'" % (c, s))
 
   # Extract authorship as suffix of scientific
   elif a == MISSING and s != MISSING and c != MISSING:
@@ -288,20 +289,22 @@ def clean_name(row, can_pos, sci_pos, auth_pos):
     mod = True
   return mod
 
-genus_re = u'\p{Uppercase_Letter}[\p{Lowercase_Letter}-]+'
-epithet_re = u'[\p{Lowercase_Letter}-]+'
+genus_re = u'\\p{Uppercase_Letter}[\\p{Lowercase_Letter}-]+'
+epithet_re = u'[\\p{Lowercase_Letter}-]+'
 
-has_subgenus_re_1 = regex.compile(u'%s( (Subgenus|subg\.|subgenus\.) %s) %s' %
+# I don't think this syntax is used - flush?
+has_subgenus_re_1 = regex.compile(u'%s( (Subgenus|subg\\.|subgenus\\.) %s) %s' %
                                    (genus_re, genus_re, epithet_re))
-has_subgenus_re_2 = regex.compile(u'%s( \(%s\)) %s' %
+has_subgenus_re_2 = regex.compile(u'%s( \\(%s\\)) %s' %
                                    (genus_re, genus_re, epithet_re))
 
 def remove_subgenus(s):
-  m = (has_subgenus_re_1.match(s) or
+  m = (#has_subgenus_re_1.match(s) or
        has_subgenus_re_2.match(s))
   if m:
     cleaned = s[0:m.start(1)] + s[m.end(1):]
-    log("# Removing subgenus: %s -> %s" % (m[0], cleaned))
+    # Happens copiously in GBIF.  Don't bother commenting
+    # log("# Removing subgenus: %s -> %s" % (m[0], cleaned))
     return cleaned
   else:
     return s
@@ -313,8 +316,8 @@ def remove_subgenus(s):
 #
 # This may be too liberal... insist on there being a year?
 # NCBI: Flavobacterium sp. SC12154
-#has_auth_re = regex.compile(u' .*\p{Uppercase_Letter}.*\p{Lowercase_Letter}')
-#has_auth_re = regex.compile(u' (\(?)\p{Uppercase_Letter}[\p{Letter}-]+')
+#has_auth_re = regex.compile(u' .*\\p{Uppercase_Letter}.*\\p{Lowercase_Letter}')
+#has_auth_re = regex.compile(u' (\\(?)\\p{Uppercase_Letter}[\\p{Letter}-]+')
 #
 #def is_scientific(name):
 #  return has_auth_re.search(name)

@@ -1,11 +1,14 @@
 #!/bin/bash
 set -e
-set -v
 
 function doit {
+rm -f work/msw3.csv
 make work/msw3.csv
+rm -f work/mdd1.10.csv
 make work/mdd1.10.csv
+rm -f work/col22_pteriomorphia.csv
 make work/col22_pteriomorphia.csv
+rm -f work/col23_pteriomorphia.csv
 make work/col23_pteriomorphia.csv
 time src/exemplar.py --A work/msw3.csv --B work/mdd1.10.csv \
               > msw3-mdd1.10-exemplars-v5.csv
@@ -21,4 +24,5 @@ time src/plugin.py --A work/col22_pteriomorphia.csv \
               > col22_col23_pteriomorphia-plugin-v5.csv
 }
 
-doit 2>v5.txt
+set -v
+doit >v5.txt 2>&1

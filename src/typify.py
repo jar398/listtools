@@ -50,12 +50,7 @@ def find_endohomotypics(AB, subprobs, getit):
     find_subproblem_endohomotypics(AB, getit(both), dups)
 
   count = 0
-  log("# %s duplicates" % len(dups))
-  for dup in dups:
-    if count < 10:
-      log("** Dup: class = %s, mrca = '%s'\n**   %s '%s' (%s) ~ %s '%s' (%s)" %
-          dup)
-    count += 1
+  log("* Detected %s duplicates" % len(dups))
 
 def find_subproblem_endohomotypics(AB, us, dups):
   for i in range(0, len(us)):
@@ -72,12 +67,14 @@ def find_subproblem_endohomotypics(AB, us, dups):
         assert same_typification(u1, u2)
       if duplicates(u1, u2):
         set_duplicate_from(x2, x1)
-        if inferior_count(x2) == 0:
+        n = inferior_count(x2)
+        if n == 0:
           dups.append((explain_classified(classified), blurb(simple.mrca(x1, x2)),
                        get_primary_key(x1), blorb(u1), inferior_count(x1),
-                       get_primary_key(x2), blorb(u2), inferior_count(x2)))
+                       get_primary_key(x2), blorb(u2), n))
         else:
-          log("# Duplicate has children: %s" % blorb(u2))
+          log("** Duplicate %s %s of %s has %s children" %
+              (get_primary_key(x2), blorb(u2), get_primary_key(x1), n))
 
 def duplicates(u, v):
   return (duplicate_parts(get_parts(u), get_parts(v)) and
