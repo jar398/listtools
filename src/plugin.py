@@ -32,6 +32,8 @@ def generate_row(AB, u, v, hom, est):
   elif u and v:
     v_rel = theory.compare(AB, u, v)
     rcc5_field = rcc5_symbol(v_rel.relationship)
+    if rcc5_field.startswith('='):
+      rcc5_field = "'" + rcc5_field
 
   sidep = False
   if u == True:

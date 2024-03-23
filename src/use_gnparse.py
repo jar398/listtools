@@ -14,7 +14,9 @@ year_re = regex.compile(' ([12][0-9]{3})\\)?$')
 CANON_SAMPLE_LIMIT = 0    # for debugging
 ADD_TIPES = True
 
-def use_parse(gn_iter, check_iter):
+# Returns a generator
+
+def use_gnparse(gn_iter, check_iter):
 
   # gnparse output: gn_iter / gn_header
   gn_header = next(gn_iter)
@@ -53,6 +55,7 @@ def use_parse(gn_iter, check_iter):
   # May need to consult the source record too
   scientific_pos = windex(checklist_header, "scientificName")
   canonical_pos = windex(checklist_header, "canonicalName")
+  taxonid_pos = windex(checklist_header, "taxonID")
 
   n_added_columns = (len(out_header) - len(checklist_header))
 
@@ -88,13 +91,13 @@ def use_parse(gn_iter, check_iter):
     q = int(gn_row[quality_pos])
     if gn_full == MISSING or gn_stem == MISSING or q >= 4:
       if q > 0:                 # e.g. BOLD:ACH7315
-        log("** Row %s: ill-formed name: '%s'" %
-            (row_count, gn_verb))
+        log("** %s: Ill-formed name: '%s'" %
+            (checklist_row[taxonid_pos], gn_verb))
       loser_count += 1
     yield out_row
 
   if loser_count > 0:
-    log("-- %s rows with poor gnparse quality" % loser_count)
+    log("-- %s rows with poor gnparser quality" % loser_count)
 
   log("-- use_gnparse: %s rows" % (row_count,))
 
@@ -117,6 +120,7 @@ if __name__ == '__main__':
   assert args.source
   gn_file = sys.stdin
   with open(args.source, "r") as source_file:
-    better = use_parse(csv.reader(gn_file),
+    # rows is a generator
+    rows = use_gnparse(csv.reader(gn_file),
                        csv.reader(source_file))
-    util.write_rows(better, sys.stdout)
+    util.write_rows(rows, sys.stdout)

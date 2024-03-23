@@ -100,7 +100,8 @@ def get_subproblem_key(z):
     if False and monitor(x):
       log("# Subproblem key is %s for %s" % (key, blurb(x)))
   else:
-    log("** Name missing or ill-formed: %s" % (parts,))
+    log("** %s: Name missing or ill-formed: %s" %
+        (get_primary_key(x), parts,))
     key = '?' + get_primary_key(x)
   return key
 

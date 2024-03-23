@@ -40,9 +40,8 @@ for row in reader:
     name = MISSING  #name.lower()   # force Quality = 0 for vernaculars
   name = name.replace(' [sic]', '')
   # E.g. Pecten medius Lamarck, 1819 sensu Daniel, 1884
-  probe = name.index(' sensu ')
-  if probe:
-    name = name[:probe]
+  if ' sensu ' in name:
+    name = name[:name.index(' sensu ')]
 
   # We want gnparse to treat ? as if it were alphabetic
   if name.startswith('? ') or  name == '?':

@@ -49,10 +49,8 @@ def find_endohomotypics(AB, subprobs, getit):
     # both = (us, vs)
     find_subproblem_endohomotypics(AB, getit(both), dups)
 
-  count = 0
-  log("* Detected %s duplicates" % len(dups))
-
 def find_subproblem_endohomotypics(AB, us, dups):
+  dups = []
   for i in range(0, len(us)):
     u1 = us[i]
     x1 = get_outject(u1)
@@ -67,14 +65,17 @@ def find_subproblem_endohomotypics(AB, us, dups):
         assert same_typification(u1, u2)
       if duplicates(u1, u2):
         set_duplicate_from(x2, x1)
-        n = inferior_count(x2)
-        if n == 0:
-          dups.append((explain_classified(classified), blurb(simple.mrca(x1, x2)),
-                       get_primary_key(x1), blorb(u1), inferior_count(x1),
-                       get_primary_key(x2), blorb(u2), n))
-        else:
-          log("** Duplicate %s %s of %s has %s children" %
-              (get_primary_key(x2), blorb(u2), get_primary_key(x1), n))
+        dups.append((u1, u2))
+
+  dups.sort(key=lambda u1u2: (get_primary_key(get_outject(u1u2[0])),
+                              get_primary_key(get_outject(u1u2[1]))))
+  for (u1, u2) in dups:
+    x1 = get_outject(u1)
+    x2 = get_outject(u2)
+    n = inferior_count(x2)
+    note = " (%s children)" % n if n > 0 else ""
+    log("** %s: Duplicate of %s: %s%s" %
+        (get_primary_key(x2), get_primary_key(x1), blorb(u2), note))
 
 def duplicates(u, v):
   return (duplicate_parts(get_parts(u), get_parts(v)) and
@@ -557,12 +558,13 @@ def xid_epithet(AB, xid):
 def blorb(u):
   if u == None:
     return "None"
+  x = get_outject(u)
   if get_workspace(u):
-    prefix = get_source_tag(get_outject(u)) + "."
+    prefix = get_source_tag(x) + "."
   else:
-    prefix = get_source_tag(u) + "."
-  if is_accepted(u):
-    name = get_scientific(u)
+    prefix = get_source_tag(x) + "."
+  if is_accepted(x):
+    name = get_scientific(x)
   else:
-    name = get_scientific(u) + "*"
+    name = get_scientific(x) + "*"
   return prefix + name

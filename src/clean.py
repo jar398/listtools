@@ -50,11 +50,12 @@ def start_csv(inport, params, outport, args):
   if can_pos == None:
     can_pos = len(out_header)
     out_header = out_header + ["canonicalName"]
-    log("** Adding canonicalName column")
+    log("-- Adding canonicalName column")
   if sci_pos == None:
     sci_pos = len(out_header)
     out_header = out_header + ["scientificName"]
-    log("** Adding scienticicName column")
+    log("-- Adding scientificName column")
+  # add an authority column too ??
 
   # --managed taxonID --prefix GBIF:   must always be used together
   if args.managed:
@@ -92,17 +93,19 @@ def start_csv(inport, params, outport, args):
   csv.field_size_limit(131072 * 4)
   for in_row in reader:
 
+    taxon_id = in_row[taxon_id_pos]
+
     for field in in_row:
       if len(field) > 10000:
-        log("# Really long row: %s %s" % (count, in_row[0]))
+        log("** %s: Very long row: length %s" % (taxon_id, count))
 
     # Deal with raggedness if any
     if len(in_row) > len(in_header):
       in_row = in_row[0:len(in_header)]
       trimmed += 1
     elif len(in_row) < len(in_header):
-      log(("** clean: Not enough columns: row %s have %s want %s" %
-             (count, len(in_row), len(in_header))))
+      log(("** %s: Not enough columns: have %s want %s" %
+           (taxon_id, len(in_row), len(in_header))))
 
     # Filter out senior synonyms... is this right?
     if tax_status_pos != None and in_row[tax_status_pos] == "senior synonym":
@@ -124,13 +127,13 @@ def start_csv(inport, params, outport, args):
       indication_2 = True
 
     # Two ways to test whether a usage is accepted/dubious
-    pk = in_row[pk_pos_in]
+    taxon_id = in_row[pk_pos_in]
     au = in_row[accepted_pos] if accepted_pos != None else MISSING
-    indication_1 = (au == MISSING or au == pk)
+    indication_1 = (au == MISSING or au == taxon_id)
 
     if indication_1 != indication_2 and conflicts < 10:
-      log("-- %s has accepted '%s' but taxstatus '%s'" %
-          (pk, au, stat))
+      log("** %s: Accepted is '%s' but taxstatus '%s'" %
+          (taxon_id, au, stat))
     conflicts += 1
 
     # landmark_status is specific to EOL
@@ -160,17 +163,17 @@ def start_csv(inport, params, outport, args):
         out_row[auth_pos] = a
 
     # Add primary key if duplicate(?) or missing
-    if pk == MISSING:
-      pk = fresh_pk(in_row, out_header)
+    if taxon_id == MISSING:
+      taxon_id = fresh_pk(in_row, out_header)
       minted += 1
-      out_row[pk_pos_out] = pk
-    elif pk in seen_pks:
-      log("** %s Two or more rows have %s = %s\n" %
-            (pk_col, pk_col, pk))
-      pk = fresh_pk(in_row, out_header)
-      out_row[pk_pos_out] = pk
-    assert pk != MISSING
-    seen_pks[pk] = True
+      out_row[pk_pos_out] = taxon_id
+    elif taxon_id in seen_pks:
+      log("** %s Two or more rows have same %s\n" %
+            (taxon_id, pk_col))
+      taxon_id = fresh_pk(in_row, out_header)
+      out_row[pk_pos_out] = taxon_id
+    assert taxon_id != MISSING
+    seen_pks[taxon_id] = True
 
     # Add managed_id if necessary
     if args.managed:            # --managed prefix:column
@@ -186,7 +189,7 @@ def start_csv(inport, params, outport, args):
     writer.writerow(out_row)
     count += 1
     if count % 250000 == 0:
-      log("row %s id %s" % (count, in_row[taxon_id_pos]))
+      log("# row %s id %s" % (count, taxon_id))
   log("-- clean: %s rows, %s columns, %s ids minted, %s accepteds normalized" %
         (count, len(in_header), minted, accepteds_normalized))
   log("-- clean: %s names cleaned, %s ranks cleaned" %
