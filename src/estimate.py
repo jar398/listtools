@@ -62,25 +62,26 @@ def find_estimate(AB, u):
   a = get_block(u2)
   b = get_block(v)
   assert b >= a
-  if b != a:                  # b > a
-    return relation(LT, v, "more exemplars")
+  if b != a:                  # a < b, u2 < v
+    return relation(LT, v, "estimate")
 
   # ship is LT or EQ
   # we'll turn EQ into LE if there are multiple options
 
   # If u2 is at top of chain, EQ is still an option.  Otherwise has to be LE.
-  sup = local_sup(AB, u2)
+  sup = local_sup(AB, u2)       # Synonym?
   if sup and a == get_block(sup.record):
     if ship == EQ: ship = LE
 
   while True:
+    # Take a look at the block rootward of v
     sup = local_sup(AB, v)         # B.Tupaia montana
     if not sup:
-      return relation(ship, v, "at top")
+      return relation(ship, v, "estimate = top")
     v2 = sup.record
     b2 = get_block(v2)
     if b2 > b:
-      return relation(ship, v, "top of chain")
+      return relation(ship, v, "estimate-chain-top")
     if ship == EQ: ship = LE 
     v = v2
     b = b2

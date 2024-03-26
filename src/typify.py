@@ -63,7 +63,12 @@ def find_subproblem_endohomotypics(AB, us, dups):
         log("# %s: '%s' ~ '%s'" % (explain_classified(classified), blorb(u1), blorb(u2)))
       if classified >= ENDOHOMOTYPIC:
         assert same_typification(u1, u2)
-      if duplicates(u1, u2):
+      if duplicates(u1, u2):    # Is u1 a duplicate taxon of u2?
+        if is_accepted(x1) and not is_accepted(x2):
+          log("# Keeping accepted %s, flushing synonym" % blurb(x1))
+          pass
+        elif not get_duplicate_from(x1, None):
+          set_duplicate_from(x1, x1)
         set_duplicate_from(x2, x1)
         dups.append((u1, u2))
 
