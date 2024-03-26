@@ -6,11 +6,13 @@ import simple
 
 from util import log, MISSING, UnionFindable
 from rcc5 import EQ, NEQ, OVERLAP, DISJOINT
-from checklist import get_parts, monitor, get_superior, get_children, \
+from checklist import get_parts, monitor, \
+  get_superior, get_children, get_synonyms, \
   is_accepted, blurb, get_scientific, get_primary_key, get_rank, \
   get_canonical, get_source_tag, get_nomenclatural_status, \
-  get_children, get_synonyms
-from checklist import get_duplicate_from, set_duplicate_from
+  get_children, get_synonyms, \
+  get_duplicate_from, set_duplicate_from, all_records
+
 from workspace import separated, get_outject, get_workspace, local_sup, get_source
 from workspace import isinA, isinB, local_accepted, all_records
 from simple import simple_le, distance_in_checklist
@@ -21,100 +23,43 @@ MOTION        = 6
 REVIEW        = 5
 HETEROTYPIC   = 0
 
-def endo_typifications(AB, subprobs):
-  log("* Matching within the A checklist:")
-  find_endohomotypics(AB, subprobs, lambda xy: xy[0])
-  log("* Matching within the B checklist:")
-  find_endohomotypics(AB, subprobs, lambda xy: xy[1])
-  find_extra_homotypics(AB)
+def find_endohomotypics(AB):
+  def process_checklist(AB):
+    def process_inf(x, p):          # p = parent of x
+      process(x)
+      comparison = compare_records(AB.in_left(x), AB.in_left(p))
+      return classify_comparison(comparison) >= MOTION
+    def process(x):
+      u = AB.in_left(x)
+      candidates = []
+      for c in get_children(x, ()):
+        if process_inf(c, x):
+          # c nominates itself as the type of x
+          candidates.append(c)
+      n = len(candidates)
+      if n == 1:
+        # maybe return a score, and sort ???
+        equate_typifications(AB.in_left(candidates[0]), u)
+      elif n > 1:
+        # no candidate, or ambiguity
+        log("# Putatively homotypic children of %s: %s, %s" %
+            (blurb(x), blurb(candidates[0]), blurb(candidates[1])))
+      for c in get_synonyms(x, ()):
+        # N.b. synonyms do not have descendants
+        if process_inf(c, x):
+          # c is a homotypic synonym of x
+          equate_typifications(AB.in_left(c), u)
+        elif 'homotypic' in get_nomenclatural_status(c, ''):
+          equate_typifications(AB.in_left(c), u)
+    process(AB.A.top)
+  process_checklist(AB)
 
-def find_extra_homotypics(AB):
-  log("* Scanning for declared homotypic synonyms:")
-  def scan(AB):
-    for x in all_records(AB.A):
-      if 'homotypic' in get_nomenclatural_status(x, ''):
-        # GBIF has 400,000 of these
-        p = AB.in_left(get_accepted(x))
-        u = AB.in_left(x)
-        if get_parts(p).epithet != get_parts(u).epithet:
-          log("# Homotypic synonym %s ~ %s" % (blurb(u), blurb(p)))
-        equate_typifications(u, p)
-  scan(AB)
-  scan(AB.swap())
-
-def find_endohomotypics(AB, subprobs, getit):
-  dups = []
-
-  for both in subprobs.values():
-    # both = (us, vs)
-    find_subproblem_endohomotypics(AB, getit(both), dups)
-
-def find_subproblem_endohomotypics(AB, us, dups):
-  dups = []
-  for i in range(0, len(us)):
-    u1 = us[i]
-    x1 = get_outject(u1)
-    for j in range(i+1, len(us)):
-      u2 = us[j]
-      x2 = get_outject(u2)
-
-      classified = endohomotypic(u1, u2)     # caches classified
-      if monitor(u1) or monitor(u2):
-        log("# %s: '%s' ~ '%s'" % (explain_classified(classified), blorb(u1), blorb(u2)))
-      if classified >= ENDOHOMOTYPIC:
-        assert same_typification(u1, u2)
-      if duplicates(u1, u2):    # Is u1 a duplicate taxon of u2?
-        if is_accepted(x1) and not is_accepted(x2):
-          log("# Keeping accepted %s, flushing synonym" % blurb(x1))
-          pass
-        elif not get_duplicate_from(x1, None):
-          set_duplicate_from(x1, x1)
-        set_duplicate_from(x2, x1)
-        dups.append((u1, u2))
-
-  dups.sort(key=lambda u1u2: (get_primary_key(get_outject(u1u2[0])),
-                              get_primary_key(get_outject(u1u2[1]))))
-  for (u1, u2) in dups:
-    x1 = get_outject(u1)
-    x2 = get_outject(u2)
-    n = inferior_count(x2)
-    note = " (%s children)" % n if n > 0 else ""
-    log("** %s: Duplicate of %s: %s%s" %
-        (get_primary_key(x2), get_primary_key(x1), blorb(u2), note))
-
+# TBD
 def duplicates(u, v):
   return (duplicate_parts(get_parts(u), get_parts(v)) and
           (not get_rank(u) or
            not get_rank(v) or
            get_rank(u) == get_rank(v)))
-
-# Given two records in a workspace coming from the same checklist,
-# are their concepts homotypic?
-
-def endohomotypic(u1, u2):
-  AB = get_workspace(u1)
-  a = local_accepted(AB, u1)
-  b = local_accepted(AB, u2)
-
-  def hom(u1, u2, thresh):
-    if same_typification(u1, u2): return ENDOHOMOTYPIC      # peephole optimization
-    comparison = compare_records(u1, u2)
-    classified = classify_comparison(comparison)
-    if classified >= thresh:
-      x = get_outject(u1); y = get_outject(u2)
-      if simple_le(x, y) or simple_le(y, x):
-        # Might be duplicate records e.g. MDD1.10 Acomys johannis
-        equate_typifications(u1, u2)  # Cache it
-        classified = ENDOHOMOTYPIC
-    return classified
-
-  answer = min(hom(u1, a, MOTION),
-               hom(a, b, HOMOTYPIC), 
-               hom(b, u2, MOTION))
-  return answer
-
-def inferior_count(u):
-  return len(get_children(u, ())) + len(get_synonyms(u, ()))
 
 # This can be configured to run once or run twice.  'last' means we're
 # on the last pass.
@@ -133,6 +78,7 @@ def find_typifications(AB, subprobs, get_estimate, last):
       log("# Subproblem: '%s'" % key)
     for i in range(0, len(us)):
       u = us[i]
+      if is_linked(u): continue
       x = get_outject(u)
       if monitor(u):
         log("# Subproblem row: '%s' '%s'" % (key, blorb(u)))
@@ -141,6 +87,7 @@ def find_typifications(AB, subprobs, get_estimate, last):
       targets = []
       for j in range(0, len(vs)):
         v = vs[j]
+        if is_linked(v): continue
         y = get_outject(v)
         if get_estimate:
           dist = compute_distance(u, v, get_estimate)
@@ -226,6 +173,14 @@ def find_typifications(AB, subprobs, get_estimate, last):
 
   equate_typifications(AB.in_left(AB.A.top),
                        AB.in_right(AB.B.top))
+
+def is_linked(u):
+  uf = get_typification_uf(u)
+  if uf:
+    (_, u, v) = uf.payload()
+    return u and v
+  else:
+    return False
 
 def same_vicinity(u0, v0):
   f = get_family(u0)
@@ -409,7 +364,9 @@ def compare_parts(p, q, distance=None):
   hits = misses = 0
 
   if p.epithet != None and q.epithet != None:
-    if p.epithet == q.epithet: hits |= EPITHET_MASK
+    pep = p.genus.lower() if p.epithet == '' else p.genus
+    qep = q.genus.lower() if q.epithet == '' else q.genus
+    if pep == qep: hits |= EPITHET_MASK
     else: misses |= EPITHET_MASK
 
   # Proximity within the hierarchy essential if no genus match

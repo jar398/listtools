@@ -479,6 +479,9 @@ work/mdd1.0-clean.csv: work/mdd/mdd1.0.csv
 
 # Need to clone the pgasu/MDD-DwC-mapping repo and put the clone sister to this repo
 # Get later versions at https://zenodo.org/record/7394529#.Y-z1dOLMI1I
+# N.b. better version of the MDD DwC mapper is at
+# jar398/MDD-DwC-mapping on github.
+
 MAPPER?=../MDD-DwC-mapping
 MDDSOURCE?=$(MAPPER)/data
 MDDDWC?=$(MAPPER)/dwc

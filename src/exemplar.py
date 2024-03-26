@@ -14,7 +14,8 @@ from typify import equate_typification_ufs
 from typify import get_exemplar, get_exemplar_id, get_typification_uf
 from typify import equate_typifications
 from typify import really_get_typification_uf, find_typifications
-from typify import unimportance, endo_typifications, xid_epithet
+from typify import unimportance, xid_epithet, \
+  find_endohomotypics, unimportance
 from checklist import get_duplicate_from, set_duplicate_from
 
 # listtools's exemplar-finding procedure.  If there is some other way
@@ -25,8 +26,8 @@ from checklist import get_duplicate_from, set_duplicate_from
 
 def find_exemplars(get_estimate, AB):
   subproblems = find_subproblems(AB)
-  endo_typifications(AB, subproblems)
-
+  find_endohomotypics(AB)
+  find_endohomotypics(swap(AB))
   if True:
     log("* Finding typifications (single pass):")
     find_typifications(AB, subproblems, None, True)
