@@ -364,8 +364,8 @@ def compare_parts(p, q, distance=None):
   hits = misses = 0
 
   if p.epithet != None and q.epithet != None:
-    pep = p.genus.lower() if p.epithet == '' else p.genus
-    qep = q.genus.lower() if q.epithet == '' else q.genus
+    pep = p.genus.lower() if p.epithet == '' and p.genus else p.epithet
+    qep = q.genus.lower() if q.epithet == '' and q.genus else q.epithet
     if pep == qep: hits |= EPITHET_MASK
     else: misses |= EPITHET_MASK
 

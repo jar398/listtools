@@ -23,7 +23,7 @@ def theorize(AB, compute_exemplars=True):
   # TBD: option to read them from a file
   # Assumes links found already  - find_links(AB)
   if compute_exemplars:
-    exemplar.find_exemplars(AB)
+    exemplar.find_exemplars(get_estimate, AB)
   # else: read them from a file
 
   find_estimates(AB)
