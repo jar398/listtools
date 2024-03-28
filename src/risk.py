@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 import sys, csv, argparse
-import rows, align, checklist, theory, exemplar
+import rows, align, checklist, specimen, theory, exemplar
 from workspace import ingest_workspace
 from checklist import *
 
@@ -44,15 +44,15 @@ def generate_risk_report(AB):
           yield (get_ok_name(x), "lump",
                  k_exemplars, f_exemplars, a_exemplars)
 
-def exemplar_names(xids, AB, u, v):
-  def makename(xid):
-    aname = get_ok_name(theory.xid_to_record(AB, xid, u))
-    bname = get_ok_name(theory.xid_to_record(AB, xid, v))
+def exemplar_names(sids, AB, u, v):
+  def makename(sid):
+    aname = get_ok_name(specimen.sid_to_record(AB, sid, u))
+    bname = get_ok_name(specimen.sid_to_record(AB, sid, v))
     if aname == bname:
       return aname
     else:
       return "%s[%s]" % (aname, bname)
-  return ";".join(map(makename, xids))
+  return ";".join(map(makename, sids))
 
 if __name__ == '__main__':
   parser = argparse.ArgumentParser(description="""

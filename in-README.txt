@@ -19,6 +19,8 @@ b1537cee-f914-419c-8775-fcedede967ea.zip
     - dataset 1130, WoRMS Mollusca, 15-Jan-2024
 4b40133e-b330-476e-a461-8808c55b6a54.zip
     - dataset 1130, WoRMS Mollusca, 16-jan-2024
+b9c4e94d-f1ca-4130-bf2e-3f402106f6b7.zip
+    - dataset 9910, COL 2023, Pteriomorpha, 27-mar-2024
 ebird-2023.zip
     - "eBird-Clements-v2023-integrated-checklist-October-2023.csv"
 clements-esa.zip (AKA clements-oa.zip)
@@ -26,7 +28,7 @@ clements-esa.zip (AKA clements-oa.zip)
 clements-foo.zip
     - ? 16-Jan-2024
 dwca-artsnavnebase-v1.128.zip
-    - Artsnavnebase, all species in Norway
+    - dataset 2041, Dyntaxa. Svensk taxonomisk databas 2022-08-22
 ncbi201505.zip
     - NCBI Taxonomy May 2020
       ftp://ftp.ncbi.nlm.nih.gov/pub/taxonomy/taxdump_archive/taxdmp_2015-05-01.zip
@@ -39,12 +41,10 @@ gbif20210303.zip
     - https://rs.gbif.org/datasets/backbone/2021-03-03/backbone.zip
 gbif20220317.zip
     - https://rs.gbif.org/datasets/backbone/2023-08-28/backbone.zip
-?
-    - ITIS
+I had these at one point:
     - EOL dynamic hierarchy, various versions
-    - CoL entire dump
+    - ITIS
+    - COL entire dump
     - col2022_pteriomorphia.zip
       dataset 9837 root taxon Pteriomorphia, dwca
-    - col2023_pteriomorphia.zip
-      dataset 9910 root taxon Pteriomorphia
-      https://www.checklistbank.org/dataset/9910/download
+    - dataset 2030, Artsnavnebase, all species in Norway, 1-Feb-2023

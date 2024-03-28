@@ -9,12 +9,13 @@ from checklist import *
 from workspace import *
 from rcc5 import rcc5_symbol
 
+import specimen
 import exemplar
 import estimate
+from specimen import same_specimens, get_exemplar, same_typifications
 from estimate import find_estimates, get_estimate, get_equivalent
 from estimate import is_empty_block, get_block, BOTTOM_BLOCK
 from estimate import block_relationship, same_block, opposite_exemplar_records
-from typify import same_typification, get_exemplar, same_typification_ufs
 
 # Assumes that name matches are already stored in AB.
 
@@ -165,7 +166,7 @@ def compose_final(u, rel1, rel2, rel3):
 
 def compare_locally(AB, u, v):
   rel = simple.compare_per_checklist(get_outject(u), get_outject(v)) # in A or B
-  if rel.relationship & DISJOINT and same_typification(u, v):
+  if rel.relationship & DISJOINT and same_typifications(u, v):
     # rel.relationship is NOINFO or DISJOINT
     # They're not disjoint because type is in both
     return relation(INTERSECT, v, "homotypic synonyms")
@@ -305,7 +306,7 @@ def same_protonym(u, v):
   if e:
     f = get_exemplar(v)
     if f:
-      return same_typification_ufs(e, f)
+      return same_specimens(e, f)
   return False
 
 # Taxon in v with same epithet, and also same rank if possible.
@@ -326,7 +327,7 @@ def get_buddy(AB, u):
       # Ranks don't match - maybe it's a promotion/demotion?
       v = q
   vf = get_exemplar(v)
-  if vf and same_typification_ufs(uf, vf):
+  if vf and same_specimens(uf, vf):
     return v
   return None
 

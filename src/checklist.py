@@ -44,7 +44,7 @@ inject_prop = prop.declare_property("inject") # Contextual only!
 outject_prop = prop.declare_property("outject")
 
 (get_primary_key, set_primary_key) = prop.get_set(primary_key_prop)
-(get_source, set_source) = prop.get_set(source_prop)
+(get_source, set_source) = prop.get_set(source_prop)     # checklist, A or B or AB
 (get_canonical, set_canonical) = prop.get_set(canonical_prop)
 (get_scientific, set_scientific) = prop.get_set(scientific_prop)
 (get_authorship, set_authorship) = prop.get_set(authorship_prop)
@@ -694,6 +694,19 @@ def blurb(r):
     return "[inconsistent]"     # typify.py
   else:
     return "[?]"
+
+def blorb(u):
+  if u == None:
+    return "None"
+  if get_workspace(u):
+    x = get_outject(u)
+  else:
+    x = u
+  prefix = get_source_tag(x) + "."
+  name = get_scientific(x, "?") or get_canonical(x, "??")
+  if not is_accepted(x):
+    name = name + "*"
+  return prefix + name
 
 def monitor(x):
   if not x: return False

@@ -124,7 +124,7 @@ def stdopen(x, mode='r'):
 
 # 
 
-log_allowance = 300
+log_allowance = 1000    #MSW dups
 
 def log(mess):
   global log_allowance

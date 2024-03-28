@@ -4,7 +4,7 @@
 
 import sys, csv, argparse
 import util, rows
-import workspace, align, theory, exemplar
+import workspace, specimen, align, theory, exemplar
 
 from checklist import *
 from workspace import *
@@ -184,7 +184,7 @@ def choose_witness(AB, ids, u):
   have = None
   count = 0
   for id in ids:
-    e = theory.xid_to_record(AB, id, u) 
+    e = specimen.sid_to_record(AB, id, u) 
     if not have:
       have = e
     if is_acceptable_locally(AB, e):     # ?

@@ -8,9 +8,10 @@ from workspace import ingest_workspace, is_accepted_locally, local_sup, \
   local_accepted, isinA, isinB
 from checklist import *
 from rcc5 import *
-from estimate import get_estimate, get_block, is_empty_block
+from specimen import sid_to_epithet
+from estimate import get_block, is_empty_block, get_estimate
 from property import mep, mep_get, mep_set
-from typify import xid_epithet, explain, compare_records
+from typify import explain, compare_records
 
 counts = {}
 
@@ -62,9 +63,9 @@ def generate_row(AB, u, v, hom, est):
   elif u and v:
     u_ids = get_block(u)
     v_ids = get_block(v)
-    u_and_v = show_xid_set(AB, u_ids & v_ids)
-    u_not_v = show_xid_set(AB, u_ids - v_ids)
-    v_not_u = show_xid_set(AB, v_ids - u_ids)
+    u_and_v = show_sid_set(AB, u_ids & v_ids)
+    u_not_v = show_sid_set(AB, u_ids - v_ids)
+    v_not_u = show_sid_set(AB, v_ids - u_ids)
   else:
     u_and_v = MISSING
     u_not_v = MISSING
@@ -122,7 +123,7 @@ def generate_plugin_report(AB):
         i[0] += 1
         if i[0] % frequency == 0: log("# %s %s" % (i[0], blurb(u)))
 
-        est = estimate.get_estimate(u, None)
+        est = get_estimate(u, None)
 
         inters = theory.get_intersecting_species(u)
         rels = list(map(lambda w: theory.compare(AB, u, w), inters))
@@ -154,10 +155,10 @@ def generate_plugin_report(AB):
 
 # s is a set of exemplar ids...
 
-def show_xid_set(AB, block):
-  # xep = (xid, epithet)
+def show_sid_set(AB, block):
+  # xep = (sid, epithet)
   # Sort by epithet
-  xeps = sorted(map(lambda xid:(xid, xid_epithet(AB, xid)), block),
+  xeps = sorted(map(lambda sid:(sid, sid_to_epithet(AB, sid)), block),
                 key=lambda xep: xep[1])
   return "; ".join(map(lambda xep:"%s %s" % xep, xeps))
 
@@ -314,7 +315,6 @@ if __name__ == '__main__':
         exemplar.read_exemplars(rows.open(args.exemplars), AB)
       else:
         exemplar.find_exemplars(get_estimate, AB)
-      log("# %s AB.exemplar_ufs" % len(AB.exemplar_ufs))
       theory.theorize(AB, False)
       with rows.open(d_path, "w") as d_gen:
         d_gen.write_rows(generate_plugin_report(AB))

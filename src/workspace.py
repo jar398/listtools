@@ -91,7 +91,7 @@ def make_workspace(A, B, meta=None):
   # AB.top is not set at this point.  Needs to be determined independently
   #log("# taxonID counter: %s" % pk_counter[0])
 
-  AB.exemplar_ufs = {}           # maps id to union-find node with (id, u, v)
+  AB.specimen_ufs = {}           # maps id to union-find node with (id, u, v)
   return AB
 
 # Is given synonym usage a senior synonym of its accepted usage?

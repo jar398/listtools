@@ -7,9 +7,9 @@ from util import log
 from checklist import *
 from workspace import *
 from simple import BOTTOM, compare_per_checklist
-from typify import equate_typifications, get_exemplar_record, \
-  get_link, get_exemplar, get_exemplar_id
-from typify import xid_to_record, xid_to_opposite_record
+from specimen import get_exemplar_record, get_exemplar, get_exemplar_id
+from typify import get_link
+from specimen import sid_to_record, sid_to_opposite_record
 
 # -----------------------------------------------------------------------------
 
@@ -106,10 +106,10 @@ def get_equivalent(AB, u):
 # in the block for z.  (z is in AB)
 
 def exemplar_records(AB, z):
-  return (xid_to_record(AB, id, z) for id in exemplar_ids(AB, z))
+  return (sid_to_record(AB, id, z) for id in exemplar_ids(AB, z))
 
 def opposite_exemplar_records(AB, z):
-  return (xid_to_opposite_record(AB, id, z) for id in exemplar_ids(AB, z))
+  return (sid_to_opposite_record(AB, id, z) for id in exemplar_ids(AB, z))
 
 # record -> list of exemplar ids
 
@@ -120,7 +120,7 @@ def exemplar_ids(AB, z):
 
 def show_exemplars(z, tag, AB):
   def foo(id):
-    return blurb(xid_to_record(AB, id, z))
+    return blurb(sid_to_record(AB, id, z))
   log("# estimate: %s: {%s}" %
       (tag, ", ".join(map(foo, get_block(z)))))
 
@@ -186,9 +186,9 @@ def analyze_blocks(ws):
           e = combine_blocks(e, b)
           mono = c if mono == True else None
       if mono != True and mono != None: set_mono(u, AB.in_left(mono))
-      exem = get_exemplar(u) # returns None or (xid, u, v)
-      if exem:
-        e = adjoin_exemplar(get_exemplar_id(exem), e)
+      uf = get_exemplar(u) # returns None or... (sid, u, v)?
+      if uf:
+        e = adjoin_exemplar(get_exemplar_id(uf), e)
       # **************** TBD
       set_block(u, e)
       if monitor(u):

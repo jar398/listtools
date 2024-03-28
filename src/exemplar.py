@@ -5,18 +5,18 @@ from parse import PROBE
 import sys, argparse
 import util, rows
 
-from workspace import *
 from util import log, windex
+from workspace import *
+
+from checklist import get_duplicate_from, set_duplicate_from, blorb, blurb
+from specimen import get_exemplar, get_exemplar_id, sid_to_epithet
+from specimen import equate_specimens, equate_typifications, \
+  get_typification, maybe_get_typification
 
 from estimate import find_estimates, get_estimate
-
-from typify import equate_typification_ufs
-from typify import get_exemplar, get_exemplar_id, get_typification_uf
-from typify import equate_typifications
-from typify import really_get_typification_uf, find_typifications
-from typify import unimportance, xid_epithet, \
-  find_endohomotypics, unimportance
-from checklist import get_duplicate_from, set_duplicate_from
+from typify import find_typifications
+from typify import unimportance, \
+  find_endohomotypics, unimportance, get_family
 
 # listtools's exemplar-finding procedure.  If there is some other way
 # of finding exemplars, that's fine, don't need to use this.
@@ -25,9 +25,9 @@ from checklist import get_duplicate_from, set_duplicate_from
 # to be able to compute distances on the second pass.
 
 def find_exemplars(get_estimate, AB):
-  subproblems = find_subproblems(AB)
   find_endohomotypics(AB)
   find_endohomotypics(swap(AB))
+  subproblems = find_subproblems(AB)
   if True:
     log("* Finding typifications (single pass):")
     find_typifications(AB, subproblems, None, True)
@@ -44,6 +44,8 @@ def find_exemplars(get_estimate, AB):
 # Find blocks/chunks, one per epithet
 
 def find_subproblems(AB):
+  check_for_duplicates(AB)
+  check_for_duplicates(swap(AB))
   log("* Finding subproblems:")
   (A_index, B_index) = \
     map(lambda CD: \
@@ -70,6 +72,57 @@ def find_subproblems(AB):
   AB.subproblems = subprobs
   return subprobs
 
+def check_for_duplicates(AB):
+  index_by_name = {}    # (epithet, token, year)
+  for x in all_records(AB.A):
+    p = get_parts(x)
+    fam = get_family(x)
+    if True:
+      key = (fam, p.genus, p.epithet, p.middle, p.token, p.year, get_rank(x, None))
+    else:
+      if p.epithet:
+        key = (fam, p.epithet, p.middle, p.token, p.year)
+      else:
+        key = (fam, p.genus, p.middle, p.token, p.year)
+    if key in index_by_name:
+      index_by_name[key].append(x)
+    else:
+      index_by_name[key] = [x]
+  for (key, xs) in index_by_name.items():
+    if len(xs) > 1:
+      accept = []
+      reject = []
+      for x in xs:
+        if is_accepted(x):
+          accept.append(x)
+        else:
+          reject.append(x)
+      # TBD: eliminate all synonym dups of accepted records, and report.
+      # TBD: eliminate all of each all-synonym dup set, and report.
+      # Only issue: when 2+ accepteds are dups of one another.
+      if len(reject) > 0:
+        anchor = AB.in_left(xs[0])
+        for x in reject:
+          set_duplicate_from(AB.in_left(x), anchor)
+      if len(accept) > 1:
+        mess = "Accepted duplicates, keeping one"
+        accept.sort(key=lambda a: (-len(get_children(a, ())),
+                                   get_primary_key(a)))
+        anchor = AB.in_left(accept[0])
+        for x in accept[1:]:
+          set_duplicate_from(AB.in_left(x), anchor)
+      elif len(accept) == 1:
+        mess = "Redundant synonym(s), discarding"
+      else:
+        mess = "Ambiguous synonyms, discarding"
+      log("# %s: %s (%s) %s | %s" %
+          (mess,
+           blurb(xs[0]),
+           key[0],
+           ", ".join(map(lambda x:get_primary_key(x), accept)),
+           ", ".join(map(lambda x:get_primary_key(x), reject))))
+
+
 # Returns dict value -> key
 # fn is a function over AB records
 
@@ -77,6 +130,7 @@ def index_by_some_key(AB, fn):
   index = {}
   for x in postorder_records(AB.A):
     u = AB.in_left(x)
+    if get_duplicate_from(u, None): continue       # Suppress dups from subproblems
     key = fn(u)
     if False and monitor(u):
       log("# 1 Indexing %s, key %s, monitored? %s" % (blurb(u), key, monitor(u)))
@@ -111,18 +165,18 @@ def get_subproblem_key(z):
 def report_on_exemplars(AB):
   count = ufcount = 0      # of nodes having exemplars?
   
-  # but we could just look at AB.exemplar_ufs, instead?
+  # but we could just look at AB.specimen_ufs, instead?
   for x in preorder_records(AB.A):
     u = AB.in_left(x)
-    uf = really_get_typification_uf(u, None)
+    uf = maybe_get_typification(u, None)
     if uf:
       ufcount += 1
-      b = get_exemplar(u)        # forces xid assignment, return (xid,u,v)
+      b = get_exemplar(u)        # forces sid assignment, return (sid,u,v) ?
       if b:
         count += 1
-        get_exemplar_id(uf)        # forces xid assignment  ??
-  log("# Nodes with typification: %s, nodes with exemplars: %s, exemplars: %s" %
-      (ufcount, count, len(AB.exemplar_ufs)))
+        get_exemplar_id(uf)        # forces sid assignment  ??
+  log("# Nodes with typification: %s, nodes with exemplars: %s, specimen ids: %s" %
+      (ufcount, count, len(AB.specimen_ufs)))
 
 def write_exemplar_list(AB, out=sys.stdout):
   util.write_rows(generate_exemplars(AB), out)
@@ -137,13 +191,13 @@ def generate_exemplars(AB):
       rcount += 1
       if not is_top(x):               # ?
         u = ws.in_left(x)
-        r = get_exemplar(u)     # exemplar record [xid, u, v] or None
-        if r:
+        uf = get_exemplar(u)     # exemplar record [sid, u, v] or None
+        if uf:
           ecount += 1
-          xid = get_exemplar_id(r)
-          epithet = xid_epithet(AB, xid)
+          sid = get_exemplar_id(uf)
+          epithet = sid_to_epithet(AB, sid)
           dup = get_duplicate_from(x, None)
-          rows.append((xid, epithet, which, get_primary_key(x), get_canonical(x),
+          rows.append((sid, epithet, which, get_primary_key(x), get_canonical(x),
                        get_primary_key(dup) if dup else MISSING))
           count[0] += 1
     log("# preorder: %s, exemplars: %s" % (rcount, ecount)) 
@@ -159,7 +213,7 @@ def read_exemplars(in_rows, AB):
   equate_typifications(AB.in_left(AB.A.top), AB.in_right(AB.B.top))
   the_rows = in_rows.rows()     # caller will close in_rows
   header = next(the_rows)
-  xid_col = windex(header, "exemplar id")
+  sid_col = windex(header, "exemplar id")
   which_col = windex(header, "checklist")
   taxonid_col = windex(header, "taxonID")
   dup_col = windex(header, "duplicate of")
@@ -189,18 +243,18 @@ def read_exemplars(in_rows, AB):
           log("# %s %s is duplicated from %s %s" %
               (taxonid, blurb(u), dup_id, blurb(drec)))
 
-      uf = get_typification_uf(u)
+      uf = get_typification(u)
 
-      # row is xid, which, taxonid
-      xid = int(row[xid_col])
-      #log("# read exemplar #%s in %s = %s" % (xid, which, taxonid))
-      if xid in AB.exemplar_ufs:
-        a = equate_typification_ufs(AB.exemplar_ufs[xid], uf)
+      # row is (sid, which, taxonid)
+      sid = int(row[sid_col])
+      #log("# read exemplar #%s in %s = %s" % (sid, which, taxonid))
+      if sid in AB.specimen_ufs: # as a key
+        s = AB.specimen_ufs[sid]
+        a = equate_specimens(s, uf)
       else:
-        AB.exemplar_ufs[xid] = uf
+        AB.specimen_ufs[sid] = uf
         a = uf
-      a.payload()[0] = xid
-  log("# %s exemplars" % len(AB.exemplar_ufs))
+      a.payload()[0] = sid
 
 
 if __name__ == '__main__':
