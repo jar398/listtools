@@ -225,6 +225,7 @@ def rows_to_checklist(iterabl, meta):
     count2 += 1
   if count != count2-1:
     log("!!! count disagreement: %s rows, %s reachable" % (count, count2))
+  # check_for_duplicates should go here??
   return S
 
 # Property scoping context ...

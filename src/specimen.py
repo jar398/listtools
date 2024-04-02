@@ -64,9 +64,11 @@ def _pick_type_taxon(v1, v2):
   if v1 == None: return v2
   if v2 == None: return v1
   assert get_source(v1) is get_source(v2)
-  assert not get_duplicate_from(v1, None)
-  assert not get_duplicate_from(v2, None)
   if v1 is v2: return v1
+  d1 = get_duplicate_from(v1, None)
+  d2 = get_duplicate_from(v2, None)
+  if d2 and not d1: return v1
+  if d1 and not d2: return v2
   x1 = get_outject(v1)
   x2 = get_outject(v2)
   a1 = is_accepted(x1)

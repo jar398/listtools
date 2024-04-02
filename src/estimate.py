@@ -96,8 +96,8 @@ def find_estimate(AB, u):
 def get_equivalent(AB, u):
   assert u
   assert get_workspace(u)
-  est = get_estimate(u, None)
-  if est and est.relationship == EQ: return est
+  est = get_estimate(u)
+  if est.relationship == EQ: return est
   else: return None
 
 # -----------------------------------------------------------------------------

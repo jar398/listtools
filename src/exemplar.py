@@ -29,7 +29,7 @@ def find_exemplars(get_estimate, AB):
   find_endohomotypics(swap(AB))
   subproblems = find_subproblems(AB)
   if True:
-    log("* Finding typifications (single pass):")
+    log("* Matching typifications between checklists (single pass):")
     find_typifications(AB, subproblems, None, True)
   else:                         # two-pass
     log("* Finding pass 1 typifications (for distance calculations):")
@@ -44,8 +44,6 @@ def find_exemplars(get_estimate, AB):
 # Find blocks/chunks, one per epithet
 
 def find_subproblems(AB):
-  check_for_duplicates(AB)
-  check_for_duplicates(swap(AB))
   log("* Finding subproblems:")
   (A_index, B_index) = \
     map(lambda CD: \
@@ -72,57 +70,6 @@ def find_subproblems(AB):
   AB.subproblems = subprobs
   return subprobs
 
-def check_for_duplicates(AB):
-  index_by_name = {}    # (epithet, token, year)
-  for x in all_records(AB.A):
-    p = get_parts(x)
-    fam = get_family(x)
-    if True:
-      key = (fam, p.genus, p.epithet, p.middle, p.token, p.year, get_rank(x, None))
-    else:
-      if p.epithet:
-        key = (fam, p.epithet, p.middle, p.token, p.year)
-      else:
-        key = (fam, p.genus, p.middle, p.token, p.year)
-    if key in index_by_name:
-      index_by_name[key].append(x)
-    else:
-      index_by_name[key] = [x]
-  for (key, xs) in index_by_name.items():
-    if len(xs) > 1:
-      accept = []
-      reject = []
-      for x in xs:
-        if is_accepted(x):
-          accept.append(x)
-        else:
-          reject.append(x)
-      # TBD: eliminate all synonym dups of accepted records, and report.
-      # TBD: eliminate all of each all-synonym dup set, and report.
-      # Only issue: when 2+ accepteds are dups of one another.
-      if len(reject) > 0:
-        anchor = AB.in_left(xs[0])
-        for x in reject:
-          set_duplicate_from(AB.in_left(x), anchor)
-      if len(accept) > 1:
-        mess = "Accepted duplicates, keeping one"
-        accept.sort(key=lambda a: (-len(get_children(a, ())),
-                                   get_primary_key(a)))
-        anchor = AB.in_left(accept[0])
-        for x in accept[1:]:
-          set_duplicate_from(AB.in_left(x), anchor)
-      elif len(accept) == 1:
-        mess = "Redundant synonym(s), discarding"
-      else:
-        mess = "Ambiguous synonyms, discarding"
-      log("# %s: %s (%s) %s | %s" %
-          (mess,
-           blurb(xs[0]),
-           key[0],
-           ", ".join(map(lambda x:get_primary_key(x), accept)),
-           ", ".join(map(lambda x:get_primary_key(x), reject))))
-
-
 # Returns dict value -> key
 # fn is a function over AB records
 
@@ -132,10 +79,6 @@ def index_by_some_key(AB, fn):
     u = AB.in_left(x)
     if get_duplicate_from(u, None): continue       # Suppress dups from subproblems
     key = fn(u)
-    if False and monitor(u):
-      log("# 1 Indexing %s, key %s, monitored? %s" % (blurb(u), key, monitor(u)))
-      log("# 2 Indexing %s, key %s, monitored? %s" % (blurb(u), key, monitor(x)))
-    #assert key  - MSW has scientificName = ?
     have = index.get(key, None) # part
     if have:
       have.append(u)
@@ -175,7 +118,7 @@ def report_on_exemplars(AB):
       if b:
         count += 1
         get_exemplar_id(uf)        # forces sid assignment  ??
-  log("# Nodes with typification: %s, nodes with exemplars: %s, specimen ids: %s" %
+  log("* Nodes with typification: %s, nodes with exemplars: %s, specimen ids: %s" %
       (ufcount, count, len(AB.specimen_ufs)))
 
 def write_exemplar_list(AB, out=sys.stdout):

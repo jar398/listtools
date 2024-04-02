@@ -122,7 +122,7 @@ def compare_within_block(AB, u, v):
   ship1 = ship2 = None
 
   # Path 1: u = m ? v
-  rel_um = get_estimate(u, None)      # u <= m   in same checklist
+  rel_um = get_estimate(u)      # u <= m   in same checklist
   m = rel_um.record
   assert separated(u, m)
   rel_mv = compare_locally(AB, m, v)
@@ -130,7 +130,7 @@ def compare_within_block(AB, u, v):
   ship1 = rel_uv.relationship   # u <= m ? v
 
   # Path 2: u ? n = v   (starting with v)
-  rel_vn = get_estimate(v, None)     # n = v
+  rel_vn = get_estimate(v)     # n = v
   n = rel_vn.record
   assert separated(v, n)
   rel_nu = compare_locally(AB, n, u)

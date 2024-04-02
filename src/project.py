@@ -15,7 +15,7 @@ def project(keep, drop, inport, outport):
                if col in header]
   if drop:
     droppers = drop.split(",")
-    print("# project: Flushing %s" % (droppers,), file=sys.stderr)
+    #print("# project: Flushing %s" % (droppers,), file=sys.stderr)
     keepers = [col for col in keepers if not (col in droppers)]
   losers = []
   for keeper in keepers:
@@ -27,9 +27,10 @@ def project(keep, drop, inport, outport):
   for loser in losers:
     del keepers[loser]
   keep_positions = [header.index(keeper) for keeper in keepers]
-  print("# project: Keeping %s" % (keepers,), file=sys.stderr)
-  print("# project: Keeping %s" % (keep_positions,), file=sys.stderr)
-  writer = csv.writer(outport, delimiter=",", quotechar='"', quoting=csv.QUOTE_MINIMAL)
+  #print("# project: Keeping %s" % (keepers,), file=sys.stderr)
+  #print("# project: Keeping %s" % (keep_positions,), file=sys.stderr)
+  #writer = csv.writer(outport, delimiter=",", quotechar='"', quoting=csv.QUOTE_MINIMAL)
+  writer = csv.writer(outport)
   writer.writerow(keepers)
   for row in reader:
     assert len(row) == len(header)

@@ -11,7 +11,7 @@ from rcc5 import *
 from specimen import sid_to_epithet
 from estimate import get_block, is_empty_block, get_estimate
 from property import mep, mep_get, mep_set
-from typify import explain, compare_records
+from typify import explain
 
 counts = {}
 
@@ -123,7 +123,7 @@ def generate_plugin_report(AB):
         i[0] += 1
         if i[0] % frequency == 0: log("# %s %s" % (i[0], blurb(u)))
 
-        est = get_estimate(u, None)
+        est = get_estimate(u)
 
         inters = theory.get_intersecting_species(u)
         rels = list(map(lambda w: theory.compare(AB, u, w), inters))

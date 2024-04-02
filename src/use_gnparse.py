@@ -52,9 +52,7 @@ def use_gnparse(gn_iter, check_iter):
   (out_canon_pos, add_canon) = ensure_column("canonicalName")
   (out_sci_pos, add_sci) = ensure_column("scientificName")
 
-  # May need to consult the source record too
-  scientific_pos = windex(checklist_header, "scientificName")
-  canonical_pos = windex(checklist_header, "canonicalName")
+  # For warning messages ?
   taxonid_pos = windex(checklist_header, "taxonID")
 
   n_added_columns = (len(out_header) - len(checklist_header))
