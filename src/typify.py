@@ -189,10 +189,15 @@ def check_for_duplicates(AB):
                                            synos))))
     log(" ".join(blurbs))
 
+def find_matches(A_index, B_index, allow_motion):
+  subprobs = find_subproblems(
+  find_typifications(AB, subprobs, allow_motion)
+  
+
 # This can be configured to run once or run twice.  'last' means we're
 # on the last pass so if there was a first pass, distances are available.
 
-def find_typifications(AB, subprobs, get_estimate, last):
+def find_typifications(AB, subprobs, allow_motion):
   # This sets the 'typification_uf' property of ... some ... records.
 
   n = 1
@@ -201,8 +206,8 @@ def find_typifications(AB, subprobs, get_estimate, last):
       log("# Subproblem %s %s %s %s %s" %
           (n, len(us), len(vs), blurb(us[0]), blurb(vs[0])))
     n += 1
-    u_matches = {}    # u_sid -> (class, [v_spec, ...])
-    v_matches = {}    # v_sid -> (class, [u_spec, ...])
+    u_matches = {}    # u_sid -> (u_spec, class, [v_spec, ...])
+    v_matches = {}    # v_sid -> (v_spec, class, [u_spec, ...])
     for i in range(0, len(us)):
       u = us[i]
       assert not get_duplicate_from(u, None)
@@ -218,9 +223,8 @@ def find_typifications(AB, subprobs, get_estimate, last):
           observe_match(v_spec, u_spec, v_matches, classified)
       # end j loop
     # end i loop
-    # u_matches : u_sid -> (v_clas, v_specs)
-    for (u_sid, (v_clas, v_specs)) in u_matches.items():
-      u_spec = sid_to_specimen(AB, u_sid)
+    # u_matches : u_sid -> (u_spec, v_clas, v_specs)
+    for (u_sid, (u_spec, v_clas, v_specs)) in u_matches.items():
       if v_clas < REVIEW:       # HETEROTYPIC
         pass
       elif len(v_specs) > 1:
@@ -231,11 +235,9 @@ def find_typifications(AB, subprobs, get_estimate, last):
              blorb(get_typifies(v_specs[1]))))
       else:
         v_spec = v_specs[0]
-        v_sid = get_specimen_id(v_spec)
-        # v_matches : v_sid -> (u_clas, u_specs)
-        results = v_matches.get(v_sid)
+        results = v_matches.get(get_specimen_id(v_spec))
         if results:
-          (u_clas, u_specs) = results
+          (v_spec, u_clas, u_specs) = results
           if u_clas < REVIEW:
             pass
           elif len(u_specs) > 1:
@@ -256,41 +258,32 @@ def find_typifications(AB, subprobs, get_estimate, last):
             log("# Review: %s -> %s" %         # or, make a note of it for review
                 (blorb(get_typifies(u_spec)),
                  blorb(get_typifies(v_spec)),))
-          elif u_clas == CORRECTION:
-            if False:    # there are way too many of these
-             log("# Correction: %s -> %s" %         # or, make a note of it for review?
-                 (blorb(get_typifies(u_spec)),
-                  blorb(get_typifies(v_spec)),))
+          elif allow_motion and u_clas < CORRECTION:
+            # CORRECTION, HOMOTYPIC, maybe MOVED
             equate_specimens(u_spec, v_spec)
-          else:
-            equate_specimens(u_spec, v_spec)
-        else:
+        else:                                 # Can't happen ??
           log("# No return match: %s -> %s" %   # No return match for v - shouldn't happen
               (blorb(get_typifies(u_spec)),
                blorb(get_typifies(v_spec))))
       # End u_sid loop.
 
-      # Nope.  This is not a match:
-      #   Tylonycteris malayana Chasen, 1940 -> Euroscaptor malayanus (Chasen, 1940)
-      # end subproblem loop
+# This is not a match:
+#   Tylonycteris malayana Chasen, 1940 -> Euroscaptor malayanus (Chasen, 1940)
 
-  equate_typifications(AB.in_left(AB.A.top),
-                       AB.in_right(AB.B.top))
-
-# u_matches : u_sid -> (v_clas, v_specs)
+# u_matches : u_sid -> (u_spec, v_clas, v_specs)
 
 def observe_match(u_spec, v_spec, u_matches, classified):
   u_sid = get_specimen_id(u_spec)
 
   have = u_matches.get(u_sid)   # (v_clas, [v_spec, ...])
   if have:
-    (v_clas, v_specs) = have
+    (_, v_clas, v_specs) = have
     if classified < v_clas:
       # Not so good as what we have already
       pass
     elif classified > v_clas:
       # Replace specs with new and shiny
-      u_matches[u_sid] = (classified, [v_spec])
+      u_matches[u_sid] = (u_spec, classified, [v_spec])
     else:
       v_spec = v_spec.find()
       if v_spec in v_specs:
@@ -299,7 +292,7 @@ def observe_match(u_spec, v_spec, u_matches, classified):
         # Tie - add to list
         v_specs.append(v_spec)
   else:
-    u_matches[u_sid] = (classified, [v_spec])
+    u_matches[u_sid] = (u_spec, classified, [v_spec])
 
 # Are u0 and v0 near enough that v0 might be a genus change of u0 or
 # vice versa?

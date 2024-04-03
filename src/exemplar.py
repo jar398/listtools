@@ -43,14 +43,17 @@ def find_exemplars(get_estimate, AB):
 
 # Find blocks/chunks, one per epithet
 
-def find_subproblems(AB):
+def find_subproblems(AB, key=get_subproblem_key):
   log("* Finding subproblems:")
-  (A_index, B_index) = \
-    map(lambda CD: \
-        index_by_some_key(CD,
-                          # should use genus if epithet is missing
-                          get_subproblem_key),
-        (AB, swap(AB)))
+  A_index = index_by_some_key(AB.A,
+                              key,
+                              lambda x. AB.in_left(x))
+  B_index = index_by_some_key(AB.B,
+                              key,
+                              lambda y. AB.in_right(y))
+  return collate_subproblems(A_index, B_index)
+
+def collate_subproblems(A_index, B_index):
   subprobs = {}
   for (key, us) in A_index.items():
     assert key != MISSING, blurb(us[0])
@@ -67,17 +70,15 @@ def find_subproblems(AB):
       if PROBE in key:
         log("# Null subproblem %s" % key)
   log("* There are %s subproblems." % len(subprobs))
-  AB.subproblems = subprobs
   return subprobs
 
 # Returns dict value -> key
 # fn is a function over AB records
 
-def index_by_some_key(AB, fn):
+def index_by_some_key(A, fn, inject):
   index = {}
-  for x in postorder_records(AB.A):
-    u = AB.in_left(x)
-    if get_duplicate_from(u, None): continue       # Suppress dups from subproblems
+  for x in postorder_records(A):
+    u = inject(x)
     key = fn(u)
     have = index.get(key, None) # part
     if have:
