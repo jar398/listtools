@@ -15,8 +15,7 @@ from specimen import equate_specimens, equate_typifications, \
 
 from estimate import find_estimates, get_estimate
 from typify import find_typifications
-from typify import unimportance, \
-  find_endohomotypics, unimportance, get_family
+from typify import find_endohomotypics, unimportance, get_family
 
 # listtools's exemplar-finding procedure.  If there is some other way
 # of finding exemplars, that's fine, don't need to use this.
@@ -103,6 +102,24 @@ def get_subproblem_key(z):
         (get_primary_key(x), parts,))
     key = '?' + get_primary_key(x)
   return key
+
+# More important -> lower number, earlier in sequence
+
+def unimportance(u):
+  x = get_outject(u)
+  parts = get_parts(x)
+  if parts.epithet == MISSING: imp = 4      # Foo
+  elif parts.middle == parts.epithet: imp = 1     # Foo bar bar
+  elif parts.middle == None or parts.middle == '':  imp = 2     # Foo bar
+  else: imp = 3                         # Foo bar baz
+  return (1 if is_accepted(x) else 2,
+          imp,
+          # Prefer to match the duplicate that has children
+          # (or more children)
+          -len(get_children(x, ())),
+          -len(get_synonyms(x, ())),
+          get_scientific(x, None),
+          get_primary_key(x))
 
 # ------
 

@@ -44,7 +44,7 @@ inject_prop = prop.declare_property("inject") # Contextual only!
 outject_prop = prop.declare_property("outject")
 
 (get_primary_key, set_primary_key) = prop.get_set(primary_key_prop)
-(get_source, set_source) = prop.get_set(source_prop)     # checklist, A or B or AB
+(get_source, set_source) = prop.get_set(source_prop)     # checklist A or B, or workspace AB
 (get_canonical, set_canonical) = prop.get_set(canonical_prop)
 (get_scientific, set_scientific) = prop.get_set(scientific_prop)
 (get_authorship, set_authorship) = prop.get_set(authorship_prop)

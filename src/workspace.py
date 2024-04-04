@@ -167,9 +167,9 @@ def local_accepted(AB, u):
 def is_accepted_locally(AB, u):
   return is_accepted(get_outject(u))
 
-def in_same_tree(AB, x, y):
-  return (AB.case(x, lambda x:1, lambda x:2) ==
-          AB.case(y, lambda x:1, lambda x:2))
+def in_same_tree(AB, u, v):
+  return (AB.case(u, lambda x:1, lambda y:2) ==
+          AB.case(v, lambda x:1, lambda y:2))
 
 # Put in A->B form
 

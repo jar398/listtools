@@ -86,11 +86,10 @@ def find_endohomotypics(AB):
 
   def process_checklist(AB):
     def process(x):
-      u = AB.in_left(x)
-      candidates = []
+      winner = x
+      candidates = []           # homotypic children
       for c in get_children(x, ()):
         process(c)
-        k = AB.in_left(c)
         if homotypy(c, x) >= HOMOTYPIC:
           # c nominates itself as the type of x
           # Don't let any dups engage in homotypy
@@ -98,21 +97,20 @@ def find_endohomotypics(AB):
             candidates.append(c)
       n = len(candidates)
       if n == 1:
-        k = AB.in_left(candidates[0])
-        equate_typifications(k, u)
+        winner = candidates[0]
+        # Prefer children
+        equate_typifications(winner, x)
       elif n > 1:
         # maybe compute a score, and sort ???
         log("** Multiple children of %s are homotypic to it: %s" %
             (blurb(x), "; ".join(map(blurb, candidates))))
-      for c in get_synonyms(x, ()):
+      for s in get_synonyms(x, ()):
         # N.b. synonyms do not have descendants
-        process(c)              # Unnecessary because no inferiors
-        k = AB.in_left(c)
-        if (homotypy(c, k) >= MOVED or
-            'homotypic' in get_nomenclatural_status(c, '')):
-          # c is a homotypic synonym of x
-          if not get_duplicate_from(k, None):
-            equate_typifications(k, u)
+        process(s)              # Unnecessary because no inferiors
+        if (homotypy(s, x) >= MOVED or
+            'homotypic' in get_nomenclatural_status(s, '')):
+          # s is a homotypic synonym of x
+          equate_typifications(winner, c)
     process(AB.A.top)
   process_checklist(AB)
 
@@ -197,7 +195,7 @@ def find_matches(A_index, B_index, allow_motion):
 # This can be configured to run once or run twice.  'last' means we're
 # on the last pass so if there was a first pass, distances are available.
 
-def find_typifications(AB, subprobs, allow_motion):
+def find_typifications(AB, subprobs, allow_motion, bridge=equate_specimens):
   # This sets the 'typification_uf' property of ... some ... records.
 
   n = 1
@@ -260,7 +258,7 @@ def find_typifications(AB, subprobs, allow_motion):
                  blorb(get_typifies(v_spec)),))
           elif allow_motion and u_clas < CORRECTION:
             # CORRECTION, HOMOTYPIC, maybe MOVED
-            equate_specimens(u_spec, v_spec)
+            bridge(v_spec, u_spec)
         else:                                 # Can't happen ??
           log("# No return match: %s -> %s" %   # No return match for v - shouldn't happen
               (blorb(get_typifies(u_spec)),
@@ -294,13 +292,18 @@ def observe_match(u_spec, v_spec, u_matches, classified):
   else:
     u_matches[u_sid] = (u_spec, classified, [v_spec])
 
+def ws_bridge(AB, x, y):
+  x = AB.in_left(x)
+  y = AB.in_right(y)
+  equate_typifications(x, y)
+
 # Are u0 and v0 near enough that v0 might be a genus change of u0 or
 # vice versa?
 
 def ws_near_enough(u, v):
   return near_enough(get_outject(u), get_outject(v))
 
-def near_enough(x, y):
+def near_enough(x, y):          # In different or same checklist(s)
   f = get_family(x)
   if not f:
     log("# No family: %s" % blorb(x))
@@ -323,24 +326,6 @@ def get_family(x):              # returns canonical name
       return None
     x = sup.record
   return get_canonical(x, None)
-
-# More important -> lower number, earlier in sequence
-
-def unimportance(u):
-  x = get_outject(u)
-  parts = get_parts(x)
-  if parts.epithet == MISSING: imp = 4      # Foo
-  elif parts.middle == parts.epithet: imp = 1     # Foo bar bar
-  elif parts.middle == None or parts.middle == '':  imp = 2     # Foo bar
-  else: imp = 3                         # Foo bar baz
-  return (1 if is_accepted(x) else 2,
-          imp,
-          # Prefer to match the duplicate that has children
-          # (or more children)
-          -len(get_children(x, ())),
-          -len(get_synonyms(x, ())),
-          get_scientific(x, None),
-          get_primary_key(x))
 
 
 EPITHET_MASK = 32
@@ -417,8 +402,12 @@ def explain(comparison):
     
 # -----------------------------------------------------------------------------
 
+"""
+
 # distance is thresholded, so it only really matters whether it's small
 # or large
+
+# Obsolete (used only by linkage.py)
 
 # For mammals, tip to root is expected to be about 13... 
 # For 2M species, tip to root is expected to be about 20... 
@@ -435,6 +424,8 @@ def compute_half_distance(u, v, get_estimate):
   # If m is MRCA of u and v, then u <= v1 <= m >= v
   dist = distance_in_checklist(get_outject(v), get_outject(v1.record))
   return dist
+
+"""
 
 # Convenience.  Phase this out?  Or rename it?
 

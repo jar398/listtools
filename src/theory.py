@@ -165,12 +165,18 @@ def compose_final(u, rel1, rel2, rel3):
   return rel13
 
 def compare_locally(AB, u, v):
-  rel = simple.compare_per_checklist(get_outject(u), get_outject(v)) # in A or B
-  if rel.relationship & DISJOINT and same_typifications(u, v):
-    # rel.relationship is NOINFO or DISJOINT
-    # They're not disjoint because type is in both
-    return relation(INTERSECT, v, "homotypic synonyms")
-  return relation(rel.relationship,
+  assert in_same_tree(u, v)
+  x = get_outject(u)
+  y = get_outject(v)
+  rel = simple.compare_per_checklist(x, y) # in A or B
+  # This doesn't feel right
+  ship = rel.relationship
+  assert ship != DISJOINT
+  if ship & DISJOINT != 0 and same_typifications(x, y):
+    # ship is probably NOINFO
+    # They're not disjoint because the type is in both
+    ship &= ~DISJOINT
+  return relation(ship,
                   v,
                   note=rel.note,
                   span=rel.span)  # in A or B
