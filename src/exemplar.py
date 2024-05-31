@@ -15,7 +15,7 @@ from specimen import equate_specimens, equate_typifications, \
 
 from estimate import find_estimates, get_estimate
 from typify import find_typifications
-from typify import find_endohomotypics, unimportance, get_family
+from typify import basic_typifications, get_family
 
 # listtools's exemplar-finding procedure.  If there is some other way
 # of finding exemplars, that's fine, don't need to use this.
@@ -24,102 +24,11 @@ from typify import find_endohomotypics, unimportance, get_family
 # to be able to compute distances on the second pass.
 
 def find_exemplars(get_estimate, AB):
-  find_endohomotypics(AB)
-  find_endohomotypics(swap(AB))
-  subproblems = find_subproblems(AB)
-  if True:
-    log("* Matching typifications between checklists (single pass):")
-    find_typifications(AB, subproblems, None, True)
-  else:                         # two-pass
-    log("* Finding pass 1 typifications (for distance calculations):")
-    find_typifications(AB, subproblems, None, False)
-    find_estimates(AB)            # for distance calculations
-    log("* Finding pass 2 typifications (using distance calculations):")
-    find_typifications(AB, subproblems, get_estimate, True)
-
+  basic_typifications(AB.A)
+  basic_typifications(AB.B)
+  match_typifications(AB)
   # maybe compute better estimates - see theory.py
   report_on_exemplars(AB)
-
-# Find blocks/chunks, one per epithet
-
-def find_subproblems(AB, key=get_subproblem_key):
-  log("* Finding subproblems:")
-  A_index = index_by_some_key(AB.A,
-                              key,
-                              lambda x. AB.in_left(x))
-  B_index = index_by_some_key(AB.B,
-                              key,
-                              lambda y. AB.in_right(y))
-  return collate_subproblems(A_index, B_index)
-
-def collate_subproblems(A_index, B_index):
-  subprobs = {}
-  for (key, us) in A_index.items():
-    assert key != MISSING, blurb(us[0])
-    vs = B_index.get(key, None)
-    if vs != None:
-      us.sort(key=unimportance)
-      vs.sort(key=unimportance)
-      subprobs[key] = (us, vs)
-      if (any(monitor(u) for u in us) or
-          any(monitor(v) for v in vs)):
-        log("# Added subproblem %s e.g. %s.  %s x %s" %
-            (key, blurb(us[0]), len(list(map(blurb, us))), len(list(map(blurb, vs)))))
-    else:
-      if PROBE in key:
-        log("# Null subproblem %s" % key)
-  log("* There are %s subproblems." % len(subprobs))
-  return subprobs
-
-# Returns dict value -> key
-# fn is a function over AB records
-
-def index_by_some_key(A, fn, inject):
-  index = {}
-  for x in postorder_records(A):
-    u = inject(x)
-    key = fn(u)
-    have = index.get(key, None) # part
-    if have:
-      have.append(u)
-    else:
-      index[key] = [u]
-  return index
-
-# Each subproblem covers a single epithet (or name, if higher taxon)
-# z is in AB
-
-def get_subproblem_key(z):
-  x = get_outject(z)
-  parts = get_parts(x)
-  ep = parts.epithet            # stemmed
-  key = ep if ep else parts.genus
-  if key:
-    if False and monitor(x):
-      log("# Subproblem key is %s for %s" % (key, blurb(x)))
-  else:
-    log("** %s: Name missing or ill-formed: %s" %
-        (get_primary_key(x), parts,))
-    key = '?' + get_primary_key(x)
-  return key
-
-# More important -> lower number, earlier in sequence
-
-def unimportance(u):
-  x = get_outject(u)
-  parts = get_parts(x)
-  if parts.epithet == MISSING: imp = 4      # Foo
-  elif parts.middle == parts.epithet: imp = 1     # Foo bar bar
-  elif parts.middle == None or parts.middle == '':  imp = 2     # Foo bar
-  else: imp = 3                         # Foo bar baz
-  return (1 if is_accepted(x) else 2,
-          imp,
-          # Prefer to match the duplicate that has children
-          # (or more children)
-          -len(get_children(x, ())),
-          -len(get_synonyms(x, ())),
-          get_scientific(x, None),
-          get_primary_key(x))
 
 # ------
 

@@ -84,8 +84,7 @@ if __name__ == '__main__':
 
   if args.test:
     print(compare_parts(parse_name("Sturnira angeli"),
-                        parse_name("Sturnira magna"),
-                        3))
+                        parse_name("Sturnira magna")))
   else:
     a_name = 'A'; b_name = 'B'
     a_path = args.A

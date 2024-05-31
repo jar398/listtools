@@ -24,29 +24,22 @@ HOMOTYPIC     = 10
 CORRECTION    = 8
 MOVED        = 6
 REVIEW        = 5               # Not used any more?
-DISTANT       = 1
+DISTANT       = 1               # too far away to be MOVED
 HETEROTYPIC   = 0
 
 def explain_classified(typy):
-  if typy == HOMOTYPIC:
-    word = "homotypic"
-  elif typy == CORRECTION:
-    word = "correction"
-  elif typy == MOVED:
-    word = "moved"           # kinetypic?
-  elif typy == REVIEW:
-    word = "review"
-  elif typy == DISTANT:
-    word = "distant"
-  elif typy == HETEROTYPIC:
-    word = "heterotypic"
-  else:
-    word = str(typy)
+  if typy == HOMOTYPIC:    word = "homotypic"
+  elif typy == CORRECTION: word = "correction"
+  elif typy == MOVED:      word = "moved"           # kinetypic?
+  elif typy == REVIEW:     word = "review"
+  elif typy == DISTANT:    word = "distant"
+  elif typy == HETEROTYPIC: word = "heterotypic"
+  else: word = str(typy)
   return word
 
 # Assess degree of homotypy between u and v.
 
-def ws_homotypy(u, v):
+def ws_homotypy(u, v):          # for workspace nodes
   return homotypy(get_outject(u), get_outject(v))
 
 def homotypy(x, y):
@@ -78,41 +71,255 @@ def classify_comparison(comp):
   else:
     return HETEROTYPIC          # ??
 
-# Duplicates to skip are indicated by get_duplicate_from
+# -----------------------------------------------------------------------------
+# Find typification identities based on topology,
+# starting from a given root node
 
-def find_endohomotypics(AB):
-  check_for_duplicates(AB)      # Doesn't really belong here
+def basic_typifications(root, equate=equate_typifications):
   log("# Designating type specimens for %s checklist" % get_tag(AB.A))
 
-  def process_checklist(AB):
-    def process(x):
-      winner = x
-      candidates = []           # homotypic children
-      for c in get_children(x, ()):
-        process(c)
-        if homotypy(c, x) >= HOMOTYPIC:
-          # c nominates itself as the type of x
-          # Don't let any dups engage in homotypy
-          if not get_duplicate_from(c, None):
-            candidates.append(c)
-      n = len(candidates)
-      if n == 1:
-        winner = candidates[0]
-        # Prefer children
-        equate_typifications(winner, x)
-      elif n > 1:
-        # maybe compute a score, and sort ???
-        log("** Multiple children of %s are homotypic to it: %s" %
-            (blurb(x), "; ".join(map(blurb, candidates))))
-      for s in get_synonyms(x, ()):
-        # N.b. synonyms do not have descendants
-        process(s)              # Unnecessary because no inferiors
-        if (homotypy(s, x) >= MOVED or
-            'homotypic' in get_nomenclatural_status(s, '')):
-          # s is a homotypic synonym of x
-          equate_typifications(winner, c)
-    process(AB.A.top)
-  process_checklist(AB)
+  def process(x):
+    winner = x
+    candidates = []           # homotypic children
+    for c in get_children(x, ()):
+      process(c)
+      if homotypy(c, x) >= HOMOTYPIC:
+        # c nominates itself as the type of x
+        # Don't let any dups engage in homotypy
+        if not get_duplicate_from(c, None):
+          candidates.append(c)
+    n = len(candidates)
+    if n == 1:
+      winner = candidates[0]
+      # Prefer child with same epithet
+      equate(winner, x)
+    elif n > 1:
+      # maybe compute a score, and sort ???
+      log("** Multiple children of %s are homotypic to it: %s" %
+          (blurb(x), "; ".join(map(blurb, candidates))))
+    for s in get_synonyms(x, ()):
+      # N.b. synonyms do not have descendants
+      process(s)              # Unnecessary because no inferiors
+      if (homotypy(s, x) >= MOVED or
+          'homotypic' in get_nomenclatural_status(s, '')):
+        # s is a homotypic synonym of x
+        equate(winner, c)
+  process(root)
+
+# -----------------------------------------------------------------------------
+
+def match_typifications(AB):
+  basic_typifications(AB.in_left(AB.A.top))
+  basic_typifications(AB.in_right(AB.B.top))
+  subproblems = find_subproblems(AB)
+  if True:
+    log("* Matching typifications between checklists (single pass):")
+    find_typifications(AB, subproblems, None, True, get_typification)
+  else:                         # two-pass
+    log("* Finding pass 1 typifications (for distance calculations):")
+    find_typifications(AB, subproblems, None, False, get_typification)
+    find_estimates(AB)            # for distance calculations
+    log("* Finding pass 2 typifications (using distance calculations):")
+    find_typifications(AB, subproblems, get_estimate, True, get_typification)
+
+# ??
+
+def find_matches(A_index, B_index, allow_motion):
+  subprobs = find_subproblems(AB)
+  find_typifications(AB, subprobs, allow_motion)
+  
+# Find blocks/chunks, one per epithet
+
+def find_subproblems(AB, key=get_subproblem_key):
+  log("* Finding subproblems:")
+  A_index = index_by_some_key(AB.A,
+                              key,
+                              lambda x. AB.in_left(x))
+  B_index = index_by_some_key(AB.B,
+                              key,
+                              lambda y. AB.in_right(y))
+  return collate_subproblems(A_index, B_index)
+
+def collate_subproblems(A_index, B_index):
+  subprobs = {}
+  for (key, us) in A_index.items():
+    assert key != MISSING, blurb(us[0])
+    vs = B_index.get(key, None)
+    if vs != None:
+      us.sort(key=unimportance)
+      vs.sort(key=unimportance)
+      subprobs[key] = (us, vs)
+      if (any(monitor(u) for u in us) or
+          any(monitor(v) for v in vs)):
+        log("# Added subproblem %s e.g. %s.  %s x %s" %
+            (key, blurb(us[0]), len(list(map(blurb, us))), len(list(map(blurb, vs)))))
+    else:
+      if PROBE in key:
+        log("# Null subproblem %s" % key)
+  log("* There are %s subproblems." % len(subprobs))
+  return subprobs
+
+# Returns dict value -> key
+# fn is a function over AB records
+
+def index_by_some_key(A, fn, inject):
+  index = {}
+  for x in postorder_records(A):
+    u = inject(x)
+    key = fn(u)
+    have = index.get(key, None) # part
+    if have:
+      have.append(u)
+    else:
+      index[key] = [u]
+  return index
+
+# Each subproblem covers a single epithet (or name, if higher taxon)
+# z is in AB
+
+def get_subproblem_key(z):
+  x = get_outject(z)
+  parts = get_parts(x)
+  ep = parts.epithet            # stemmed
+  key = ep if ep else parts.genus
+  if key:
+    if False and monitor(x):
+      log("# Subproblem key is %s for %s" % (key, blurb(x)))
+  else:
+    log("** %s: Name missing or ill-formed: %s" %
+        (get_primary_key(x), parts,))
+    key = '?' + get_primary_key(x)
+  return key
+
+# More important -> lower number, earlier in sequence
+
+def unimportance(u):
+  x = get_outject(u)
+  parts = get_parts(x)
+  if parts.epithet == MISSING: imp = 4      # Foo
+  elif parts.middle == parts.epithet: imp = 1     # Foo bar bar
+  elif parts.middle == None or parts.middle == '':  imp = 2     # Foo bar
+  else: imp = 3                         # Foo bar baz
+  return (1 if is_accepted(x) else 2,
+          imp,
+          # Prefer to match the duplicate that has children
+          # (or more children)
+          -len(get_children(x, ())),
+          -len(get_synonyms(x, ())),
+          get_scientific(x, None),
+          get_primary_key(x))
+
+# -----------------------------------------------------------------------------
+
+def find_typifications(AB, subprobs, allow_motion, get_specimen):
+  # This sets the 'typification_uf' property of ... some ... records.
+
+  n = 1
+  for (key, (us, vs)) in subprobs.items():  # For each subproblem
+    if n % 1000 == 0 or PROBE in key:
+      log("# Subproblem %s %s %s %s %s" %
+          (n, len(us), len(vs), blurb(us[0]), blurb(vs[0])))
+    n += 1
+    (u_matches, v_matches) = specimen_matches(key, us, vs, get_specimen)
+    link_specimen_matches(u_matches, v_matches, allow_motion)
+
+def specimen_matches(key, us, vs, get_specimen):
+    u_matches = {}    # u_sid -> (u_spec, class, [v_spec, ...])
+    v_matches = {}    # v_sid -> (v_spec, class, [u_spec, ...])
+    for i in range(0, len(us)):
+      u = us[i]
+      if get_duplicate_from(u, None): continue
+      if monitor(u): log("# Subproblem row: '%s' '%s'" % (key, blorb(u)))
+      u_spec = get_specimen(u)
+      for j in range(0, len(vs)):
+        v = vs[j]
+        if get_duplicate_from(v, None): continue
+        v_spec = get_specimen(v)
+        classified = ws_homotypy(u, v)
+        if classified >= REVIEW:
+          observe_match(u_spec, v_spec, u_matches, classified)
+          observe_match(v_spec, u_spec, v_matches, classified)
+      # end j loop
+    # end i loop
+
+# This is not a match:
+#   Tylonycteris malayana Chasen, 1940 -> Euroscaptor malayanus (Chasen, 1940)
+
+# u_matches : u_sid -> (u_spec, v_clas, v_specs)
+
+def observe_match(u_spec, v_spec, u_matches, classified):
+  u_sid = get_specimen_id(u_spec)
+
+  have = u_matches.get(u_sid)   # (v_clas, [v_spec, ...])
+  if have:
+    (_, v_clas, v_specs) = have
+    if classified < v_clas:
+      # Not so good as what we have already
+      pass
+    elif classified > v_clas:
+      # Replace specs with new and shiny
+      u_matches[u_sid] = (u_spec, classified, [v_spec])
+    else:
+      v_spec = v_spec.find()
+      if v_spec in v_specs:
+        pass
+      else:
+        # Tie - add to list
+        v_specs.append(v_spec)
+  else:
+    u_matches[u_sid] = (u_spec, classified, [v_spec])
+
+
+# From record/record matches we have induced specimen/specimen matches.
+# To apply these matches we need to filter out ambiguities.
+
+def link_specimen_matches(u_matches, v_matches, allow_motion):
+    # u_matches : u_sid -> (u_spec, v_clas, v_specs)
+    for (u_sid, (u_spec, v_clas, v_specs)) in u_matches.items():
+      if len(v_specs) > 1:
+    
+        log("# B ambiguity (%s): %s -> %s, %s" %
+            (explain_classified(v_clas),
+             blorb(get_typifies(u_spec)),
+             blorb(get_typifies(v_specs[0])),
+             blorb(get_typifies(v_specs[1]))))
+      else:
+        v_spec = v_specs[0]
+        results = v_matches.get(get_specimen_id(v_spec))
+        if results:
+          (v_spec, u_clas, u_specs) = results
+          if u_clas < REVIEW:
+            pass
+          elif len(u_specs) > 1:
+            log("# A ambiguity (%s): %s -> %s, %s" %
+                (explain_classified(u_clas),
+                 blorb(get_typifies(v_spec)),
+                 blorb(get_typifies(u_specs[0])),
+                 blorb(get_typifies(u_specs[1]))))
+          elif not u_specs[0] is u_spec:
+            # How can this happen ???
+            log("# Wayward (%s, %s): %s ->\n  %s -> %s" %
+                (explain_classified(u_clas),
+                 explain_classified(v_clas),
+                 blorb(get_typifies(u_spec)),
+                 blorb(get_typifies(v_spec)),
+                 blorb(get_typifies(u_specs[0])))),
+          elif u_clas < MOVED:    # REVIEW
+            log("# Review: %s -> %s" %         # or, make a note of it for review
+                (blorb(get_typifies(u_spec)),
+                 blorb(get_typifies(v_spec)),))
+          elif allow_motion and u_clas < CORRECTION:
+            # CORRECTION, HOMOTYPIC, maybe MOVED
+            equate_specimens(v_spec, u_spec)
+        else:                                 # Can't happen ??
+          log("# No return match: %s -> %s" %   # No return match for v - shouldn't happen
+              (blorb(get_typifies(u_spec)),
+               blorb(get_typifies(v_spec))))
+      # End u_sid loop.
+
+# -----------------------------------------------------------------------------
+
+# Duplicates to skip are indicated by get_duplicate_from
 
 # Doesn't really belong in this file.  Where does it go?
 # Filter by near_enough (family)?
@@ -187,110 +394,7 @@ def check_for_duplicates(AB):
                                            synos))))
     log(" ".join(blurbs))
 
-def find_matches(A_index, B_index, allow_motion):
-  subprobs = find_subproblems(
-  find_typifications(AB, subprobs, allow_motion)
-  
-
-# This can be configured to run once or run twice.  'last' means we're
-# on the last pass so if there was a first pass, distances are available.
-
-def find_typifications(AB, subprobs, allow_motion, bridge=equate_specimens):
-  # This sets the 'typification_uf' property of ... some ... records.
-
-  n = 1
-  for (key, (us, vs)) in subprobs.items():  # For each subproblem
-    if n % 1000 == 0 or PROBE in key:
-      log("# Subproblem %s %s %s %s %s" %
-          (n, len(us), len(vs), blurb(us[0]), blurb(vs[0])))
-    n += 1
-    u_matches = {}    # u_sid -> (u_spec, class, [v_spec, ...])
-    v_matches = {}    # v_sid -> (v_spec, class, [u_spec, ...])
-    for i in range(0, len(us)):
-      u = us[i]
-      assert not get_duplicate_from(u, None)
-      if monitor(u): log("# Subproblem row: '%s' '%s'" % (key, blorb(u)))
-      u_spec = get_typification(u)
-      for j in range(0, len(vs)):
-        v = vs[j]
-        assert not get_duplicate_from(v, None)
-        v_spec = get_typification(v)
-        classified = ws_homotypy(u, v)
-        if classified >= REVIEW:
-          observe_match(u_spec, v_spec, u_matches, classified)
-          observe_match(v_spec, u_spec, v_matches, classified)
-      # end j loop
-    # end i loop
-    # u_matches : u_sid -> (u_spec, v_clas, v_specs)
-    for (u_sid, (u_spec, v_clas, v_specs)) in u_matches.items():
-      if v_clas < REVIEW:       # HETEROTYPIC
-        pass
-      elif len(v_specs) > 1:
-        log("# B ambiguity (%s): %s -> %s, %s" %
-            (explain_classified(v_clas),
-             blorb(get_typifies(u_spec)),
-             blorb(get_typifies(v_specs[0])),
-             blorb(get_typifies(v_specs[1]))))
-      else:
-        v_spec = v_specs[0]
-        results = v_matches.get(get_specimen_id(v_spec))
-        if results:
-          (v_spec, u_clas, u_specs) = results
-          if u_clas < REVIEW:
-            pass
-          elif len(u_specs) > 1:
-            log("# A ambiguity (%s): %s -> %s, %s" %
-                (explain_classified(u_clas),
-                 blorb(get_typifies(v_spec)),
-                 blorb(get_typifies(u_specs[0])),
-                 blorb(get_typifies(u_specs[1]))))
-          elif not u_specs[0] is u_spec:
-            # How can this happen ???
-            log("# Wayward (%s, %s): %s ->\n  %s -> %s" %
-                (explain_classified(u_clas),
-                 explain_classified(v_clas),
-                 blorb(get_typifies(u_spec)),
-                 blorb(get_typifies(v_spec)),
-                 blorb(get_typifies(u_specs[0])))),
-          elif u_clas < MOVED:    # REVIEW
-            log("# Review: %s -> %s" %         # or, make a note of it for review
-                (blorb(get_typifies(u_spec)),
-                 blorb(get_typifies(v_spec)),))
-          elif allow_motion and u_clas < CORRECTION:
-            # CORRECTION, HOMOTYPIC, maybe MOVED
-            bridge(v_spec, u_spec)
-        else:                                 # Can't happen ??
-          log("# No return match: %s -> %s" %   # No return match for v - shouldn't happen
-              (blorb(get_typifies(u_spec)),
-               blorb(get_typifies(v_spec))))
-      # End u_sid loop.
-
-# This is not a match:
-#   Tylonycteris malayana Chasen, 1940 -> Euroscaptor malayanus (Chasen, 1940)
-
-# u_matches : u_sid -> (u_spec, v_clas, v_specs)
-
-def observe_match(u_spec, v_spec, u_matches, classified):
-  u_sid = get_specimen_id(u_spec)
-
-  have = u_matches.get(u_sid)   # (v_clas, [v_spec, ...])
-  if have:
-    (_, v_clas, v_specs) = have
-    if classified < v_clas:
-      # Not so good as what we have already
-      pass
-    elif classified > v_clas:
-      # Replace specs with new and shiny
-      u_matches[u_sid] = (u_spec, classified, [v_spec])
-    else:
-      v_spec = v_spec.find()
-      if v_spec in v_specs:
-        pass
-      else:
-        # Tie - add to list
-        v_specs.append(v_spec)
-  else:
-    u_matches[u_sid] = (u_spec, classified, [v_spec])
+# -----------------------------------------------------------------------------
 
 def ws_bridge(AB, x, y):
   x = AB.in_left(x)
@@ -329,7 +433,6 @@ def get_family(x):              # returns canonical name
 
 
 EPITHET_MASK = 32
-VICINITY_MASK = 16
 YEAR_MASK = 8
 TOKEN_MASK = 4
 GENUS_MASK = 2
@@ -341,7 +444,7 @@ FAR_THRESHOLD = 60
 # Compare potentially homotypic names.  Returns (m1, m2) where m1 and
 # m2 are integer masks, m1 for differences and m2 for similarities.
 
-def compare_parts(p, q, distance=None):
+def compare_parts(p, q):
   hits = misses = 0
 
   if p.epithet != None and q.epithet != None:
@@ -349,13 +452,6 @@ def compare_parts(p, q, distance=None):
     qep = q.genus.lower() if q.epithet == '' and q.genus else q.epithet
     if pep == qep: hits |= EPITHET_MASK
     else: misses |= EPITHET_MASK
-
-  # Proximity within the hierarchy essential if no genus match
-  if distance != None:
-    if distance <= NEAR_THRESHOLD:
-      hits |= VICINITY_MASK
-    elif distance > FAR_THRESHOLD:
-      misses |= VICINITY_MASK
 
   if p.year != None and q.year != None:
     if p.year == q.year: hits |= YEAR_MASK
@@ -385,13 +481,12 @@ def explain(comparison):
   def explode(things):
     return ', '.join((z
                       for (i, z)
-                      in zip(range(0, 6),
+                      in zip(range(0, 5),
                              (
                               "middle",   # MIDDLE_MASK = 1 << 1
                               "genus",    # GENUS_MASK = 2 << 1
                               "token",    # TOKEN_MASK
                               "year",     # YEAR_MASK
-                              "vicinity", # VICINITY_MASK
                               "epithet",  # EPITHET_MASK
                              ))
                       if (things & (1<<i)) != 0))

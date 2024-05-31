@@ -165,11 +165,6 @@ def get_typifies(spec):
   (sid, x, y) = spec.payload()
   return y or x
 
-def bridge(AB, x, y):
-  x = AB.in_left(x)
-  y = AB.in_right(y)
-  equate_typifications(x, y)
-
 # -----------------------------------------------------------------------------
 # An exemplar is a specimen that's the typification of two or more taxa in distinct
 # checklists.
