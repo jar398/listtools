@@ -184,16 +184,16 @@ def impute_operation(AB, u, v_rel, hom):
 
   if monitor(u):
     x = get_outject(u)
-    log("# %s %s has dup_id %s" % (get_primary_key(x), blurb(u),
-        get_duplicate_from(x, "(none)")))
+    log("# %s %s is suppressed (%s)" %
+        (get_primary_key(x), blurb(u), blurb(get_suppressed(u, None))))
   if monitor(v):
     y = get_outject(v)
-    log("# %s %s has dup_id %s" % (get_primary_key(y), blurb(v),
-        get_duplicate_from(y, "(none)")))
+    log("# %s %s has dup_id %s" %
+        (get_primary_key(y), blurb(v), blurb(get_suppressed(y, None))))
 
-  if u and get_duplicate_from(get_outject(u), None):
+  if u and get_suppressed(get_outject(u), None):
     ops.append("dup in A")
-  if v and get_duplicate_from(get_outject(v), None):
+  if v and get_suppressed(get_outject(v), None):
     ops.append("dup in B")
 
   if u == None:

@@ -72,8 +72,8 @@ get_gn_full = prop.getter(prop.declare_property("gn_canonical_full"))
 get_gn_stem = prop.getter(prop.declare_property("gn_canonical_stem"))
 get_gn_auth = prop.getter(prop.declare_property("gn_authorship"))
 
-(get_duplicate_from, set_duplicate_from) = \
-  prop.get_set(prop.declare_property("duplicate_from"))
+(get_suppressed, set_suppressed) = \
+  prop.get_set(prop.declare_property("suppressed"))
 
 # Merge related links
 get_equated_key = prop.getter(equated_key_prop)
@@ -479,6 +479,9 @@ def is_toplike(x):
 def get_inferiors(x):
   yield from get_children(x, ())
   yield from get_synonyms(x, ())
+
+def has_inferiors(x):
+  return get_children(x, False) or get_synonyms(x, False)
 
 # Really this tests for not-synonym, but accepted is nicer to say
 # and the doubtful case only occurs in certain sources (such as GBIF)

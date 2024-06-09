@@ -7,7 +7,7 @@ import parse
 from util import log, UnionFindable
 
 from checklist import get_source, blurb, blorb, get_parts, monitor, \
-  is_accepted, get_duplicate_from
+  is_accepted, get_suppressed
 from workspace import get_workspace, get_children, isinA
   
 
@@ -34,6 +34,8 @@ def get_specimen_id(uf):
 def same_specimens(uf, vf):     # formerly: same_typification_ufs
   return uf.find() is vf.find()
 
+# Prefer information coming from first argument
+
 def equate_specimens(uf, vf):
   uf = uf.find()
   vf = vf.find()
@@ -50,57 +52,20 @@ def equate_specimens(uf, vf):
   elif i1 == None: r[0] = i2
   elif i1 != i2: r[0] = min(i1, i2)
 
-  # Choose or improve a record for which this specimen is to be its type.
-  if _better_type_taxon(u1, u2):
-    r[1] = u1; r[2] = u2
-  else:
-    r[1] = u2; r[2] = u1
+  # Formerly this captured "better" information
+  r[1] = u1 or u2; r[2] = v1 or v2
   return ef
-
-# This helps find, given a specimen, the most tipward taxon in a
-# checklist containing that specimen.
-
-def _pick_type_taxon(x, y):
-  # See whether y is an improvement over x (lower unimportance value)
-  if x == None: return y
-  if y == None: return x
-  assert get_source(x) is get_source(y)
-  if x is y: return x
-  d1 = get_duplicate_from(x, None)
-  d2 = get_duplicate_from(y, None)
-  if d2 and not d1: return x
-  if d1 and not d2: return y
-  a1 = is_accepted(x)
-  a2 = is_accepted(x2)
-  if a1 and not a2: return x
-  if a2 and not a1: return y
-  if not a1:
-    return x                   # Arbitrary
-  assert not x is x2
-  m = simple.mrca(x, x2)
-  # Choose the most tipward taxon
-  if m == x: return y
-  if m == x2: return x
-  # x and y are disjoint??  How can this happen?  Arbitrary I guess
-  # Prefer the one that has children
-  c1 = len(get_children(x, ()))
-  c2 = len(get_children(x2, ()))
-  if c1 == 0 and c2 > 0: return c2
-  if c2 == 0 and c1 > 0: return c1
-  log("# Which is better as a type? %s %s" % (blorb(x), blorb(y)))
-  assert False
-  return x
 
 # Access to specimen records [sid, x, y]
 
 def sid_to_specimen(source, sid):
   return source.specimen_ufs[sid]
 
-def sid_to_record(source, sid, z): # in A checklist
+def sid_to_record(source, sid):   # result is in A checklist
   uf = sid_to_specimen(source, sid)
   return uf.payload()[1]
 
-def sid_to_opposite_record(source, sid, z): # in B checklist
+def sid_to_opposite_record(source, sid):   # in B checklist
   uf = sid_to_specimen(source, sid)
   return uf.payload()[2]
 

@@ -8,24 +8,18 @@ import util, rows
 from util import log, windex
 from workspace import *
 
-from checklist import get_duplicate_from, set_duplicate_from, blorb, blurb
+from checklist import get_suppressed, set_suppressed, blorb, blurb
 from specimen import get_exemplar, get_exemplar_id, sid_to_epithet
 from specimen import equate_specimens, equate_typifications, \
   get_typification, maybe_get_typification
 
 from estimate import find_estimates, get_estimate
-from typify import find_typifications
-from typify import basic_typifications, get_family
+from typify import match_typifications
 
 # listtools's exemplar-finding procedure.  If there is some other way
 # of finding exemplars, that's fine, don't need to use this.
 
-# This is invoked twice - two-pass method.  Purpose of first pass is
-# to be able to compute distances on the second pass.
-
 def find_exemplars(get_estimate, AB):
-  basic_typifications(AB.A)
-  basic_typifications(AB.B)
   match_typifications(AB)
   # maybe compute better estimates - see theory.py
   report_on_exemplars(AB)
@@ -66,7 +60,7 @@ def generate_exemplars(AB):
           ecount += 1
           sid = get_exemplar_id(uf)
           epithet = sid_to_epithet(AB, sid)
-          dup = get_duplicate_from(x, None)
+          dup = get_suppressed(x, None)
           rows.append((sid, epithet, which, get_primary_key(x), get_canonical(x),
                        get_primary_key(dup) if dup else MISSING))
           count[0] += 1
@@ -108,7 +102,7 @@ def read_exemplars(in_rows, AB):
       if dup_id:
         drec = checklist.look_up_record(C, dup_id)
         assert drec
-        set_duplicate_from(x, drec)
+        set_suppressed(x, drec)
         if monitor(u):
           log("# %s %s is duplicated from %s %s" %
               (taxonid, blurb(u), dup_id, blurb(drec)))
