@@ -38,6 +38,7 @@ def match_typifications(AB):
 # Doesn't feel like prepare really belongs in this file.  Where does it go?
 
 def prepare(checklist, inject):
+  log("* Preparing checklist %s" % get_tag(checklist))
   basic_typifications(checklist, inject)
   def get_key(x):
     return get_subproblem_key(x)
@@ -45,6 +46,7 @@ def prepare(checklist, inject):
                         get_key,
                         inject)
   suppress_extras(index)
+  log("")
   return index
 
 # Each subproblem covers a single epithet (or name, if higher taxon)
@@ -165,13 +167,22 @@ def suppress_extras(index):
         classified = homotypy(u, u2)
         if classified >= REVIEW:
           # Report on this homotypy assessment
-          log("# %s: %s ~ %s" %
-              (explain_classified(classified), blorb(u), blorb(u2)))
           if classified > MOVED and not has_inferiors(u2):
             u2_pk = get_primary_key(u2)
             if u2_pk in seen: continue
             seen.add(u2_pk)
+            if get_superior(get_outject(u, u)).record is get_superior(get_outject(u2, u2)).record:
+              if False:
+                log("# Homotypic sibs: %s: %s ~ %s" %
+                    (explain_classified(classified), designate(u), designate(u2)))
+              equate_typifications(u, u2)
+            else:
+              log("# Suppressing: %s: %s ~ %s" %
+                  (explain_classified(classified), designate(u), designate(u2)))
             set_suppressed(u2, u)
+          else:
+            log("# Review: %s: %s ~ %s" %
+                (explain_classified(classified), designate(u), designate(u2)))
       # end j loop
     # end i loop
 
@@ -181,12 +192,12 @@ def suppress_extras(index):
 
 def collate_subproblems(A_index, B_index):
   subprobs = {}
-  log("* There are %s subproblems." % len(subprobs))
   for (key, us) in A_index.items():
     assert key != MISSING, blurb(us[0])
     vs = B_index.get(key, None)
     if vs != None:
       subprobs[key] = (us, vs)
+  log("* There are %s subproblems." % len(subprobs))
   return subprobs
 
 # Records are matched between checklists by updating their 'typification_uf' 
@@ -204,56 +215,56 @@ def match_in_subproblems(subprobs):
 # Specimen/specimen matches are induced from record/record matches.
 # We need to filter out ambiguities...
 # But... it is hoped most or all ambiguities are filtered out at the
-# 'suppression' stage.  So maybe this does nothing.
+# 'suppression' stage.  So ideally this does nothing.
 # candidates_for_u : u_sid -> (u_spec, v_clas, v_specs)
 
 def match_in_subproblem(us, vs):
   (candidates_for_u, candidates_for_v) = \
     candidates_in_subproblem(us, vs, get_typification)
+  half_match_in_subproblem(candidates_for_u, candidates_for_v)
+  half_match_in_subproblem(candidates_for_v, candidates_for_u)
+
+def half_match_in_subproblem(candidates_for_u, candidates_for_v):
   # candidates_for_u : u_sid -> (u_spec, class, [v_spec, ...])
   # candidates_for_v : v_sid -> (v_spec, class, [u_spec, ...])
-
-  # candidates_for_u: u_id -> 
-  # Test every candidate against every other candidate for uniqueness ??
+  # Test every candidate to see if it is a unique match.
   for (u_spec, v_clas, v_specs) in candidates_for_u.values():
+    if len(v_specs) > 1:
+      # Get rid of synonyms
+      valids = []
+      for v_spec in v_specs:
+        v = get_typifies(v_spec)
+        if is_accepted(get_outject(v)):
+          valids.append(v_spec)
+        else:
+          log("# Ambiguity via synonym (%s): %s -> %s" %
+              (explain_classified(v_clas),
+               designate(get_typifies(u_spec)),
+               designate(get_typifies(v_spec))))
+      v_specs = valids          # Flush synonyms
     # Cf. THIS_STUFF
+    if len(v_specs) > 1:
+      for v_spec in v_specs:
+        v = get_typifies(v_spec)
+        #if not has_inferiors(v):
+        log("# Ambiguity via accepted (%s): %s -> %s" %
+              (explain_classified(v_clas),
+               designate(get_typifies(u_spec)),
+               designate(get_typifies(v_spec))))
     if len(v_specs) == 1:
-      if v_clas > REVIEW:
-        # HOMOTYPIC, CORRECTION, maybe MOVED
-        equate_specimens(u_spec, v_specs[0])
-      else:
-        log("# Review: %s -> %s" %
-            (blorb(get_typifies(u_spec)),
-             blorb(get_typifies(v_specs[0]))))
-    else:
-      # Ambiguous
-      for s in v_specs:
-        log("# Ambiguous: %s -> %s" %
-            (blorb(get_typifies(u_spec)),
-             blorb(get_typifies(s))))
+      v_spec = v_specs[0]
+      u_specs = candidates_for_v.get(get_specimen_id(v_spec))
+      assert u_specs
+      if len(u_specs) == 1:
+        assert u_specs[0] is u_spec
+        equate_specimens(u_spec, v_spec)
 
-  explain_nonmatches(candidates_for_u, candidates_for_v)
-  explain_nonmatches(candidates_for_v, candidates_for_u)
 
-def explain_nonmatches(candidates, cocandidates):
-  for (spec, clas, specs) in candidates.values():
+# We are matching specimens to specimens; any such match induces some
+# number of record/record matches, via get_specimen and get_typifies.
 
-    # spec -> [..., cospec, ...]
-    # cospec -> [..., spec, ...]
-
-    if clas < MOVED:            # heterotypic
-      continue
-    elif len(specs) == 1:
-      continue                  # Already handled
-    else:
-      log("# Ambiguity (%s): %s -> %s, %s" %
-          (explain_classified(clas),
-           blorb(get_typifies(spec)),
-           blorb(get_typifies(specs[0])),
-           blorb(get_typifies(specs[1]))))
-
-# Candidate matches are those between sets of specimens, one set from each 
-# of the two checklists
+# A candidate match (v_spec) for a record (u) is a homotypy match to
+# any of that match's records.
 
 def candidates_in_subproblem(us, vs, get_specimen):
   candidates_for_u = {}    # u_sid -> (u_spec, class, [v_spec, ...])
@@ -262,15 +273,18 @@ def candidates_in_subproblem(us, vs, get_specimen):
     u = us[i]
     if get_suppressed(u, None): continue
     if monitor(u): log("# Subproblem row: '%s'" % (blorb(u),))
-    u_spec = get_specimen(u)
     for j in range(0, len(vs)):
       v = vs[j]
       if get_suppressed(v, None): continue
-      v_spec = get_specimen(v)
       classified = homotypy(u, v)
-      if classified >= REVIEW:
+      if classified > REVIEW:
+        u_spec = get_specimen(u)
+        v_spec = get_specimen(v)
         observe_homotypy(u_spec, v_spec, candidates_for_u, classified)
         observe_homotypy(v_spec, u_spec, candidates_for_v, classified)
+      elif classified == REVIEW:
+        # TBD: Make a note of it!
+        pass
     # end j loop
   # end i loop
   return (candidates_for_u, candidates_for_v)
@@ -288,11 +302,10 @@ def observe_homotypy(u_spec, v_spec, candidates_for_u, classified):
       pass
     elif classified > v_clas:
       # Replace specs with new and shiny
-      # (except what if u and v are identical??)
       candidates_for_u[u_sid] = (u_spec, classified, [v_spec])
     else:
       v_spec = v_spec.find()    # uf
-      if v_spec in v_specs:
+      if get_specimen_id(v_spec) in map(get_specimen_id, v_specs):
         pass
       else:
         # Tie - add to list
@@ -315,7 +328,7 @@ HETEROTYPIC   = 0
 def explain_classified(typy):
   if typy == HOMOTYPIC:    word = "homotypic"
   elif typy == CORRECTION: word = "correction"
-  elif typy == MOVED:      word = "moved"           # kinetypic?
+  elif typy == MOVED:      word = "mobile"           # kinetypic?
   elif typy == REVIEW:     word = "review"
   elif typy == DISTANT:    word = "distant"
   elif typy == HETEROTYPIC: word = "heterotypic"
@@ -327,45 +340,40 @@ def explain_classified(typy):
 def homotypy(x, y):
   # TBD: what if x is y?  if (x is y) return IDENTICAL
   # TBD: consider matched existing typification if any?
-  comparison = compare_parts(get_parts(x), get_parts(y))
-  clas = classify_comparison(comparison)
-  if clas == MOVED and not near_enough(get_outject(x, x),
-                                       get_outject(y, y)):
-    clas = DISTANT
-  return clas
-
-# Match quality {mismatch, correction, match}
-# Mobility {mismatch, moved, match}
-
-def classify_comparison(comp):
-  (misses, hits) = comp
+  px = get_parts(x)
+  py = get_parts(y)
+  (misses, hits) = compare_parts(px, py)
 
   # No epithet or genus match -> mismatch
   if (hits & (EPITHET_MASK | GENUS_MASK)) == 0:
-    return HETEROTYPIC          # ??
+    clas = HETEROTYPIC          # ??
   elif misses == 0:
-    return HOMOTYPIC
+    clas = HOMOTYPIC
   elif misses == YEAR_MASK:
-    return CORRECTION          # ??
+    clas = CORRECTION          # ??
   elif misses == TOKEN_MASK:
-    return CORRECTION          # ??
+    clas = CORRECTION          # ??
   elif misses == GENUS_MASK:
-    # Consider looking at protonymp ?  To rule out certain cases???
-    # E.g. if both are protonyms, genus must match.
-    return MOVED
+    if not near_enough(get_outject(x, x),
+                       get_outject(y, y)):
+      clas = DISTANT
+    elif px.protonymp and py.protonymp:
+      # Both are protonyms - no go, but maybe we should review
+      clas = REVIEW
+    else:
+      clas = MOVED
   else:
-    return HETEROTYPIC          # ??
+    clas = HETEROTYPIC          # ??
+  return clas
 
 # -----------------------------------------------------------------------------
 
 EPITHET_MASK = 32
-YEAR_MASK = 8
-TOKEN_MASK = 4
-GENUS_MASK = 2
+YEAR_MASK = 16
+TOKEN_MASK = 8
+GENUS_MASK = 4
+PROTONYMP_MASK = 2
 MIDDLE_MASK = 1
-
-NEAR_THRESHOLD = 30
-FAR_THRESHOLD = 60
 
 # Compare potentially homotypic names.  Returns (m1, m2) where m1 and
 # m2 are integer masks, m1 for differences and m2 for similarities.
@@ -392,8 +400,9 @@ def compare_parts(p, q):
     if p.genus == q.genus: hits |= GENUS_MASK
     else: misses |= GENUS_MASK
 
-    # elif p.protonymp == True and q.protonymp == True: ...
-    # If both are protonyms, the genera have to match
+  if p.protonymp != None and q.protonymp != None:
+    if p.protonymp == q.protonymp: hits |= PROTONYMP_MASK
+    else: misses |= PROTONYMP_MASK
 
   if p.middle != None and q.middle != None:
     pmid = p.epithet if p.middle == '' else p.middle
@@ -432,3 +441,7 @@ def get_link(u, default=-19):
     (_, u2, v) = uf.payload()
     return v if (v and separated(u, v)) else u2
   return None
+
+def designate(x):
+  return "%s %s" % (blorb(x), get_primary_key(get_outject(x, x)))
+

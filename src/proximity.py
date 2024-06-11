@@ -36,6 +36,9 @@ def get_family(x):              # returns canonical name
 
 """
 
+NEAR_THRESHOLD = 30
+FAR_THRESHOLD = 60
+
 # distance is thresholded, so it only really matters whether it's small
 # or large
 
