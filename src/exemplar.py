@@ -11,7 +11,7 @@ from workspace import *
 from checklist import get_suppressed, set_suppressed, blorb, blurb
 from specimen import get_exemplar, get_exemplar_id, sid_to_epithet
 from specimen import equate_specimens, equate_typifications, \
-  get_typification, maybe_get_typification
+  get_typification, maybe_get_typification, is_exemplar
 
 from estimate import find_estimates, get_estimate
 from typify import match_typifications
@@ -19,7 +19,7 @@ from typify import match_typifications
 # listtools's exemplar-finding procedure.  If there is some other way
 # of finding exemplars, that's fine, don't need to use this.
 
-def find_exemplars(get_estimate, AB):
+def find_exemplars(AB):
   match_typifications(AB)
   # maybe compute better estimates - see theory.py
   report_on_exemplars(AB)
@@ -46,25 +46,32 @@ def write_exemplar_list(AB, out=sys.stdout):
   util.write_rows(generate_exemplars(AB), out)
 
 def generate_exemplars(AB):
-  yield ("exemplar id", "epithet", "checklist", "taxonID", "canonicalName", "duplicate of")
+  yield ("exemplar id", "epithet", "checklist", "taxonID", "canonicalName", "suppressed")
   count = [0]
   rows = []
   def doit(ws, which):
-    rcount = ecount = 0
+    rcount = ecount = xcount = 0
     for x in preorder_records(ws.A):
       rcount += 1
       if not is_top(x):               # ?
         u = ws.in_left(x)
-        uf = get_exemplar(u)     # exemplar record [sid, u, v] or None
-        if uf:
-          ecount += 1
-          sid = get_exemplar_id(uf)
-          epithet = sid_to_epithet(AB, sid)
-          dup = get_suppressed(x, None)
-          rows.append((sid, epithet, which, get_primary_key(x), get_canonical(x),
-                       get_primary_key(dup) if dup else MISSING))
-          count[0] += 1
-    log("# preorder: %s, exemplars: %s" % (rcount, ecount)) 
+        typ = maybe_get_typification(u, None)
+        if typ:
+          xcount += 1
+          uf = get_exemplar(u)     # exemplar with record [sid, u, v], or None
+          if uf:
+            assert is_exemplar(uf)
+            ecount += 1
+            sid = get_exemplar_id(uf)
+            epithet = sid_to_epithet(AB, sid)
+            dup = get_suppressed(x, None)
+            rows.append((sid, epithet, which, get_primary_key(x), get_canonical(x),
+                         get_primary_key(dup) if dup else MISSING))
+            count[0] += 1
+          else:
+            (sid, x, y) = typ.payload()
+            log("# Loser: %s %s %s" % (sid, blurb(x), blurb(y)))
+    log("# preorder: %s, exemplars: %s, typifications: %s" % (rcount, ecount, xcount)) 
   doit(swap(AB), 'B')
   doit(AB, 'A')
   rows.sort(key=lambda row:(row[0], row[2], row[4]))
@@ -144,5 +151,5 @@ if __name__ == '__main__':
       # compute name matches afresh
       AB = ingest_workspace(a_rows.rows(), b_rows.rows(),
                             A_name=a_name, B_name=b_name)
-      find_exemplars(get_estimate, AB)
+      find_exemplars(AB)
       write_exemplar_list(AB)

@@ -17,7 +17,7 @@ from workspace import separated, get_outject, get_source
 from specimen import sid_to_epithet, same_specimens, \
   equate_typifications, equate_specimens, same_typifications, \
   get_typification, get_specimen_id, \
-  sid_to_specimen, get_typifies
+  sid_to_specimen, get_typifies, is_exemplar
 from proximity import near_enough
 
 def match_typifications(AB):
@@ -258,6 +258,8 @@ def half_match_in_subproblem(candidates_for_u, candidates_for_v):
       if len(u_specs) == 1:
         assert u_specs[0] is u_spec
         equate_specimens(u_spec, v_spec)
+        assert is_exemplar(u_spec)
+        assert is_exemplar(v_spec)
 
 
 # We are matching specimens to specimens; any such match induces some

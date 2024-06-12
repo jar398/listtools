@@ -53,7 +53,8 @@ def equate_specimens(uf, vf):
   elif i1 != i2: r[0] = min(i1, i2)
 
   # Formerly this captured "better" information
-  r[1] = u1 or u2; r[2] = v1 or v2
+  r[1] = u1 or u2
+  r[2] = v1 or v2
   return ef
 
 # Access to specimen records [sid, x, y]
