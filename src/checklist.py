@@ -72,8 +72,8 @@ get_gn_full = prop.getter(prop.declare_property("gn_canonical_full"))
 get_gn_stem = prop.getter(prop.declare_property("gn_canonical_stem"))
 get_gn_auth = prop.getter(prop.declare_property("gn_authorship"))
 
-(get_duplicate_from, set_duplicate_from) = \
-  prop.get_set(prop.declare_property("duplicate_from"))
+(get_redundant, set_redundant) = \
+  prop.get_set(prop.declare_property("redundant"))
 
 # Merge related links
 get_equated_key = prop.getter(equated_key_prop)

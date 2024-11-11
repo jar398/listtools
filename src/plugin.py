@@ -185,16 +185,16 @@ def impute_operation(AB, u, v_rel, hom):
   if monitor(u):
     x = get_outject(u)
     log("# %s %s has dup_id %s" % (get_primary_key(x), blurb(u),
-        get_duplicate_from(x, "(none)")))
+        get_redundant(x, "(none)")))
   if monitor(v):
     y = get_outject(v)
     log("# %s %s has dup_id %s" % (get_primary_key(y), blurb(v),
-        get_duplicate_from(y, "(none)")))
+        get_redundant(y, "(none)")))
 
-  if u and get_duplicate_from(get_outject(u), None):
-    ops.append("dup in A")
-  if v and get_duplicate_from(get_outject(v), None):
-    ops.append("dup in B")
+  if u and get_redundant(get_outject(u), None):
+    ops.append("redundant in A")
+  if v and get_redundant(get_outject(v), None):
+    ops.append("redundant in B")
 
   if u == None:
     ops.append("added name")

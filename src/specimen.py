@@ -7,7 +7,7 @@ import parse
 from util import log, UnionFindable
 
 from checklist import get_source, blurb, blorb, get_parts, monitor, \
-  is_accepted, get_duplicate_from
+  is_accepted, get_redundant
 from workspace import get_workspace, get_children, \
   get_outject, isinA
   
@@ -64,8 +64,8 @@ def _pick_type_taxon(v1, v2):
   if v1 == None: return v2
   if v2 == None: return v1
   assert get_source(v1) is get_source(v2)
-  assert not get_duplicate_from(v1, None)
-  assert not get_duplicate_from(v2, None)
+  assert not get_redundant(v1, None)
+  assert not get_redundant(v2, None)
   if v1 is v2: return v1
   x1 = get_outject(v1)
   x2 = get_outject(v2)

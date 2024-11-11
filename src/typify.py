@@ -10,8 +10,7 @@ from checklist import get_parts, monitor, \
   get_superior, get_children, get_synonyms, \
   is_accepted, blurb, blorb, get_scientific, get_primary_key, get_rank, \
   get_canonical, get_source_tag, get_nomenclatural_status, \
-  get_children, get_synonyms, \
-  get_duplicate_from, set_duplicate_from, all_records
+  get_children, get_synonyms, all_records
 from workspace import separated, get_outject, get_workspace, local_sup, get_source
 from workspace import isinA, isinB, local_accepted, all_records
 from simple import simple_le, distance_in_checklist

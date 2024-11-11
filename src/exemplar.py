@@ -8,7 +8,7 @@ import util, rows
 from util import log, windex
 from workspace import *
 
-from checklist import get_duplicate_from, set_duplicate_from, blorb, blurb
+from checklist import get_redundant, set_redundant, blorb, blurb
 from specimen import get_exemplar, get_exemplar_id, sid_to_epithet
 from specimen import equate_specimens, equate_typifications, \
   get_typification, maybe_get_typification
@@ -103,14 +103,14 @@ def check_for_duplicates(AB):
       if len(reject) > 0:
         anchor = AB.in_left(xs[0])
         for x in reject:
-          set_duplicate_from(AB.in_left(x), anchor)
+          set_redundant(AB.in_left(x), anchor)
       if len(accept) > 1:
         mess = "Accepted duplicates, keeping one"
         accept.sort(key=lambda a: (-len(get_children(a, ())),
                                    get_primary_key(a)))
         anchor = AB.in_left(accept[0])
         for x in accept[1:]:
-          set_duplicate_from(AB.in_left(x), anchor)
+          set_redundant(AB.in_left(x), anchor)
       elif len(accept) == 1:
         mess = "Redundant synonym(s), discarding"
       else:
@@ -130,7 +130,7 @@ def index_by_some_key(AB, fn):
   index = {}
   for x in postorder_records(AB.A):
     u = AB.in_left(x)
-    if get_duplicate_from(u, None): continue       # Suppress dups from subproblems
+    if get_redundant(u, None): continue       # Suppress dups from subproblems
     key = fn(u)
     if False and monitor(u):
       log("# 1 Indexing %s, key %s, monitored? %s" % (blurb(u), key, monitor(u)))
@@ -196,7 +196,7 @@ def generate_exemplars(AB):
           ecount += 1
           sid = get_exemplar_id(uf)
           epithet = sid_to_epithet(AB, sid)
-          dup = get_duplicate_from(x, None)
+          dup = get_redundant(x, None)
           rows.append((sid, epithet, which, get_primary_key(x), get_canonical(x),
                        get_primary_key(dup) if dup else MISSING))
           count[0] += 1
@@ -238,7 +238,7 @@ def read_exemplars(in_rows, AB):
       if dup_id:
         drec = checklist.look_up_record(C, dup_id)
         assert drec
-        set_duplicate_from(x, drec)
+        set_redundant(x, drec)
         if monitor(u):
           log("# %s %s is duplicated from %s %s" %
               (taxonid, blurb(u), dup_id, blurb(drec)))
