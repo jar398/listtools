@@ -276,7 +276,7 @@ def resolve_superior(S, record):
                        accepted,
                        note="checklist (synonym)", span=1)
     else:
-      log("# Synonym %s with unresolvable accepted: %s -> %s" %
+      log("# Synonym in %s with unresolvable accepted: %s -> %s" %
           (get_tag(S), blurb(record), accepted_key))
   else:
     # Accepted

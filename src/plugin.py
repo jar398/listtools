@@ -15,6 +15,9 @@ from typify import explain
 
 counts = {}
 
+# Generate either the header row or a data row; the code for both is
+# together to make sure they stay in sync.
+
 def generate_row(AB, u, v, hom, est):
   if u == True:
     u_fields = ("A concept taxonID", "A concept name")
@@ -34,6 +37,7 @@ def generate_row(AB, u, v, hom, est):
     v_rel = theory.compare(AB, u, v)
     rcc5_field = rcc5_symbol(v_rel.relationship)
     if rcc5_field.startswith('='):
+      # Kludge to appease spreadsheet programs
       rcc5_field = "'" + rcc5_field
 
   sidep = False
@@ -197,7 +201,7 @@ def impute_operation(AB, u, v_rel, hom):
           (get_primary_key(y), blurb(v),
            get_primary_key(red)))
 
-  # Does not happen?
+  # Does not happen?  Why not?
   if u and get_redundant(get_outject(u), None):
     ops.append("redundant in A")
   if v and get_redundant(get_outject(v), None):

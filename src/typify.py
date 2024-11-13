@@ -79,6 +79,8 @@ def find_typifications(AB, subprobs, get_estimate, last):
     n += 1
     u_matches = {}    # u_sid -> (class, [v_spec, ...])
     v_matches = {}    # v_sid -> (class, [u_spec, ...])
+                      # spec = (sid, u, v)
+                      # Didn't count on multiple specs per sid!
     for i in range(0, len(us)):
       u = us[i]
       if monitor(u): log("# Subproblem row: '%s' '%s'" % (key, blorb(u)))
@@ -99,6 +101,7 @@ def find_typifications(AB, subprobs, get_estimate, last):
       # end j loop
     # end i loop
     # u_matches : u_sid -> (v_clas, v_specs)
+    # clas means a classification
     for (u_sid, (v_clas, v_specs)) in u_matches.items():
       u_spec = sid_to_specimen(AB, u_sid)
       if v_clas < REVIEW:       # HETEROTYPIC
@@ -107,11 +110,17 @@ def find_typifications(AB, subprobs, get_estimate, last):
         log("# Review 1 %s" %         # or, make a note of it for review
             (blorb(get_typifies(u_spec)),))
       elif len(v_specs) > 1:
-        log("# B ambiguity %s %s -> %s, %s" %
+        # Problem here
+        v0 = get_typifies(v_specs[0])
+        v1 = get_typifies(v_specs[1])
+        assert not (v0 is v1)
+        log("# B ambiguity %s %s -> %s %s, %s %s" %
             (explain_classified(v_clas),
              blorb(get_typifies(u_spec)),
-             blorb(get_typifies(v_specs[0])),
-             blorb(get_typifies(v_specs[1]))))
+             get_primary_key(v0),
+             blorb(v0),
+             get_primary_key(v1),
+             blorb(v1)))
       else:
         v_spec = v_specs[0]
         v_sid = get_specimen_id(v_spec)
@@ -122,7 +131,7 @@ def find_typifications(AB, subprobs, get_estimate, last):
           if u_clas < REVIEW:
             pass
           elif u_clas < MOTION:    # REVIEW
-            log("# Review 2" %         # or, make a note of it for review
+            log("# Review 2 %s" %         # or, make a note of it for review
                 (blorb(get_typifies(v_spec)),))
           elif len(u_specs) > 1:
             log("# A ambiguity %s %s -> %s, %s" %
@@ -158,28 +167,25 @@ def ws_near_enough(u, v):
   return near_enough(get_outject(u), get_outject(v))
 
 # u_matches : u_sid -> (v_clas, v_specs)
+#   'spec' is short for 'specimen'
+
+# Ideally, only one match per specimen id.
 
 def observe_match(u_spec, v_spec, u_matches, classified):
   u_sid = get_specimen_id(u_spec)
+  v_sid = get_specimen_id(v_spec)
 
-  have = u_matches.get(u_sid)   # (v_clas, [v_spec, ...])
+  have = u_matches.get(u_sid)   # (v_clas, [v_speq, ...])
   if have:
-    (v_clas, v_specs) = have
-    if classified < v_clas:
-      # Not so good as what we have already
-      pass
-    elif classified > v_clas:
-      # Replace specs with new and shiny
-      u_matches[u_sid] = (classified, [v_spec])
-    else:
-      v_spec = v_spec.find()
-      if v_spec in v_specs:
-        pass
-      else:
-        # Tie - add to list
-        v_specs.append(v_spec)
-  else:
-    u_matches[u_sid] = (classified, [v_spec])
+    (v_clas, v_speqs) = have
+    for v_speq in v_speqs:
+      if get_specimen_id(v_speq) == v_sid:
+        # Improve - how does v_clas compare to `classified`?
+        if classified > v_clas:
+          u_matches[u_sid] = (classified, [v_spec])
+        return
+  # Need to add v_spec to the u_matches table
+  u_matches[u_sid] = (classified, [v_spec])
 
 # More important -> lower number, earlier in sequence
 

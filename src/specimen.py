@@ -166,8 +166,8 @@ def equatable_typifications(u, v):
 
 # For debugging mainly?
 
-def get_typifies(spec):
-  (sid, u, v) = spec.payload()
+def get_typifies(spec_uf):
+  (sid, u, v) = spec_uf.payload()
   return v or u
 
 # -----------------------------------------------------------------------------
