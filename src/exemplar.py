@@ -16,13 +16,14 @@ from specimen import equate_specimens, equate_typifications, \
 from estimate import find_estimates, get_estimate
 from typify import find_typifications
 from typify import unimportance, \
-  find_endohomotypics, unimportance, get_family
+  find_endohomotypics, unimportance
+from proximity import get_family
 
 # listtools's exemplar-finding procedure.  If there is some other way
 # of finding exemplars, that's fine, don't need to use this.
 
 # This is invoked twice - two-pass method.  Purpose of first pass is
-# to be able to compute distances on the second pass.
+# to be able to compute proximities on the second pass.
 
 def find_exemplars(get_estimate, AB):
   find_endohomotypics(AB)
@@ -32,10 +33,10 @@ def find_exemplars(get_estimate, AB):
     log("* Finding typifications (single pass):")
     find_typifications(AB, subproblems, None, True)
   else:                         # two-pass
-    log("* Finding pass 1 typifications (for distance calculations):")
+    log("* Finding pass 1 typifications (for proximity calculations):")
     find_typifications(AB, subproblems, None, False)
-    find_estimates(AB)            # for distance calculations
-    log("* Finding pass 2 typifications (using distance calculations):")
+    find_estimates(AB)            # for proximity calculations
+    log("* Finding pass 2 typifications (using proximity calculations):")
     find_typifications(AB, subproblems, get_estimate, True)
 
   # maybe compute better estimates - see theory.py

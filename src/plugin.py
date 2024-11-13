@@ -11,7 +11,7 @@ from rcc5 import *
 from specimen import sid_to_epithet
 from estimate import get_block, is_empty_block, get_estimate
 from property import mep, mep_get, mep_set
-from typify import explain, compare_records
+from typify import explain
 
 counts = {}
 

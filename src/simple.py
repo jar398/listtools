@@ -1,4 +1,3 @@
-import math
 import property as prop
 from checklist import *
 
@@ -142,30 +141,3 @@ def ensure_levels(S):
 
 def descends_from(x, y):
   return get_level(y) < get_level(x)
-
-# -----------------------------------------------------------------------------
-# Distance computation
-
-def distance_in_checklist(x1, x2):
-  m = mrca(x1, x2)
-  assert m
-  return (distance_on_lineage(x1, m) +
-          distance_on_lineage(x2, m))
-
-def distance_on_lineage(x, m):
-  assert simple_le(x, m)
-  if x is m:
-    return 0
-  y = get_superior(x).record
-  d = distance_on_lineage(y, m)
-  if y is m: d -= 1
-  return (distance_to_parent(x) + d)
-
-def distance_to_parent(u):
-  sup = get_superior(u)
-  return lg(max(1,len(get_children(sup.record, ()))))
-
-def lg(x):
-  return math.log(x)//log2
-log2 = math.log(2)
-

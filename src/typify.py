@@ -13,11 +13,12 @@ from checklist import get_parts, monitor, \
   get_children, get_synonyms, all_records
 from workspace import separated, get_outject, get_workspace, local_sup, get_source
 from workspace import isinA, isinB, local_accepted, all_records
-from simple import simple_le, distance_in_checklist
+from simple import simple_le
 from specimen import sid_to_epithet, same_specimens, \
   equate_typifications, equate_specimens, \
   get_typification, get_specimen_id, \
   sid_to_specimen, get_typifies
+from proximity import near_enough
 
 HOMOTYPIC     = 10
 MOTION        = 6
@@ -28,7 +29,7 @@ def find_endohomotypics(AB):
   def process_checklist(AB):
     def process_inf(x, p):          # p = parent of x
       process(x)
-      comparison = compare_records(AB.in_left(x), AB.in_left(p))
+      comparison = ws_compare_records(AB.in_left(x), AB.in_left(p))
       return classify_comparison(comparison) >= MOTION
     def process(x):
       u = AB.in_left(x)
@@ -65,7 +66,7 @@ def duplicates(u, v):
            get_rank(x) == get_rank(y)))
 
 # This can be configured to run once or run twice.  'last' means we're
-# on the last pass so if there was a first pass, distances are available.
+# on the last pass so if there was a first pass, proximity is available.
 
 def find_typifications(AB, subprobs, get_estimate, last):
   # This sets the 'typification_uf' property of ... some ... records.
@@ -85,9 +86,9 @@ def find_typifications(AB, subprobs, get_estimate, last):
       for j in range(0, len(vs)):
         v = vs[j]
         v_spec = get_typification(v)
-        comparison = compare_records(u, v) # shows!
+        comparison = ws_compare_records(u, v) # shows!
         classified = classify_comparison(comparison)
-        if classified == MOTION and not near_enough(u, v):
+        if classified == MOTION and not ws_near_enough(u, v):
           if monitor(u) or monitor(v):
             log("# Too far apart: %s -> %s" %
                 (blorb(u), blorb(v)))
@@ -153,6 +154,9 @@ def find_typifications(AB, subprobs, get_estimate, last):
   equate_typifications(AB.in_left(AB.A.top),
                        AB.in_right(AB.B.top))
 
+def ws_near_enough(u, v):
+  return near_enough(get_outject(u), get_outject(v))
+
 # u_matches : u_sid -> (v_clas, v_specs)
 
 def observe_match(u_spec, v_spec, u_matches, classified):
@@ -177,33 +181,6 @@ def observe_match(u_spec, v_spec, u_matches, classified):
   else:
     u_matches[u_sid] = (classified, [v_spec])
 
-# Are u0 and v0 near enough that v0 might be a genus change of u0 or
-# vice versa?
-
-def near_enough(u, v):
-  f = get_family(get_outject(u))
-  if not f:
-    log("# No family: %s" % blorb(u))
-    return False
-  g = get_family(get_outject(v))
-  if not g:
-    log("# No family: %s" % blorb(v))
-    return False
-  return f == g
-
-# Not a match:
-#  Maxomys pagensis (Miller, 1903) -> Macaca pagensis (G. S. Miller, 1903)
-#  (families Muridae, Cercopithecidae)
-
-def get_family(x):              # returns canonical name
-  while get_rank(x, None) != 'family':
-    sup = get_superior(x, None)
-    if sup == None:
-      # log("# No sup: %s %s" % (get_primary_key(x), blorb(x)))
-      return None
-    x = sup.record
-  return get_canonical(x)
-
 # More important -> lower number, earlier in sequence
 
 def unimportance(u):
@@ -223,14 +200,17 @@ def unimportance(u):
           get_primary_key(x))
 
 
-# Compare potentially homotypic taxa.
-# distance is distance (perhaps estimated) between u and v in combined model.
-# If distance (in tree) is close, give a pass on genus mismatch.
+# Compare potentially homotypic taxa in same workspace.
 
-def compare_records(u, v, distance=None):
-  return compare_parts(get_parts(get_outject(u)),
-                       get_parts(get_outject(v)),
-                       distance)
+def ws_compare_records(u, v):
+  return compare_records(get_outject(u), get_outject(v))
+
+# In same checklist or in different checklists
+
+def compare_records(x, y):
+  return compare_parts(get_parts(x),
+                       get_parts(y),
+                       near_enough(x, y))
 
 EPITHET_MASK = 32
 VICINITY_MASK = 16
@@ -245,7 +225,7 @@ FAR_THRESHOLD = 60
 # Compare potentially homotypic names.  Returns (m1, m2) where m1 and
 # m2 are integer masks, m1 for differences and m2 for similarities.
 
-def compare_parts(p, q, distance=None):
+def compare_parts(p, q, near=False):
   hits = misses = 0
 
   if p.epithet != None and q.epithet != None:
@@ -254,12 +234,11 @@ def compare_parts(p, q, distance=None):
     if pep == qep: hits |= EPITHET_MASK
     else: misses |= EPITHET_MASK
 
-  # Proximity within the hierarchy essential if no genus match
-  if distance != None:
-    if distance <= NEAR_THRESHOLD:
-      hits |= VICINITY_MASK
-    elif distance > FAR_THRESHOLD:
-      misses |= VICINITY_MASK
+  # Proximity within the hierarchy is essential if no genus match
+  if near:
+    hits |= VICINITY_MASK
+  else:
+    misses |= VICINITY_MASK
 
   if p.year != None and q.year != None:
     if p.year == q.year: hits |= YEAR_MASK
@@ -347,27 +326,6 @@ def explain_classified(classified):
   else:
     word = str(classified)
   return word
-
-# -----------------------------------------------------------------------------
-
-# distance is thresholded, so it only really matters whether it's small
-# or large
-
-# For mammals, tip to root is expected to be about 13... 
-# For 2M species, tip to root is expected to be about 20... 
-
-def compute_distance(u, v, get_estimate):
-  assert separated(u, v)
-  half1 = compute_half_distance(u, v, get_estimate)
-  half2 = compute_half_distance(v, u, get_estimate)
-  return int((half1 + half2)//2)
-
-def compute_half_distance(u, v, get_estimate):
-  assert separated(u, v)
-  u_est = get_estimate(u, None)
-  # u < u1 <= (v1 < m > v)
-  dist = distance_in_checklist(get_outject(v), get_outject(u_est.record))
-  return dist
 
 # Convenience.  Phase this out?  Or rename it?
 

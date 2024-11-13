@@ -8,8 +8,7 @@ import simple
 from checklist import *
 from workspace import *
 from parse import parse_name
-from typify import compare_parts, \
-  compute_distance, compare_records, pick_better_record, \
+from typify import ws_compare_records, pick_better_record, \
   get_link
 
 # For each record, get list of matching records.... hmm
@@ -66,7 +65,7 @@ def generate_linkage_report(AB):
     u = AB.in_left(x)
     v = get_link(u, None)
     if v:
-      yield (blurb(u), blurb(v), compare_records(u, v))    # distance
+      yield (blurb(u), blurb(v), ws_compare_records(u, v))    # proximity
     elif v == False:
       yield (blurb(u), 'ambiguous', MISSING)
 
@@ -82,19 +81,14 @@ if __name__ == '__main__':
   parser.add_argument('--test', action='store_true', help="run smoke tests")
   args=parser.parse_args()
 
-  if args.test:
-    print(compare_parts(parse_name("Sturnira angeli"),
-                        parse_name("Sturnira magna"),
-                        3))
-  else:
-    a_name = 'A'; b_name = 'B'
-    a_path = args.A
-    b_path = args.B
-    with rows.open(a_path) as a_rows: # rows object
-      with rows.open(b_path) as b_rows:
-        # compute name matches afresh
-        AB = ingest_workspace(a_rows.rows(), b_rows.rows(),
-                              A_name=a_name, B_name=b_name)
-        find_links(AB)
-        report_gen = generate_linkage_report(AB)
-        util.write_rows(report_gen, sys.stdout)
+  a_name = 'A'; b_name = 'B'
+  a_path = args.A
+  b_path = args.B
+  with rows.open(a_path) as a_rows: # rows object
+    with rows.open(b_path) as b_rows:
+      # compute name matches afresh
+      AB = ingest_workspace(a_rows.rows(), b_rows.rows(),
+                            A_name=a_name, B_name=b_name)
+      find_links(AB)
+      report_gen = generate_linkage_report(AB)
+      util.write_rows(report_gen, sys.stdout)
