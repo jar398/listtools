@@ -17,7 +17,8 @@ from estimate import find_estimates, get_estimate
 from typify import find_typifications
 from typify import unimportance, \
   find_endohomotypics, unimportance
-from proximity import get_family
+
+from redundant import check_for_redundant
 
 # listtools's exemplar-finding procedure.  If there is some other way
 # of finding exemplars, that's fine, don't need to use this.
@@ -74,55 +75,7 @@ def find_subproblems(AB):
   return subprobs
 
 def check_for_duplicates(AB):
-  index_by_name = {}    # (epithet, token, year)
-  for x in all_records(AB.A):
-    p = get_parts(x)
-    fam = get_family(x)
-    if True:
-      key = (fam, p.genus, p.epithet, p.middle, p.token, p.year, get_rank(x, None))
-    else:
-      if p.epithet:
-        key = (fam, p.epithet, p.middle, p.token, p.year)
-      else:
-        key = (fam, p.genus, p.middle, p.token, p.year)
-    if key in index_by_name:
-      index_by_name[key].append(x)
-    else:
-      index_by_name[key] = [x]
-  for (key, xs) in index_by_name.items():
-    if len(xs) > 1:
-      accept = []
-      reject = []
-      for x in xs:
-        if is_accepted(x):
-          accept.append(x)
-        else:
-          reject.append(x)
-      # TBD: eliminate all synonym dups of accepted records, and report.
-      # TBD: eliminate all of each all-synonym dup set, and report.
-      # Only issue: when 2+ accepteds are dups of one another.
-      if len(reject) > 0:
-        anchor = AB.in_left(xs[0])
-        for x in reject:
-          set_redundant(AB.in_left(x), anchor)
-      if len(accept) > 1:
-        mess = "Accepted duplicates, keeping one"
-        accept.sort(key=lambda a: (-len(get_children(a, ())),
-                                   get_primary_key(a)))
-        anchor = AB.in_left(accept[0])
-        for x in accept[1:]:
-          set_redundant(AB.in_left(x), anchor)
-      elif len(accept) == 1:
-        mess = "Redundant synonym(s), discarding"
-      else:
-        mess = "Ambiguous synonyms, discarding"
-      log("# %s: %s (%s) %s | %s" %
-          (mess,
-           blurb(xs[0]),
-           key[0],
-           ", ".join(map(lambda x:get_primary_key(x), accept)),
-           ", ".join(map(lambda x:get_primary_key(x), reject))))
-
+  check_for_redundant(AB.A)
 
 # Returns dict value -> key
 # fn is a function over AB records
@@ -130,8 +83,8 @@ def check_for_duplicates(AB):
 def index_by_some_key(AB, fn):
   index = {}
   for x in postorder_records(AB.A):
+    if get_redundant(x, None): continue   # Suppress redundants from subproblems
     u = AB.in_left(x)
-    if get_redundant(u, None): continue       # Suppress dups from subproblems
     key = fn(u)
     if False and monitor(u):
       log("# 1 Indexing %s, key %s, monitored? %s" % (blurb(u), key, monitor(u)))
@@ -183,7 +136,7 @@ def write_exemplar_list(AB, out=sys.stdout):
   util.write_rows(generate_exemplars(AB), out)
 
 def generate_exemplars(AB):
-  yield ("exemplar id", "epithet", "checklist", "taxonID", "canonicalName", "duplicate of")
+  yield ("exemplar id", "epithet", "checklist", "taxonID", "canonicalName", "redundant")
   count = [0]
   rows = []
   def doit(ws, which):
@@ -217,7 +170,7 @@ def read_exemplars(in_rows, AB):
   sid_col = windex(header, "exemplar id")
   which_col = windex(header, "checklist")
   taxonid_col = windex(header, "taxonID")
-  dup_col = windex(header, "duplicate of")
+  dup_col = windex(header, "redundant")
   for row in the_rows:
     taxonid = row[taxonid_col]
     which = row[which_col]
@@ -241,7 +194,7 @@ def read_exemplars(in_rows, AB):
         assert drec
         set_redundant(x, drec)
         if monitor(u):
-          log("# %s %s is duplicated from %s %s" %
+          log("# %s %s is redundant with %s %s" %
               (taxonid, blurb(u), dup_id, blurb(drec)))
 
       uf = get_typification(u)

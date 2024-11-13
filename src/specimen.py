@@ -64,11 +64,11 @@ def _pick_type_taxon(v1, v2):
   if v1 == None: return v2
   if v2 == None: return v1
   assert get_source(v1) is get_source(v2)
-  assert not get_redundant(v1, None)
-  assert not get_redundant(v2, None)
   if v1 is v2: return v1
   x1 = get_outject(v1)
   x2 = get_outject(v2)
+  #assert not get_redundant(x1, None)
+  #assert not get_redundant(x2, None)
   a1 = is_accepted(x1)
   a2 = is_accepted(x2)
   if a1 and not a2: return v1

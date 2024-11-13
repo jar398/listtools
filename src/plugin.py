@@ -184,13 +184,20 @@ def impute_operation(AB, u, v_rel, hom):
 
   if monitor(u):
     x = get_outject(u)
-    log("# %s %s has dup_id %s" % (get_primary_key(x), blurb(u),
-        get_redundant(x, "(none)")))
+    red = get_redundant(x, None)
+    if red:
+      log("# %s %s has red_id %s" %
+          (get_primary_key(x), blurb(u),
+           get_primary_key(red)))
   if monitor(v):
     y = get_outject(v)
-    log("# %s %s has dup_id %s" % (get_primary_key(y), blurb(v),
-        get_redundant(y, "(none)")))
+    red = get_redundant(y, None)
+    if red:
+      log("# %s %s has red_id %s" %
+          (get_primary_key(y), blurb(v),
+           get_primary_key(red)))
 
+  # Does not happen?
   if u and get_redundant(get_outject(u), None):
     ops.append("redundant in A")
   if v and get_redundant(get_outject(v), None):
