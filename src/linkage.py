@@ -8,7 +8,7 @@ import simple
 from checklist import *
 from workspace import *
 from parse import parse_name
-from typify import ws_compare_records, pick_better_record, \
+from typify import ws_relate_records, pick_better_record, \
   get_link
 
 # For each record, get list of matching records.... hmm
@@ -65,7 +65,7 @@ def generate_linkage_report(AB):
     u = AB.in_left(x)
     v = get_link(u, None)
     if v:
-      yield (blurb(u), blurb(v), ws_compare_records(u, v))    # proximity
+      yield (blurb(u), blurb(v), ws_relate_records(u, v))    # proximity
     elif v == False:
       yield (blurb(u), 'ambiguous', MISSING)
 

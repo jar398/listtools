@@ -9,8 +9,8 @@ PROBE='zzzz'
 # Synthesize a string ('unparse') from parts in inverse operation.
 
 import util, regex
-from typing import NamedTuple, Any
 from util import MISSING, log
+from typing import NamedTuple, Any
 
 class Parts(NamedTuple):
   scientific : Any              # what got parsed!
@@ -23,6 +23,8 @@ class Parts(NamedTuple):
   year       : Any
   protonymp  : Any              # False means moved, None means don't know.
 
+# Missing part is represented as None
+
 # -----------------------------------------------------------------------------
 # Parsing: string -> Parts
 
@@ -30,42 +32,44 @@ class Parts(NamedTuple):
 # columns of the original DwC - if they're present.
 
 def parse_name(verbatim,
-               gn_full=MISSING, gn_stem=MISSING, gn_auth=MISSING, 
-               canonical=MISSING, authorship=MISSING):
+               gn_full=None, gn_stem=None, gn_auth=None, 
+               canonical=None, authorship=None):
   verbatim = verbatim.replace('  ', ' ')     # two -> one
-  canonical = canonical.strip()
-  authorship = authorship.strip()
-  if authorship.endswith('.'): authorship = authorship[0:-1] # for MDD
+  if canonical == MISSING:
+    canonical = None
+  else:
+    canonical = canonical.strip()
+  if authorship == MISSING:
+    authorship = None
+  else:
+    authorship = authorship.strip()
+    if authorship.endswith('.'):
+      authorship = authorship[0:-1] # for MDD
 
   # If authorship is ill-formed, discard it e.g. Depéret, 1895 (Gervais, 1847)
-  if (authorship.endswith(')') and
+  if (authorship != None and
+      authorship.endswith(')') and
       not authorship.startswith('(')):
-    authorship = MISSING
-  if canonical != MISSING and authorship != MISSING:
+    authorship = None
+  if canonical != None and authorship != None:
     (canonical0, auth0) = (canonical, authorship)
   else:
     (canonical0, auth0) = split_name(verbatim)
   if auth0 != None:
     auth0 = auth0.strip(', ')
+
+  # canonical0 and/or auth0 could be None
   assert auth0 == None or not auth0.startswith(',')
-  auth_n = gn_auth.count(' ') + 1 if gn_auth != MISSING else 0
-  if gn_full != MISSING:
-    # Interesting to look at.
-    #  e.g. 'Sigmodon dalquesti Stangl, Jr., 1992' != 'Sigmodon dalquesti' + 'Stangl & Jr. 1992'
-
-    if False and gn_full.count(' ') + auth_n != verbatim.count(' '):
-      log("** chunk count mismatch: %s + %s != %s" %
-          (gn_full, gn_auth, verbatim))
-    # Epithet will be stemmed
-    if is_polynomial(gn_full):
-      (canonical, g, mid, e) = recover_canonical(gn_full, gn_stem, canonical0)
-    else:
-      (canonical, g, mid, e) = (gn_full, gn_full, '', '')
-    auth = gn_auth
-    if PROBE in verbatim:
-      log("# Parsed stem '%s' as '%s' '%s'" % (gn_stem, g, e))
-
+  if gn_auth == MISSING:
+    gn_auth = None
+    auth_n = 0
   else:
+    auth_n = gn_auth.count(' ') + 1
+  if gn_stem == MISSING:
+    gn_stem = None
+  if gn_full == MISSING:
+    gn_full = None              # ???
+  if gn_full == None:
     canonical = canonical0
     auth = auth0
     # Epithet will not be stemmed
@@ -76,10 +80,20 @@ def parse_name(verbatim,
       e = chunks[-1]              # do our own stemming !? no
     else:
       g = canonical
-      mid = MISSING
-      e = MISSING
+      mid = ''                  # no middle stuff
+      e = ''                    # no epithet
     if PROBE in verbatim:
       log("# Parsed canonical '%s' as '%s' '%s'" % (canonical, g, e))
+  else:
+    # Epithet will be stemmed
+    if is_polynomial(gn_full):
+      (canonical, g, mid, e) = recover_canonical(gn_full, gn_stem, canonical0)
+    else:
+      (canonical, g, mid, e) = (gn_full, gn_full, '', '')
+    auth = gn_auth
+    if PROBE in verbatim:
+      log("# Parsed stem '%s' as '%s' '%s'" % (gn_stem, g, e))
+
 
   if g == '?': g = None         # cf. use_gnparse.py, but careful MSW3
   if mid == '?': mid = None
@@ -120,18 +134,21 @@ def duplicate_parts(p1, p2):
           p1.year == p2.year)
 
 # Recover the canonical name and its part from the gnparser result.
-# N.g. the returned epithet will be stemmed.
+# N.b. the returned epithet will be stemmed.
 
 # This ought to be trivial but the problem is that gnparser drops
 # tokens that occur after the last alphabetic epithet.  So we have to
 # recover them from the original non-GN scientific name ('verbatim').
-# Returns (canonical, genus, epithet)
+# Returns (canonical, genus, epithet).  Missing epithet is ''.
 
 def recover_canonical(gn_full, gn_stem, hack_canonical):
   # Recover parts that gnparse stripped off, from verbatim
-  hack_canonical = hack_canonical.strip()
-  hack_canonical_chunks = hack_canonical.split(' ')
-  n_hack_canonical_chunks = len(hack_canonical_chunks)
+  if hack_canonical == None:
+    hack_canonical_chunks = []
+  else:
+    hack_canonical = hack_canonical.strip()
+    hack_canonical_chunks = hack_canonical.split(' ')
+    n_hack_canonical_chunks = len(hack_canonical_chunks)
 
   n_full_chunks = gn_full.count(' ') + 1
   # gnparser "Cryptotis avia  G. M. Allen, 1923 as C. thomasi & C. avia."
@@ -144,6 +161,7 @@ def recover_canonical(gn_full, gn_stem, hack_canonical):
       log("** canonicalName '%s' is truncated; gn_full is '%s'" %
           (hack_canonical, gn_full))
     c = gn_full
+    # Assume gn_stem is non-None
     stem_chunks = gn_stem.split(' ')
     g = stem_chunks[0]
     if len(stem_chunks) > 1:
@@ -159,7 +177,7 @@ def recover_canonical(gn_full, gn_stem, hack_canonical):
   else:
     # gnparser has dropped stuff off the end or out of middle.  Do not use.
     # This is not a good parse if name is not neolatinate.
-    c = hack_canonical
+    c = hack_canonical          # could be None
     g = hack_canonical_chunks[0]
     mid = ' '.join(hack_canonical_chunks[1:-1])
     e = hack_canonical_chunks[-1]
@@ -216,20 +234,27 @@ parenyear_re = \
 # Split verbatim using regex.  This is a parsing strategy independent
 # of what gnparse does.
 # Assume that there is no authority for hybrids!
+# Missing parts are returned as None.
 
 def split_name(verbatim):
   if verbatim.endswith(')') and '(' in verbatim:
     i = verbatim.index('(')
-    hack_canonical = verbatim[0:i].strip()
+    hack_canonical = verbatim[0:i]
     hack_auth = verbatim[i:]
   else:
     m = split_re.search(verbatim)
     if m:
-      hack_canonical = m[1].strip()
-      hack_auth = m[2].strip()
+      hack_canonical = m[1]
+      hack_auth = m[2]
     else:
       hack_canonical = verbatim
       hack_auth = None      # Not present
+  if hack_canonical != None:
+    hack_canonical = hack_canonical.strip()
+    if len(hack_canonical) == 0: hack_canonical = None
+  if hack_auth != None:
+    hack_auth = hack_auth.strip()
+    if len(hack_auth) == 0: hack_auth = None
   return (hack_canonical, hack_auth)
 
 # parsable into [genus] [middle] [epithet]

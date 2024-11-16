@@ -1,8 +1,9 @@
 import math
 
-from util import log
+from util import log, MISSING
 
 from checklist import get_superior, get_rank, get_canonical, blorb
+#from parse import get_family
 
 # Are x and y near enough that y might be a genus change of x or
 # vice versa?  Called only when they are otherwise homotypic (same 
@@ -14,11 +15,11 @@ def near_enough(x, y):          # In same or different checklists
   f = get_family(x)
   if not f:
     # log("# No family: %s" % blorb(x))
-    return False
+    return MISSING
   g = get_family(y)
   if not g:
     # log("# No family: %s" % blorb(y))
-    return False
+    return MISSING
   return f == g
 
 # Not a match:

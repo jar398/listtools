@@ -46,8 +46,8 @@ def find_exemplars(get_estimate, AB):
 # Find blocks/chunks, one per epithet
 
 def find_subproblems(AB):
-  check_for_duplicates(AB)
-  check_for_duplicates(swap(AB))
+  check_for_redundant(AB.A)     # wrong place for this...
+  check_for_redundant(AB.B)
   log("* Finding subproblems:")
   (A_index, B_index) = \
     map(lambda CD: \
@@ -73,9 +73,6 @@ def find_subproblems(AB):
   log("* There are %s subproblems." % len(subprobs))
   AB.subproblems = subprobs
   return subprobs
-
-def check_for_duplicates(AB):
-  check_for_redundant(AB.A)
 
 # Returns dict value -> key
 # fn is a function over AB records

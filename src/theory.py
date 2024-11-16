@@ -313,18 +313,22 @@ def same_protonym(u, v):
 
 def get_buddy(AB, u):
   uf = get_exemplar(u)
-  if not uf: return False
+  if not uf:
+    if monitor(u): log("# get_buddy: No exemplar: %s" % blurb(u))
+    return False
   r = uf.payload()
   (_, u2, v) = r
   if in_same_tree(AB, u, v):
     v = u2
   v = local_accepted(AB, v)
+  if monitor(u): log("# get_buddy: 1 %s -> %s" % (blurb(u), blurb(v)))
   if get_rank(u, None) != get_rank(v, None):
     # e.g. u rank is species, v rank is subspecies
     q = local_sup(AB, v).record
     if get_rank(u, None) == get_rank(q, None):
       # Ranks don't match - maybe it's a promotion/demotion?
       v = q
+  if monitor(u): log("# get_buddy: 2 %s -> %s" % (blurb(u), blurb(v)))
   vf = get_exemplar(v)
   if vf and same_specimens(uf, vf):
     return v

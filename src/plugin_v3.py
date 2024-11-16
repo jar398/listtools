@@ -10,7 +10,7 @@ from checklist import *
 from rcc5 import *
 from estimate import get_estimate, get_block, is_empty_block
 from property import mep, mep_get, mep_set
-from typify import xid_epithet, explain, compare_records
+from typify import xid_epithet
 def generate_plugin_report(AB):
   yield ("A taxon id",
          "A name",

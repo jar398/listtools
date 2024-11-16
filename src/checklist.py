@@ -711,7 +711,8 @@ def blorb(u):
 def monitor(x):
   if not x: return False
   name = get_ok_name(x)
-  return (#name.startswith("Neophascogale lorentzi") or
+  return (name.startswith("Amblysomus robustus") or
+          #name.startswith("Neophascogale lorentzi") or
           #name == "Rattus satarae" or
           #name == "Tragelaphus typicus" or
           #name == "Pogonomelomys mayeri" or

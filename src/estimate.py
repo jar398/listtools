@@ -47,17 +47,20 @@ def find_estimate(AB, u):
   ship = EQ
   # If u is in A, find smallest v in B with u <= v (sim. B/A)
   u2 = u
+  # Ascend from u up to top
   while True:
     # Skip over peripherals, locating non-peripheral u2
     v = get_cross_mrca(u2, None)
     if v != None:
       break
-    sup = local_sup(AB, u2)
+    sup = local_sup(AB, u2)     # superior acccording to u2's checklist
     if not sup:
       # u2 is top
       return relation(ship, u2, "estimate = top")
     ship = sup.relationship if ship == EQ else LT
     u2 = sup.record
+
+  # Fall through with u2, ship
 
   a = get_block(u2)
   b = get_block(v)
@@ -72,6 +75,8 @@ def find_estimate(AB, u):
   sup = local_sup(AB, u2)       # Synonym?
   if sup and a == get_block(sup.record):
     if ship == EQ: ship = LE
+
+  # Iterate v through superior chain up to top
 
   while True:
     # Take a look at the block rootward of v
@@ -189,6 +194,9 @@ def analyze_blocks(ws):
       uf = get_exemplar(u) # returns None or... (sid, u, v)?
       if uf:
         e = adjoin_exemplar(get_exemplar_id(uf), e)
+        if get_redundant(x, None):
+          log("# Redundant record's exemplar suppressed: %s" % blurb(x))
+          return BOTTOM_BLOCK
       # **************** TBD
       set_block(u, e)
       if monitor(u):

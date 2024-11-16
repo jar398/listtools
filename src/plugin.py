@@ -85,6 +85,8 @@ def generate_row(AB, u, v, hom, est):
           v_not_u,
           )
 
+# Preorder traversal of AB.A
+
 def generate_plugin_report(AB):
   yield generate_row(AB, True, True, True, True) # header
   i = [0]
