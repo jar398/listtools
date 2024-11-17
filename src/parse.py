@@ -270,7 +270,7 @@ def is_polynomial(name):
 # Umm... really ought to just combine canonical and authorship
 
 def unparse_parts(parts):
-  (v, c, g, mid, e, a, tok, y, protonymp) = parts
+  (v, c, g, mid, ep, a, tok, y, protonymp) = parts
   assert g
 
   # Species name

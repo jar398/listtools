@@ -28,7 +28,6 @@ from redundant import check_for_redundant
 
 def find_exemplars(get_estimate, AB):
   find_endohomotypics(AB)
-  find_endohomotypics(swap(AB))
   subproblems = find_subproblems(AB)
   if True:
     log("* Finding typifications (single pass):")

@@ -32,7 +32,7 @@ def get_specimen_id(uf):
 
 # Assert identity of specimens
 
-def same_specimens(uf, vf):     # formerly: same_typification_ufs
+def same_specimens(uf, vf):
   return uf.find() is vf.find()
 
 def equate_specimens(uf, vf):
@@ -116,11 +116,8 @@ def sid_to_epithet(AB, sid):
 
 # -----------------------------------------------------------------------------
 
-# u = smallest taxon in A checklist containing this specimen
-# v = smallest taxon in B checklist containing this specimen
-
-# typification_uf = specimen that is a type of some taxon.
-# We might just call these "types"
+# typification_uf = specimen that is the type of a given taxon. ???
+# We might just call these "types".
 
 (maybe_get_typification, set_typification_uf) = \
   prop.get_set(prop.declare_property("typification_uf"))
@@ -146,10 +143,9 @@ def same_typifications(u, v):
 # u and v are in workspace but may or may not be from same checklist
 
 def equate_typifications(u, v):     # opposite checklists. u might be species
-  if u is not v:
-    equate_specimens(get_typification(u), get_typification(v))
-    if monitor(u) or monitor(v):
-      log("# Unifying exemplar(%s) = exemplar(%s)" % (blorb(u), blorb(v)))
+  equate_specimens(get_typification(u), get_typification(v))
+  if monitor(u) or monitor(v):
+    log("# Unifying specimen(%s) = specimen(%s)" % (blorb(u), blorb(v)))
   return u
 
 # Are u and v equatable?

@@ -4,15 +4,16 @@ import util
 import property as prop
 import simple
 
-from util import log, MISSING, UnionFindable
+from util import log, MISSING
 from rcc5 import EQ, NEQ, OVERLAP, DISJOINT
 from checklist import get_parts, monitor, \
-  get_superior, get_children, get_synonyms, \
+  get_superior, get_children, get_synonyms, get_inferiors, \
   is_accepted, blurb, blorb, get_scientific, get_primary_key, get_rank, \
   get_canonical, get_source_tag, get_nomenclatural_status, \
-  get_children, get_synonyms, all_records
+  all_records
 from workspace import separated, get_outject, get_workspace, local_sup, get_source
-from workspace import isinA, isinB, local_accepted, all_records
+from workspace import isinA, isinB, local_accepted, all_records, \
+  swap
 from simple import simple_le
 from specimen import sid_to_epithet, same_specimens, \
   equate_typifications, equate_specimens, \
@@ -26,22 +27,51 @@ REVIEW        = 5
 HETEROTYPIC   = 1
 HETEROTYPIC2  = 0
 
+def find_endohomotypics(AB):
+  find_homotypics_in_checklist(AB)
+  find_homotypics_in_checklist(swap(AB))
+
+def find_homotypics_in_checklist(AB):
+  def process(x):
+
+    epithets = {}
+    def consider(c):
+      c_ep = get_parts(c).epithet
+      if c_ep:
+        if c_ep in epithets:
+          equate_typifications(AB.in_left(c), epithets[c_ep])
+        else:
+          epithets[c_ep] = AB.in_left(c)
+
+    # Match siblings
+    for c in get_inferiors(x):
+      process(c)
+      classified = relate_records(c, x)
+      if classified >= MOTION:
+        consider(c)
+
+    # Match parent/child
+    consider(x)
+
+  process(AB.A.top)
+
 # This finds homotypic siblings.  See exemplar.py for use.
 # Compare redundant.py.
+# Equations have to happen in a workspace, even when they don't
+# span checklists.
+# !!! TO DO:  Find both kinds of equations (by epithet):
+#   (a) inferior/superior
+#   (b) siblings
 
-def find_endohomotypics(AB):
+def find_endohomotypics_original(AB):
   def process_checklist(AB):
-    def process_inf(x, p):          # p = parent of x
-      process(x)
-      classified = relate_records(x, p)
-      return classified >= MOTION
-      # was comparison = ws_compare_records(AB.in_left(x), AB.in_left(p))
-      # return classify_comparison(comparison) >= MOTION
     def process(x):
       u = AB.in_left(x)
-      candidates = []
+      # Find parent/child homotypies
+      # TO DO: find sibling homotypies
+      candidates = []   # those matching x ...
       for c in get_children(x, ()):
-        if process_inf(c, x):
+        if process_inferior(c, x):
           # c nominates itself as the type of x
           candidates.append(c)
       n = len(candidates)
@@ -54,13 +84,22 @@ def find_endohomotypics(AB):
             (blurb(x), blurb(candidates[0]), blurb(candidates[1])))
       for c in get_synonyms(x, ()):
         # N.b. synonyms do not have descendants
-        if process_inf(c, x):
+        if process_inferior(c, x):
           # c is a homotypic synonym of x
           equate_typifications(AB.in_left(c), u)
         elif 'homotypic' in get_nomenclatural_status(c, ''):
+          # synonym inferior of accepted
           equate_typifications(AB.in_left(c), u)
+    def process_inferior(x, p):          # p = parent of x
+      process(x)
+      # uhh I don't think this is right
+      classified = relate_records(x, p) # Type subspecies?
+      return classified >= MOTION
+      # was comparison = ws_compare_records(AB.in_left(x), AB.in_left(p))
+      # return classify_comparison(comparison) >= MOTION
     process(AB.A.top)
   process_checklist(AB)
+  process_checklist(swap(AB))
 
 # This can be configured to run once or run twice.  'last' means we're
 # on the last pass so if there was a first pass, proximity is available.
@@ -133,7 +172,7 @@ def find_typifications(AB, subprobs, get_estimate, last):
                  blorb(get_typifies(v_spec)),
                  blorb(get_typifies(u_specs[0])),
                  blorb(get_typifies(u_specs[1]))))
-          elif not u_specs[0] is u_spec:  # WRONG TEST
+          elif get_specimen_id(u_specs[0]) != u_sid:
             # How can this happen ???
             log("# Vee %s ->\n  %s -> %s" %
                 (blorb(get_typifies(u_spec)),
@@ -174,7 +213,7 @@ def observe_match(u_spec, v_spec, u_matches, classified):
       # Discard previously seen lower value matches.
       u_matches[u_sid] = (classified, [v_spec])
     elif classified == v_clas:
-      if v_sid in map(get_specimen_id, v_speqs):
+      if False and v_sid in map(get_specimen_id, v_speqs):
         # Two records with the same type specimen
         log("# Adding v_spec twice %s %s" %
             (explain_classified(v_clas),
@@ -209,9 +248,6 @@ def ws_relate_records(u, v):
 
 # In same checklist or in different checklists ... ?
 
-# *** this function name should be applied to something that 
-#     *also* does classification.
-
 def relate_records(x, y):
   comparison = compare_parts(get_parts(x),
                              get_parts(y))
@@ -220,7 +256,7 @@ def relate_records(x, y):
     log("# Compare %s, %s = %s" %
         (blurb(x), blurb(y), explain_classified(classified)))
     (misses, hits) = comparison
-    log("# hits %s misses %s\nx %s\ny %s" %
+    log("#  hits %s misses %s\n#  x %s\n#  y %s" %
         ((hits & TOKEN_MASK, hits & YEAR_MASK,), 
          (misses & TOKEN_MASK, misses & YEAR_MASK,),
          get_parts(x),
