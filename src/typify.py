@@ -14,7 +14,7 @@ from checklist import get_parts, monitor, \
 from workspace import separated, get_outject, get_workspace, local_sup, get_source
 from workspace import isinA, isinB, local_accepted, all_records, \
   swap
-from simple import simple_le
+from simple import simple_le, compare_per_checklist
 from specimen import sid_to_epithet, same_specimens, \
   equate_typifications, equate_specimens, \
   get_typification, get_specimen_id, \
@@ -150,14 +150,18 @@ def find_typifications(AB, subprobs, get_estimate, last):
         v0 = get_typifies(v_specs[0])
         v1 = get_typifies(v_specs[1])
         if is_accepted(v0) and is_accepted(v1):
-          log("# B ambiguity %s %s -> %s %s, %s %s" %
-              (explain_classified(v_clas),
-               blorb(get_typifies(u_spec)),
-               get_primary_key(v0),
-               blorb(v0),
-               get_primary_key(v1),
-               blorb(v1)))
-        # Two records with the same type specimen ?
+          if compare_per_checklist(get_outject(v0), get_outject(v1)) \
+             .relationship & DISJOINT != 0:
+            log("# B ambiguity %s %s -> %s %s, %s %s" %
+                (explain_classified(v_clas),
+                 blorb(get_typifies(u_spec)),
+                 get_primary_key(v0),
+                 blorb(v0),
+                 get_primary_key(v1),
+                 blorb(v1)))
+          else:
+            equate_specimens(u_spec, v_specs[0])
+            equate_specimens(u_spec, v_specs[1])
       else:
         v_spec = v_specs[0]
         v_sid = get_specimen_id(v_spec)
@@ -171,11 +175,20 @@ def find_typifications(AB, subprobs, get_estimate, last):
             log("# Review 2 %s" %         # or, make a note of it for review
                 (blorb(get_typifies(v_spec)),))
           elif len(u_specs) > 1:
-            log("# A ambiguity %s %s -> %s, %s" %
-                (explain_classified(u_clas),
-                 blorb(get_typifies(v_spec)),
-                 blorb(get_typifies(u_specs[0])),
-                 blorb(get_typifies(u_specs[1]))))
+            u0 = u_specs[0]
+            u1 = u_specs[1]
+            if compare_per_checklist(get_outject(u0), get_outject(u1)) \
+               .relationship & DISJOINT != 0:
+              log("# A ambiguity %s %s -> %s, %s" %
+                  (explain_classified(u_clas),
+                   blorb(get_typifies(v_spec)),
+                   blorb(get_typifies(u0)),
+                   blorb(get_typifies(u1))))
+            else:
+              # Can be simultaneously compatible with both.
+              # (TBD: deal with 3 or more options.)
+              equate_specimens(u0, v_spec)
+              equate_specimens(u1, v_spec)
           elif get_specimen_id(u_specs[0]) != u_sid:
             # How can this happen ???
             log("# Vee %s ->\n  %s -> %s" %

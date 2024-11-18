@@ -1,5 +1,6 @@
 import property as prop
 from checklist import *
+from rcc5 import EQ, GT, LT, DISJOINT, NOINFO
 
 
 # Same-tree relationships
