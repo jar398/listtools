@@ -18,14 +18,15 @@ from simple import simple_le
 from specimen import sid_to_epithet, same_specimens, \
   equate_typifications, equate_specimens, \
   get_typification, get_specimen_id, \
-  sid_to_specimen, get_typifies
+  sid_to_specimen, get_typifies, same_specimens
 from proximity import near_enough
 
 HOMOTYPIC     = 10
 MOTION        = 6
 REVIEW        = 5
-HETEROTYPIC   = 1
-HETEROTYPIC2  = 0
+HETEROTYPIC   = 0
+
+# Problem perhaps: This creates specimen objects even when they aren't matched.
 
 def find_endohomotypics(AB):
   find_homotypics_in_checklist(AB)
@@ -95,8 +96,6 @@ def find_endohomotypics_original(AB):
       # uhh I don't think this is right
       classified = relate_records(x, p) # Type subspecies?
       return classified >= MOTION
-      # was comparison = ws_compare_records(AB.in_left(x), AB.in_left(p))
-      # return classify_comparison(comparison) >= MOTION
     process(AB.A.top)
   process_checklist(AB)
   process_checklist(swap(AB))
@@ -113,6 +112,11 @@ def find_typifications(AB, subprobs, get_estimate, last):
       log("# Subproblem %s %s %s %s %s" %
           (n, len(us), len(vs), blurb(us[0]), blurb(vs[0])))
     n += 1
+    if any(map(monitor, us)):
+      log("# Doing subproblem %s" % key)
+      log("#  us = %s" % list(map(blurb, us),))
+      log("#  vs = %s" % list(map(blurb, vs),))
+
     u_matches = {}    # u_sid -> (class, [v_spec, ...])
     v_matches = {}    # v_sid -> (class, [u_spec, ...])
                       # spec = (sid, u, v)
@@ -120,13 +124,12 @@ def find_typifications(AB, subprobs, get_estimate, last):
     for i in range(0, len(us)):
       u = us[i]
       if monitor(u): log("# Subproblem row: '%s' '%s'" % (key, blorb(u)))
-      u_spec = get_typification(u)
       for j in range(0, len(vs)):
         v = vs[j]
         classified = ws_relate_records(u, v) # shows!
-        v_spec = get_typification(v)
-        observe_match(u_spec, v_spec, u_matches, classified)
-        observe_match(v_spec, u_spec, v_matches, classified)
+        # relate_records checks proximity
+        observe_match(u, v, u_matches, classified)
+        observe_match(v, u, v_matches, classified)
         if monitor(u):
           log("# observe %s => %s = %s" %
               (blurb(u), blurb(v), explain_classified(classified)))
@@ -146,13 +149,14 @@ def find_typifications(AB, subprobs, get_estimate, last):
         # Problem here
         v0 = get_typifies(v_specs[0])
         v1 = get_typifies(v_specs[1])
-        log("# B ambiguity %s %s -> %s %s, %s %s" %
-            (explain_classified(v_clas),
-             blorb(get_typifies(u_spec)),
-             get_primary_key(v0),
-             blorb(v0),
-             get_primary_key(v1),
-             blorb(v1)))
+        if is_accepted(v0) and is_accepted(v1):
+          log("# B ambiguity %s %s -> %s %s, %s %s" %
+              (explain_classified(v_clas),
+               blorb(get_typifies(u_spec)),
+               get_primary_key(v0),
+               blorb(v0),
+               get_primary_key(v1),
+               blorb(v1)))
         # Two records with the same type specimen ?
       else:
         v_spec = v_specs[0]
@@ -179,18 +183,13 @@ def find_typifications(AB, subprobs, get_estimate, last):
                  blorb(get_typifies(v_spec)),
                  blorb(get_typifies(u_specs[0])))),
           else:
-            if False and (u_clas == MOTION or v_clas == MOTION):
-              log("# Genus change %s %s" % (explain_classified(u_clas),
-                                            explain_classified(v_clas)))
+            # WRONG? - only do this for 'tipward' nodes?
             equate_specimens(u_spec, v_spec)
         else:
           log("# No return match: %s -> %s" %   # No return match for v - shouldn't happen
               (blorb(get_typifies(u_spec)),
                blorb(get_typifies(v_spec))))
       # End u_sid loop.
-
-      # Nope.  This is not a match:
-      #   Tylonycteris malayana Chasen, 1940 -> Euroscaptor malayanus (Chasen, 1940)
       # end subproblem loop
 
   equate_typifications(AB.in_left(AB.A.top),
@@ -202,7 +201,10 @@ def find_typifications(AB, subprobs, get_estimate, last):
 # Ideally, only one match per specimen id.
 # 'Classified' might be a failure e.g. HETEROTYPIC
 
-def observe_match(u_spec, v_spec, u_matches, classified):
+def observe_match(u, v, u_matches, classified):
+  u_spec = get_typification(u)
+  v_spec = get_typification(v)
+
   u_sid = get_specimen_id(u_spec)
   v_sid = get_specimen_id(v_spec)
 
@@ -211,13 +213,25 @@ def observe_match(u_spec, v_spec, u_matches, classified):
     (v_clas, v_speqs) = have
     if classified > v_clas:
       # Discard previously seen lower value matches.
+      if monitor(u):
+        log("* Discarding previously seen lower value matches: %s" %
+            blurb(u))
       u_matches[u_sid] = (classified, [v_spec])
-    elif classified == v_clas:
-      if False and v_sid in map(get_specimen_id, v_speqs):
-        # Two records with the same type specimen
-        log("# Adding v_spec twice %s %s" %
-            (explain_classified(v_clas),
-             blorb(get_typifies(v_spec))))
+    elif classified != v_clas:
+      if monitor(u):
+        log("* Discarding lower value match: %s" %
+            blurb(u))
+      pass
+    elif any(map(lambda v_speq: same_specimens(v_spec, v_speq),
+                 v_speqs)):
+      # Don't add same specimen twice
+      if monitor(u):
+        log("* Discarding redundant match: %s" %
+            blurb(u))
+      pass
+    else:
+      if monitor(u):
+        log("* Adding match: %s" % blurb(u))
       v_speqs.append(v_spec)    # ????
   else:
     u_matches[u_sid] = (classified, [v_spec])
@@ -249,23 +263,17 @@ def ws_relate_records(u, v):
 # In same checklist or in different checklists ... ?
 
 def relate_records(x, y):
-  comparison = compare_parts(get_parts(x),
-                             get_parts(y))
-  classified = classify_comparison(comparison)
-  if monitor(x) or monitor(y):
-    log("# Compare %s, %s = %s" %
-        (blurb(x), blurb(y), explain_classified(classified)))
-    (misses, hits) = comparison
-    log("#  hits %s misses %s\n#  x %s\n#  y %s" %
-        ((hits & TOKEN_MASK, hits & YEAR_MASK,), 
-         (misses & TOKEN_MASK, misses & YEAR_MASK,),
-         get_parts(x),
-         get_parts(y),))
+  classified = classify_comparison(get_parts(x),
+                                   get_parts(y))
 
   if classified == MOTION:
     if not near_enough(x, y):
     # Proximity within the hierarchy is essential if no genus match
       return REVIEW
+
+  if monitor(x) or monitor(y):
+    log("# Compare %s, %s = %s" %
+        (blurb(x), blurb(y), explain_classified(classified)))
   return classified
 
 EPITHET_MASK = 32
@@ -300,20 +308,10 @@ def compare_parts(p, q):
     else: misses |= YEAR_MASK
 
   if p.genus != None and q.genus != None:
-    #log("# 1 comparing %s, %s (%s, %s)" % (p.genus, q.genus, p.protonymp, q.protonymp))
-    if p.genus == q.genus:
-      #log("# 2 comparing %s, %s" % (p.genus, q.genus))
-      hits |= GENUS_MASK
-    elif p.protonymp == True and q.protonymp == True:
-      # If both are protonyms, the genera have to match
-      if False and (PROBE in p.scientific or PROBE in q.scientific):
-        log("# 4 comparing %s, %s -> miss" % (p.genus, q.genus))
-      misses |= GENUS_MASK
-    else:
-      # Allow motion between genera as long as it's flagged with ()
-      #  ... or if protonym status is unknown?
-      #log("# 3 comparing %s, %s -> ?" % (p.genus, q.genus))
-      pass
+    if p.genus == q.genus: hits |= GENUS_MASK
+    else: misses |= GENUS_MASK
+
+  # Something about if both are protonyms then miss ?
 
   if p.middle != None and q.middle != None:
     pmid = p.epithet if p.middle == '' else p.middle
@@ -325,8 +323,8 @@ def compare_parts(p, q):
 
 # Compare Macropus robustus, Amblysomus robustus = heterotypic NOT
 
-def classify_comparison(comp):
-  (misses, hits) = comp
+def classify_comparison(xparts, yparts):
+  (misses, hits) = compare_parts(xparts, yparts)
 
   # Epithets must match (perhaps '')
   if ((hits & EPITHET_MASK) == 0):
@@ -335,7 +333,7 @@ def classify_comparison(comp):
   # If year and token BOTH differ then no match, yes?
   m = misses & (YEAR_MASK | TOKEN_MASK)
   if m == (YEAR_MASK | TOKEN_MASK):
-    return HETEROTYPIC2          # Both misses
+    return HETEROTYPIC          # Both misses
 
   # If EITHER year or token differs then requires review
   if m != 0:
@@ -374,9 +372,7 @@ def explain_classified(classified):
   elif classified == REVIEW:
     word = "review"
   elif classified == HETEROTYPIC:
-    word = "heterotypic (epithet)"
-  elif classified == HETEROTYPIC2:
-    word = "heterotypic (authority)"
+    word = "heterotypic"
   else:
     word = str(classified)
   return word

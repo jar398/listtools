@@ -8,7 +8,7 @@ import util, rows
 from util import log, windex
 from workspace import *
 
-from checklist import get_redundant, set_redundant, blorb, blurb
+from checklist import blorb, blurb
 from specimen import get_exemplar, get_exemplar_id, sid_to_epithet
 from specimen import equate_specimens, equate_typifications, \
   get_typification, maybe_get_typification
@@ -17,8 +17,6 @@ from estimate import find_estimates, get_estimate
 from typify import find_typifications
 from typify import unimportance, \
   find_endohomotypics, unimportance
-
-from redundant import check_for_redundant
 
 # listtools's exemplar-finding procedure.  If there is some other way
 # of finding exemplars, that's fine, don't need to use this.
@@ -45,8 +43,6 @@ def find_exemplars(get_estimate, AB):
 # Find blocks/chunks, one per epithet
 
 def find_subproblems(AB):
-  check_for_redundant(AB.A)     # wrong place for this...
-  check_for_redundant(AB.B)
   log("* Finding subproblems:")
   (A_index, B_index) = \
     map(lambda CD: \
@@ -58,13 +54,16 @@ def find_subproblems(AB):
   for (key, us) in A_index.items():
     assert key != MISSING, blurb(us[0])
     vs = B_index.get(key, None)
+    if any(map(monitor, us)) or any(map(monitor, vs)):
+      log("* Found monitored subproblem %s / %s" %
+          (map(blurb, us), map(blurb, vs)))
     if vs != None:
       us.sort(key=unimportance)
       vs.sort(key=unimportance)
       subprobs[key] = (us, vs)
       if (any(monitor(u) for u in us) or
           any(monitor(v) for v in vs)):
-        log("# Added subproblem %s e.g. %s.  %s x %s" %
+        log("* Added subproblem %s e.g. %s.  %s x %s" %
             (key, blurb(us[0]), len(list(map(blurb, us))), len(list(map(blurb, vs)))))
     else:
       if PROBE in key:
@@ -79,7 +78,6 @@ def find_subproblems(AB):
 def index_by_some_key(AB, fn):
   index = {}
   for x in postorder_records(AB.A):
-    if get_redundant(x, None): continue   # Suppress redundants from subproblems
     u = AB.in_left(x)
     key = fn(u)
     if False and monitor(u):
@@ -128,11 +126,13 @@ def report_on_exemplars(AB):
   log("# Nodes with typification: %s, nodes with exemplars: %s, specimen ids: %s" %
       (ufcount, count, len(AB.specimen_ufs)))
 
+# Write exemplars to a file
+
 def write_exemplar_list(AB, out=sys.stdout):
   util.write_rows(generate_exemplars(AB), out)
 
 def generate_exemplars(AB):
-  yield ("exemplar id", "epithet", "checklist", "taxonID", "canonicalName", "redundant")
+  yield ("exemplar id", "epithet", "checklist", "taxonID", "canonicalName")
   count = [0]
   rows = []
   def doit(ws, which):
@@ -146,9 +146,7 @@ def generate_exemplars(AB):
           ecount += 1
           sid = get_exemplar_id(uf)
           epithet = sid_to_epithet(AB, sid)
-          dup = get_redundant(x, None)
-          rows.append((sid, epithet, which, get_primary_key(x), get_canonical(x),
-                       get_primary_key(dup) if dup else MISSING))
+          rows.append((sid, epithet, which, get_primary_key(x), get_canonical(x)))
           count[0] += 1
     log("# preorder: %s, exemplars: %s" % (rcount, ecount)) 
   doit(swap(AB), 'B')
@@ -166,7 +164,6 @@ def read_exemplars(in_rows, AB):
   sid_col = windex(header, "exemplar id")
   which_col = windex(header, "checklist")
   taxonid_col = windex(header, "taxonID")
-  dup_col = windex(header, "redundant")
   for row in the_rows:
     taxonid = row[taxonid_col]
     which = row[which_col]
@@ -176,23 +173,11 @@ def read_exemplars(in_rows, AB):
       C = AB.B
     else:
       log("# Invalid checklist indicator %s" % which)
-    dup_id = row[dup_col]
     x = checklist.look_up_record(C, taxonid)
     if not x:
       log("## read_exemplars: Record not found?! %s" % taxonid)
     else:
       u = AB.in_left(x) if which=='A' else AB.in_right(x)
-      if monitor(u):
-        log("# Found %s %s with dup id '%s'" % (taxonid, blurb(u), dup_id))
-
-      if dup_id:
-        drec = checklist.look_up_record(C, dup_id)
-        assert drec
-        set_redundant(x, drec)
-        if monitor(u):
-          log("# %s %s is redundant with %s %s" %
-              (taxonid, blurb(u), dup_id, blurb(drec)))
-
       uf = get_typification(u)
 
       # row is (sid, which, taxonid)
