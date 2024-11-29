@@ -111,6 +111,7 @@ def find_typifications(AB, subprobs, get_estimate, last):
     if n % 1000 == 0 or PROBE in key:
       log("# Subproblem %s %s %s %s %s" %
           (n, len(us), len(vs), blurb(us[0]), blurb(vs[0])))
+    # us and vs are sorted by 'unimportance' (i.e. most important first)
     n += 1
     if any(map(monitor, us)):
       log("# Doing subproblem %s" % key)
@@ -135,6 +136,7 @@ def find_typifications(AB, subprobs, get_estimate, last):
               (blurb(u), blurb(v), explain_classified(classified)))
       # end j loop
     # end i loop
+    # u_specs and v_specs are sorted by 'unimportance'
     # u_matches : u_sid -> (v_clas, v_specs)
     # clas means a classification
     for (u_sid, (v_clas, v_specs)) in u_matches.items():
@@ -143,6 +145,7 @@ def find_typifications(AB, subprobs, get_estimate, last):
       if v_clas < REVIEW:       # HETEROTYPIC
         pass
       elif v_clas < MOTION:
+        # Put this in the report somehow ??
         log("# Review 1 %s" %         # or, make a note of it for review
             (blorb(get_typifies(u_spec)),))
       elif len(v_specs) > 1:
@@ -152,6 +155,7 @@ def find_typifications(AB, subprobs, get_estimate, last):
         if is_accepted(v0) and is_accepted(v1):
           if compare_per_checklist(get_outject(v0), get_outject(v1)) \
              .relationship & DISJOINT != 0:
+            # Another kind of REVIEW
             log("# B ambiguity %s %s -> %s %s, %s %s" %
                 (explain_classified(v_clas),
                  blorb(get_typifies(u_spec)),
@@ -172,24 +176,25 @@ def find_typifications(AB, subprobs, get_estimate, last):
           if u_clas < REVIEW:
             pass
           elif u_clas < MOTION:    # REVIEW
-            log("# Review 2 %s" %         # or, make a note of it for review
-                (blorb(get_typifies(v_spec)),))
+            log("# Review 2 %s -> %s" %         # or, make a note of it for review
+                (blorb(get_typifies(u_spec)),
+                 blorb(get_typifies(v_spec)),))
           elif len(u_specs) > 1:
-            u0 = u_specs[0]
-            u1 = u_specs[1]
+            u0 = get_typifies(u_specs[0])
+            u1 = get_typifies(u_specs[1])
             if compare_per_checklist(get_outject(u0), get_outject(u1)) \
                .relationship & DISJOINT != 0:
               log("# A ambiguity %s %s -> %s, %s" %
                   (explain_classified(u_clas),
                    blorb(get_typifies(v_spec)),
-                   blorb(get_typifies(u0)),
-                   blorb(get_typifies(u1))))
+                   blorb(u0),
+                   blorb(u1)))
             else:
               # Can be simultaneously compatible with both.
-              # (TBD: deal with 3 or more options.)
-              equate_specimens(u0, v_spec)
-              equate_specimens(u1, v_spec)
-          elif get_specimen_id(u_specs[0]) != u_sid:
+              # (TBD: deal with 3-way or more ambiguity.)
+              equate_specimens(u_specs[0], v_spec)
+              equate_specimens(u_specs[1], v_spec)
+          elif not same_specimens(u_specs[0], u_spec):
             # How can this happen ???
             log("# Vee %s ->\n  %s -> %s" %
                 (blorb(get_typifies(u_spec)),
@@ -248,25 +253,6 @@ def observe_match(u, v, u_matches, classified):
       v_speqs.append(v_spec)    # ????
   else:
     u_matches[u_sid] = (classified, [v_spec])
-
-# More important -> lower number, earlier in sequence
-
-def unimportance(u):
-  x = get_outject(u)
-  parts = get_parts(x)
-  if parts.epithet == MISSING: imp = 4      # Foo
-  elif parts.middle == parts.epithet: imp = 1     # Foo bar bar
-  elif parts.middle == None or parts.middle == '':  imp = 2     # Foo bar
-  else: imp = 3                         # Foo bar baz
-  return (1 if is_accepted(x) else 2,
-          imp,
-          # Prefer to match the duplicate that has children
-          # (or more children)
-          -len(get_children(x, ())),
-          -len(get_synonyms(x, ())),
-          get_scientific(x, None),
-          get_primary_key(x))
-
 
 # Compare potentially homotypic taxa in same workspace.
 
