@@ -93,7 +93,7 @@ def generate_plugin_report(AB):
   frequency = 5000
 
   # species in B that should be adopted by taxa in A
-  adoptees = find_adoptees(AB)
+  adoptees = find_adoptees(AB)  # mep
 
   def process_subtree(AB, x):
     yield from process_record(x)
@@ -101,19 +101,19 @@ def generate_plugin_report(AB):
     infs.sort(key=plugin_sort_key)
     for c in infs:
       yield from process_subtree(AB, c)
-    yield from process_new_species(AB.in_left(x))
+    ads = mep_get(adoptees, AB.in_left(x), None)
+    if ads:
+      yield from process_new_taxa(ads)
 
   # TBD: Deal with situation where one of these comes from a
   # subspecies or synonym in A
-  def process_new_species(u):
-    vs = mep_get(adoptees, u, ())
-    if len(vs) > 0:
-      vs.sort(key=plugin_sort_key)
-      for v in vs:
-        # v an accepted species
-        assert v
-        yield generate_row(AB, None, v, False,
-                           theory.get_central(AB, v))
+  def process_new_taxa(vs):
+    list.sort(vs, key=plugin_sort_key)
+    for v in vs:
+      # v an accepted species
+      # yield from process_subtree(AB, v) ...
+      yield generate_row(AB, None, v, False,
+                         theory.get_central(AB, v))
 
   def plugin_sort_key(x):
     if is_accepted(x):
@@ -184,7 +184,7 @@ def impute_operation(AB, u, v_rel, hom):
   elif hom:                     # "hom"
     hom2 = None
   else:
-    hom2 = "side"
+    hom2 = "concept change"
 
   v = v_rel.record if v_rel else None
 
@@ -218,9 +218,9 @@ def impute_operation(AB, u, v_rel, hom):
       ops.append(hom2)          # ?? what to put here ??
 
     if v_rel.relationship == LT:
-      ops.append("lumped")
+      ops.append("removed (lump)")
     elif v_rel.relationship == GT:
-      ops.append("split")
+      ops.append("added (split)")
     elif v_rel.relationship == OVERLAP:
       ops.append("overlaps")
     elif v_rel.relationship == DISJOINT:
@@ -260,7 +260,8 @@ def impute_operation(AB, u, v_rel, hom):
 
   return ops
 
-# Find species in B that could have been split off from taxa in A
+# Find taxa in B with A-only parent
+#   temporary: previous version - species only
 
 def find_adoptees(AB):
   ad = mep()

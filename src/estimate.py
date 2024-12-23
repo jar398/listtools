@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 import property as prop
-import checklist, workspace, simple
+import checklist, workspace, simple, ranks
 
 from util import log
 from checklist import *
@@ -39,9 +39,12 @@ def find_estimates(AB):
   findem(swap(AB))              # swap is in checklist
   log("# Estimates: %s (=), %s (<)" % (int(counts[0]/2), counts[1]))
 
-# Given a model M, let [u] be the least node in the opposite checklist
+# Can't make sense of the following:
+# "Given a model M, let [u] be the least node in the opposite checklist
 # that contains u.  Then we're interested in the minimal [u] taken over
-# all models.  Does that work?  Is it unique?
+# all models.  Does that work?  Is it unique?"
+
+# Smallest v such that u <= v
 
 def find_estimate(AB, u):
   ship = EQ
@@ -55,17 +58,20 @@ def find_estimate(AB, u):
       break
     sup = local_sup(AB, u2)     # superior acccording to u2's checklist
     if not sup:
-      # u2 is top
+      # u2 is top.  Cannot go any higher.
       return relation(ship, u2, "estimate = top")
     ship = sup.relationship if ship == EQ else LT
     u2 = sup.record
 
   # Fall through with u2, ship
+  # Find smallest v with u2 <= v
 
+  # Is u2 <= v?
   a = get_block(u2)
   b = get_block(v)
   assert b >= a
-  if b != a:                  # a < b, u2 < v
+  if b != a:
+    # a < b, ergo u2 < v
     return relation(LT, v, "estimate")
 
   # ship is LT or EQ
@@ -76,17 +82,27 @@ def find_estimate(AB, u):
   if sup and a == get_block(sup.record):
     if ship == EQ: ship = LE
 
-  # Iterate v through superior chain up to top
+  # Iterate v through superior chain up to top, looking for least v
+  # such that u <= v
+  #  0 is not such a good default, but what instead?
+  u_rank_n = ranks.ranks_dict.get(get_rank(u, 0))
 
   while True:
+    # not u2 <= v
     # Take a look at the block rootward of v
     sup = local_sup(AB, v)         # B.Tupaia montana
     if not sup:
       return relation(ship, v, "estimate = top")
     v2 = sup.record
     b2 = get_block(v2)
-    if b2 > b:
+    if b2 > b:                  # i.e. v2 > u
+      # v2 > u2.  Return v, which is in chain.
       return relation(ship, v, "estimate-chain-top")
+    assert b2 == a
+    v_rank_n = ranks.ranks_dict.get(get_rank(v, 0))
+    if u_rank_n and v_rank_n:
+      if u_rank_n == v_rank_n: return relation(ship, v, "ranks=")
+      if u_rank_n < v_rank_n: return relation(LT, v, "ranks<")
     if ship == EQ: ship = LE 
     v = v2
     b = b2
