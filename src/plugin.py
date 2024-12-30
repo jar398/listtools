@@ -3,6 +3,7 @@
 import sys, csv, argparse
 import rcc5, rows, checklist, workspace
 import theory, exemplar, estimate
+import jumble
 
 from workspace import ingest_workspace, is_accepted_locally, local_sup, \
   local_accepted, isinA, isinB
@@ -92,10 +93,12 @@ def generate_plugin_report(AB):
   i = [0]
   frequency = 5000
 
+  jumble.jumble_workspace(AB)
+
   # species in B that should be adopted by taxa in A
   adoptees = find_adoptees(AB)  # mep
 
-  def process_subtree(AB, x):
+  def process_subtree(AB, x):   # x in AB.A
     yield from process_record(x)
     infs = list(get_inferiors(x))
     infs.sort(key=plugin_sort_key)

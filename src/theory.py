@@ -30,22 +30,23 @@ def theorize(AB, compute_exemplars=True):
 
 #-----------------------------------------------------------------------------
 # compare: The implementation of the RCC-5 theory of AB (A+B).
-# Returns a relation.
+# Returns a Relation.
 
-def compare(AB, v, w):
-  if separated(v, w):           # in different checklists?
-    return cross_compare(AB, v, w)
+def compare(AB, u, v):
+  if separated(u, v):           # in different checklists?
+    return cross_compare(AB, u, v)
   else:
-    return compare_locally(AB, v, w)
+    return compare_locally(AB, u, v)
 
-# v and w are Records in AB, not in A or B
-# Returns a Relative to w
+# u and v are Records in AB, not in A or B
+# Returns a Relative to v (?)
 
 # u <= u1 ? w1 >= w
 def cross_compare(AB, u, v):
   assert separated(u, v)
-  u1 = get_accepted(u)
-  v1 = get_accepted(v)
+  u1 = local_accepted(AB, u)
+  v1 = local_accepted(AB, v)
+  assert separated(u1, v1)
   rel = compare_accepted(AB, u1, v1)
   # Cf. simple.compare_per_checklist
   if not u is u1:
@@ -61,14 +62,15 @@ def cross_compare(AB, u, v):
 def compare_accepted(AB, u, v):
   assert get_workspace(u)
   assert get_workspace(v)
+  assert separated(u, v)
   rel1 = get_central(AB, u)          # u <= u1
   rel3r = get_central(AB, v)         # v <= v1
   if not (rel1 and rel3r):
     return relation(NOINFO, v, "trees not connected")
   u1 = rel1.record
   v1 = rel3r.record
-  rel3 = reverse_relation(v, rel3r)  # v1 >= v
   assert separated(u1, v1)
+  rel3 = reverse_relation(v, rel3r)  # v1 >= v
   # Compare u1 and v1, which are central, in opposite checklists
   rel2 = compare_centrally(AB, u1, v1)   # u1 ? v1
   assert rel2
@@ -119,6 +121,8 @@ def compare_within_block(AB, u, v):
   # Set up a u/m/v/n diagram and see how well it commutes.
 
   ship1 = ship2 = None
+
+  # if get_rank(u) == get_rank(v) ...
 
   # Path 1: u = m ? v
   rel_um = get_estimate(u, None)      # u <= m   in same checklist

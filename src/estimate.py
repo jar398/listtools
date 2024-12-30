@@ -7,8 +7,8 @@ from util import log
 from checklist import *
 from workspace import *
 from simple import BOTTOM, compare_per_checklist
-from specimen import get_exemplar_record, get_exemplar, get_exemplar_id
 from typify import get_link
+from specimen import get_exemplar_record, get_exemplar, get_exemplar_id
 from specimen import sid_to_record, sid_to_opposite_record
 
 # -----------------------------------------------------------------------------
@@ -44,27 +44,25 @@ def find_estimates(AB):
 # that contains u.  Then we're interested in the minimal [u] taken over
 # all models.  Does that work?  Is it unique?"
 
-# Smallest v such that u <= v
+# For u in checklist 1, find smallest v in checklist 2 such that u <= v
 
 def find_estimate(AB, u):
   ship = EQ
-  # If u is in A, find smallest v in B with u <= v (sim. B/A)
   u2 = u
-  # Ascend from u up to top
+  # u2 ascends from u up to top, looking for a node with a cross_mrca
   while True:
     # Skip over peripherals, locating non-peripheral u2
     v = get_cross_mrca(u2, None)
     if v != None:
       break
-    sup = local_sup(AB, u2)     # superior acccording to u2's checklist
+    sup = local_sup(AB, u2)     # superior according to u2's checklist
     if not sup:
-      # u2 is top.  Cannot go any higher.
-      return relation(ship, u2, "estimate = top")
+      # u2 is top, with no cross_mrca v.  Cannot go any higher.
+      return relation(ship, None, "estimate = top")
     ship = sup.relationship if ship == EQ else LT
     u2 = sup.record
 
   # Fall through with u2, ship
-  # Find smallest v with u2 <= v
 
   # Is u2 <= v?
   a = get_block(u2)
@@ -77,35 +75,35 @@ def find_estimate(AB, u):
   # ship is LT or EQ
   # we'll turn EQ into LE if there are multiple options
 
-  # If u2 is at top of chain, EQ is still an option.  Otherwise has to be LE.
+  # u2 and v are in the same block.
   sup = local_sup(AB, u2)       # Synonym?
-  if sup and a == get_block(sup.record):
+  if sup and a == get_block(sup.record): # Not at top of block?
     if ship == EQ: ship = LE
 
-  # Iterate v through superior chain up to top, looking for least v
-  # such that u <= v
   #  0 is not such a good default, but what instead?
   u_rank_n = ranks.ranks_dict.get(get_rank(u, 0))
 
+  # Iterate v through superior chain, looking for least v, up to top of block
+  # such that u <= v by rank
   while True:
-    # not u2 <= v
-    # Take a look at the block rootward of v
+    v_rank_n = ranks.ranks_dict.get(get_rank(v, 0))
+    if u_rank_n and v_rank_n:
+      if u_rank_n == v_rank_n: return relation(EQ, v, "ranks=") # ship ?
+      if u_rank_n < v_rank_n: return relation(LT, v, "ranks<")
+    # u rank > v rank, so move v toward top
+
+    # Take a look at the block rootward of v.  It might be >= u2.
     sup = local_sup(AB, v)         # B.Tupaia montana
-    if not sup:
-      return relation(ship, v, "estimate = top")
+    if not sup: return relation(EQ, v, "no sup")
     v2 = sup.record
     b2 = get_block(v2)
     if b2 > b:                  # i.e. v2 > u
-      # v2 > u2.  Return v, which is in chain.
-      return relation(ship, v, "estimate-chain-top")
+      # v2 > u2 with v2 not in chain.  Return v, which is in chain.
+      return relation(ship, v, "estimate-chain-top") # LT ?
     assert b2 == a
-    v_rank_n = ranks.ranks_dict.get(get_rank(v, 0))
-    if u_rank_n and v_rank_n:
-      if u_rank_n == v_rank_n: return relation(ship, v, "ranks=")
-      if u_rank_n < v_rank_n: return relation(LT, v, "ranks<")
+    # if v is a synonym of v2 then... does that help?
     if ship == EQ: ship = LE 
     v = v2
-    b = b2
 
 # -----------------------------------------------------------------------------
 # u assumed central
