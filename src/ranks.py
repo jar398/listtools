@@ -1,7 +1,8 @@
 # Borrowed from Open Tree of Life, with no attribution since this is
 # not 'creative expression'
 
-ranks = ["domain",
+ranks = ["top",
+         "domain",
          "superkingdom",
          "kingdom",
          "subkingdom",

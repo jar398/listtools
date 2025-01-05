@@ -49,12 +49,34 @@ def cross_compare(AB, u, v):
   assert separated(u1, v1)
   rel = compare_accepted(AB, u1, v1)
   # Cf. simple.compare_per_checklist
+
+  if False:
+    if u is u1 and v is v1:
+      return rel
+    elif u is u1:
+      assert not v is v1
+      syn = get_superior(v)       # v -> v1
+      rev_syn = reverse_relation(v, syn) # v1 -> v
+      return compose_relations(rel, rev_syn) # u -> v1 -> v
+    elif v is v1:
+      syn = get_superior(u)       # u -> u1
+      return compose_relations(syn, rel)  # u -> u1 -> v1
+    elif u1 is v1:
+      # u and v are sibling synonyms...?  No, they're in different checklists
+      # NO NO NO NO
+      return relation(NOINFO, v, "sibling synonyms")
+    else:
+      # u and v are not siblings.  probably disjoint?
+      pass
+
   if not u is u1:
-    syn = get_superior(u)
-    rel = compose_relations(syn, rel)
+    syn = get_superior(u)       # u -> u1
+    rel = compose_relations(syn, rel)  # u -> u1 -> v1
   if not v is v1:
-    syn = reverse_relation(v1, get_superior(v))
-    rel = compose_relations(rel, syn)
+    # u1 -> v1 -> v
+    syn = get_superior(v)       # v -> v1
+    rev_syn = reverse_relation(v, syn) # v1 -> v
+    rel = compose_relations(rel, rev_syn) # u1 -> v1 -> v
   return rel
 
 # Compare two nodes that are known to be accepted
@@ -66,6 +88,7 @@ def compare_accepted(AB, u, v):
   rel1 = get_central(AB, u)          # u <= u1
   rel3r = get_central(AB, v)         # v <= v1
   if not (rel1 and rel3r):
+    log("trees not connected: %s, %s" % (blurb(u), blurb(v)))
     return relation(NOINFO, v, "trees not connected")
   u1 = rel1.record
   v1 = rel3r.record
@@ -109,7 +132,7 @@ def compare_centrally(AB, u, v):
     return optimize_relation(AB, u,
                              relation(ship, v, note="exemplar set comparison"))
 
-# u and w are inequivalent, but they are in the same nonempty block
+# u and v are inequivalent, but they are in the same nonempty block
 # (in parallel chains)
 
 def compare_within_block(AB, u, v):
@@ -144,7 +167,8 @@ def compare_within_block(AB, u, v):
   # Take intersection to see where they agree
   ship = parallel_relationship(ship1, rev_ship2)
   rel = relation(ship, v, "parallel")
-  # ship == NOINFO  probably means sibling synonyms
+  if ship == NOINFO:   # probably means sibling synonyms ?
+    log("# No info: %s %s,%s %s" % (blurb(u), rcc5_symbol(ship1), rcc5_symbol(rev_ship2), blurb(v)))
   if ship == INCONSISTENT:
     log("# Baffled: %s is inconsistent with %s" %
         (rcc5_symbol(ship1), rcc5_symbol(rev_ship2)))
@@ -375,9 +399,9 @@ def get_dominator(AB, w):
   q = get_superior(v) if v is w else v
   while True:
     rel = compare(AB, p, q)
-    if rel.relationship == EQ: return q
-    elif rel.relationship == LT: return p
+    if rel.relationship == LT: return p
     elif rel.relationship == LE: return p
+    elif rel.relationship == EQ: return q
     elif rel.relationship == GT: return q
     elif rel.relationship == GE: return q
     elif rel.relationship == OVERLAP:

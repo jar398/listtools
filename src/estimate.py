@@ -44,66 +44,44 @@ def find_estimates(AB):
 # that contains u.  Then we're interested in the minimal [u] taken over
 # all models.  Does that work?  Is it unique?"
 
+# Low-numbered ranks are closer to root
+
 # For u in checklist 1, find smallest v in checklist 2 such that u <= v
 
 def find_estimate(AB, u):
-  ship = EQ
   u2 = u
+  ship = EQ
   # u2 ascends from u up to top, looking for a node with a cross_mrca
   while True:
     # Skip over peripherals, locating non-peripheral u2
     v = get_cross_mrca(u2, None)
-    if v != None:
-      break
+    if v != None: break
     sup = local_sup(AB, u2)     # superior according to u2's checklist
-    if not sup:
-      # u2 is top, with no cross_mrca v.  Cannot go any higher.
-      return relation(ship, None, "estimate = top")
-    ship = sup.relationship if ship == EQ else LT
+    assert sup
     u2 = sup.record
+    ship = LT
 
-  # Fall through with u2, ship
+  # Fall through with u2, v
 
-  # Is u2 <= v?
   a = get_block(u2)
-  b = get_block(v)
-  assert b >= a
-  if b != a:
-    # a < b, ergo u2 < v
-    return relation(LT, v, "estimate")
+  u_rank_n = ranks.ranks_dict.get(get_rank(u, 0)) or 0
 
-  # ship is LT or EQ
-  # we'll turn EQ into LE if there are multiple options
-
-  # u2 and v are in the same block.
-  sup = local_sup(AB, u2)       # Synonym?
-  if sup and a == get_block(sup.record): # Not at top of block?
-    if ship == EQ: ship = LE
-
-  #  0 is not such a good default, but what instead?
-  u_rank_n = ranks.ranks_dict.get(get_rank(u, 0))
-
-  # Iterate v through superior chain, looking for least v, up to top of block
-  # such that u <= v by rank
   while True:
-    v_rank_n = ranks.ranks_dict.get(get_rank(v, 0))
-    if u_rank_n and v_rank_n:
-      if u_rank_n == v_rank_n: return relation(EQ, v, "ranks=") # ship ?
-      if u_rank_n < v_rank_n: return relation(LT, v, "ranks<")
-    # u rank > v rank, so move v toward top
+    b = get_block(v)
+    if a < b:
+      return relation(LT, v, "estimate by block")
 
-    # Take a look at the block rootward of v.  It might be >= u2.
+    if a == b:
+      v_rank_n = ranks.ranks_dict.get(get_rank(v, 0)) or 0
+      if u_rank_n < v_rank_n:
+        return relation(LT, v, "estimate by rank<")
+      elif u_rank_n == v_rank_n:
+        return relation(ship, v, "estimate by rank")
+    # Fall through: u block > v block or u rank > v rank
+
     sup = local_sup(AB, v)         # B.Tupaia montana
-    if not sup: return relation(EQ, v, "no sup")
-    v2 = sup.record
-    b2 = get_block(v2)
-    if b2 > b:                  # i.e. v2 > u
-      # v2 > u2 with v2 not in chain.  Return v, which is in chain.
-      return relation(ship, v, "estimate-chain-top") # LT ?
-    assert b2 == a
-    # if v is a synonym of v2 then... does that help?
-    if ship == EQ: ship = LE 
-    v = v2
+    assert sup
+    v = sup.record
 
 # -----------------------------------------------------------------------------
 # u assumed central

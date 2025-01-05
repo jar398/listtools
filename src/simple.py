@@ -12,21 +12,6 @@ from rcc5 import EQ, GT, LT, DISJOINT, NOINFO
 # Returns a Relation explaining justification
 
 def compare_per_checklist(x, y):             # Within a single checklist
-  x1 = get_accepted(x)
-  y1 = get_accepted(y)
-  rel = compare_accepted_in_checklist(x1, y1)
-  # Cf. theory.cross_compare
-  if not x is x1:
-    syn = get_superior(x)               # x <= x1
-    rel = compose_relations(syn, rel)   # x <= x1 ? y1
-  if not y is y1:
-    syn = reverse_relation(y1, get_superior(y))  # y1 >= y
-    rel = compose_relations(rel, syn)   # x <= x1 ? y1 >= y
-  return rel
-
-# x and y are accepted, no synonyming around.
-
-def compare_accepted_in_checklist(x, y):
   (x_peer, y_peer) = find_peers(x, y)    # Decrease levels as needed
   if x_peer is y_peer:     # x <= x_peer = y_peer >= y
     peer = x_peer
@@ -48,6 +33,11 @@ def compare_accepted_in_checklist(x, y):
     else:
       assert False
   else:
+    xsup = get_superior(x)
+    ysup = get_superior(y)
+    if (xsup and ysup and xsup.record is ysup.record
+        and (not is_accepted(x) or not is_accepted(y))):
+      return relation(NOINFO, y, note="synonym ? sibling")
     return relation(DISJOINT, y, note="x < xp = yp > y")
 
 # (ship, note) =     return relation(ship, y, note=note)

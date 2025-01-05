@@ -27,6 +27,7 @@ def jumbled_superior(AB, u):
   assert separated(sup.record, cos.record)
 
   rel = theory.compare(AB, sup.record, cos.record)
+  # might be NOINFO
   if rel.relationship == LT or rel.relationship == LE:
     return sup
   elif rel.relationship == GT or rel.relationship == GE:
@@ -38,7 +39,7 @@ def jumbled_superior(AB, u):
       return None               # cos is in A, sup is in B
   elif rel.relationship == OVERLAP:
     return sup
-  else:  # rel.relationship == OVERLAP:
+  else:  # rel.relationship == anything else: NOINFO, OVERLAP, etc.
     log("# jumble: %s %s %s" % (blurb(sup), rcc5_symbol(rel.relationship), blurb(cos)))
     return sup
 

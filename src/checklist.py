@@ -110,17 +110,19 @@ def relation(ship, record, note=MISSING, span=None):
     else: span = 2
   return Relation(ship, record, span, note)
 
-def reverse_relation(starting, rel):
+# rel: origin -> target
+
+def reverse_relation(origin, rel):
   assert isinstance(rel, Relation)
   return Relation(reverse_relationship(rel.relationship),
-                  starting,
+                  origin,
                   rel.span,
                   reverse_note(rel.note))
 
 def reverse_articulation(art):
-  (starting, rel) = art
+  (origin, rel) = art
   return (rel.record, Relation(reverse_relationship(rel.relationship),
-                               starting,
+                               origin,
                                rel.span,
                                reverse_note(rel.note)))
 
@@ -464,6 +466,7 @@ def get_tag(check):          # applied to a Source checklist
 def make_top(C):
   top = make_record(TOP_NAME, C) # primary key is TOP_NAME, source is C
   set_canonical(top, TOP_NAME)   # name = key
+  set_rank(top, "top")
   return top
 
 TOP_NAME = "⊤"
