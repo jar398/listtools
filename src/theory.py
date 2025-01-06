@@ -31,57 +31,9 @@ def theorize(AB, compute_exemplars=True):
 #-----------------------------------------------------------------------------
 # compare: The implementation of the RCC-5 theory of AB (A+B).
 # Returns a Relation.
+# central = non-peripheral
 
 def compare(AB, u, v):
-  if separated(u, v):           # in different checklists?
-    return cross_compare(AB, u, v)
-  else:
-    return compare_locally(AB, u, v)
-
-# u and v are Records in AB, not in A or B
-# Returns a Relative to v (?)
-
-# u <= u1 ? w1 >= w
-def cross_compare(AB, u, v):
-  assert separated(u, v)
-  u1 = local_accepted(AB, u)
-  v1 = local_accepted(AB, v)
-  assert separated(u1, v1)
-  rel = compare_accepted(AB, u1, v1)
-  # Cf. simple.compare_per_checklist
-
-  if False:
-    if u is u1 and v is v1:
-      return rel
-    elif u is u1:
-      assert not v is v1
-      syn = get_superior(v)       # v -> v1
-      rev_syn = reverse_relation(v, syn) # v1 -> v
-      return compose_relations(rel, rev_syn) # u -> v1 -> v
-    elif v is v1:
-      syn = get_superior(u)       # u -> u1
-      return compose_relations(syn, rel)  # u -> u1 -> v1
-    elif u1 is v1:
-      # u and v are sibling synonyms...?  No, they're in different checklists
-      # NO NO NO NO
-      return relation(NOINFO, v, "sibling synonyms")
-    else:
-      # u and v are not siblings.  probably disjoint?
-      pass
-
-  if not u is u1:
-    syn = get_superior(u)       # u -> u1
-    rel = compose_relations(syn, rel)  # u -> u1 -> v1
-  if not v is v1:
-    # u1 -> v1 -> v
-    syn = get_superior(v)       # v -> v1
-    rev_syn = reverse_relation(v, syn) # v1 -> v
-    rel = compose_relations(rel, rev_syn) # u1 -> v1 -> v
-  return rel
-
-# Compare two nodes that are known to be accepted
-
-def compare_accepted(AB, u, v):
   assert get_workspace(u)
   assert get_workspace(v)
   assert separated(u, v)
@@ -166,10 +118,10 @@ def compare_within_block(AB, u, v):
 
   # Take intersection to see where they agree
   ship = parallel_relationship(ship1, rev_ship2)
-  rel = relation(ship, v, "parallel")
+  rel = relation(ship, v, "within block")
   if ship == NOINFO:   # probably means sibling synonyms ?
     log("# No info: %s %s,%s %s" % (blurb(u), rcc5_symbol(ship1), rcc5_symbol(rev_ship2), blurb(v)))
-  if ship == INCONSISTENT:
+  elif ship == INCONSISTENT:
     log("# Baffled: %s is inconsistent with %s" %
         (rcc5_symbol(ship1), rcc5_symbol(rev_ship2)))
     log("#   u        : %s" % blurb(u))         # u
@@ -224,11 +176,11 @@ def parallel_relationship(ship1, ship2):
 # Could be made more efficient by skipping unused calculations
 
 def cross_lt(AB, u, v):
-  ship = cross_compare(AB, u, v).relationship
+  ship = compare(AB, u, v).relationship
   return ship == LT or ship == LE or ship == PERI
 
 def cross_le(AB, u, v):
-  ship = cross_compare(AB, u, v).relationship
+  ship = compare(AB, u, v).relationship
   return ship == LT or ship == LE or ship == PERI or ship == EQ
 
 # -----------------------------------------------------------------------------

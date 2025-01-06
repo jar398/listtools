@@ -40,7 +40,8 @@ def jumbled_superior(AB, u):
   elif rel.relationship == OVERLAP:
     return sup
   else:  # rel.relationship == anything else: NOINFO, OVERLAP, etc.
-    log("# jumble: %s %s %s" % (blurb(sup), rcc5_symbol(rel.relationship), blurb(cos)))
+    log("# jumble at %s:\n  %s %s %s" %
+        (blurb(u), blurb(sup), rcc5_symbol(rel.relationship), blurb(cos)))
     return sup
 
 # Let's say u is in checklist, cos should be in checklist 2
