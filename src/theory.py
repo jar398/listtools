@@ -268,6 +268,7 @@ def get_species(u):
   AB = get_workspace(u)
   s = local_accepted(AB, u)
   while not is_species(s):
+    # TBD: use ranks_dict
     rel = local_sup(AB, s)        # relation
     if rel: s = rel.record
     else: return None
@@ -288,7 +289,7 @@ def same_protonym(u, v):
       return same_specimens(e, f)
   return False
 
-# Taxon in v with same epithet, and also same rank if possible.
+# Taxon in other checklist having same epithet, and also same rank if possible.
 # Might be a synonym or subspecies; use get_species if a species is needed.
 
 def get_buddy(AB, u):

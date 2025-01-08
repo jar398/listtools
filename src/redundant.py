@@ -13,7 +13,7 @@ def check_for_redundant(checklist):
   index_by_name = {}    # (epithet, token, year)
   count = 0
   tag = get_tag(checklist)
-  for x in all_records(checklist):
+  for x in all_records(checklist): # not incl top
     p = get_parts(x)
     fam = get_family(x)
     # This doesn't seem so good.  Very limited

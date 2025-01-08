@@ -25,7 +25,7 @@ def find_estimates(AB):
   counts = [0, 0]
   def findem(AB):
     def doit(AB):
-      for x in checklist.postorder_records(AB.A):
+      for x in checklist.postorder_records(AB.A): # end with top
         u = AB.in_left(x)
         rel = find_estimate(AB, u)
         set_estimate(u, rel)
@@ -48,7 +48,7 @@ def find_estimates(AB):
 
 # For u in checklist 1, find smallest v in checklist 2 such that u <= v
 
-def find_estimate(AB, u):
+def find_estimate(AB, u):       # u might be top
   u2 = u
   ship = EQ
   # u2 ascends from u up to top, looking for a node with a cross_mrca
@@ -58,8 +58,11 @@ def find_estimate(AB, u):
     if v != None: break
     sup = local_sup(AB, u2)     # superior according to u2's checklist
     assert sup
+    if u is u2:
+      ship = sup.relationship   # SYNONYM or HAS_PARENT
+    else:
+      ship = LT
     u2 = sup.record
-    ship = LT
 
   # Fall through with u2, v
 
@@ -201,10 +204,9 @@ def analyze_blocks(ws):
   # Sanity check
   b1 = get_block(ws.in_left(ws.A.top))
   b2 = get_block(ws.in_right(ws.B.top))
-  if b1 != b2:
-    assert b1 == b2
-  if b1 == BOTTOM_BLOCK:
-    assert b1 != BOTTOM_BLOCK
+  assert b1 == b2
+  assert b1 != BOTTOM_BLOCK
+  log("# top block size: %s" % len(b1))
 
 def adjoin_exemplar(exemplar_id, e):
   return combine_blocks(e, {exemplar_id})

@@ -61,7 +61,7 @@ def report_on_links(AB, subproblems):
 
 def generate_linkage_report(AB):
   yield ('from', 'to', 'comparison')
-  for x in all_records(AB.A):
+  for x in all_records(AB.A):   # not incl top
     u = AB.in_left(x)
     v = get_link(u, None)
     if v:

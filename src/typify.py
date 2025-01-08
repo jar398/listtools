@@ -9,10 +9,9 @@ from rcc5 import EQ, NEQ, OVERLAP, DISJOINT
 from checklist import get_parts, monitor, \
   get_superior, get_children, get_synonyms, get_inferiors, \
   is_accepted, blurb, blorb, get_scientific, get_primary_key, get_rank, \
-  get_canonical, get_source_tag, get_nomenclatural_status, \
-  all_records
+  get_canonical, get_source_tag, get_nomenclatural_status
 from workspace import separated, get_outject, get_workspace, local_sup, get_source
-from workspace import isinA, isinB, local_accepted, all_records, \
+from workspace import isinA, isinB, local_accepted, \
   swap
 from simple import simple_le, compare_per_checklist
 from specimen import sid_to_epithet, same_specimens, \

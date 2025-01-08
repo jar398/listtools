@@ -26,15 +26,8 @@ from typify import find_endohomotypics
 def find_exemplars(get_estimate, AB):
   find_endohomotypics(AB)
   subproblems = find_subproblems(AB)
-  if True:
-    log("* Finding typifications (single pass):")
-    find_typifications(AB, subproblems, None, True)
-  else:                         # two-pass
-    log("* Finding pass 1 typifications (for proximity calculations):")
-    find_typifications(AB, subproblems, None, False)
-    find_estimates(AB)            # for proximity calculations
-    log("* Finding pass 2 typifications (using proximity calculations):")
-    find_typifications(AB, subproblems, get_estimate, True)
+  log("* Finding typifications (single pass):")
+  find_typifications(AB, subproblems, None, True)
 
   # maybe compute better estimates - see theory.py
   report_on_exemplars(AB)
@@ -140,7 +133,7 @@ def report_on_exemplars(AB):
       if b:
         count += 1
         get_exemplar_id(uf)        # forces sid assignment  ??
-  log("# Nodes with typification: %s, nodes with exemplars: %s, specimen ids: %s" %
+  log("# Nodes with typification: %s, nodes with exemplars: %s, specimen id UFs: %s" %
       (ufcount, count, len(AB.specimen_ufs)))
 
 # Write exemplars to a file

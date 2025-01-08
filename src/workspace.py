@@ -86,12 +86,14 @@ def make_workspace(A, B, meta=None):
   BA.B = AB.A
 
   # Force local copies of all source records  -- really?
-  for y in all_records(B): AB.in_right(y) # not including top
-  for x in all_records(A): AB.in_left(x)  # not including top
-  # AB.top is not set at this point.  Needs to be determined independently
+  for y in all_records_inclusive(B): AB.in_right(y) # including top
+  for x in all_records_inclusive(A): AB.in_left(x)  # including top
+  # AB.top is not set at this point.  Needs to be determined independently.
+  # See jumble.py
   #log("# taxonID counter: %s" % pk_counter[0])
 
   AB.specimen_ufs = {}           # maps id to union-find node with (id, u, v)
+  AB.top = None                  # hmph.  see checklist.is_top
   return AB
 
 # Is given synonym usage a senior synonym of its accepted usage?
@@ -205,9 +207,8 @@ def workspace_from_newicks(m, n):
                         {'tag': "A"})  # meta
   AB = make_workspace(A, B, {'tag': "AB"})
   if False:
-    for record in all_records(AB): # No merge
-      if record != AB.top:
-        set_superior(record, relation(SYNONYM, AB.top, note="testing"))
+    for record in all_records(AB): # No merge, no top
+      set_superior(record, relation(SYNONYM, AB.top, note="testing"))
   return AB
 
 def show_workspace(AB, props=None):

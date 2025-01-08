@@ -167,13 +167,17 @@ class Source:
     self.context = prop.make_context()  # for lookup by primary key
     self.meta = meta
     self.indexed = False    # get_children, get_synonyms set?
-    self.top = None
+    make_top(self)          # Superior of last resort
     self.workspace = None
 
-def all_records(C):
+def all_records(C):             # not including top
   col = prop.get_column(primary_key_prop, C.context)
   # wait, this includes records that should get discarded. careful.
-  return prop.get_records(col)
+  yield from prop.get_records(col)
+
+def all_records_inclusive(C):   # including top
+  yield from all_records(C)
+  yield C.top
 
 def preorder_records(C):        # starting from top
   assert C.top
@@ -211,7 +215,6 @@ def rows_to_checklist(iterabl, meta):
   (Q, register) = rows_to_context(iterabl, primary_key_prop)
   S.context = Q
   S.register = register
-  S.top = make_top(S)             # Superior of last resort
   column = prop.get_column(primary_key_prop, Q)
   count = 0
   for record in prop.get_records(column):
@@ -286,25 +289,27 @@ def resolve_superior(S, record):
     parent_key = get_parent_key(record, None)
     parent = look_up_record(S, parent_key, record)
     if parent:
-      assert parent, blurb(record)
       sup = relation(HAS_PARENT, parent, note="checklist (child)")
     else:
       if parent_key:
         log("# accepted in %s but has unresolvable parent: %s = %s" %
             (get_tag(S), blurb(record), parent_key))
-      sup = relation(HAS_PARENT, S.top, note="unresolved parent id")
+      # Child of top
+      sup = relation(HAS_PARENT, S.top, note="inferior of top")
 
   if monitor(record):
-    "# resolving %s %s" % (blurb(record), blurb(sup))
+    "# resolving sup %s = %s" % (blurb(record), blurb(sup))
   if sup:
     set_superior_carefully(record, sup)
-    #if is_toplike(sup.record):
-    #  log("# Superior %s = %s" % (blurb(record), blurb(sup)))
+    if is_top(sup.record):
+      log("# Superior %s = %s" % (blurb(record), blurb(sup)))
   else:
     log("# No superior: %s" % blurb(record))
 
 def synonym_relationship(record, accepted):
   return SYNONYM                # could be LT, LE, EQ
+
+# sup might be top
 
 def set_superior_carefully(x, sup):
   assert isinstance(x, prop.Record)
@@ -324,7 +329,7 @@ def set_superior_carefully(x, sup):
     s = sup
     while not is_accepted(s.record):
       su = get_superior(s.record, None)
-      if not su: break
+      if not su: break          # s.record = top
       s = su
     if s != sup:
       if False:
@@ -332,21 +337,23 @@ def set_superior_carefully(x, sup):
             (blurb(x), blurb(sup.record), blurb(s.record)))
       sup = s
 
-  # OK go for it
+  # OK go for it.  sup might be top
   link_superior(x, sup)
-  if False:
-    if (monitor(x) or monitor(sup.record)):  #False and 
-      log("> superior of %s is %s" % (blurb(x), blurb(sup)))
 
-# Establish a link of the form w -> p
+# Establish links w -> p and p -> w
 # sup is a Relation with record p
-# How to represent whether w is accepted or not?
 
 def link_superior(w, sup):      # w is inferior Record, sup is Relation
   assert isinstance(w, prop.Record), blurb(w)
   assert isinstance(sup, Relation), blurb(sup)
+  assert isinstance(sup.record, prop.Record), blurb(sup)
+  #assert is_accepted(sup.record), blurb(sup)
   assert get_superior(w, None) == None
+  assert get_source(w) == get_source(sup.record)
   set_superior(w, sup)
+  link_inferior(w, sup)
+
+def link_inferior(w, sup):
   if is_accepted(w):
     ch = get_children(sup.record, None) # list of records
     if ch != None:
@@ -359,7 +366,8 @@ def link_superior(w, sup):      # w is inferior Record, sup is Relation
       ch.append(w)
     else:
       set_synonyms(sup.record, [w])
-  #else: assert False
+  if is_top(sup.record):
+    log("# Inferior of top: %s -> %s" % (blurb(w), blurb(sup)))
 
 # What is comes_from for?  Potential debugging?
 
@@ -404,14 +412,17 @@ def validate(C):
 
 # E.g. Glossophaga bakeri (in 1.7) split from Glossophaga commissarisi (in 1.6)
 
+# This seems to be no longer used??
+# Replaced by link_inferior?
+
 def ensure_inferiors_indexed(C):
-  if get_children(C.top, None) == None: return
+  #if get_children(C.top, None) == None: return
 
   assert False, "top has no children"
 
   count = 0
 
-  for record in all_records(C):
+  for record in all_records(C):    # potential inferiors
     if record == C.top: continue
     # top has no superior, all others
 
@@ -467,6 +478,8 @@ def make_top(C):
   top = make_record(TOP_NAME, C) # primary key is TOP_NAME, source is C
   set_canonical(top, TOP_NAME)   # name = key
   set_rank(top, "top")
+  set_taxonomic_status(top, "accepted") # a lie
+  C.top = top
   return top
 
 TOP_NAME = "⊤"
@@ -486,7 +499,7 @@ def get_inferiors(x):
 # and the doubtful case only occurs in certain sources (such as GBIF)
 
 def is_accepted(x):             # exported
-  status = get_taxonomic_status(x, "accepted")
+  status = get_taxonomic_status(x, "accepted") # default
   return (status.startswith("accepted") or
           status.startswith("provisionally accepted") or #GBIF
           status.startswith("valid") or
@@ -536,16 +549,16 @@ def recover_parent_key(x, default=MISSING):
     sup = get_superior(x, None)
     if sup:
       y = sup.record
-      if y and not is_top(y):
-        return get_primary_key(y)
+      if y:                     # might be top
+        return get_primary_key(y, default)
   return default
 
 def recover_accepted_key(x, default=MISSING):
   y = get_accepted(x)
-  if y == x or is_top(y):
+  if y == x:
     return MISSING
   else:
-    return get_primary_key(y)
+    return get_primary_key(y, default)
 
 def recover_status(x, default=MISSING): # taxonomicStatus
   sup = get_superior(x, None)
@@ -559,7 +572,7 @@ def recover_status(x, default=MISSING): # taxonomicStatus
       return "accepted " + status
   else:
     if status.startswith("accepted"):
-      return "*" + statue
+      return "*" + status
     else:
       return status
 
@@ -617,7 +630,7 @@ usual_props = \
 def checklist_to_rows(C, props=None):
   return records_to_rows(C, all_records(C), props)
 
-def preorder_rows(C, props=None):
+def preorder_rows(C, props=None): # includes top
   return records_to_rows(C, preorder_records(C), props)
 
 def records_to_rows(C, records, props=None): # Excludes top

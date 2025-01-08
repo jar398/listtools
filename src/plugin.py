@@ -10,14 +10,79 @@ from workspace import ingest_workspace, is_accepted_locally, local_sup, \
 from checklist import *
 from rcc5 import *
 from specimen import sid_to_epithet
-from estimate import get_block, is_empty_block, get_estimate
+from estimate import get_block, is_empty_block, get_estimate, get_equivalent
 from property import mep, mep_get, mep_set
 from typify import explain
 
 counts = {}
+def count(tag):
+  if tag in counts: counts[tag] += 1
+  else: counts[tag] = 1
 
-# Generate either the header row or a data row; the code for both is
+# Preorder traversal of AB.A
+
+def generate_plugin_report(AB):
+  yield generate_row(AB, True, True, True, True) # header
+  i = [0]
+  frequency = 5000
+
+  jumble.jumble_workspace(AB)
+  for z in preorder_records(AB):
+    count("records")
+    if isinA(AB, z):
+      # should we suppress congruent A records too?
+      i[0] += 1
+      if i[0] % frequency == 0:
+        log("# %s %s" % (i[0], blurb(z)))
+      yield from process_record(AB, z)
+    elif get_equivalent(AB, z):
+      # suppress B records that are congruent with A records
+      yield from ()
+    else:
+      # 'new' records
+      yield generate_row(AB, None, z, False,
+                         theory.get_central(AB, z))
+
+  for (op, op_count) in counts.items():
+    log(" %6d %s" % (op_count, op))
+
+# Generator
+
+def process_record(AB, u):
+  if theory.is_species(u):
+    count("species")
+    inters = theory.get_intersecting_species(u)
+
+    bud = theory.get_buddy(AB, u)
+    if bud:
+      v = theory.get_species(bud)
+    else:
+      v = hom = None  
+
+    est = get_estimate(u, None)
+    if len(inters) > 0:
+      if v:
+        assert isinB(AB, v), blurb(v)
+        hom = "hom"
+      else:
+        v = min(inters, key=lambda v2:hamming(u, v2))
+        hom = "hom?"        # op = "type?"
+      yield generate_row(AB, u, v, hom, est)
+      for v2 in sorted(inters, key=plugin_sort_key):
+        if not v2 is v:
+          yield generate_row(AB, u, v2, False, est) # op = "side"
+    else:                   # No bud, no v
+      yield generate_row(AB, u, None, False, est)
+
+def plugin_sort_key(x):
+  if is_accepted(x):
+    return (1, blurb(x))
+  else:
+    return (0, blurb(x))
+
+# Return either the header row or a data row; the code for both is
 # together to make sure they stay in sync.
+# Seems hom is always None... hmm
 
 def generate_row(AB, u, v, hom, est):
   if u == True:
@@ -43,7 +108,7 @@ def generate_row(AB, u, v, hom, est):
 
   sidep = False
   if u == True:
-    op_field = "operation"
+    op_field = "operation"      # header
   else:
     ops = impute_operation(AB, u, v_rel, hom)
     op_field = "; ".join(ops)
@@ -85,82 +150,6 @@ def generate_row(AB, u, v, hom, est):
           u_not_v,
           v_not_u,
           )
-
-# Preorder traversal of AB.A
-
-def generate_plugin_report(AB):
-  yield generate_row(AB, True, True, True, True) # header
-  i = [0]
-  frequency = 5000
-
-  jumble.jumble_workspace(AB)
-
-  # species in B that should be adopted by taxa in A
-  adoptees = find_adoptees(AB)  # mep
-
-  def process_subtree(AB, x):   # x in AB.A
-    yield from process_record(x)
-    infs = list(get_inferiors(x))
-    infs.sort(key=plugin_sort_key)
-    for c in infs:
-      yield from process_subtree(AB, c)
-    ads = mep_get(adoptees, AB.in_left(x), None)
-    if ads:
-      yield from process_new_taxa(ads)
-
-  # TBD: Deal with situation where one of these comes from a
-  # subspecies or synonym in A
-  def process_new_taxa(vs):
-    list.sort(vs, key=plugin_sort_key)
-    for v in vs:
-      # v an accepted species
-      # yield from process_subtree(AB, v) ...
-      yield generate_row(AB, None, v, False,
-                         theory.get_central(AB, v))
-
-  def plugin_sort_key(x):
-    if is_accepted(x):
-      return (1, blurb(x))
-    else:
-      return (0, blurb(x))
-
-  def process_record(x):
-    if not is_top(x):
-      u = AB.in_left(x)
-      if theory.is_species(u):
-
-        i[0] += 1
-        if i[0] % frequency == 0: log("# %s %s" % (i[0], blurb(u)))
-
-        est = get_estimate(u, None)
-
-        inters = theory.get_intersecting_species(u)
-        rels = list(map(lambda w: theory.compare(AB, u, w), inters))
-
-        bud = theory.get_buddy(AB, u)
-        if bud:
-          v = theory.get_species(bud)
-        else:
-          v = hom = None  
-
-        if len(inters) > 0:
-          if v:
-            assert isinB(AB, v), blurb(v)
-            hom = "hom"
-          else:
-            v = min(inters, key=lambda v2:hamming(u, v2))
-            hom = "hom?"        # op = "type?"
-          yield generate_row(AB, u, v, hom, est)
-          for v2 in sorted(inters, key=plugin_sort_key):
-            if not v2 is v:
-              yield generate_row(AB, u, v2, False, est) # op = "side"
-        else:                   # No bud, no v
-          yield generate_row(AB, u, None, False, est)
-
-  yield from process_subtree(AB, AB.A.top)
-
-  for (op, count) in counts.items():
-    log(" %6d %s" % (count, op))
 
 # s is a set of exemplar ids...
 
@@ -268,7 +257,7 @@ def impute_operation(AB, u, v_rel, hom):
 
 def find_adoptees(AB):
   ad = mep()
-  for y in all_records(AB.B):
+  for y in all_records(AB.B):   # not incl top
     v = AB.in_right(y)
     if theory.is_species(v):  # implies is_accepted_locally(v)
       if is_empty_block(get_block(v)):
@@ -334,4 +323,7 @@ if __name__ == '__main__':
         exemplar.find_exemplars(get_estimate, AB)
       theory.theorize(AB, False)
       with rows.open(d_path, "w") as d_gen:
-        d_gen.write_rows(generate_plugin_report(AB))
+        gen = (row for row in generate_plugin_report(AB))
+        kludge = list(gen)
+        log("# %s rows" % len(kludge))
+        d_gen.write_rows(kludge)

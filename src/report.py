@@ -20,7 +20,7 @@ get_difference = prop.getter(merge.difference_prop)
 def reports(merged_iter, mode):
   AB = rows_to_merged(merged_iter, {'tag': 'AB'})
   resolve_merge_links(AB)
-  for r in all_records(AB): assert get_superior(r)  # sanity
+  for r in all_records(AB): assert get_superior(r)  # sanity.  not incl top
   ensure_inferiors_indexed(AB)
   #theory.ensure_levels(AB)
   return generate_reports(AB, mode)
@@ -46,7 +46,7 @@ def generate_reports(AB, mode):
       if rank == 'species' and is_accepted_locally(AB, y):
         s[1] += 1
 
-    for z in all_records(AB):
+    for z in all_records(AB):   # not including top
       (x, y) = personae(z)
       if (x and is_accepted(x)) or (y and is_accepted(y)):
         diff = get_difference(z, None)
@@ -121,7 +121,7 @@ def resolve_merge_links(M):
     pk = get_primary_key(rec)
     if pk in conjured: log("** duplicate: %s" % pk)
     conjured[pk] = rec
-  for record in all_records(M):
+  for record in all_records(M): # not incl top
 
     note = get_equated_note(record, None)
     key = get_equated_key(record, None)
