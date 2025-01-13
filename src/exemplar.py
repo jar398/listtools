@@ -46,10 +46,10 @@ def find_subproblems(AB):
   for (key, us) in A_index.items():
     assert key != MISSING, blurb(us[0])
     vs = B_index.get(key, None)
-    if any(map(monitor, us)) or any(map(monitor, vs)):
-      log("* Found monitored subproblem %s / %s" %
-          (map(blurb, us), map(blurb, vs)))
     if vs != None:
+      if any(map(monitor, us)) or any(map(monitor, vs)):
+        log("* Found monitored subproblem %s / %s" %
+            (map(blurb, us), map(blurb, vs)))
       us.sort(key=unimportance)
       vs.sort(key=unimportance)
       subprobs[key] = (us, vs)

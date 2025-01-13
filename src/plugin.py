@@ -28,6 +28,8 @@ def generate_plugin_report(AB):
   frequency = 5000
 
   jumble.jumble_workspace(AB)
+  spa = spb_spe = spb_nspe = spb_ne = 0
+
   for z in preorder_records(AB):
     count("records")
     i[0] += 1
@@ -39,30 +41,42 @@ def generate_plugin_report(AB):
     # A A
     # A B
     
-    if isinA(AB, z):
-      e_rel = get_equivalent(AB, z)
-      if e_rel:                       # in B
-        e = e_rel.record
-        if is_species(z) or is_species(e):
-          u = z; v = e
-        else: continue          # Skip
-      elif is_species(z):
-        u = z
-        v = choose_partner(AB, u)
-    elif is_species(z):         # in B
-      v = z
-      u = choose_partner(AB, v)
+    if is_species(z):
+      w = choose_partner(AB, z) # may be None
+      if isinA(AB, z):
+        spa += 1
+        u = z; v = w
+      else:
+        if get_equivalent(AB, z): # in A
+          # if has a non-species A equivalent, use it.
+          # otherwise suppress as redundant
+          if is_species(w):
+            spb_spe += 1
+            continue    # already handled because species in A
+          else:
+            spb_nspe += 1
+            u = w; v = z
+        else:  # species in B with no equivalent
+          spb_ne += 1
+          u = w; v = z
 
-    yield generate_row(AB, u, v)
+      yield generate_row(AB, u, v)
+
+  log("# %s A species, %s B sp with A equiv, %s B sp with non-sp equiv, %s B sp with no equiv" %
+      (spa, spb_spe, spb_nspe, spb_ne))
 
   for (op, op_count) in counts.items():
-    log(" %6d %s" % (op_count, op))
+    log("  %6d %s" % (op_count, op))
 
 # For each species, we pick one articulation.  The articulation is
 # between the species and a "partner".
 
 def choose_partner(AB, u):
   assert is_species(u)
+  e_rel = get_equivalent(AB, u)
+  if e_rel:
+    return e_rel.record
+
   # ... no congruent record, pick the 'best' one from intersectors ...
   inters = theory.get_intersecting_species(u)
   if len(inters) == 0:

@@ -14,7 +14,6 @@ from estimate import get_block  # for debugging
 def jumble_workspace(AB):
   log("# Jumbling")
   set_workspace_top(AB)
-  i = eq = 0
   for x in preorder_records(AB.A): # includes AB.A.top
     z = AB.in_left(x)
     f = jumbled_superior(AB, z)
@@ -23,18 +22,11 @@ def jumble_workspace(AB):
       if is_top(f.record) or is_top(z):
         log("# Linking near top: %s %s" %
             (blurb(z), blurb(f)))
-    else: eq += 1
-    i += 1
-  log("# A: %s jumbled parent/child links, %s congruences" % (i, eq))
-  i = eq = 0
   for y in preorder_records(AB.B):
     z = AB.in_right(y)
     f = jumbled_superior(AB, z)
     if f:
       link_superior(z, f)
-    else: eq += 1
-    i += 1
-  log("# B: %s jumbled parent/child links, %s suppressed congruents" % (i, eq))
   log("# workspace top is %s" % blurb(AB.top))
   infs = list(get_inferiors(AB.top))
   log("# inferiors of top are %s" % list(map(blurb, infs)))

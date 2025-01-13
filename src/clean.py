@@ -189,8 +189,8 @@ def start_csv(inport, params, outport, args):
     writer.writerow(out_row)
     count += 1
     if count % 250000 == 0:
-      log("# row %s id %s" % (count, taxon_id))
-  log("-- clean: %s rows, %s columns, %s ids minted, %s accepteds normalized" %
+      log("# record %s id %s" % (count, taxon_id))
+  log("-- clean: %s records, %s columns, %s ids minted, %s accepteds normalized" %
         (count, len(in_header), minted, accepteds_normalized))
   log("-- clean: %s names cleaned, %s ranks cleaned" %
         (names_cleaned, ranks_cleaned))
