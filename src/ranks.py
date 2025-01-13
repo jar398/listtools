@@ -1,53 +1,56 @@
-# Borrowed from Open Tree of Life, with no attribution since this is
-# not 'creative expression'
+# Borrowed from Open Tree of Life
 
-ranks = ["top",
-         "domain",
-         "superkingdom",
-         "kingdom",
-         "subkingdom",
-         "division",            # h2007
-         "infrakingdom",		# worms
-         "superphylum",
-         "phylum",
-         "subphylum",
-         "infraphylum",			# worms
-         "subdivision",			# worms
-         "superclass",
-         "class",
-         "subclass",
-         "infraclass",
-         "subterclass",         # worms Colobognatha
-         "cohort",              # NCBI Polyneoptera
-         "subcohort",           # NCBI
-         "superorder",
-         "order",
-         "suborder",
-         "infraorder",
-         "parvorder",
-         "section",				# worms - note, there are two 'section' ranks
-         "subsection",			# worms
-         "superfamily",
-         "family",
-         "subfamily",
-         "supertribe",			# worms
-         "tribe",
-         "subtribe",
-         "genus",
-         "subgenus",
-         "species group",
-         "species subgroup",
-         "species",
-         "infraspecificname",
-         "subspecies",
-         "natio",               # worms
-         "variety",
-         "varietas",
-         "subvariety",
-         "form",                # 2016 GBIF
-         "forma",
-         "subform",
+# Highest numbered ranks are for 'bigger' taxa
+
+rank_names = [
+         "never zero",
          "cluster",
+         "subform",
+         "forma",
+         "form",                # 2016 GBIF
+         "subvariety",
+         "varietas",
+         "variety",
+         "natio",               # worms
+         "subspecies",
+         "infraspecificname",
+         "species",
+         "species subgroup",
+         "species group",
+         "subgenus",
+         "genus",
+         "subtribe",
+         "tribe",
+         "supertribe",			# worms
+         "subfamily",
+         "family",
+         "superfamily",
+         "subsection",			# worms
+         "section",				# worms - note, there are two 'section' ranks
+         "parvorder",
+         "infraorder",
+         "suborder",
+         "order",
+         "superorder",
+         "subcohort",           # NCBI
+         "cohort",              # NCBI Polyneoptera
+         "subterclass",         # worms Colobognatha
+         "infraclass",
+         "subclass",
+         "class",
+         "superclass",
+         "subdivision",			# worms
+         "infraphylum",			# worms
+         "subphylum",
+         "phylum",
+         "superphylum",
+         "infrakingdom",		# worms
+         "division",            # h2007
+         "subkingdom",
+         "kingdom",
+         "superkingdom",
+         "domain",
+         "top",
          ]
 
-ranks_dict = {name: i for (name, i) in zip(ranks[::-1], range(0, len(ranks)))}
+ranks_dict = {name: i for (name, i) in zip(rank_names, range(0, len(rank_names)))}

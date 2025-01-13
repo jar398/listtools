@@ -21,7 +21,7 @@ class Parts(NamedTuple):
   authorship : Any              # includes initials, all authors, etc
   token      : Any              # just Lastname of first author
   year       : Any
-  protonymp  : Any              # False means moved, None means don't know.
+  protonymp  : Any              # False = moved, None = don't know, True = protonym
 
 # Missing part is represented as None
 
@@ -194,7 +194,7 @@ def recover_canonical(gn_full, gn_stem, hack_canonical):
 def analyze_authorship(auth):
   if not auth: return (None, None, None) # moved? don't know
 
-  # GBIF sometimes has (yyyy) where it should have yyyy
+  # GBIF sometimes has (yyyy) where yyyy would be more helpful
   m = parenyear_re.search(auth)
   if m:
     auth = auth.replace(m[0], m[0][1:-1])
@@ -205,7 +205,7 @@ def analyze_authorship(auth):
     auth = auth.replace(')','')
     protonymp = False
   else:
-    protonymp = True
+    protonymp = None
 
   t_match = token_re.search(auth)
   tok = t_match[0] if t_match else None
@@ -213,6 +213,10 @@ def analyze_authorship(auth):
   y_match = year_re.search(auth)
   year = y_match[1] if y_match else None
   if year == '1111': year = None       # Wild card
+
+  if protonymp == None and tok != None and year != None:
+    protonymp = True
+
   return (tok, year, protonymp)
 
 # This may not agree with gnparse exactly...

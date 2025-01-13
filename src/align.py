@@ -10,9 +10,9 @@ from property import mep_get, mep_set
 from rcc5 import *
 from checklist import *
 from workspace import *
-from theory import cross_compare, is_species
+from theory import cross_compare
 from estimate import get_estimate, get_equivalent
-from specimen import get_exemplar_record
+from specimen import get_exemplar_info
 
 def align(A_iter, B_iter, A_name='A', B_name='B', matches_iter=None):
   AB = ingest_workspace(a_rows.rows(), b_rows.rows(),
@@ -81,7 +81,7 @@ def generate_alignment(AB, matches=None):
       #if not get_acceptable(AB, u): return   # ?????
 
       # Show species overlaps
-      e = get_exemplar_record(u)
+      e = get_exemplar_info(u)
       if e:
         (_, ue, ve) = e
         if ue is u:

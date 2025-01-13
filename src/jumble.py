@@ -46,6 +46,7 @@ def set_workspace_top(AB):
 def get_workspace_top(AB):
   A_top = AB.in_left(AB.A.top)
   B_top = AB.in_right(AB.B.top)
+  assert get_block(A_top) == get_block(B_top)
   rel = theory.compare(AB, A_top, B_top)
   log("# Top comparison: %s %s %s" %
       (blurb(A_top), rcc5_symbol(rel.relationship), blurb(B_top)))

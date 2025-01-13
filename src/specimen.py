@@ -7,7 +7,7 @@ import parse
 from util import log, UnionFindable
 
 from checklist import get_source, blurb, blorb, get_parts, monitor, \
-  is_accepted, get_redundant
+  is_accepted, get_redundant, get_canonical
 from workspace import get_workspace, get_children, \
   get_outject, isinA
   
@@ -67,27 +67,50 @@ def _pick_type_taxon(v1, v2):
   if v1 is v2: return v1
   x1 = get_outject(v1)
   x2 = get_outject(v2)
-  #assert not get_redundant(x1, None)
-  #assert not get_redundant(x2, None)
+  assert not x1 is x2
+
+  # Prefer the protonym, if any
+  p1 = get_parts(x1).protonymp
+  p2 = get_parts(x2).protonymp
+  if p1 and not p2: return v1
+  if p2 and not p1: return v2
+
+  # Prefer the accepted record, if any
   a1 = is_accepted(x1)
   a2 = is_accepted(x2)
   if a1 and not a2: return v1
   if a2 and not a1: return v2
-  if not a1:
-    return v1                   # Arbitrary
-  assert not x1 is x2
+
+  # Prefer the most tipward taxon
   m = simple.mrca(x1, x2)
-  # Choose the most tipward taxon
   if m == x1: return v2
   if m == x2: return v1
   # v1 and v2 are disjoint??  How can this happen?  Arbitrary I guess
+
   # Prefer the one that has children
   c1 = len(get_children(x1, ()))
   c2 = len(get_children(x2, ()))
-  if c1 == 0 and c2 > 0: return c2
-  if c2 == 0 and c1 > 0: return c1
-  log("# Which is better as a type? %s %s" % (blorb(v1), blorb(v2)))
-  assert False
+  if c1 < c2: return v2
+  if c2 < c1: return v1
+
+  # Prefer the older one
+  y1 = get_parts(x1).year
+  y2 = get_parts(x2).year
+  if y1 < y2: return v1
+  if y2 < y1: return v2
+
+  # Prefer the longer one
+  n1 = len(get_canonical(x1))
+  n2 = len(get_canonical(x2))
+  if n1 < n2: return v2
+  if n2 < n1: return v1
+
+  log("# Which would be better as a protonym? %s %s" % (blorb(v1), blorb(v2)))
+
+  # Prefer earlier in alphabet
+  if get_canonical(x1) < get_canonical(x1): return v2
+
+  # Who can say
   return v1
 
 # Access to specimen records [sid, u, v]
@@ -122,7 +145,8 @@ def sid_to_epithet(AB, sid):
 (maybe_get_typification, set_typification_uf) = \
   prop.get_set(prop.declare_property("typification_uf"))
 
-# Only workspace nodes have uf records
+# The type specimen for a given record.
+# Only workspace nodes have uf nodes.
 
 def get_typification(u):
   probe = maybe_get_typification(u, None)
@@ -179,12 +203,14 @@ def is_exemplar(uf):
     return u and v
   return False
 
+# Cf. analyze_blocks
+
 def get_exemplar(z):            # Returns a uf node
   uf = maybe_get_typification(z, None)
   if is_exemplar(uf): return uf
   return None
   
-def get_exemplar_record(z):
+def get_exemplar_info(z):
   uf = get_exemplar(z)
   if is_exemplar(uf): return uf.payload()
   return None

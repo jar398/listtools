@@ -6,13 +6,14 @@ import theory, exemplar, estimate
 import jumble
 
 from workspace import ingest_workspace, is_accepted_locally, local_sup, \
-  local_accepted, isinA, isinB
+  local_accepted, isinA, isinB, is_species
 from checklist import *
 from rcc5 import *
-from specimen import sid_to_epithet
+from specimen import same_typifications, sid_to_epithet
 from estimate import get_block, is_empty_block, get_estimate, get_equivalent
 from property import mep, mep_get, mep_set
 from typify import explain
+from ranks import ranks_dict
 
 counts = {}
 def count(tag):
@@ -22,110 +23,101 @@ def count(tag):
 # Preorder traversal of AB.A
 
 def generate_plugin_report(AB):
-  yield generate_row(AB, True, True, True, True) # header
+  yield generate_row(AB, True, True) # header
   i = [0]
   frequency = 5000
 
   jumble.jumble_workspace(AB)
   for z in preorder_records(AB):
     count("records")
+    i[0] += 1
+    if i[0] % frequency == 0:
+      log("# %s %s" % (i[0], blurb(z)))
+
+    # A -
+    # - B
+    # A A
+    # A B
+    
     if isinA(AB, z):
-      # should we suppress congruent A records too?
-      i[0] += 1
-      if i[0] % frequency == 0:
-        log("# %s %s" % (i[0], blurb(z)))
-      yield from process_record(AB, z)
-    elif get_equivalent(AB, z):
-      # suppress B records that are congruent with A records
-      yield from ()
-    else:
-      # 'new' records
-      yield generate_row(AB, None, z, False,
-                         theory.get_central(AB, z))
+      e_rel = get_equivalent(AB, z)
+      if e_rel:                       # in B
+        e = e_rel.record
+        if is_species(z) or is_species(e):
+          u = z; v = e
+        else: continue          # Skip
+      elif is_species(z):
+        u = z
+        v = choose_partner(AB, u)
+    elif is_species(z):         # in B
+      v = z
+      u = choose_partner(AB, v)
+
+    yield generate_row(AB, u, v)
 
   for (op, op_count) in counts.items():
     log(" %6d %s" % (op_count, op))
 
-# Generator
+# For each species, we pick one articulation.  The articulation is
+# between the species and a "partner".
 
-def process_record(AB, u):
-  if theory.is_species(u):
-    count("species")
-    inters = theory.get_intersecting_species(u)
-
-    bud = theory.get_buddy(AB, u)
-    if bud:
-      v = theory.get_species(bud)
-    else:
-      v = hom = None  
-
-    est = get_estimate(u, None)
-    if len(inters) > 0:
-      if v:
-        assert isinB(AB, v), blurb(v)
-        hom = "hom"
-      else:
-        v = min(inters, key=lambda v2:hamming(u, v2))
-        hom = "hom?"        # op = "type?"
-      yield generate_row(AB, u, v, hom, est)
-      for v2 in sorted(inters, key=plugin_sort_key):
-        if not v2 is v:
-          yield generate_row(AB, u, v2, False, est) # op = "side"
-    else:                   # No bud, no v
-      yield generate_row(AB, u, None, False, est)
-
-def plugin_sort_key(x):
-  if is_accepted(x):
-    return (1, blurb(x))
+def choose_partner(AB, u):
+  assert is_species(u)
+  # ... no congruent record, pick the 'best' one from intersectors ...
+  inters = theory.get_intersecting_species(u)
+  if len(inters) == 0:
+    return None                 # No intersecting species
   else:
-    return (0, blurb(x))
+    u_ids = get_block(u)
+    def intensity(v):
+      v_ids = get_block(v)
+      same = 0 if same_typifications(u, v) else 1
+      meet = len(u_ids & v_ids)
+      # Ad hoc rule:
+      # Prefer: 1. same type, 2. maximum overlap, 3. minimum nonoverlap
+      return (same, -meet, len(u_ids | v_ids) - meet)
+    return min(inters, key=intensity)
+
 
 # Return either the header row or a data row; the code for both is
 # together to make sure they stay in sync.
-# Seems hom is always None... hmm
 
-def generate_row(AB, u, v, hom, est):
+def generate_row(AB, u, v):
+  # A - rcc5 - B columns
   if u == True:
     u_fields = ("A concept taxonID", "A concept name")
-  else:
-    u_fields = description_for_report(u)
-
-  if v == True:
+    rcc5_field = "RCC5"         # header
     v_fields = ("B concept taxonID", "B concept name")
   else:
+    u_fields = description_for_report(u)
     v_fields = description_for_report(v)
+    if u and v:
+      v_rel = theory.compare(AB, u, v)
+      rcc5_field = rcc5_symbol(v_rel.relationship)
+      if rcc5_field.startswith('='):
+        # Kludge to appease spreadsheet programs
+        rcc5_field = "'" + rcc5_field
+    else:
+      rcc5_field = MISSING
+      v_rel = None
 
-  rcc5_field = MISSING
-  v_rel = None
-  if v == True:
-    rcc5_field = "RCC5"
-  elif u and v:
-    v_rel = theory.compare(AB, u, v)
-    rcc5_field = rcc5_symbol(v_rel.relationship)
-    if rcc5_field.startswith('='):
-      # Kludge to appease spreadsheet programs
-      rcc5_field = "'" + rcc5_field
-
-  sidep = False
+  # change column
   if u == True:
-    op_field = "operation"      # header
+    op_field = "change"      # header
   else:
-    ops = impute_operation(AB, u, v_rel, hom)
+    # `homotypic` is true iff u and v are homotypic.
+    homotypic = u and v and same_typifications(u, v)
+
+    ops = impute_concept_change(AB, u, v_rel, homotypic)
+    ops += impute_name_change(AB, u, v_rel, homotypic)
     op_field = "; ".join(ops)
-    sidep = "side" in ops
-    for op in ["side"] if sidep else ops:
+    for op in ops:
       if op in counts:
         counts[op] += 1
       else:
         counts[op] = 1
 
-  if est == True:
-    est_fields = ("containing B concept id", "containing B concept name")
-  elif est.relationship != EQ and not sidep:
-    est_fields = description_for_report(est.record)
-  else:
-    est_fields = description_for_report(None)
-
+  # Venn diagram columns
   if u == True:
     u_and_v = "in both A and B concepts"
     u_not_v = "in A concept but not in B concept"
@@ -145,7 +137,6 @@ def generate_row(AB, u, v, hom, est):
           u_fields[0], u_fields[1],
           rcc5_field,
           v_fields[0], v_fields[1],
-          est_fields[0], est_fields[1],
           u_and_v,
           u_not_v,
           v_not_u,
@@ -160,6 +151,44 @@ def show_sid_set(AB, block):
                 key=lambda xep: xep[1])
   return "; ".join(map(lambda xep:"%s %s" % xep, xeps))
 
+def impute_concept_change(AB, u, v_rel, homotypic):
+  if not u:
+    op = "new"
+  elif not v_rel:
+    op = "gone"
+  else:
+    ship = v_rel.relationship
+    if ship == EQ:
+      # This can happen if e.g. the type is ambiguous or otherwise unmatched
+      op = "no change" if homotypic else "heterotypic"
+    elif ship == LT:
+      op = "source" if homotypic else "split"
+    elif ship == GT:
+      op = "sink" if homotypic else "lump"
+    elif ship == OVERLAP:
+      op = "change" if homotypic else "reorganize"
+    else:                       # DISJOINT  ?
+      assert not homotypic
+      op = "should not happen"
+  return [op]
+
+def impute_name_change(AB, u, v_rel, homotypic):
+  ops = []
+  if homotypic:
+    v = v_rel.record
+    p1 = get_parts(get_outject(u))
+    p2 = get_parts(get_outject(v))
+    if p1.genus != p2.genus:
+      ops.append("moved")
+    if p1.epithet != p2.epithet:
+      ops.append("epithet")
+    if p1.token != p2.token:
+      ops.append("author")
+    if p1.year != p2.year:
+      ops.append("year")
+  return ops
+
+
 # Could be:
 #   Change of rank (promotion/demotion).
 #   Change of acceptedness (accepted/synonymized).
@@ -168,15 +197,8 @@ def show_sid_set(AB, block):
 #   Change of concept (lumped / split / changed).
 #   Possible change of concept (perhaps lumped / perhaps split)
 
-def impute_operation(AB, u, v_rel, hom):
+def impute_operation_1(AB, u, v_rel, hom):
   ops = []
-
-  if hom == "hom?":
-    hom2 = "type?"
-  elif hom:                     # "hom"
-    hom2 = None
-  else:
-    hom2 = "concept change"
 
   v = v_rel.record if v_rel else None
 
@@ -206,9 +228,6 @@ def impute_operation(AB, u, v_rel, hom):
   elif v_rel == None:
     ops.append("removed name")
   else:
-    if hom2:
-      ops.append(hom2)          # ?? what to put here ??
-
     if v_rel.relationship == LT:
       ops.append("removed (lump)")
     elif v_rel.relationship == GT:
@@ -238,44 +257,7 @@ def impute_operation(AB, u, v_rel, hom):
         else:
           ops.append("accepted")
 
-    if hom:
-      p1 = get_parts(get_outject(u))
-      p2 = get_parts(get_outject(v))
-      if p1.genus != p2.genus:
-        ops.append("moved")
-      if p1.epithet != p2.epithet:
-        ops.append("epithet")
-      if p1.token != p2.token:
-        ops.append("author")
-      if p1.year != p2.year:
-        ops.append("year")
-
   return ops
-
-# Find taxa in B with A-only parent
-#   temporary: previous version - species only
-
-def find_adoptees(AB):
-  ad = mep()
-  for y in all_records(AB.B):   # not incl top
-    v = AB.in_right(y)
-    if theory.is_species(v):  # implies is_accepted_locally(v)
-      if is_empty_block(get_block(v)):
-        est = get_estimate(v)
-        u = est.record
-        ads = mep_get(ad, u, None)
-        if ads == None:
-          ads = []
-          mep_set(ad, u, ads)
-        ads.append(v)
-  return ad
-
-def is_infraspecific(u):
-  x = get_outject(u)
-  r = get_rank(x, None)
-  # Kludge.  Will miss some.  Can improve this.
-  return r == 'subspecies' or r == 'infraspecific name'    # COL
-
 
 def description_for_report(u):
   if u:

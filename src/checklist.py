@@ -102,7 +102,6 @@ class Relation(NamedTuple):
 def relation(ship, record, note=MISSING, span=None):
   assert isinstance(ship, int), ship
   assert note != None
-  #assert ((ship == NOINFO and not record) or \ ...)
   assert record == False or isinstance(record, prop.Record), blurb(record)
   if span == None:
     if ship == EQ: span = 0
@@ -750,6 +749,8 @@ def monitor(x):
 # Load/dump a set of provisional matches (could be either record match
 # or taxonomic matches... but basically, record matches).  The matches are stored 
 # as Relations under the 'match' property of nodes in AB.
+
+# Obsolete
 
 (get_match_info, set_match_info) = prop.get_set(prop.declare_property("match_info", inherit=False))
 

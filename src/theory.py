@@ -11,10 +11,13 @@ from rcc5 import rcc5_symbol
 import specimen
 import exemplar
 import estimate
+import ranks
 from specimen import same_specimens, get_exemplar, same_typifications
 from estimate import find_estimates, get_estimate, get_equivalent
 from estimate import is_empty_block, get_block, BOTTOM_BLOCK
-from estimate import block_relationship, same_block, opposite_exemplar_records
+from estimate import block_relationship, same_block, exemplar_opposite_records
+from estimate import get_mono
+from estimate import get_central, compare_in_block
 
 # Assumes that name matches are already stored in AB.
 
@@ -84,7 +87,7 @@ def compare_centrally(AB, u, v):
     return optimize_relation(AB, u,
                              relation(ship, v, note="exemplar set comparison"))
 
-# u and v are inequivalent, but they are in the same nonempty block
+# u and v are in different checklists, but in the same nonempty block
 # (in parallel chains)
 
 def compare_within_block(AB, u, v):
@@ -92,6 +95,10 @@ def compare_within_block(AB, u, v):
   assert not is_empty_block(get_block(u))
   assert same_block(get_block(u), get_block(v))
   # Look for a record match for u or v, and punt to simple case
+
+  rel_0 = compare_in_block(AB, u, v)
+  if rel_0 and rel_0.relationship != NOINFO:
+    return rel_0
 
   # Set up a u/m/v/n diagram and see how well it commutes.
 
@@ -101,6 +108,7 @@ def compare_within_block(AB, u, v):
 
   # Path 1: u = m ? v
   rel_um = get_estimate(u, None)      # u <= m   in same checklist
+  assert rel_um
   m = rel_um.record
   assert separated(u, m)
   rel_mv = compare_locally(AB, m, v)
@@ -109,6 +117,7 @@ def compare_within_block(AB, u, v):
 
   # Path 2: u ? n = v   (starting with v)
   rel_vn = get_estimate(v, None)     # n = v
+  assert rel_vn
   n = rel_vn.record
   assert separated(v, n)
   rel_nu = compare_locally(AB, n, u)
@@ -120,7 +129,10 @@ def compare_within_block(AB, u, v):
   ship = parallel_relationship(ship1, rev_ship2)
   rel = relation(ship, v, "within block")
   if ship == NOINFO:   # probably means sibling synonyms ?
-    log("# No info: %s %s,%s %s" % (blurb(u), rcc5_symbol(ship1), rcc5_symbol(rev_ship2), blurb(v)))
+    # Use rank to distinguish?
+    log("# No info: %s {%s,%s} %s, block size %s" %
+        (blurb(u), rcc5_symbol(ship1), rcc5_symbol(rev_ship2), blurb(v),
+         get_block(u)))
   elif ship == INCONSISTENT:
     log("# Baffled: %s is inconsistent with %s" %
         (rcc5_symbol(ship1), rcc5_symbol(rev_ship2)))
@@ -145,14 +157,18 @@ def compose_final(u, rel1, rel2, rel3):
 
 def compare_locally(AB, u, v):
   rel = simple.compare_per_checklist(get_outject(u), get_outject(v)) # in A or B
-  if rel.relationship & DISJOINT and same_typifications(u, v):
-    # rel.relationship is NOINFO or DISJOINT
-    # They're not disjoint because type is in both
-    return relation(INTERSECT, v, "homotypic synonyms")
-  return relation(rel.relationship,
-                  v,
-                  note=rel.note,
-                  span=rel.span)  # in A or B
+  # Returns NOINFO for sibling + any synonym.
+  if rel.relationship == NOINFO:
+    if same_typifications(get_typification(u), get_typification(v)):
+      return relation(EQ, v, "homotypic synonym")   # treat as aliases.
+      # (perhaps INTERSECT instead ??)
+    else:
+      return relation(NEQ, v, "heterotypic synonym")  # treat as distinct.
+  else:
+    return relation(rel.relationship,
+                    v,
+                    note=rel.note,
+                    span=rel.span)  # in A or B
 
 
 # Similar to compose but assumes... assumptions
@@ -187,31 +203,11 @@ def cross_le(AB, u, v):
 
 # sort of like: exemplar  ???
 
-# Find a 'central' (non-peripheral) ancestor node (contains at least
-# one exemplar) in SAME checklist, and u's relation to it
-
-def get_central(AB, u):
-  u_central = u
-  while is_empty_block(get_block(u_central)):
-    u_central = local_sup(AB, u_central).record
-  # "optimize"
-  if u_central == u:
-    return relation(EQ, u_central)
-  else:
-    sup = local_sup(AB, u)
-    if sup and sup.record == u_central:
-      return sup
-    else:
-      return relation(LT, u_central, note="get_central")
-
-def is_central(u):
-  return not is_empty_block(u)
-
 # Attempt to set span to 1 (parent/child) if possible.
 
 def optimize_relation(AB, u, rel):
-  assert separated(u, rel.record)
   v = rel.record
+  assert separated(u, v)
   sup = find_cross_sup_rel(AB, u, v)
   if sup:
     # Make a copy of within-checklist relationship, retaining note
@@ -257,7 +253,7 @@ def get_intersecting_species(u):
   inters = []
   ids = set()
   AB = get_workspace(u)
-  for v in opposite_exemplar_records(AB, u):
+  for v in exemplar_opposite_records(AB, u):
     s = get_species(v)
     if s and not s.id in ids:
       ids = ids | {s.id}
@@ -273,11 +269,6 @@ def get_species(u):
     if rel: s = rel.record
     else: return None
   return s
-
-def is_species(u):              # z local
-  if u == False: return False
-  x = get_outject(u)
-  return get_rank(x, None) == 'species' and is_accepted(x)
 
 # A c = A b c, but A b b != A b  ... ?
 

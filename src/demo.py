@@ -10,7 +10,7 @@ from checklist import *
 from workspace import *
 from eulerx import generate_eulerx
 from estimate import get_equivalent, get_estimate
-from align import is_species, is_acceptable_locally
+from align import is_acceptable_locally
 
 # Returns a row generator
 

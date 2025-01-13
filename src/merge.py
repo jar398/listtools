@@ -31,7 +31,7 @@ def analyze(A, B, m_iter=None):
   AB = make_workspace(A, B, {'tag': "AB"})
   if not m_iter:
     m_iter = match_records(checklist_to_rows(AB.A), checklist_to_rows(AB.B))
-  theory.load_matches(m_iter, AB)
+  load_matches(m_iter, AB)      # checklist.
   theory.theorize(AB)
   spanning_tree(AB)
   return AB

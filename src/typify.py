@@ -46,7 +46,7 @@ def find_homotypics_in_checklist(AB):
     # Match siblings
     for c in get_inferiors(x):
       process(c)
-      classified = relate_records(c, x)
+      classified = relate_records(AB.in_left(c), AB.in_left(x))
       if classified >= MOTION:
         consider(c)
 
@@ -93,7 +93,7 @@ def find_endohomotypics_original(AB):
     def process_inferior(x, p):          # p = parent of x
       process(x)
       # uhh I don't think this is right
-      classified = relate_records(x, p) # Type subspecies?
+      classified = relate_records(AB.in_left(x), AB.in_left(p)) # Type subspecies?
       return classified >= MOTION
     process(AB.A.top)
   process_checklist(AB)
@@ -126,7 +126,7 @@ def find_typifications(AB, subprobs, get_estimate, last):
       if monitor(u): log("# Subproblem row: '%s' '%s'" % (key, blorb(u)))
       for j in range(0, len(vs)):
         v = vs[j]
-        classified = ws_relate_records(u, v) # shows!
+        classified = relate_records(u, v) # shows!
         # relate_records checks proximity
         observe_match(u, v, u_matches, classified)
         observe_match(v, u, v_matches, classified)
@@ -149,7 +149,7 @@ def find_typifications(AB, subprobs, get_estimate, last):
             (blorb(get_typifies(u_spec)),))
       elif len(v_specs) > 1:
         # Problem here
-        v0 = get_typifies(v_specs[0])
+        v0 = get_typifies(v_specs[0]) # record that has given specimen
         v1 = get_typifies(v_specs[1])
         if is_accepted(v0) and is_accepted(v1):
           if compare_per_checklist(get_outject(v0), get_outject(v1)) \
@@ -255,23 +255,17 @@ def observe_match(u, v, u_matches, classified):
 
 # Compare potentially homotypic taxa in same workspace.
 
-def ws_relate_records(u, v):
-  return relate_records(get_outject(u), get_outject(v))
-
-# In same checklist or in different checklists ... ?
-
-def relate_records(x, y):
-  classified = classify_comparison(get_parts(x),
-                                   get_parts(y))
+def relate_records(u, v):
+  classified = compare_parts(u, v)
 
   if classified == MOTION:
-    if not near_enough(x, y):
-    # Proximity within the hierarchy is essential if no genus match
+    if not near_enough(u, v):
+    # Prouimity within the hierarchy is essential if no genus match
       return REVIEW
 
-  if monitor(x) or monitor(y):
+  if monitor(u) or monitor(v):
     log("# Compare %s, %s = %s" %
-        (blurb(x), blurb(y), explain_classified(classified)))
+        (blurb(u), blurb(v), explain_classified(classified)))
   return classified
 
 EPITHET_MASK = 32
@@ -284,10 +278,40 @@ MIDDLE_MASK = 1
 NEAR_THRESHOLD = 30
 FAR_THRESHOLD = 60
 
+# Compare potentially homotypic names by examining their syntactic parts.
+# Compare Macropus robustus, Amblysomus robustus = heterotypic NOT
+# Could be in same or different checklists?  Fix this.
+
+def compare_parts(u, v):
+  (misses, hits) = parts_comparison_detail(get_parts(u), get_parts(v))
+  return classify_comparison_details(misses, hits)
+
+# Given a comparison of parts, classify it as appropriate
+
+def classify_comparison_details(misses, hits):
+  # Epithets must match (perhaps '')
+  if ((hits & EPITHET_MASK) == 0):
+    return HETEROTYPIC          # Not a hit
+
+  # If year and token BOTH differ then no match, yes?
+  m = misses & (YEAR_MASK | TOKEN_MASK)
+  if m == (YEAR_MASK | TOKEN_MASK):
+    return HETEROTYPIC          # Both misses
+
+  # If EITHER year or token differs then requires review
+  if m != 0:
+    return REVIEW
+
+  # Genus is only difference -> motion
+  if (misses & GENUS_MASK) != 0:
+    return MOTION
+
+  return HOMOTYPIC
+
 # Compare potentially homotypic names.  Returns (m1, m2) where m1 and
 # m2 are integer masks, m1 for differences and m2 for similarities.
 
-def compare_parts(p, q):
+def parts_comparison_detail(p, q):
   hits = misses = 0
 
   if p.epithet != None and q.epithet != None:
@@ -318,30 +342,6 @@ def compare_parts(p, q):
     else: misses |= MIDDLE_MASK
 
   return (misses, hits)
-
-# Compare Macropus robustus, Amblysomus robustus = heterotypic NOT
-
-def classify_comparison(xparts, yparts):
-  (misses, hits) = compare_parts(xparts, yparts)
-
-  # Epithets must match (perhaps '')
-  if ((hits & EPITHET_MASK) == 0):
-    return HETEROTYPIC          # Not a hit
-
-  # If year and token BOTH differ then no match, yes?
-  m = misses & (YEAR_MASK | TOKEN_MASK)
-  if m == (YEAR_MASK | TOKEN_MASK):
-    return HETEROTYPIC          # Both misses
-
-  # If EITHER year or token differs then requires review
-  if m != 0:
-    return REVIEW
-
-  # Genus is only difference -> motion
-  if (misses & GENUS_MASK) != 0:
-    return MOTION
-
-  return HOMOTYPIC
 
 def explain(comparison):
   def explode(things):

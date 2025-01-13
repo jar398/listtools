@@ -23,12 +23,13 @@ def def_rcc5_symbol(n, name, exname=None):
 
 LT = def_rcc5_symbol(1 << 0, '<')
 GT = def_rcc5_symbol(1 << 1, '>')
-EQ = def_rcc5_symbol(1 << 2, '=')
+EQ = def_rcc5_symbol(1 << 2, '=') # congruent
 DISJOINT = def_rcc5_symbol(1 << 3, '!')
 OVERLAP = def_rcc5_symbol(1 << 4, '><')
 rcc5_relationships['*'] = OVERLAP # for concise composition table
 
 # Disjunctions
+NEQ = def_rcc5_symbol(LT|GT|OVERLAP|DISJOINT, '!=')     # ≠, not congruent
 LE = def_rcc5_symbol(LT|EQ, '<=')       # ≤, synonym
 GE = def_rcc5_symbol(GT|EQ, '>=')       # ≥, accepted
 COMPARABLE = def_rcc5_symbol(LT|GT, '<>')

@@ -182,6 +182,12 @@ def normalize_articulation(art):
   else:
     return reverse_articulation(art)
 
+
+def is_species(u):              # z local
+  if u == False: return False
+  x = get_outject(u)
+  return get_rank(x, None) == 'species' and is_accepted(x)
+
 # -----------------------------------------------------------------------------
 
 # Output with additional columns needed by report.py
