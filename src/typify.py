@@ -15,8 +15,8 @@ from workspace import isinA, isinB, local_accepted, \
   swap
 from simple import simple_le, compare_per_checklist
 from specimen import sid_to_epithet, same_specimens, \
-  equate_typifications, equate_specimens, \
-  get_typification, get_specimen_id, \
+  equate_type_ufs, equate_specimens, \
+  get_type_uf, get_specimen_id, \
   sid_to_specimen, get_typifies, same_specimens
 from proximity import near_enough
 
@@ -39,7 +39,7 @@ def find_homotypics_in_checklist(AB):
       c_ep = get_parts(c).epithet
       if c_ep:
         if c_ep in epithets:
-          equate_typifications(AB.in_left(c), epithets[c_ep])
+          equate_type_ufs(AB.in_left(c), epithets[c_ep])
         else:
           epithets[c_ep] = AB.in_left(c)
 
@@ -77,7 +77,7 @@ def find_endohomotypics_original(AB):
       n = len(candidates)
       if n == 1:
         # maybe return a score, and sort ???
-        equate_typifications(AB.in_left(candidates[0]), u)
+        equate_type_ufs(AB.in_left(candidates[0]), u)
       elif n > 1:
         # no candidate, or ambiguity
         log("# Putatively homotypic children of %s: %s, %s" %
@@ -86,10 +86,10 @@ def find_endohomotypics_original(AB):
         # N.b. synonyms do not have descendants
         if process_inferior(c, x):
           # c is a homotypic synonym of x
-          equate_typifications(AB.in_left(c), u)
+          equate_type_ufs(AB.in_left(c), u)
         elif 'homotypic' in get_nomenclatural_status(c, ''):
           # synonym inferior of accepted
-          equate_typifications(AB.in_left(c), u)
+          equate_type_ufs(AB.in_left(c), u)
     def process_inferior(x, p):          # p = parent of x
       process(x)
       # uhh I don't think this is right
@@ -102,8 +102,8 @@ def find_endohomotypics_original(AB):
 # This can be configured to run once or run twice.  'last' means we're
 # on the last pass so if there was a first pass, proximity is available.
 
-def find_typifications(AB, subprobs, get_estimate, last):
-  # This sets the 'typification_uf' property of ... some ... records.
+def find_type_ufs(AB, subprobs, get_estimate, last):
+  # This sets the 'type_uf' property of ... some ... records.
 
   n = 1
   for (key, (us, vs)) in subprobs.items():  # For each subproblem
@@ -209,7 +209,7 @@ def find_typifications(AB, subprobs, get_estimate, last):
       # End u_sid loop.
       # end subproblem loop
 
-  equate_typifications(AB.in_left(AB.A.top),
+  equate_type_ufs(AB.in_left(AB.A.top),
                        AB.in_right(AB.B.top))
 
 # u_matches : u_sid -> (v_clas, v_specs)
@@ -219,8 +219,8 @@ def find_typifications(AB, subprobs, get_estimate, last):
 # 'Classified' might be a failure e.g. HETEROTYPIC
 
 def observe_match(u, v, u_matches, classified):
-  u_spec = get_typification(u)
-  v_spec = get_typification(v)
+  u_spec = get_type_uf(u)
+  v_spec = get_type_uf(v)
 
   u_sid = get_specimen_id(u_spec)
   v_sid = get_specimen_id(v_spec)
@@ -378,7 +378,7 @@ def explain_classified(classified):
 # Convenience.  Phase this out?  Or rename it?
 
 def get_link(u, default=-19):
-  uf = maybe_get_typification(u, None)
+  uf = maybe_get_type_uf(u, None)
   if uf:
     (_, u2, v) = uf.payload()
     return v if (v and separated(u, v)) else u2

@@ -37,7 +37,7 @@ def compare_per_checklist(x, y):             # Within a single checklist
     ysup = get_superior(y)
     if (xsup and ysup and xsup.record is ysup.record
         and (not is_accepted(x) or not is_accepted(y))):
-      # if same_typifications(get_typification(x), get_typification(y)):
+      # if same_type_ufs(get_type_uf(x), get_type_uf(y)):
       #   then INTERSECT else NEQ
       # if typify.compare_parts(get_parts(x), get_parts(y)) > REPORT:
       #   then INTERSECT else NEQ

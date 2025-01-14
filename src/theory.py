@@ -12,7 +12,7 @@ import specimen
 import exemplar
 import estimate
 import ranks
-from specimen import same_specimens, get_exemplar, same_typifications
+from specimen import same_specimens, get_exemplar, same_type_ufs
 from estimate import find_estimates, get_estimate, get_equivalent
 from estimate import is_empty_block, get_block, BOTTOM_BLOCK
 from estimate import block_relationship, same_block, exemplar_opposite_records
@@ -159,7 +159,7 @@ def compare_locally(AB, u, v):
   rel = simple.compare_per_checklist(get_outject(u), get_outject(v)) # in A or B
   # Returns NOINFO for sibling + any synonym.
   if rel.relationship == NOINFO:
-    if same_typifications(get_typification(u), get_typification(v)):
+    if same_type_ufs(get_type_uf(u), get_type_uf(v)):
       return relation(EQ, v, "homotypic synonym")   # treat as aliases.
       # (perhaps INTERSECT instead ??)
     else:

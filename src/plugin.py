@@ -9,7 +9,7 @@ from workspace import ingest_workspace, is_accepted_locally, local_sup, \
   local_accepted, isinA, isinB, is_species
 from checklist import *
 from rcc5 import *
-from specimen import same_typifications, sid_to_epithet
+from specimen import same_type_ufs, sid_to_epithet
 from estimate import get_block, is_empty_block, get_estimate, get_equivalent
 from property import mep, mep_get, mep_set
 from typify import explain
@@ -23,7 +23,7 @@ def count(tag):
 # Preorder traversal of AB.A
 
 def generate_plugin_report(AB):
-  yield generate_row(AB, True, True) # header
+  yield generate_row(AB, True, True, True) # header
   i = [0]
   frequency = 5000
 
@@ -35,6 +35,7 @@ def generate_plugin_report(AB):
     i[0] += 1
     if i[0] % frequency == 0:
       log("# %s %s" % (i[0], blurb(z)))
+    ops = []
 
     # A -
     # - B
@@ -47,20 +48,24 @@ def generate_plugin_report(AB):
         spa += 1
         u = z; v = w
       else:
-        if get_equivalent(AB, z): # in A
+        e_rel = get_equivalent(AB, z)
+        if e_rel: # in A
           # if has a non-species A equivalent, use it.
           # otherwise suppress as redundant
-          if is_species(w):
+          if is_species(e_rel.record):
             spb_spe += 1
             continue    # already handled because species in A
           else:
             spb_nspe += 1
             u = w; v = z
+            # Probably a promotion to species
+            ops.append("B with A")
         else:  # species in B with no equivalent
           spb_ne += 1
           u = w; v = z
+          ops.append("B not A")
 
-      yield generate_row(AB, u, v)
+      yield generate_row(AB, u, v, ops)
 
   log("# %s A species, %s B sp with A equiv, %s B sp with non-sp equiv, %s B sp with no equiv" %
       (spa, spb_spe, spb_nspe, spb_ne))
@@ -75,7 +80,8 @@ def choose_partner(AB, u):
   assert is_species(u)
   e_rel = get_equivalent(AB, u)
   if e_rel:
-    return e_rel.record
+    sp = theory.get_species(e_rel.record)
+    return sp or e_rel.record
 
   # ... no congruent record, pick the 'best' one from intersectors ...
   inters = theory.get_intersecting_species(u)
@@ -85,7 +91,7 @@ def choose_partner(AB, u):
     u_ids = get_block(u)
     def intensity(v):
       v_ids = get_block(v)
-      same = 0 if same_typifications(u, v) else 1
+      same = 0 if same_type_ufs(u, v) else 1
       meet = len(u_ids & v_ids)
       # Ad hoc rule:
       # Prefer: 1. same type, 2. maximum overlap, 3. minimum nonoverlap
@@ -96,15 +102,15 @@ def choose_partner(AB, u):
 # Return either the header row or a data row; the code for both is
 # together to make sure they stay in sync.
 
-def generate_row(AB, u, v):
+def generate_row(AB, u, v, ops):
   # A - rcc5 - B columns
   if u == True:
     u_fields = ("A concept taxonID", "A concept name")
     rcc5_field = "RCC5"         # header
     v_fields = ("B concept taxonID", "B concept name")
   else:
-    u_fields = description_for_report(u)
-    v_fields = description_for_report(v)
+    u_fields = description_for_report(AB, u)
+    v_fields = description_for_report(AB, v)
     if u and v:
       v_rel = theory.compare(AB, u, v)
       rcc5_field = rcc5_symbol(v_rel.relationship)
@@ -120,9 +126,9 @@ def generate_row(AB, u, v):
     op_field = "change"      # header
   else:
     # `homotypic` is true iff u and v are homotypic.
-    homotypic = u and v and same_typifications(u, v)
+    homotypic = u and v and same_type_ufs(u, v)
 
-    ops = impute_concept_change(AB, u, v_rel, homotypic)
+    ops += impute_concept_change(AB, u, v_rel, homotypic)
     ops += impute_name_change(AB, u, v_rel, homotypic)
     op_field = "; ".join(ops)
     for op in ops:
@@ -174,11 +180,11 @@ def impute_concept_change(AB, u, v_rel, homotypic):
     ship = v_rel.relationship
     if ship == EQ:
       # This can happen if e.g. the type is ambiguous or otherwise unmatched
-      op = "no change" if homotypic else "heterotypic"
+      op = "congruent" if homotypic else "congruent but heterotypic"
     elif ship == LT:
-      op = "source" if homotypic else "split"
+      op = "expand" if homotypic else "split"
     elif ship == GT:
-      op = "sink" if homotypic else "lump"
+      op = "contract" if homotypic else "lump"
     elif ship == OVERLAP:
       op = "change" if homotypic else "reorganize"
     else:                       # DISJOINT  ?
@@ -200,6 +206,7 @@ def impute_name_change(AB, u, v_rel, homotypic):
       ops.append("author")
     if p1.year != p2.year:
       ops.append("year")
+  # maybe: promotion, demotion, rank change
   return ops
 
 
@@ -237,48 +244,14 @@ def impute_operation_1(AB, u, v_rel, hom):
   if v and get_redundant(get_outject(v), None):
     ops.append("redundant in B")
 
-  if u == None:
-    ops.append("added name")
-  elif v_rel == None:
-    ops.append("removed name")
-  else:
-    if v_rel.relationship == LT:
-      ops.append("removed (lump)")
-    elif v_rel.relationship == GT:
-      ops.append("added (split)")
-    elif v_rel.relationship == OVERLAP:
-      ops.append("overlaps")
-    elif v_rel.relationship == DISJOINT:
-      ops.append("unrelated")      # shouldn't happen
-    elif EQ & v_rel.relationship != 0: # EQ LE GE NOINFO INTERSECT
-      ops.append("congruent")
-    else:
-      assert False
-
-    # Not used in species-only reports
-    if hom:
-      if get_rank(u, None) != get_rank(v, None):
-        if get_rank(u, None) == "subspecies":
-          ops.append("promoted")
-        elif get_rank(v, None) == "subspecies":
-          ops.append("demoted")
-        else:
-          ops.append("change of rank")
-      if (is_accepted_locally(AB, u) !=
-          is_accepted_locally(AB, v)):
-        if (is_accepted_locally(AB, u)):
-          ops.append("synonymized")
-        else:
-          ops.append("accepted")
-
   return ops
 
-def description_for_report(u):
+def description_for_report(AB, u):
   if u:
     x = get_outject(u)
     return (get_primary_key(x),
             "%s%s" % (get_canonical(u, None) or get_scientific(u, None),
-                      "" if get_accepted(x) else "*"))
+                      "" if is_accepted_locally(AB, u) else "*"))
   else:
     return (MISSING, MISSING)
 

@@ -10,11 +10,11 @@ from workspace import *
 
 from checklist import blorb, blurb
 from specimen import get_exemplar, get_exemplar_id, sid_to_epithet
-from specimen import equate_specimens, equate_typifications, \
-  get_typification, maybe_get_typification
+from specimen import equate_specimens, equate_type_ufs, \
+  get_type_uf, maybe_get_type_uf
 
 from estimate import find_estimates, get_estimate
-from typify import find_typifications
+from typify import find_type_ufs
 from typify import find_endohomotypics
 
 # listtools's exemplar-finding procedure.  If there is some other way
@@ -26,8 +26,8 @@ from typify import find_endohomotypics
 def find_exemplars(get_estimate, AB):
   find_endohomotypics(AB)
   subproblems = find_subproblems(AB)
-  log("* Finding typifications (single pass):")
-  find_typifications(AB, subproblems, None, True)
+  log("* Finding type_ufs (single pass):")
+  find_type_ufs(AB, subproblems, None, True)
 
   # maybe compute better estimates - see theory.py
   report_on_exemplars(AB)
@@ -126,14 +126,14 @@ def report_on_exemplars(AB):
   # but we could just look at AB.specimen_ufs, instead?
   for x in preorder_records(AB.A):
     u = AB.in_left(x)
-    uf = maybe_get_typification(u, None)
+    uf = maybe_get_type_uf(u, None)
     if uf:
       ufcount += 1
       b = get_exemplar(u)        # forces sid assignment, return (sid,u,v) ?
       if b:
         count += 1
         get_exemplar_id(uf)        # forces sid assignment  ??
-  log("# Nodes with typification: %s, nodes with exemplars: %s, specimen id UFs: %s" %
+  log("# Nodes with type specimens: %s, nodes with exemplars: %s, specimen id UFs: %s" %
       (ufcount, count, len(AB.specimen_ufs)))
 
 # Write exemplars to a file
@@ -168,7 +168,7 @@ def generate_exemplars(AB):
 # Read list of exemplars from file (given as a Rows)
 
 def read_exemplars(in_rows, AB):
-  equate_typifications(AB.in_left(AB.A.top), AB.in_right(AB.B.top))
+  equate_type_ufs(AB.in_left(AB.A.top), AB.in_right(AB.B.top))
   the_rows = in_rows.rows()     # caller will close in_rows
   header = next(the_rows)
   sid_col = windex(header, "exemplar id")
@@ -188,7 +188,7 @@ def read_exemplars(in_rows, AB):
       log("## read_exemplars: Record not found?! %s" % taxonid)
     else:
       u = AB.in_left(x) if which=='A' else AB.in_right(x)
-      uf = get_typification(u)
+      uf = get_type_uf(u)
 
       # row is (sid, which, taxonid)
       sid = int(row[sid_col])

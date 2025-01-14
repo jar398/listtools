@@ -139,35 +139,35 @@ def sid_to_epithet(AB, sid):
 
 # -----------------------------------------------------------------------------
 
-# typification_uf = specimen that is the type of a given taxon. ???
+# type_uf = specimen that is the type of a given taxon. ???
 # We might just call these "types".
 
-(maybe_get_typification, set_typification_uf) = \
-  prop.get_set(prop.declare_property("typification_uf"))
+(maybe_get_type_uf, set_type_uf) = \
+  prop.get_set(prop.declare_property("type_uf"))
 
 # The type specimen for a given record.
 # Only workspace nodes have uf nodes.
 
-def get_typification(u):
-  probe = maybe_get_typification(u, None)
+def get_type_uf(u):
+  probe = maybe_get_type_uf(u, None)
   if probe: return probe
   AB = get_workspace(u)
   r = [None, u, None] if isinA(AB, u) else [None, None, u]
   uf = UnionFindable(r)
-  set_typification_uf(u, uf)
+  set_type_uf(u, uf)
   return uf
 
-# Are u and v known to have the same typification (type specimen)?
+# Are u and v known to have the same type_uf?
 
-def same_typifications(u, v):
-  uf = maybe_get_typification(u, None)
-  vf = maybe_get_typification(v, None)
+def same_type_ufs(u, v):
+  uf = maybe_get_type_uf(u, None)
+  vf = maybe_get_type_uf(v, None)
   return uf and vf and same_specimens(uf, vf)
 
 # u and v are in workspace but may or may not be from same checklist
 
-def equate_typifications(u, v):     # opposite checklists. u might be species
-  equate_specimens(get_typification(u), get_typification(v))
+def equate_type_ufs(u, v):     # opposite checklists. u might be species
+  equate_specimens(get_type_uf(u), get_type_uf(v))
   if monitor(u) or monitor(v):
     log("# Unifying specimen(%s) = specimen(%s)" % (blorb(u), blorb(v)))
   return u
@@ -176,10 +176,10 @@ def equate_typifications(u, v):     # opposite checklists. u might be species
 # u and v are assumed to be in the same checklist.
 # This implements transitivity of equality, I think?
 
-def equatable_typifications(u, v):
-  uf = maybe_get_typification(u, None)
+def equatable_type_ufs(u, v):
+  uf = maybe_get_type_uf(u, None)
   if uf:
-    vf = maybe_get_typification(v, None)
+    vf = maybe_get_type_uf(v, None)
     if vf:
       return uf.payload() is vf.payload()
   return True
@@ -191,10 +191,10 @@ def get_typifies(spec_uf):
   return v or u
 
 # -----------------------------------------------------------------------------
-# An exemplar is a specimen that's the typification of two or more taxa in distinct
+# An exemplar is a specimen that's the type_uf of two or more taxa in distinct
 # checklists.
 
-# Returns typification record (sid, u, v) or None.
+# Returns type_uf record (sid, u, v) or None.
 # z is in AB.
 
 def is_exemplar(uf):
@@ -206,7 +206,7 @@ def is_exemplar(uf):
 # Cf. analyze_blocks
 
 def get_exemplar(z):            # Returns a uf node
-  uf = maybe_get_typification(z, None)
+  uf = maybe_get_type_uf(z, None)
   if is_exemplar(uf): return uf
   return None
   
