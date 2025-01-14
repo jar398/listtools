@@ -69,27 +69,35 @@ def jumbled_superior(AB, u):
   assert local_accepted(AB, sup.record)
   assert local_accepted(AB, cos.record)
 
-  # What if the result is a synonym?
+  # Suppress nodes in B that have an equivalent in A
+  if is_redundant(AB, u):
+    # sup and cos are = cosuperior and local_sup of the equivalent A node, so 
+    # A node's superior will be set correctly
+    return None
 
   rel = theory.compare(AB, sup.record, cos.record)
   # might be NOINFO
-  if rel.relationship == LT or rel.relationship == LE:
-    answer = sup
-  elif rel.relationship == GT or rel.relationship == GE:
-    answer = cos
+  if rel.relationship == GT or rel.relationship == GE:
+    prefer = cos
+  elif rel.relationship == LT or rel.relationship == LE:
+    prefer = sup
   elif rel.relationship == EQ:
-    if isinA(AB, u):
-      answer = sup                # sup is in A, cos is in B
-    else:   # Do not add same concept twice
-      answer = None               # cos is in A, sup is in B
+    prefer = sup                # sup is in A, cos is in B
   elif rel.relationship == OVERLAP:
-    answer = sup
-  else:  # rel.relationship == anything else: NOINFO, OVERLAP, etc.
+    prefer = sup
+  else:  # rel.relationship == anything else: NOINFO, etc.
     log("# jumble at %s:\n  %s %s %s" %
         (blurb(u), blurb(sup), rcc5_symbol(rel.relationship), blurb(cos)))
-    answer = sup
-  if answer: assert local_accepted(AB, answer.record)
-  return answer
+    prefer = sup
+  assert local_accepted(AB, prefer.record)
+  return prefer
+
+# Records to suppress
+
+def is_redundant(AB, u):
+  e_rel = get_equivalent(AB, u)
+  return (isinB(AB, u) and e_rel and
+          get_rank(e_rel.record, None) == get_rank(u, None))
 
 # Let's say u is in checklist 1.  Cosuperior should be in checklist 2.
 # Answer is None for record in checklist 2 whose sup is 

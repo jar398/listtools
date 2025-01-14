@@ -42,33 +42,19 @@ def generate_plugin_report(AB):
     # A A
     # A B
     
+    assert not jumble.is_redundant(AB, z)
+
     if is_species(z):
       w = choose_partner(AB, z) # may be None
       if isinA(AB, z):
-        spa += 1
         u = z; v = w
+        spa += 1
       else:
-        e_rel = get_equivalent(AB, z)
-        if e_rel: # in A
-          # if has a non-species A equivalent, use it.
-          # otherwise suppress as redundant
-          if is_species(e_rel.record):
-            spb_spe += 1
-            continue    # already handled because species in A
-          else:
-            spb_nspe += 1
-            u = w; v = z
-            # Probably a promotion to species
-            ops.append("B with A")
-        else:  # species in B with no equivalent
-          spb_ne += 1
-          u = w; v = z
-          ops.append("B not A")
+        u = w; v = z
+        spb_ne += 1
+        ops.append("no A equivalent")
 
       yield generate_row(AB, u, v, ops)
-
-  log("# %s A species, %s B sp with A equiv, %s B sp with non-sp equiv, %s B sp with no equiv" %
-      (spa, spb_spe, spb_nspe, spb_ne))
 
   for (op, op_count) in counts.items():
     log("  %6d %s" % (op_count, op))
@@ -182,9 +168,9 @@ def impute_concept_change(AB, u, v_rel, homotypic):
       # This can happen if e.g. the type is ambiguous or otherwise unmatched
       op = "congruent" if homotypic else "congruent but heterotypic"
     elif ship == LT:
-      op = "expand" if homotypic else "split"
+      op = "expand" if homotypic else "lump"
     elif ship == GT:
-      op = "contract" if homotypic else "lump"
+      op = "contract" if homotypic else "split"
     elif ship == OVERLAP:
       op = "change" if homotypic else "reorganize"
     else:                       # DISJOINT  ?
