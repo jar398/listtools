@@ -140,7 +140,8 @@ def get_equivalent(AB, u):
   assert u
   assert get_workspace(u)
   est = get_estimate(u, None)   # In opposite checklist
-  if est and est.relationship == EQ:
+  if (est and est.relationship == EQ and
+      (is_accepted_locally(AB, u) == is_accepted_locally(AB, est.record))):
     return est
   else: return None
 

@@ -260,7 +260,7 @@ def get_intersecting_species(u):
       inters.append(s)
   return inters
 
-def get_species(u):
+def get_species(u):             # u is in workspace
   AB = get_workspace(u)
   s = local_accepted(AB, u)
   while not is_species(s):

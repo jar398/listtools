@@ -52,7 +52,7 @@ def generate_plugin_report(AB):
       else:
         u = w; v = z
         spb_ne += 1
-        ops.append("no A equivalent")
+        ops.append("no corresponding species")
 
       yield generate_row(AB, u, v, ops)
 
