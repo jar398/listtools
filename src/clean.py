@@ -352,35 +352,3 @@ if __name__ == '__main__':
     params = csv_parameters(args.input)
     with open(args.input, "r") as inport:
       start_csv(inport, params, sys.stdout, args)
-
-"""
-      # Assign ids (primary keys) to any nodes that don't have them
-      pk = None
-      if pk_pos != None and row[pk_pos] != MISSING:
-        pk = row[pk_pos]
-      if pk == None and taxon_pk_pos != None and row[taxon_pk_pos] != MISSING:
-        pk = row[taxon_pk_pos]
-      if pk == None:
-        pk = count
-      if pk in seen_pks:
-        spin = 1
-        while True:
-          dodge = "%s..%s" % (pk, spin)
-          if not dodge in seen_pks:
-            pk = dodge
-            break
-
-      if pk_pos == None:
-        row = row + [pk]
-      else:
-        row[out_pk_pos] = pk
-
-    # Every table needs to have a column of unique primary keys
-    pk_pos = windex(header, pk_col)
-    if pk_pos != None:
-      out_pk_pos = pk_pos
-    else:
-      out_header = header + [pk_col]    # Add primary key
-      out_pk_pos = len(header)
-
-"""
