@@ -253,15 +253,22 @@ def clean_name(row, can_pos, sci_pos, auth_pos):
   # (who needs this??)
 
   # Synthesize scientific from canonical + authorship.
-  if s == MISSING and c != MISSING and a != MISSING:
-    log("# Synthesizing scientific %s + %s" % (c, a))
-    s = "%s %s" % (c, a)
+  if s == MISSING or c == MISSING or s == c:
+    name = (s or c)
+    if a != MISSING and not authorish_re.match(name):
+      s = "%s %s" % (name, a)
+      c = name
+      # log("# Synthesizing complete name %s" % s)  - common in CoL
+    elif a == MISSING:
+      log("# No authorship info for %s" % name)
+    else:
+      log("# Name already has authorship %s" % name)
 
   # Extract canonical as prefix of scientific
   elif c == MISSING and s != MISSING and a != MISSING:
     if s.endswith(a):
       c = s[0:-len(a)].strip()
-      # Happenss copiously with GBIF extracts
+      # Happens copiously with GBIF extracts
       #log("# Extracting canonical '%s' from '%s'" % (c, s))
 
   # Extract authorship as suffix of scientific
@@ -292,6 +299,21 @@ def clean_name(row, can_pos, sci_pos, auth_pos):
     mod = True
   return mod
 
+authorish_re = regex.compile(' ([12][0-9]{3})\\)?$')
+
+# I used to attempt to distinguish scientific names (those with
+# authority) from others, but it's a lost cause (look at NCBI).
+# Now just leave it all up to gnparser.
+#
+# This may be too liberal... insist on there being a year?
+# NCBI: Flavobacterium sp. SC12154
+#has_auth_re = regex.compile(u' .*\\p{Uppercase_Letter}.*\\p{Lowercase_Letter}')
+#has_auth_re = regex.compile(u' (\\(?)\\p{Uppercase_Letter}[\\p{Letter}-]+')
+#
+#def has_authorship(name):
+#  return has_auth_re.search(name)
+
+
 genus_re = u'\\p{Uppercase_Letter}[\\p{Lowercase_Letter}-]+'
 epithet_re = u'[\\p{Lowercase_Letter}-]+'
 
@@ -311,19 +333,6 @@ def remove_subgenus(s):
     return cleaned
   else:
     return s
-
-
-# I used to attempt to distinguish scientific names (those with
-# authority) from others, but it's a losing cause (look at NCBI).
-# Now just leave it all up to gnparser.
-#
-# This may be too liberal... insist on there being a year?
-# NCBI: Flavobacterium sp. SC12154
-#has_auth_re = regex.compile(u' .*\\p{Uppercase_Letter}.*\\p{Lowercase_Letter}')
-#has_auth_re = regex.compile(u' (\\(?)\\p{Uppercase_Letter}[\\p{Letter}-]+')
-#
-#def is_scientific(name):
-#  return has_auth_re.search(name)
 
 
 if __name__ == '__main__':

@@ -22,7 +22,8 @@ from proximity import near_enough
 
 HOMOTYPIC     = 10
 MOTION        = 6
-REVIEW        = 5
+WEAK          = 5
+REVIEW        = 1
 HETEROTYPIC   = 0
 
 # Problem perhaps: This creates specimen objects even when they aren't matched.
@@ -144,9 +145,12 @@ def find_type_ufs(AB, subprobs, get_estimate, last):
       if v_clas < REVIEW:       # HETEROTYPIC
         pass
       elif v_clas < MOTION:
+        # Worse than a motion; some other mismatch.
         # Put this in the report somehow ??
-        log("# Review 1 %s" %         # or, make a note of it for review
-            (blorb(get_typifies(u_spec)),))
+        u0 = get_typifies(u_spec)
+        v0 = get_typifies(v_specs[0])
+        log("# %s: %s -> %s" %  # or, make a note of it for review
+            (explain_classified(v_clas), blorb(u0), blorb(v0)))
       elif len(v_specs) > 1:
         # Problem here
         v0 = get_typifies(v_specs[0]) # record that has given specimen
@@ -175,6 +179,7 @@ def find_type_ufs(AB, subprobs, get_estimate, last):
           if u_clas < REVIEW:
             pass
           elif u_clas < MOTION:    # REVIEW
+            # This doesn't occur ??
             log("# Review 2 %s -> %s" %         # or, make a note of it for review
                 (blorb(get_typifies(u_spec)),
                  blorb(get_typifies(v_spec)),))
@@ -289,7 +294,7 @@ def compare_parts(u, v):
 # Given a comparison of parts, classify it as appropriate
 
 def classify_comparison_details(misses, hits):
-  # Epithets must match (perhaps '')
+  # Epithets must match (perhaps '' ?)
   if ((hits & EPITHET_MASK) == 0):
     return HETEROTYPIC          # Not a hit
 
@@ -298,15 +303,20 @@ def classify_comparison_details(misses, hits):
   if m == (YEAR_MASK | TOKEN_MASK):
     return HETEROTYPIC          # Both misses
 
-  # If EITHER year or token differs then requires review
+  # If EITHER year or token differs, then this requires review
   if m != 0:
     return REVIEW
 
-  # Genus is only difference -> motion
-  if (misses & GENUS_MASK) != 0:
-    return MOTION
+  if hits & (YEAR_MASK | TOKEN_MASK) != 0:
+    # Genus is only difference -> motion
+    if (misses & GENUS_MASK) != 0:
+      return MOTION
+    if (hits & GENUS_MASK) != 0:
+      return HOMOTYPIC
 
-  return HOMOTYPIC
+  else:
+    # Includes case where authorship is missing on one side...
+    return REVIEW
 
 # Compare potentially homotypic names.  Returns (m1, m2) where m1 and
 # m2 are integer masks, m1 for differences and m2 for similarities.

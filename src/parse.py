@@ -37,11 +37,11 @@ def parse_name(verbatim,
   verbatim = verbatim.replace('  ', ' ')     # two -> one
   if canonical == MISSING:
     canonical = None
-  else:
+  elif canonical:
     canonical = canonical.strip()
   if authorship == MISSING:
-    authorship = None
-  else:
+    authorship = gn_auth       # ?
+  elif authorship:
     authorship = authorship.strip()
     if authorship.endswith('.'):
       authorship = authorship[0:-1] # for MDD
@@ -60,7 +60,7 @@ def parse_name(verbatim,
 
   # canonical0 and/or auth0 could be None
   assert auth0 == None or not auth0.startswith(',')
-  if gn_auth == MISSING:
+  if gn_auth == MISSING or gn_auth == None:
     gn_auth = None
     auth_n = 0
   else:
@@ -189,7 +189,8 @@ def recover_canonical(gn_full, gn_stem, hack_canonical):
     assert e or g, "bad"
   return (c, g, mid, e)
 
-# Split complete into genus, middle, epithet
+# Split authorship into token, year 
+#  and note whether protonymp (not parenthesized)
 
 def analyze_authorship(auth):
   if not auth: return (None, None, None) # moved? don't know
@@ -206,6 +207,15 @@ def analyze_authorship(auth):
     protonymp = False
   else:
     protonymp = None
+
+  # Change W. E. Smith to just Smith.
+  # Should also take care of von, etc.
+  initial_match = initial_re.search(auth)
+  if initial_match:
+    auth2 = auth[len(initial_match[0]):]
+    if False and auth2 != auth:
+      log("# Trim %s -> %s" % (auth, auth2))
+    auth = auth2
 
   t_match = token_re.search(auth)
   tok = t_match[0] if t_match else None
@@ -225,6 +235,7 @@ LP = "\\("
 RP = "\\)"
 split_re = \
   regex.compile(u"(.+?) (((%s)?)\\p{Uppercase_Letter}[\\p{Letter}.'-]+.*)$" % LP)
+initial_re = regex.compile(u"(\\p{Uppercase_Letter}[.] )*")
 token_re = regex.compile(u"\\p{Uppercase_Letter}[\\p{Letter}-]{3,}")
 # Loses with Van Beneden & Gervais, 1868-79
 year_re_string = '\\b([12][0-9]{3})\\b'

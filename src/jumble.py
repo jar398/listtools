@@ -6,8 +6,8 @@ from checklist import link_superior
 
 import theory
 from estimate import get_estimate, get_equivalent
-
 from estimate import get_block  # for debugging
+from ranks import ranks_dict
 
 # Set superior and inferior links
 
@@ -85,10 +85,24 @@ def jumbled_superior(AB, u):
     prefer = sup                # sup is in A, cos is in B
   elif rel.relationship == OVERLAP:
     prefer = sup
-  else:  # rel.relationship == anything else: NOINFO, etc.
-    log("# jumble at %s:\n  %s %s %s" %
+  elif sup.relationship == LE:  # synonym
+    prefer = sup
+  elif cos.relationship == LE:  # synonym
+    prefer = cos
+  elif True:
+    log("# Superiors of %s are:\n  %s %s %s" %
         (blurb(u), blurb(sup), rcc5_symbol(rel.relationship), blurb(cos)))
     prefer = sup
+  else:
+      # rel.relationship == anything else: NOINFO, DISJOINT, etc.
+      r1 = ranks_dict.get(get_rank(sup.record))
+      r2 = ranks_dict.get(get_rank(cos.record))
+      if r1 < r2:   prefer = sup
+      elif r2 < r1: prefer = cos
+      else:
+        log("# Superiors of %s are:\n  %s %s %s" %
+            (blurb(u), blurb(sup), rcc5_symbol(rel.relationship), blurb(cos)))
+        prefer = sup
   assert local_accepted(AB, prefer.record)
   return prefer
 

@@ -10,6 +10,7 @@ from simple import BOTTOM, compare_per_checklist
 from typify import get_link
 from specimen import get_exemplar_info, get_exemplar, get_exemplar_id
 from specimen import sid_to_record, sid_to_opposite_record
+from rcc5 import rcc5_symbol
 
 # -----------------------------------------------------------------------------
 
@@ -67,24 +68,32 @@ def find_estimate(AB, u):
 
   while True:
     b = get_block(v)
+    assert a <= b
     if a < b:
-      rel2 = relation(LT, v, "estimate by block")
+      rel2 = relation(LT, v, "smaller block")
       break
 
     elif a == b:
       rel2 = compare_in_block(AB, u_central, v)
       ship = rel2.relationship
       if ship == EQ or ship == LT or ship == LE:
+        rel2 = relation(ship, v, "compare in block")
         break
+      else:
+        # Go to v's parent to avoid a NOINFO situation
+        sup = local_sup(AB, v)         # B.Tupaia montana
+        if not sup:                    # v is top
+          log("# %s has no estimate" % blurb(u))
+          return None
+        if False:
+          log("# Bumping estimate rootward %s %s %s < %s" %
+              (blurb(u), rcc5_symbol(ship), blurb(v), blurb(sup.record)))
+        v = sup.record
+        # iterate
 
     else:   # a > b or a >< b or a ! b
-      sup = local_sup(AB, v)         # B.Tupaia montana
-      if not sup:                    # v is top
-        log("# %s hasn't an estimate" % blurb(u))
-        return None
-      v = sup.record
-      ship = LT
-      # iterate
+      assert False
+      # Cannot happen because v is u's cross_mrca
 
   assert separated(u, rel2.record)
   rel = compose_relations(rel1, rel2) # u -> u_central -> v
@@ -92,20 +101,23 @@ def find_estimate(AB, u):
 
   return rel
 
-# u and v are in opposite checklists
+# u and v are in opposite checklists but same block
 
 def compare_in_block(AB, u, v):
-  if unique_in_block(u) and unique_in_block(v):
+  assert get_block(u) == get_block(v)
+  uu = unique_in_block(AB, u)
+  vv = unique_in_block(AB, v)
+  if uu and vv:
+    #log("# both unique in block: %s, %s" % (blurb(u), blurb(v)))
     return relation(EQ, v, "unique in both blocks")
 
-  # This method is stupid and unreliable.  Name comparison and/or a
-  # search would be better.
+  # This rank method is stupid and unreliable.  Name comparison and/or
+  # a search would be better.
 
-  a = get_block(u)
   u_rank_n = ranks.ranks_dict.get(get_rank(u, 0))
-
   v_rank_n = ranks.ranks_dict.get(get_rank(v, 0))
-  if u_rank_n and v_rank_n:
+
+  if u_rank_n > 0 and v_rank_n > 0:
     if u_rank_n < v_rank_n:
       answer = relation(LT, v, "estimate by rank<")
     elif u_rank_n == v_rank_n:
@@ -113,19 +125,24 @@ def compare_in_block(AB, u, v):
     else:
       answer = relation(GT, v, "estimate by rank>")
   else:
-    answer = relation(NOINFO, v, "missing rank information")
+    answer = relation(OVERLAP, v, "missing rank information")
+  if False:
+    log("# Using ranks to decide %s %s %s" %
+        (blurb(u), rcc5_symbol(answer.relationship), blurb(v)))
   return answer
 
+# True iff u is the only node in u's block.
 # More complicated: compare names
 
-def unique_in_block(u):
+def unique_in_block(AB, u):
   b = get_block(u)
   sup = get_superior(u, None)
   if sup and get_block(sup.record) == b:
     # parent is also in block b
     return False
-  for c in get_inferiors(u):
-    if get_block(c) == b:
+  for c in get_inferiors(get_outject(u)):
+    w = AB.in_left(c) if isinA(AB, u) else AB.in_right(c)
+    if get_block(w) == b:
       return False
   return True
 

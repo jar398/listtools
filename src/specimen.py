@@ -7,9 +7,10 @@ import parse
 from util import log, UnionFindable
 
 from checklist import get_source, blurb, blorb, get_parts, monitor, \
-  is_accepted, get_redundant, get_canonical
+  is_accepted, get_redundant, get_canonical, get_rank
 from workspace import get_workspace, get_children, \
   get_outject, isinA
+from ranks import ranks_dict
   
 
 # Specimens per se
@@ -87,6 +88,18 @@ def _pick_type_taxon(v1, v2):
   if m == x2: return v1
   # v1 and v2 are disjoint??  How can this happen?  Arbitrary I guess
 
+  # Prefer A b b to A b c and A c to A b c
+  t1 = typelike(x1)
+  t2 = typelike(x2)
+  if t1 < t2: return v2
+  if t2 < t1: return v1
+
+  # Prefer lower rank (e.g. subspecies over species)
+  k1 = ranks_dict.get(get_rank(x1, None))
+  k2 = ranks_dict.get(get_rank(x2, None))
+  if k1 < k2: return v2
+  if k2 < k1: return v1
+
   # Prefer the one that has children
   c1 = len(get_children(x1, ()))
   c2 = len(get_children(x2, ()))
@@ -94,24 +107,34 @@ def _pick_type_taxon(v1, v2):
   if c2 < c1: return v1
 
   # Prefer the older one
+  swapp = False
   y1 = get_parts(x1).year
   y2 = get_parts(x2).year
-  if y1 < y2: return v1
-  if y2 < y1: return v2
+  if y2 < y1: swapp = True
+  elif y2 == y1:
 
-  # Prefer the longer one
-  n1 = len(get_canonical(x1))
-  n2 = len(get_canonical(x2))
-  if n1 < n2: return v2
-  if n2 < n1: return v1
+    # Prefer earlier in alphabet
+    n1 = get_canonical(x1)
+    n2 = get_canonical(x2)
+    if n2 < n1: swapp = True
 
-  log("# Which would be better as a protonym? %s %s" % (blorb(v1), blorb(v2)))
+  if y2 == y1 and n2 == n1:
+    log("# Ambiguous for protonym: %s %s" % (blorb(v1), blorb(v2)))
+  else:
+    log("# Choosing protonym: %s (over %s)" % (blorb(v1), blorb(v2)))
 
-  # Prefer earlier in alphabet
-  if get_canonical(x1) < get_canonical(x1): return v2
+  return v2 if swapp else v1
 
-  # Who can say
-  return v1
+# 0 is "good"
+# A c c < A c < A b c
+
+def typelike(x):
+  parts = get_canonical(x).split(' ')
+  if len(parts) > 2 and parts[-1] == parts[-2]:
+    return 0                    # A c c, best
+  if len(parts) < 2:
+    return 1                    # A c, better
+  return 10                     # bad
 
 # Access to specimen records [sid, u, v]
 
