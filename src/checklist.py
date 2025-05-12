@@ -353,7 +353,7 @@ def link_superior(w, sup):      # w is inferior Record, sup is Relation
   link_inferior(w, sup)
 
 def link_inferior(w, sup):
-  if is_accepted(w):
+  if is_accepted(w):                    # based no taxonomicStatus
     ch = get_children(sup.record, None) # list of records
     if ch != None:
       ch.append(w)

@@ -121,7 +121,7 @@ def _pick_type_taxon(v1, v2):
   if y2 == y1 and n2 == n1:
     log("# Ambiguous for protonym: %s %s" % (blorb(v1), blorb(v2)))
   else:
-    log("# Choosing protonym: %s (over %s)" % (blorb(v1), blorb(v2)))
+    log("# Protonym arbitrary choice: %s (over %s)" % (blorb(v1), blorb(v2)))
 
   return v2 if swapp else v1
 

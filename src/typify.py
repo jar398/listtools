@@ -21,9 +21,11 @@ from specimen import sid_to_epithet, same_specimens, \
 from proximity import near_enough
 
 HOMOTYPIC     = 10
-MOTION        = 6
-WEAK          = 5
-REVIEW        = 1
+MOTION        = 8
+CORRECTION    = 7
+
+AUTHORLESS    = 5   # no token or year
+REVIEW        = 2   # includes CORRECTION + MOTION
 HETEROTYPIC   = 0
 
 # Problem perhaps: This creates specimen objects even when they aren't matched.
@@ -103,6 +105,8 @@ def find_endohomotypics_original(AB):
 # This can be configured to run once or run twice.  'last' means we're
 # on the last pass so if there was a first pass, proximity is available.
 
+# Unify the types of A with the types of B.
+
 def find_type_ufs(AB, subprobs, get_estimate, last):
   # This sets the 'type_uf' property of ... some ... records.
 
@@ -142,15 +146,15 @@ def find_type_ufs(AB, subprobs, get_estimate, last):
     for (u_sid, (v_clas, v_specs)) in u_matches.items():
       u_spec = sid_to_specimen(AB, u_sid)
       # if monitor(get_typifies(u_spec)): ...
-      if v_clas < REVIEW:       # HETEROTYPIC
-        pass
-      elif v_clas < MOTION:
-        # Worse than a motion; some other mismatch.
+      if v_clas == MOTION:
+        # Maybe log AUTHORLESS and/or REVIEW
         # Put this in the report somehow ??
         u0 = get_typifies(u_spec)
         v0 = get_typifies(v_specs[0])
         log("# %s: %s -> %s" %  # or, make a note of it for review
             (explain_classified(v_clas), blorb(u0), blorb(v0)))
+      if v_clas < MOTION:
+        pass
       elif len(v_specs) > 1:
         # Problem here
         v0 = get_typifies(v_specs[0]) # record that has given specimen
@@ -159,7 +163,7 @@ def find_type_ufs(AB, subprobs, get_estimate, last):
           if compare_per_checklist(get_outject(v0), get_outject(v1)) \
              .relationship & DISJOINT != 0:
             # Another kind of REVIEW
-            log("# B ambiguity %s %s -> %s %s, %s %s" %
+            log("# B ambiguity: %s %s -> %s %s, %s %s" %
                 (explain_classified(v_clas),
                  blorb(get_typifies(u_spec)),
                  get_primary_key(v0),
@@ -176,23 +180,24 @@ def find_type_ufs(AB, subprobs, get_estimate, last):
         results = v_matches.get(v_sid)
         if results:
           (u_clas, u_specs) = results
-          if u_clas < REVIEW:
-            pass
-          elif u_clas < MOTION:    # REVIEW
-            # This doesn't occur ??
+          if u_clas == MOTION:
+            # also maybe AUTHORLESS, REVIEW ?
             log("# Review 2 %s -> %s" %         # or, make a note of it for review
                 (blorb(get_typifies(u_spec)),
                  blorb(get_typifies(v_spec)),))
+          if u_clas < MOTION:    # e.g. REVIEW
+            pass
           elif len(u_specs) > 1:
+            # Select type A b b from u_specs if possible...
             u0 = get_typifies(u_specs[0])
             u1 = get_typifies(u_specs[1])
             if compare_per_checklist(get_outject(u0), get_outject(u1)) \
                .relationship & DISJOINT != 0:
-              log("# A ambiguity %s %s -> %s, %s" %
+              log("# A ambiguity %s: %s, %s -> %s" %
                   (explain_classified(u_clas),
-                   blorb(get_typifies(v_spec)),
                    blorb(u0),
-                   blorb(u1)))
+                   blorb(u1),
+                   blorb(get_typifies(v_spec))))
             else:
               # Can be simultaneously compatible with both.
               # (TBD: deal with 3-way or more ambiguity.)
@@ -298,25 +303,27 @@ def classify_comparison_details(misses, hits):
   if ((hits & EPITHET_MASK) == 0):
     return HETEROTYPIC          # Not a hit
 
-  # If year and token BOTH differ then no match, yes?
-  m = misses & (YEAR_MASK | TOKEN_MASK)
-  if m == (YEAR_MASK | TOKEN_MASK):
-    return HETEROTYPIC          # Both misses
+  mask = YEAR_MASK | TOKEN_MASK
+  if misses & mask == mask:
+    return HETEROTYPIC
 
-  # If EITHER year or token differs, then this requires review
-  if m != 0:
-    return REVIEW
-
-  if hits & (YEAR_MASK | TOKEN_MASK) != 0:
-    # Genus is only difference -> motion
-    if (misses & GENUS_MASK) != 0:
-      return MOTION
-    if (hits & GENUS_MASK) != 0:
+  elif hits & mask == mask:
+    if hits & GENUS_MASK != 0:
       return HOMOTYPIC
+    else:
+      return MOTION
 
-  else:
-    # Includes case where authorship is missing on one side...
-    return REVIEW
+  elif hits & mask != 0:
+    # Single-field error?
+    if hits & GENUS_MASK != 0:
+      return CORRECTION
+    else:
+      return REVIEW  # !!????
+
+  elif misses & mask != 0:
+    return AUTHORLESS
+
+  return REVIEW
 
 # Compare potentially homotypic names.  Returns (m1, m2) where m1 and
 # m2 are integer masks, m1 for differences and m2 for similarities.
@@ -375,8 +382,12 @@ def explain(comparison):
 def explain_classified(classified):
   if classified == HOMOTYPIC:
     word = "homotypic"
+  elif classified == ERROR:
+    word = "error"
   elif classified == MOTION:
     word = "motion"           # kinetypic?
+  elif classified == AUTHORLESS:
+    word = "authorless"
   elif classified == REVIEW:
     word = "review"
   elif classified == HETEROTYPIC:

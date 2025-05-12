@@ -9,119 +9,115 @@ from estimate import get_estimate, get_equivalent
 from estimate import get_block  # for debugging
 from ranks import ranks_dict
 
+# link_superior(inf, sup)
+#   inf is a Record, sup is a Relation
+#   sup becomes the superior of inf
+#   inf becomes a child or synonym of sup, depending 
+#     on inf's taxonomicStatus
+
+
 # Set superior and inferior links
 
 def jumble_workspace(AB):
   log("# Jumbling")
-  set_workspace_top(AB)
+  A_sups = B_sups = 0
   for x in preorder_records(AB.A): # includes AB.A.top
     z = AB.in_left(x)
     f = jumbled_superior(AB, z)
     if f:                       # should be accepted
       link_superior(z, f)
-      if is_top(f.record) or is_top(z):
-        log("# Linking near top: %s %s" %
-            (blurb(z), blurb(f)))
+      A_sups += 1
+
   for y in preorder_records(AB.B):
     z = AB.in_right(y)
     f = jumbled_superior(AB, z)
     if f:
       link_superior(z, f)
-  log("# workspace top is %s" % blurb(AB.top))
-  infs = list(get_inferiors(AB.top))
-  log("# inferiors of top are %s" % list(map(blurb, infs)))
-  assert len(infs) > 0
+      B_sups += 1
+  log("# %s A superiors, %s B superiors" % (A_sups, B_sups))
+  A_top = AB.in_left(AB.A.top)
+  B_top = AB.in_right(AB.B.top)
+  assert get_block(A_top) == get_block(B_top)
+  A_roots = tuple(get_inferiors(A_top))
+  B_roots = tuple(get_inferiors(B_top))
+  assert A_roots or B_roots
+  if A_roots and B_roots:
+    log("# Residual roots from both A and B NYI: %s %s" %
+        (map(blurb, A_roots), map(blurb, B_roots)))
+    assert False
+
+  if A_roots:                   # they're in AB, from either A or B
+    log("# AB top is A top; roots = %s" %
+        (tuple(map(blurb, A_roots)),))
+    AB.top = A_top
+  else:
+    log("# AB top is B top; roots = %s" %
+        (tuple(map(blurb, B_roots)),))
+    AB.top = B_top
 
 def set_workspace_top(AB):
   AB.top = get_workspace_top(AB)
 
-def get_workspace_top(AB):
-  A_top = AB.in_left(AB.A.top)
-  B_top = AB.in_right(AB.B.top)
-  assert get_block(A_top) == get_block(B_top)
-  rel = theory.compare(AB, A_top, B_top)
-  log("# Top comparison: %s %s %s" %
-      (blurb(A_top), rcc5_symbol(rel.relationship), blurb(B_top)))
-
-  if rel.relationship == EQ or rel.relationship == GT or rel.relationship == GE:
-    answer = A_top
-    if get_equivalent(AB, B_top):
-      if rel.relationship == EQ: assert A_top == get_equivalent(AB, B_top).record
-      # could be DISJOINT or OVERLAP
-    else:
-      log("# losing B top: %s %s %s" %
-          (blurb(A_top), rcc5_symbol(rel.relationship), blurb(B_top)))
-  else:  # rel.relationship == LT or rel.relationship == LE:
-    answer = B_top
-    if not get_equivalent(AB, A_top):
-      log("# losing A top: %s %s %s" %
-          (blurb(A_top), rcc5_symbol(rel.relationship), blurb(B_top)))
-  return answer
-
 # I recommend drawing a picture
+# u could be in A or B in AB
 
 def jumbled_superior(AB, u):
-  sup = local_sup(AB, u)      # Relation
-  cos = cosuperior(AB, u)
-  if not sup: return cos        # u is AB.top
-  if not cos: return sup
-  assert separated(sup.record, cos.record)
-  assert local_accepted(AB, sup.record)
-  assert local_accepted(AB, cos.record)
-
-  # Suppress nodes in B that have an equivalent in A
+  # Suppress redundant nodes
   if is_redundant(AB, u):
-    # sup and cos are = cosuperior and local_sup of the equivalent A node, so 
-    # A node's superior will be set correctly
     return None
 
-  rel = theory.compare(AB, sup.record, cos.record)
-  # might be NOINFO
-  if rel.relationship == GT or rel.relationship == GE:
-    prefer = cos
-  elif rel.relationship == LT or rel.relationship == LE:
-    prefer = sup
-  elif rel.relationship == EQ:
-    prefer = sup                # sup is in A, cos is in B
-  elif rel.relationship == OVERLAP:
-    prefer = sup
-  elif sup.relationship == LE:  # synonym
-    prefer = sup
-  elif cos.relationship == LE:  # synonym
-    prefer = cos
-  elif True:
-    log("# Superiors of %s are:\n  %s %s %s" %
-        (blurb(u), blurb(sup), rcc5_symbol(rel.relationship), blurb(cos)))
-    prefer = sup
+  sup = local_sup(AB, u)      # Relation
+  cos = cosuperior(AB, u)
+  if not sup and not cos: return None
+  elif not sup: prefer = cos        # u is A or B top in AB
+  elif not cos: prefer = sup
   else:
-      # rel.relationship == anything else: NOINFO, DISJOINT, etc.
-      r1 = ranks_dict.get(get_rank(sup.record))
-      r2 = ranks_dict.get(get_rank(cos.record))
-      if r1 < r2:   prefer = sup
-      elif r2 < r1: prefer = cos
-      else:
+    assert separated(sup.record, cos.record)
+    assert local_accepted(AB, sup.record)
+    assert local_accepted(AB, cos.record)
+
+    rel = theory.compare(AB, sup.record, cos.record)
+    # might be NOINFO
+    if rel.relationship == GT or rel.relationship == GE:
+      prefer = cos
+
+    elif rel.relationship == LT or rel.relationship == LE:
+      prefer = sup
+    elif rel.relationship == EQ:
+      prefer = sup                # sup is in A, cos is in B
+    elif rel.relationship == DISJOINT:
+      assert "should not happen"
+
+    # OVERLAP NOINFO COMPARABLE INTERSECT ...
+    # Superior should be MRCA ??
+
+    else:
+      # Way too many of these
+      if local_accepted(AB, u):
         log("# Superiors of %s are:\n  %s %s %s" %
             (blurb(u), blurb(sup), rcc5_symbol(rel.relationship), blurb(cos)))
-        prefer = sup
+      prefer = sup
   assert local_accepted(AB, prefer.record)
+  eq = is_redundant(AB, prefer.record)
+  if eq:
+    prefer = compose_relations(prefer, eq)
   return prefer
 
 # Records to suppress
 
 def is_redundant(AB, u):
-  e_rel = get_equivalent(AB, u)
-  return (isinB(AB, u) and e_rel and
-          get_rank(e_rel.record, None) == get_rank(u, None))
+  if isinA(AB, u): return None
+  return get_equivalent(AB, u)
+  #return (e_rel and
+  #        get_rank(e_rel.record, None) == get_rank(u, None))
 
-# Let's say u is in checklist 1.  Cosuperior should be in checklist 2.
-# Answer is None for record in checklist 2 whose sup is 
-# congruent to a checklist 1 node.
+# Node's parent in opposite taxonomy.
 
 def cosuperior(AB, u):
-  est1 = get_estimate(u, None)  # v in checklist 2
+  est1 = get_estimate(u, None)  # v in other checklist
   if est1:                      # u is not top
-    # u <= v
     v = est1.record
+    # u <= v
     # Cannot tolerate a synonym as parent
     if not is_accepted_locally(AB, v):
       # u <= v <= accepted-v
@@ -132,21 +128,23 @@ def cosuperior(AB, u):
     if est2:      # u2 is not top
       u2 = est2.record              # in 1
       if u2 is u:                   # Congruent
-        # v did not provide the 2nd superior.
-        # Try v's parent (u -> v -> v3).
+        # u = v = u2
+        # Try v's parent v3 (u = v < v3).
         sup3 = local_sup(AB, v)   # v <= v3 in 2
         if sup3:
-          # u <= v <= v3
+          # u = v < v3
           answer = compose_relations(est1, sup3) # in 2
         else:
-          return None           # v is top
+          return None           # u is at top
       else:
+        # u < v <= u2 (cannot have u = v < u2)
         answer = est1           # v in checklist 2, noncongruent
     else:                       # u2 is top
       answer = est1
   else:
     return None                 # u is top
-  # e.g. B.Balaenoptera physalus velifera <= A.Balaenoptera velifera*
+  # u < v
+  # What if B.Balaenoptera physalus velifera <= A.Balaenoptera velifera*
   if not is_accepted_locally(AB, answer.record):
     # Shouldn't happen
     log("! nested synonyms: %s <= %s" % (blurb(u), blurb(answer.record)))
