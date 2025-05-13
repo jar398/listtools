@@ -13,35 +13,6 @@ from workspace import get_workspace, get_children, \
 from ranks import ranks_dict
 from rcc5 import DISJOINT
   
-# Identify specimens in A checklist (swap to get B checklist).
-# Several taxa (synonyms, or one a descendant of the other) might share a specimen.
-
-def find_homotypics_in_checklist(AB):
-  def process(x, epithets):     # x in A
-    if get_rank(x, None) == "genus":
-      epithets = {}
-    if epithets != None:
-      for c in get_inferiors(x):
-        ep = get_parts(c).epithet or get_canonical(c)  # ???
-        if ep in epithets:
-          # Previous time epithet has been encountered - same?
-          c2 = epithets[ep]
-          z = AB.in_left(c)
-          z2 = AB.in_left(c2)
-          if simple.compare_per_checklist(c, c2) == DISJOINT:
-            log("# Keeping %s apart from %s" %
-                (blurb(z), blurb(z2)))
-            pass
-          else:
-            # if obviously distinct then ... ?  e.g. year+token
-            # compare_parts(z, z2) >= MOTION ...
-            equate_type_ufs(z, z2)
-        else:
-          epithets[ep] = c
-    for c in get_inferiors(x):
-      process(c, epithets)
-  process(AB.A.top, None)
-
 # Specimens per se
 
 # Get a specimen id on demand (never returns falsish)
