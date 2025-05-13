@@ -12,7 +12,6 @@ from rcc5 import *
 from specimen import same_type_ufs, sid_to_epithet
 from estimate import get_block, is_empty_block, get_estimate, get_equivalent
 from property import mep, mep_get, mep_set
-from typify import explain
 from ranks import ranks_dict
 
 counts = {}

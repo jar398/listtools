@@ -7,9 +7,9 @@ from util import log
 from checklist import *
 from workspace import *
 from simple import BOTTOM, compare_per_checklist
-from typify import get_link
 from specimen import get_exemplar_info, get_exemplar, get_exemplar_id
-from specimen import sid_to_record, sid_to_opposite_record
+from specimen import sid_to_record, sid_to_opposite_record, \
+  maybe_get_type_uf
 from rcc5 import rcc5_symbol
 
 # -----------------------------------------------------------------------------
@@ -70,7 +70,8 @@ def find_estimate(AB, u):
     b = get_block(v)
     assert a <= b
     if a < b:
-      rel2 = relation(LT, v, "smaller block")
+      # v is in a bigger block.  all done.
+      rel2 = relation(LT, v, "greater block")
       break
 
     elif a == b:
@@ -85,9 +86,6 @@ def find_estimate(AB, u):
         if not sup:                    # v is top
           log("# %s has no estimate" % blurb(u))
           return None
-        if False:
-          log("# Bumping estimate rootward %s %s %s < %s" %
-              (blurb(u), rcc5_symbol(ship), blurb(v), blurb(sup.record)))
         v = sup.record
         # iterate
 
@@ -337,3 +335,14 @@ def combine_blocks(e1, e2):
 BOTTOM_BLOCK = set()
 def same_block(e1, e2): return e1 == e2
 def is_empty_block(e): return e == BOTTOM_BLOCK
+
+# --------------------
+
+# Convenience.  Phase this out?  Or rename it?
+
+def get_link(u, default=-19):
+  uf = maybe_get_type_uf(u, None)
+  if uf:
+    (_, u2, v) = uf.payload()
+    return v if (v and separated(u, v)) else u2
+  return None

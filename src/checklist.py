@@ -681,17 +681,14 @@ def blurb(r):
   if isinstance(r, prop.Record):
     if get_workspace(r):
       x = get_outject(r, None)
-      u = r
+      name = get_ok_name(x)
+      name = get_workspace(r).prefix(r) + name
     else:
       x = r
-      u = None
-    name = get_ok_name(x)
-    if u:
-      name = get_workspace(u).prefix(u) + name
-    if is_accepted(x):
-      return name
-    else:
-      return name + '*'
+      name = get_ok_name(x)
+    if not is_accepted(x):
+      name = name + "*"
+    return name
   elif isinstance(r, Relation):
     if r.note:
       return ("[%s (%s) %s]" %

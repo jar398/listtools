@@ -73,8 +73,8 @@ def jumbled_superior(AB, u):
   elif not cos: prefer = sup
   else:
     assert separated(sup.record, cos.record)
-    assert local_accepted(AB, sup.record)
-    assert local_accepted(AB, cos.record)
+    assert is_accepted_locally(AB, sup.record)
+    assert is_accepted_locally(AB, cos.record)
 
     rel = theory.compare(AB, sup.record, cos.record)
     # might be NOINFO
@@ -91,13 +91,17 @@ def jumbled_superior(AB, u):
     # OVERLAP NOINFO COMPARABLE INTERSECT ...
     # Superior should be MRCA ??
 
+    elif rel.relationship == OVERLAP:
+      # There are lots of these (434 in CoL/MDD mammals)
+      prefer = sup
+
     else:
       # Way too many of these
-      if local_accepted(AB, u):
+      if is_accepted_locally(AB, u):
         log("# Superiors of %s are:\n  %s %s %s" %
             (blurb(u), blurb(sup), rcc5_symbol(rel.relationship), blurb(cos)))
       prefer = sup
-  assert local_accepted(AB, prefer.record)
+  assert is_accepted_locally(AB, prefer.record)
   eq = is_redundant(AB, prefer.record)
   if eq:
     prefer = compose_relations(prefer, eq)
@@ -149,6 +153,7 @@ def cosuperior(AB, u):
     # Shouldn't happen
     log("! nested synonyms: %s <= %s" % (blurb(u), blurb(answer.record)))
     assert False
+  # Cache answer at u ??!!
   return answer
 
 if __name__ == '__main__':

@@ -7,11 +7,40 @@ import parse
 from util import log, UnionFindable
 
 from checklist import get_source, blurb, blorb, get_parts, monitor, \
-  is_accepted, get_redundant, get_canonical, get_rank
+  is_accepted, get_redundant, get_canonical, get_rank, get_inferiors
 from workspace import get_workspace, get_children, \
   get_outject, isinA
 from ranks import ranks_dict
+from rcc5 import DISJOINT
   
+# Identify specimens in A checklist (swap to get B checklist).
+# Several taxa (synonyms, or one a descendant of the other) might share a specimen.
+
+def find_homotypics_in_checklist(AB):
+  def process(x, epithets):     # x in A
+    if get_rank(x, None) == "genus":
+      epithets = {}
+    if epithets != None:
+      for c in get_inferiors(x):
+        ep = get_parts(c).epithet or get_canonical(c)  # ???
+        if ep in epithets:
+          # Previous time epithet has been encountered - same?
+          c2 = epithets[ep]
+          z = AB.in_left(c)
+          z2 = AB.in_left(c2)
+          if simple.compare_per_checklist(c, c2) == DISJOINT:
+            log("# Keeping %s apart from %s" %
+                (blurb(z), blurb(z2)))
+            pass
+          else:
+            # if obviously distinct then ... ?  e.g. year+token
+            # compare_parts(z, z2) >= MOTION ...
+            equate_type_ufs(z, z2)
+        else:
+          epithets[ep] = c
+    for c in get_inferiors(x):
+      process(c, epithets)
+  process(AB.A.top, None)
 
 # Specimens per se
 
@@ -70,6 +99,28 @@ def _pick_type_taxon(v1, v2):
   x2 = get_outject(v2)
   assert not x1 is x2
 
+  # Prefer species (A b) to (subspecies A b c and even to A b b)
+  # ...
+
+  # Prefer higher rank? (species to subspecies)
+  n1 = get_canonical(x1).count(' ')
+  n2 = get_canonical(x2).count(' ')
+  if n1 < n2: return v1
+  if n1 > n2: return v2
+
+  # Prefer higher rank (e.g. species over subspecies)
+  k1 = ranks_dict.get(get_rank(x1, None))
+  k2 = ranks_dict.get(get_rank(x2, None))
+  # lower numbers mean lower (more tipward) rank
+  if k1 < k2: return v2
+  if k2 < k1: return v1
+
+  # Prefer the most rootward taxon
+  m = simple.mrca(x1, x2)
+  if m == x1: return v1
+  if m == x2: return v2
+  # v1 and v2 are disjoint??  How can this happen?  Arbitrary I guess
+
   # Prefer the protonym, if any
   p1 = get_parts(x1).protonymp
   p2 = get_parts(x2).protonymp
@@ -82,53 +133,34 @@ def _pick_type_taxon(v1, v2):
   if a1 and not a2: return v1
   if a2 and not a1: return v2
 
-  # Prefer the most tipward taxon
-  m = simple.mrca(x1, x2)
-  if m == x1: return v2
-  if m == x2: return v1
-  # v1 and v2 are disjoint??  How can this happen?  Arbitrary I guess
-
-  # Prefer A b b to A b c and A c to A b c
-  t1 = typelike(x1)
-  t2 = typelike(x2)
-  if t1 < t2: return v2
-  if t2 < t1: return v1
-
-  # Prefer lower rank (e.g. subspecies over species)
-  k1 = ranks_dict.get(get_rank(x1, None))
-  k2 = ranks_dict.get(get_rank(x2, None))
-  if k1 < k2: return v2
-  if k2 < k1: return v1
-
-  # Prefer the one that has children
+  # Prefer one with more children
   c1 = len(get_children(x1, ()))
   c2 = len(get_children(x2, ()))
   if c1 < c2: return v2
-  if c2 < c1: return v1
+  if c1 > c2: return v1
+
+  # log("# Difficult choice: %s vs. %s" % (blorb(v1), blorb(v2)))
 
   # Prefer the older one
-  swapp = False
   y1 = get_parts(x1).year
   y2 = get_parts(x2).year
-  if y2 < y1: swapp = True
-  elif y2 == y1:
+  if y1 < y2: return v1
+  if y1 > y2: return v2
 
-    # Prefer earlier in alphabet
-    n1 = get_canonical(x1)
-    n2 = get_canonical(x2)
-    if n2 < n1: swapp = True
+  # Prefer earlier in alphabet
+  n1 = get_canonical(x1)
+  n2 = get_canonical(x2)
+  if n1 < n2: return v1
+  if n1 > n2: return v2
 
-  if y2 == y1 and n2 == n1:
-    log("# Ambiguous for protonym: %s %s" % (blorb(v1), blorb(v2)))
-  else:
-    log("# Protonym arbitrary choice: %s (over %s)" % (blorb(v1), blorb(v2)))
+  return v1
 
-  return v2 if swapp else v1
 
 # 0 is "good"
 # A c c < A c < A b c
 
 def typelike(x):
+  # TBD: Deal with subgenus
   parts = get_canonical(x).split(' ')
   if len(parts) > 2 and parts[-1] == parts[-2]:
     return 0                    # A c c, best
