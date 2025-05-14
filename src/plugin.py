@@ -29,6 +29,8 @@ def generate_plugin_report(AB):
   jumble.jumble_workspace(AB)
   spa = spb_spe = spb_nspe = spb_ne = 0
 
+  seen = set()
+
   for z in preorder_records(AB):
     count("records")
     i[0] += 1
@@ -52,7 +54,11 @@ def generate_plugin_report(AB):
         u = w; v = z
         spb_ne += 1
 
-      yield generate_row(AB, u, v, ops)
+      combo = (get_primary_key(u) if u else None,
+               get_primary_key(v) if v else None)
+      if not combo in seen:
+        seen.add(combo)
+        yield generate_row(AB, u, v, ops)
 
   for (op, op_count) in counts.items():
     log("  %6d %s" % (op_count, op))
@@ -183,13 +189,17 @@ def impute_name_change(AB, u, v_rel, homotypic):
     p1 = get_parts(get_outject(u))
     p2 = get_parts(get_outject(v))
     if p1.genus != p2.genus:
-      ops.append("moved")
+      ops.append("change genus")
     if p1.epithet != p2.epithet:
-      ops.append("epithet")
+      ops.append("change epithet")
     if p1.token != p2.token:
-      ops.append("author")
+      ops.append("change author")
     if p1.year != p2.year:
-      ops.append("year")
+      ops.append("change year")
+    r1 = get_rank(get_outject(u), None)
+    r2 = get_rank(get_outject(v), None)
+    if r1 != r2:
+      ops.append("change rank")
   # maybe: promotion, demotion, rank change
   return ops
 
