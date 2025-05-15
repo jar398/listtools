@@ -6,7 +6,7 @@ from checklist import link_superior
 
 import theory
 from estimate import get_estimate, get_equivalent
-from estimate import get_block  # for debugging
+from block import get_block  # for debugging
 from ranks import ranks_dict
 
 # link_superior(inf, sup)

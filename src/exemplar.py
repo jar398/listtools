@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 
+# Assumes cross-checklist type specimen matches have been made
+
 from parse import PROBE
 
 import sys, argparse
@@ -13,9 +15,10 @@ from specimen import get_exemplar, get_exemplar_id, sid_to_epithet
 from specimen import equate_specimens, equate_type_ufs, \
   get_type_uf, maybe_get_type_uf
 
-from estimate import find_estimates, get_estimate
 from typify import find_type_ufs
 from typify import find_endohomotypics
+
+# --------------------
 
 # listtools's exemplar-finding procedure.  If there is some other way
 # of finding exemplars, that's fine, don't need to use this.
@@ -23,8 +26,9 @@ from typify import find_endohomotypics
 # This is invoked twice - two-pass method.  Purpose of first pass is
 # to be able to compute proximities on the second pass.
 
-def find_exemplars(get_estimate, AB):
-  find_endohomotypics(AB)
+def find_exemplars(AB):
+  find_endohomotypics(AB)       # Within each checklists
+
   subproblems = find_subproblems(AB)
   log("* Finding type_ufs (single pass):")
   find_type_ufs(AB, subproblems, None, True)
@@ -225,5 +229,5 @@ if __name__ == '__main__':
       # compute name matches afresh
       AB = ingest_workspace(a_rows.rows(), b_rows.rows(),
                             A_name=a_name, B_name=b_name)
-      find_exemplars(get_estimate, AB)
+      find_exemplars(AB)
       write_exemplar_list(AB)

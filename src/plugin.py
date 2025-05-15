@@ -10,7 +10,8 @@ from workspace import ingest_workspace, is_accepted_locally, local_sup, \
 from checklist import *
 from rcc5 import *
 from specimen import same_type_ufs, sid_to_epithet
-from estimate import get_block, is_empty_block, get_estimate, get_equivalent
+from estimate import get_equivalent
+from block import get_block, is_empty_block
 from property import mep, mep_get, mep_set
 from ranks import ranks_dict
 
@@ -115,7 +116,7 @@ def generate_row(AB, u, v, ops):
   if u == True:
     op_field = "change"      # header
   else:
-    # `homotypic` is true iff u and v are homotypic.
+    # `homotypic` is true iff u is homotypic with v.
     homotypic = u and v and same_type_ufs(u, v)
 
     ops += impute_concept_change(AB, u, v_rel, homotypic)
@@ -283,7 +284,7 @@ if __name__ == '__main__':
       if args.exemplars:
         exemplar.read_exemplars(rows.open(args.exemplars), AB)
       else:
-        exemplar.find_exemplars(get_estimate, AB)
+        exemplar.find_exemplars(AB)
       theory.theorize(AB, False)
       with rows.open(d_path, "w") as d_gen:
         gen = (row for row in generate_plugin_report(AB))

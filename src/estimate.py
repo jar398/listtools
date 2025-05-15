@@ -8,8 +8,7 @@ from checklist import *
 from workspace import *
 from simple import BOTTOM, compare_per_checklist
 from specimen import get_exemplar_info, get_exemplar, get_exemplar_id
-from specimen import sid_to_record, sid_to_opposite_record, \
-  maybe_get_type_uf
+from specimen import maybe_get_type_uf
 from rcc5 import rcc5_symbol
 
 # -----------------------------------------------------------------------------
@@ -21,7 +20,6 @@ def find_estimates(AB):
   #  (LUBs get tighter/smaller on 2nd pass).
   #  Easily overwritten.
   compute_cross_mrcas(AB)          # does set_cross_mrca(...)
-  analyze_blocks(AB)               # does set_block(...)
 
   counts = [0, 0]
   def findem(AB):
@@ -50,99 +48,40 @@ def find_estimates(AB):
 # For u in checklist 1, find smallest v in checklist 2 such that u <= v
 # Careful, u might be top or None.
 
-def find_estimate(AB, u):
+def find_estimate(AB, u):       # u is in AB
   rel1 = get_central(AB, u)
   # rel1 ascends from u up to top, looking for a node with a cross_mrca
   u_central = rel1.record
-  v = get_cross_mrca(u_central)
+  v = get_cross_mrca(u_central) # in AB
   # n.b. v >= every exemplar in u
   #  but it could still be < u (or > u)
 
   # Fall through with u_central, v
   # How does u relate to v?
 
-  a = get_block(u_central)
   u_rank_n = ranks.ranks_dict.get(get_rank(u, 0))
 
-  # Find a v ancestor that's >= u
-
+  # v starts at cross_mrca u and goes up (rootward)
   while True:
-    b = get_block(v)
-    assert a <= b
-    if a < b:
-      # v is in a bigger block.  all done.
-      rel2 = relation(LT, v, "greater block")
+    w = get_cross_mrca(v)   #get_block(v)    # or get_cross_mrca(v)
+
+    if simple.simple_le(get_outject(u), get_outject(w)):
+      if u is w:                # u = v = w
+        rel2 = relation(EQ, v, "reciprocal cross_mrca")
+      else:                     # u < v
+        rel2 = relation(LT, v, "bigger cross_mrca")
       break
 
-    elif a == b:
-      rel2 = compare_in_block(AB, u_central, v)
-      ship = rel2.relationship
-      if ship == EQ or ship == LT or ship == LE:
-        rel2 = relation(ship, v, "compare in block")
-        break
-      else:
-        # Go to v's parent to avoid a NOINFO situation
-        sup = local_sup(AB, v)         # B.Tupaia montana
-        if not sup:                    # v is top
-          log("# %s has no estimate" % blurb(u))
-          return None
-        v = sup.record
-        # iterate
-
-    else:   # a > b or a >< b or a ! b
-      assert False
-      # Cannot happen because v is u's cross_mrca
+    sup = local_sup(AB, v)         # B.Tupaia montana
+    if not sup:                    # v is top
+      log("# %s has no estimate" % blurb(u))
+      return None
+    v = sup.record
+    # iterate
 
   assert separated(u, rel2.record)
-  rel = compose_relations(rel1, rel2) # u -> u_central -> v
-  # convert LT to LE when synonym
-
-  return rel
-
-# u and v are in opposite checklists but same block
-
-def compare_in_block(AB, u, v):
-  assert get_block(u) == get_block(v)
-  uu = unique_in_block(AB, u)
-  vv = unique_in_block(AB, v)
-  if uu and vv:
-    #log("# both unique in block: %s, %s" % (blurb(u), blurb(v)))
-    return relation(EQ, v, "unique in both blocks")
-
-  # This rank method is stupid and unreliable.  Name comparison and/or
-  # a search would be better.
-
-  u_rank_n = ranks.ranks_dict.get(get_rank(u, 0))
-  v_rank_n = ranks.ranks_dict.get(get_rank(v, 0))
-
-  if u_rank_n > 0 and v_rank_n > 0:
-    if u_rank_n < v_rank_n:
-      answer = relation(LT, v, "estimate by rank<")
-    elif u_rank_n == v_rank_n:
-      answer = relation(EQ, v, "estimate by rank")
-    else:
-      answer = relation(GT, v, "estimate by rank>")
-  else:
-    answer = relation(OVERLAP, v, "missing rank information")
-  if False:
-    log("# Using ranks to decide %s %s %s" %
-        (blurb(u), rcc5_symbol(answer.relationship), blurb(v)))
-  return answer
-
-# True iff u is the only node in u's block.
-# More complicated: compare names
-
-def unique_in_block(AB, u):
-  b = get_block(u)
-  sup = get_superior(u, None)
-  if sup and get_block(sup.record) == b:
-    # parent is also in block b
-    return False
-  for c in get_inferiors(get_outject(u)):
-    w = AB.in_left(c) if isinA(AB, u) else AB.in_right(c)
-    if get_block(w) == b:
-      return False
-  return True
+  return compose_relations(rel1, rel2) # u -> u_central -> v
+  # TBD: convert LT to LE when synonym ?
 
 # -----------------------------------------------------------------------------
 # u assumed central
@@ -162,30 +101,6 @@ def get_equivalent(AB, u):
 
 # -----------------------------------------------------------------------------
 
-# The records on z's "side" corresponding to the exemplars
-# in the block for z.  (z is in AB)
-
-def exemplar_records(AB, z):    # not used?
-  return (sid_to_record(AB, id, z) for id in exemplar_ids(AB, z))
-
-def exemplar_opposite_records(AB, z): # see theory.py
-  return (sid_to_opposite_record(AB, id, z) for id in exemplar_ids(AB, z))
-
-# record -> list of ids for subtended exemplars
-
-def exemplar_ids(AB, z):
-  return list(get_block(z))
-
-# For debugging
-
-def show_exemplars(z, tag, AB):
-  def foo(id):
-    return blurb(sid_to_record(AB, id, z))
-  log("# estimate: %s: {%s}" %
-      (tag, ", ".join(map(foo, get_block(z)))))
-
-# -----------------------------------------------------------------------------
-
 # If w (in B) is the 'estimate' of u (in A), and u contains at least one 
 # exemplar, then:
 #      w is the smallest taxon in B containing all the exemplars 
@@ -198,6 +113,7 @@ def show_exemplars(z, tag, AB):
 # Needed for equivalent and cosuperior calculations
 
 def compute_cross_mrcas(AB):
+  count = [0]
   def do_cross_mrcas(WS):        # WS is AB or swap(AB)
     def traverse(x):            # arg in A, result in B
       u = WS.in_left(x)          # in WS
@@ -217,10 +133,12 @@ def compute_cross_mrcas(AB):
         v = WS.in_right(m)
         assert separated(u, v)
         set_cross_mrca(u, v)
+        count[0] += 1
       return m
     traverse(WS.A.top)
   do_cross_mrcas(AB)
   do_cross_mrcas(swap(AB))
+  log("# %s cross_mrcas set" % count[0])
 
 (get_cross_mrca, set_cross_mrca) = \
   prop.get_set(prop.declare_property("cross_mrca"))
@@ -232,109 +150,20 @@ def compute_cross_mrcas(AB):
 
 def get_central(AB, u):
   u_central = u
-  while is_empty_block(get_block(u_central)):
+  while u_central:
+    if get_cross_mrca(u_central, None): break
     u_central = local_sup(AB, u_central).record
   # Make a Relation.
+  if not u_central:
+    log("# No central: %s" % blurb(u))
   if u_central is u:
     return relation(EQ, u_central)
   else:
     sup = local_sup(AB, u)
-    if sup and sup.record == u_central:
+    if sup and sup.record is u_central:
       return sup                # u -> u_central = sup
     else:
       return relation(LT, u_central, note="get_central")
-
-# -----------------------------------------------------------------------------
-# Precompute 'blocks' (exemplar sets, implemented in one of various ways).
-# A block is represented as a set of exemplar ids.
-# Blocks are stored on nodes in AB.
-# Assumes exemplars have already been chosen and are available
-# via `get_exemplar`.
-
-def analyze_blocks(ws):
-  def doit(AB):
-    def traverse(x):
-      u = AB.in_left(x)
-      if monitor(u): log("# estimate: computing block for %s" % (blurb(u),))
-      # initial e = exemplars from descendants
-      e = BOTTOM_BLOCK
-      mono = None
-      for c in get_inferiors(x):  # inferiors in A/B
-        b = traverse(c)
-        if not is_empty_block(b):
-          e = combine_blocks(e, b)
-          mono = c if mono == None else False
-      if mono != None and mono != False: set_mono(u, AB.in_left(mono))
-      uf = get_exemplar(u) # returns None or... (sid, u, v)?
-      if uf:
-        e = adjoin_exemplar(get_exemplar_id(uf), e)
-        if get_redundant(x, None):
-          log("# Redundant record's exemplar suppressed: %s" % blurb(x))
-          return BOTTOM_BLOCK
-      # **************** TBD
-      set_block(u, e)
-      if monitor(u):
-        show_exemplars(u, blurb(u), ws)
-      return e
-    traverse(AB.A.top)
-  doit(ws)
-  doit(swap(ws))
-
-  # Sanity check
-  b1 = get_block(ws.in_left(ws.A.top))
-  b2 = get_block(ws.in_right(ws.B.top))
-  assert b1 == b2
-  assert b1 != BOTTOM_BLOCK
-  log("# top block size: %s" % len(b1))
-
-def adjoin_exemplar(exemplar_id, e):
-  return combine_blocks(e, {exemplar_id})
-
-# -----------------------------------------------------------------------------
-# Implementation of blocks as Python sets of 'exemplars'.
-# A 'block' is just a set of exemplars, implemented as ... a python set.
-# The term 'block' comes from the mathematical treatment of partitions.
-
-def get_block(x):
-  return really_get_block(x, BOTTOM_BLOCK)
-
-(really_get_block, set_block) = prop.get_set(prop.declare_property("block"))
-(get_mono, set_mono) = prop.get_set(prop.declare_property("mono"))
-
-# RCC-5 relationship between two blocks
-
-def block_relationship(e1, e2):   # can assume intersecting
-  if e1 == e2: return EQ          # same block
-  elif e1.issubset(e2): return LT
-  elif e2.issubset(e1): return GT
-  elif e1.isdisjoint(e2): return DISJOINT
-  else: return OVERLAP
-
-def same_block(e1, e2):
-  return e1 == e2
-
-def block_ge(e1, e2):
-  return e1 >= e2
-
-def block_lt(e1, e2):
-  return e1 < e1
-
-def block_le(e1, e2):
-  return block_ge(e2, e1)
-
-def block_size(e):
-  return len(e)
-
-# Lattice join (union) of two blocks
-
-def combine_blocks(e1, e2):
-  if e1 == BOTTOM_BLOCK: return e2
-  if e2 == BOTTOM_BLOCK: return e1
-  return e1 | e2
-
-BOTTOM_BLOCK = set()
-def same_block(e1, e2): return e1 == e2
-def is_empty_block(e): return e == BOTTOM_BLOCK
 
 # --------------------
 

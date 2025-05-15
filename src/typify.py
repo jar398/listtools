@@ -20,9 +20,9 @@ from specimen import sid_to_epithet, same_specimens, \
   equate_type_ufs, equate_specimens, \
   get_type_uf, get_specimen_id, \
   sid_to_specimen, get_typifies, same_specimens
-from proximity import near_enough
 
 from homotypy import compare_parts, MOTION, REVIEW, explain_classified
+from homotypy import relate_records
 
 # Problem perhaps: This creates specimen objects even when they aren't matched.
 
@@ -30,35 +30,7 @@ def find_endohomotypics(AB):
   homotypy.find_homotypics_in_checklist(AB)
   homotypy.find_homotypics_in_checklist(swap(AB))
 
-# Replaced by version in specimen.py
-def find_homotypics_in_checklist(AB):
-  def process(x):
-
-    epithets = {}
-    def consider(c):
-      c_ep = get_parts(c).epithet
-      if c_ep:
-        if c_ep in epithets:
-          equate_type_ufs(AB.in_left(c), epithets[c_ep])
-        else:
-          epithets[c_ep] = AB.in_left(c)
-
-    # Match siblings
-    for c in get_inferiors(x):
-      process(c)
-      classified = relate_records(AB.in_left(c), AB.in_left(x))
-      if classified >= MOTION:
-        consider(c)
-
-    # Match parent/child
-    consider(x)
-
-  process(AB.A.top)
-
-# This can be configured to run once or run twice.  'last' means we're
-# on the last pass so if there was a first pass, proximity is available.
-
-# Unify the types of A with the types of B.
+# Unify the type specimens of A with the type specimens of B.
 
 def find_type_ufs(AB, subprobs, get_estimate, last):
   # This sets the 'type_uf' property of ... some ... records.
@@ -70,29 +42,9 @@ def find_type_ufs(AB, subprobs, get_estimate, last):
           (n, len(us), len(vs), blurb(us[0]), blurb(vs[0])))
     # us and vs are sorted by 'unimportance' (i.e. most important first)
     n += 1
-    if any(map(monitor, us)):
-      log("# Doing subproblem %s" % key)
-      log("#  us = %s" % list(map(blurb, us),))
-      log("#  vs = %s" % list(map(blurb, vs),))
 
-    u_matches = {}    # u_sid -> (class, [v_spec, ...])
-    v_matches = {}    # v_sid -> (class, [u_spec, ...])
-                      # spec = (sid, u, v)
-                      # Didn't count on multiple specs per sid!
-    for i in range(0, len(us)):
-      u = us[i]
-      if monitor(u): log("# Subproblem row: '%s' '%s'" % (key, blorb(u)))
-      for j in range(0, len(vs)):
-        v = vs[j]
-        classified = relate_records(u, v) # shows!
-        # relate_records checks proximity
-        observe_match(u, v, u_matches, classified)
-        observe_match(v, u, v_matches, classified)
-        if monitor(u):
-          log("# observe %s => %s = %s" %
-              (blurb(u), blurb(v), explain_classified(classified)))
-      # end j loop
-    # end i loop
+    (u_matches, v_matches) = find_matches(key, us, vs)
+
     # u_specs and v_specs are sorted by 'unimportance'
     # u_matches : u_sid -> (v_clas, v_specs)
     # clas means a classification
@@ -110,6 +62,7 @@ def find_type_ufs(AB, subprobs, get_estimate, last):
         pass
       elif len(v_specs) > 1:
         # Problem here
+        # But it seems to not occur (in MDD/COL).
         v0 = get_typifies(v_specs[0]) # record that has given specimen
         v1 = get_typifies(v_specs[1])
         if is_accepted(v0) and is_accepted(v1):
@@ -165,7 +118,6 @@ def find_type_ufs(AB, subprobs, get_estimate, last):
                  blorb(get_typifies(v_spec)),
                  blorb(get_typifies(u_specs[0])))),
           else:
-            # WRONG? - only do this for 'tipward' nodes?
             equate_specimens(u_spec, v_spec)
         else:
           log("# No return match: %s -> %s" %   # No return match for v - shouldn't happen
@@ -177,6 +129,33 @@ def find_type_ufs(AB, subprobs, get_estimate, last):
   equate_type_ufs(AB.in_left(AB.A.top),
                        AB.in_right(AB.B.top))
 
+def find_matches(key, us, vs):
+  if any(map(monitor, us)):
+    log("# Doing subproblem %s" % key)
+    log("#  us = %s" % list(map(blurb, us),))
+    log("#  vs = %s" % list(map(blurb, vs),))
+
+  u_matches = {}    # u_sid -> (class, [v_spec, ...])
+  v_matches = {}    # v_sid -> (class, [u_spec, ...])
+                    # spec = (sid, u, v)
+                    # Didn't count on multiple specs per sid!
+  for i in range(0, len(us)):
+    u = us[i]
+    if monitor(u): log("# Subproblem row: '%s' '%s'" % (key, blorb(u)))
+    for j in range(0, len(vs)):
+      v = vs[j]
+      classified = relate_records(u, v) # shows!
+      if classified >= MOTION:
+        # relate_records checks proximity
+        observe_match(u, v, u_matches, classified)
+        observe_match(v, u, v_matches, classified)
+        if monitor(u):
+          log("# observe %s => %s = %s" %
+              (blurb(u), blurb(v), explain_classified(classified)))
+    # end j loop
+  # end i loop
+  return u_matches, v_matches
+
 # u_matches : u_sid -> (v_clas, v_specs)
 #   'spec' is short for 'specimen'
 
@@ -184,7 +163,7 @@ def find_type_ufs(AB, subprobs, get_estimate, last):
 # 'Classified' might be a failure e.g. HETEROTYPIC
 
 def observe_match(u, v, u_matches, classified):
-  u_spec = get_type_uf(u)
+  u_spec = get_type_uf(u) # there may be multiple u's with same specimen
   v_spec = get_type_uf(v)
 
   u_sid = get_specimen_id(u_spec)
@@ -217,19 +196,3 @@ def observe_match(u, v, u_matches, classified):
       v_speqs.append(v_spec)    # ????
   else:
     u_matches[u_sid] = (classified, [v_spec])
-
-# Compare potentially homotypic taxa in same workspace.
-
-def relate_records(u, v):
-  classified = compare_parts(u, v)
-
-  if classified == MOTION:
-    if not near_enough(u, v):
-    # Proximity within the hierarchy is essential if no genus match
-      return REVIEW
-
-  if monitor(u) or monitor(v):
-    log("# Compare %s, %s = %s" %
-        (blurb(u), blurb(v), explain_classified(classified)))
-  return classified
-

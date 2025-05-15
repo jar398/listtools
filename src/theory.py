@@ -12,24 +12,28 @@ import specimen
 import exemplar
 import estimate
 import ranks
-from specimen import same_specimens, get_exemplar, same_type_ufs
-from estimate import find_estimates, get_estimate, get_equivalent
-from estimate import is_empty_block, get_block, BOTTOM_BLOCK
-from estimate import block_relationship, same_block, exemplar_opposite_records
-from estimate import get_mono
-from estimate import get_central, compare_in_block
+from specimen import same_specimens, get_exemplar, same_type_ufs, \
+  sid_to_opposite_record
+from exemplar import find_exemplars
+from estimate import find_estimates, get_equivalent
+from estimate import get_central
+from block import analyze_blocks, get_mono
+from block import block_relationship, same_block
+from block import is_empty_block, get_block, BOTTOM_BLOCK
 
 # Assumes that name matches are already stored in AB.
+# Assumes that exemplars are known.
 
 def theorize(AB, compute_exemplars=True):
   # ... exemplar.exemplars(A_iter, B_iter, m_iter) ...
   # TBD: option to read them from a file
   # Assumes links found already  - find_links(AB)
   if compute_exemplars:
-    exemplar.find_exemplars(get_estimate, AB)
+    exemplar.find_exemplars(AB)
   # else: read them from a file
 
   find_estimates(AB)
+  analyze_blocks(AB)               # does set_block(...)
 
 #-----------------------------------------------------------------------------
 # compare: The implementation of the RCC-5 theory of AB (A+B).
@@ -353,3 +357,64 @@ def get_dominator(AB, w):
       # iterate
       p = get_superior(p)       # 'Break' the taxon
     else: assert False
+
+# --------------------
+# u and v are in opposite checklists but same block
+
+def compare_in_block(AB, u, v):
+  uu = unique_in_block(AB, u)
+  vv = unique_in_block(AB, v)
+  if uu and vv:
+    #log("# both unique in block: %s, %s" % (blurb(u), blurb(v)))
+    return relation(EQ, v, "unique in both blocks")
+
+  # This rank method is stupid and unreliable.  Name comparison and/or
+  # a search would be better.
+
+  u_rank_n = ranks.ranks_dict.get(get_rank(u, 0))
+  v_rank_n = ranks.ranks_dict.get(get_rank(v, 0))
+
+  if u_rank_n > 0 and v_rank_n > 0:
+    if u_rank_n < v_rank_n:
+      answer = relation(LT, v, "estimate by rank<")
+    elif u_rank_n == v_rank_n:
+      answer = relation(EQ, v, "estimate by rank")
+    else:
+      answer = relation(GT, v, "estimate by rank>")
+  else:
+    answer = relation(OVERLAP, v, "missing rank information")
+  if False:
+    log("# Using ranks to decide %s %s %s" %
+        (blurb(u), rcc5_symbol(answer.relationship), blurb(v)))
+  return answer
+
+# True iff u is the only node in u's block.
+# More complicated: compare names
+
+def unique_in_block(AB, u):
+  b = get_block(u)
+  sup = get_superior(u, None)
+  if sup and get_block(sup.record) == b:
+    # parent is also in block b
+    return False
+  for c in get_inferiors(get_outject(u)):
+    w = AB.in_left(c) if isinA(AB, u) else AB.in_right(c)
+    if get_block(w) == b:
+      return False
+  return True
+
+# -----------------------------------------------------------------------------
+
+# The records on z's "side" corresponding to the exemplars
+# in the block for z.  (z is in AB)
+
+# used in theory.py only - move there
+def exemplar_opposite_records(AB, z): # see theory.py
+  return (sid_to_opposite_record(AB, id, z) for id in exemplar_ids(AB, z))
+
+# record -> list of ids for subtended exemplars
+
+# used here only
+def exemplar_ids(AB, z):
+  return list(get_block(z))
+

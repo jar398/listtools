@@ -181,7 +181,7 @@ def recover_canonical(gn_full, gn_stem, hack_canonical):
     g = hack_canonical_chunks[0]
     mid = ' '.join(hack_canonical_chunks[1:-1])
     e = hack_canonical_chunks[-1]
-    # TBD: make use of gnparse' stemming
+    # TBD: make use of gnparse's stemming
     if PROBE in hack_canonical:
       log("# Recovered ad hoc '%s' '%s' '%s'" % (g, mid, e))
       log("#  because '%s' '%s'" %

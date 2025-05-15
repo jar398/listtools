@@ -5,9 +5,10 @@ import simple
 
 from util import log
 from checklist import get_parts, get_rank, get_inferiors, \
-  get_canonical
+  get_canonical, blurb, monitor
 from rcc5 import DISJOINT
 from specimen import equate_type_ufs
+from proximity import near_enough
 
 
 # Name comparison outcomes
@@ -32,26 +33,29 @@ MIDDLE_MASK = 1
 # Identify specimens in A checklist (swap to get B checklist).
 # Several taxa (synonyms, or one a descendant of the other) might share a specimen.
 
+# It might be possible to make these matches by indexing by epithet.
+# But this seems easier.
+
 def find_homotypics_in_checklist(AB):
   def process(x, epithets):     # x in A
     if get_rank(x, None) == "genus":
       epithets = {}
     if epithets != None:
       for c in get_inferiors(x):
-        ep = get_parts(c).epithet or get_canonical(c)  # ???
-        if ep in epithets:
+        # assume children / accepted are found first
+        z1 = AB.in_left(c)
+        ep = get_parts(z1).epithet or get_canonical(z1)  # ???
+        if ep in epithets:    # Seen before?
           # Previous time epithet has been encountered - same?
           c2 = epithets[ep]
-          z = AB.in_left(c)
           z2 = AB.in_left(c2)
           if simple.compare_per_checklist(c, c2) == DISJOINT:
             log("# Keeping %s apart from %s" %
-                (blurb(z), blurb(z2)))
-            pass
-          else:
-            # if obviously distinct then ... ?  e.g. year+token
-            # compare_parts(z, z2) >= MOTION ...
-            equate_type_ufs(z, z2)
+                (blurb(z1), blurb(z2)))
+            # Later-encountered does not get an exemplar; type specimens
+            # are not unified.
+          elif compare_parts(z1, z2) >= MOTION:
+            equate_type_ufs(z1, AB.in_left(c2))
         else:
           epithets[ep] = c
     for c in get_inferiors(x):
@@ -170,3 +174,21 @@ def explain_classified(classified):
   else:
     word = str(classified)
   return word
+
+# --------------------
+
+# Compare potentially homotypic taxa in same workspace.
+
+def relate_records(u, v):
+  classified = compare_parts(u, v)
+
+  if classified == MOTION:
+    if not near_enough(u, v):
+    # Proximity within the hierarchy is essential if no genus match
+      return REVIEW
+
+  if monitor(u) or monitor(v):
+    log("# Compare %s, %s = %s" %
+        (blurb(u), blurb(v), explain_classified(classified)))
+  return classified
+

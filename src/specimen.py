@@ -53,6 +53,7 @@ def equate_specimens(uf, vf):
   elif i1 != i2: r[0] = min(i1, i2)
 
   # Choose or improve a record for which this specimen is to be its type.
+  # Prefer protonyms.
   r[1] = _pick_type_taxon(u1, u2)
   r[2] = _pick_type_taxon(v1, v2)
   return ef
@@ -175,15 +176,16 @@ def sid_to_epithet(AB, sid):
 # Only workspace nodes have uf nodes.
 
 def get_type_uf(u):
-  probe = maybe_get_type_uf(u, None)
-  if probe: return probe
-  AB = get_workspace(u)
-  r = [None, u, None] if isinA(AB, u) else [None, None, u]
-  uf = UnionFindable(r)
-  set_type_uf(u, uf)
+  uf = maybe_get_type_uf(u, None)
+  if not uf:
+    AB = get_workspace(u)
+    r = [None, u, None] if isinA(AB, u) else [None, None, u]
+    uf = UnionFindable(r)
+    set_type_uf(u, uf)
   return uf
 
 # Are u and v known to have the same type_uf?
+#  I.e. are they known to be homotypic?
 
 def same_type_ufs(u, v):
   uf = maybe_get_type_uf(u, None)
