@@ -23,11 +23,8 @@ from typify import find_endohomotypics
 # listtools's exemplar-finding procedure.  If there is some other way
 # of finding exemplars, that's fine, don't need to use this.
 
-# This is invoked twice - two-pass method.  Purpose of first pass is
-# to be able to compute proximities on the second pass.
-
 def find_exemplars(AB):
-  find_endohomotypics(AB)       # Within each checklists
+  find_endohomotypics(AB)       # Within each checklist
 
   subproblems = find_subproblems(AB)
   log("* Finding type_ufs (single pass):")
@@ -71,12 +68,12 @@ def find_subproblems(AB):
 # More important -> lower number, earlier in sequence
 
 def unimportance(u):
-  x = get_outject(u)
-  parts = get_parts(x)
+  parts = get_parts(u)
   if parts.epithet == MISSING: unimp = 4      # Foo
-  elif parts.middle == parts.epithet: unimp = 1     # Foo bar bar
-  elif parts.middle == None or parts.middle == '':  unimp = 2     # Foo bar
-  else: unimp = 3                         # Foo bar baz
+  elif parts.middle == parts.epithet: unimp = 2     # Foo bar bar
+  elif parts.middle == None or parts.middle == '':  unimp = 0     # Foo bar
+  else: unimp = 1                         # Foo bar baz
+  x = get_outject(u)
   return (1 if is_accepted(x) else 2,
           unimp,
           # Prefer to match the duplicate that has children
