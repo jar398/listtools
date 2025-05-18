@@ -89,10 +89,10 @@ def use_gnparse(gn_iter, check_iter):
     out_row[out_gn_auth_pos] = gn_auth
 
     q = int(gn_row[quality_pos])
-    if gn_full == MISSING or gn_stem == MISSING or q >= 4:
-      if q > 0:                 # e.g. BOLD:ACH7315
-        log("** %s: gnparser rejected: '%s'" %
-            (checklist_row[taxonid_pos], gn_verb))
+    # 0: failed, 1: passed, 2-4: various problems
+    if gn_full == MISSING or gn_stem == MISSING:
+      log("** %s: gnparser rejected: '%s' quality %s" %
+          (checklist_row[taxonid_pos], gn_verb, q))
       loser_count += 1
     yield out_row
 

@@ -60,6 +60,7 @@ for row in reader:
   if name.startswith('? ') or  name == '?':
     name = 'Xyzzy' + name[1:]     # Undone in use_gnparse.py
   name = name.replace('?', 'xyzzy')
+
   print(name, file=sys.stdout)
 if poly_count > 0:
   log("# Synthesized %s polynomials" % poly_count)

@@ -78,11 +78,12 @@ def find_type_ufs(AB, subprobs, get_estimate, last):
                  get_primary_key(v1),
                  blorb(v1)))
           else:
+            # DISJOINT is impossible
             equate_specimens(u_spec, v_specs[0])
             equate_specimens(u_spec, v_specs[1])
       else:
         v_spec = v_specs[0]
-        v_sid = get_specimen_id(v_spec)
+        v_sid = get_specimen_id(v_spec) # invents new id on demand
         # v_matches : v_sid -> (u_clas, u_specs)
         results = v_matches.get(v_sid)
         if results:

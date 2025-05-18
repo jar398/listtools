@@ -93,6 +93,7 @@ def make_workspace(A, B, meta=None):
   #log("# taxonID counter: %s" % pk_counter[0])
 
   AB.specimen_ufs = {}           # maps id to union-find node with (id, u, v)
+  AB.max_sid = -1
   AB.top = None                  # hmph.  see checklist.is_top
   return AB
 

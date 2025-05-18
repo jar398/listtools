@@ -39,23 +39,25 @@ MIDDLE_MASK = 1
 def find_homotypics_in_checklist(AB):
   def process(x, epithets):     # x in A
     if get_rank(x, None) == "genus":
-      epithets = {}
+      epithets = {}             # epithet -> taxon in checklist
     if epithets != None:
       for c in get_inferiors(x):
         # assume children / accepted are found first
         z1 = AB.in_left(c)
-        ep = get_parts(z1).epithet or get_canonical(z1)  # ???
+        ep = get_parts(z1).epithet or get_canonical(c)  # ???
         if ep in epithets:    # Seen before?
           # Previous time epithet has been encountered - same?
           c2 = epithets[ep]
           z2 = AB.in_left(c2)
-          if simple.compare_per_checklist(c, c2) == DISJOINT:
-            log("# Keeping %s apart from %s" %
-                (blurb(z1), blurb(z2)))
+          rel = simple.compare_per_checklist(c, c2)
+          if rel.relationship == DISJOINT:
+            log("# Keeping %s apart from %s; mrca = %s" %
+                (blurb(z1), blurb(z2), blurb(simple.mrca(c, c2))))
             # Later-encountered does not get an exemplar; type specimens
             # are not unified.
           elif compare_parts(z1, z2) >= MOTION:
-            equate_type_ufs(z1, AB.in_left(c2))
+            # Found via tree traversal, so motion is OK ... ?
+            equate_type_ufs(z1, z2)
         else:
           epithets[ep] = c
     for c in get_inferiors(x):
@@ -67,7 +69,7 @@ def find_homotypics_in_checklist(AB):
 
 # Compare potentially homotypic names by examining their syntactic parts.
 # Compare Macropus robustus, Amblysomus robustus = heterotypic NOT
-# Could be in same or different checklists?  Fix this.
+# u and v are in the workspace, from different checklists.
 
 def compare_parts(u, v):
   (misses, hits) = parts_comparison_detail(get_parts(u), get_parts(v))
@@ -161,8 +163,8 @@ def explain(comparison):
 def explain_classified(classified):
   if classified == HOMOTYPIC:
     word = "homotypic"
-  elif classified == ERROR:
-    word = "error"
+  elif classified == CORRECTION:
+    word = "correction"
   elif classified == MOTION:
     word = "motion"           # kinetypic?
   elif classified == AUTHORLESS:

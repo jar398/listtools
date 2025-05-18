@@ -169,6 +169,7 @@ def generate_exemplars(AB):
 # Read list of exemplars from file (given as a Rows)
 
 def read_exemplars(in_rows, AB):
+  assert len(AB.specimen_ufs) == 0
   equate_type_ufs(AB.in_left(AB.A.top), AB.in_right(AB.B.top))
   the_rows = in_rows.rows()     # caller will close in_rows
   header = next(the_rows)
@@ -178,6 +179,7 @@ def read_exemplars(in_rows, AB):
   for row in the_rows:
     taxonid = row[taxonid_col]
     which = row[which_col]
+    sid = int(row[sid_col])
     if which == 'A':
       C = AB.A
     elif which == 'B':
@@ -188,19 +190,18 @@ def read_exemplars(in_rows, AB):
     if not x:
       log("## read_exemplars: Record not found?! %s" % taxonid)
     else:
+      if sid > AB.max_sid:
+        AB.max_sid = sid
       u = AB.in_left(x) if which=='A' else AB.in_right(x)
-      uf = get_type_uf(u)
+      uf = get_type_uf(u)        # one uf for each taxon
 
-      # row is (sid, which, taxonid)
-      sid = int(row[sid_col])
-      #log("# read exemplar #%s in %s = %s" % (sid, which, taxonid))
       if sid in AB.specimen_ufs: # as a key
-        s = AB.specimen_ufs[sid]
-        a = equate_specimens(s, uf)
-      else:
-        AB.specimen_ufs[sid] = uf
-        a = uf
-      a.payload()[0] = sid
+        uf2 = AB.specimen_ufs[sid]
+        assert uf2.payload()[0] == sid
+        uf = equate_specimens(uf, uf2)
+
+      uf.payload()[0] = sid
+      AB.specimen_ufs[sid] = uf # Replace
 
 
 if __name__ == '__main__':

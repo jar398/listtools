@@ -66,32 +66,34 @@ def generate_plugin_report(AB):
 
 # For each species, we pick one articulation.  The articulation is
 # between the species and a "partner".
+# z is a species, but partner could be non-species or None.
 
-def choose_partner(AB, u):
-  assert is_species(u)
-  e_rel = get_equivalent(AB, u)
+def choose_partner(AB, z):
+  e_rel = get_equivalent(AB, z)
   if e_rel:
     sp = theory.get_species(e_rel.record)
     return sp or e_rel.record
 
   # ... no congruent record, pick the 'best' one from intersectors ...
-  inters = theory.get_intersecting_species(u)
+  inters = theory.get_intersecting_species(z)
   if len(inters) == 0:
     return None                 # No intersecting species
   else:
-    u_ids = get_block(u)
+    z_ids = get_block(z)
     def intensity(v):
       v_ids = get_block(v)
-      same = 0 if same_type_ufs(u, v) else 1
-      meet = len(u_ids & v_ids)
       # Ad hoc rule:
-      # Prefer: 1. same type, 2. maximum overlap, 3. minimum nonoverlap
-      return (same, -meet, len(u_ids | v_ids) - meet)
+      # Prefer: 1. same type specimen, 2. maximum overlap, 3. minimum nonoverlap
+      same = 0 if same_type_ufs(z, v) else 1
+      meet = len(z_ids & v_ids)
+      nono = len(z_ids | v_ids) - meet
+      return (same, -meet, nono)
     return min(inters, key=intensity)
 
 
 # Return either the header row or a data row; the code for both is
 # together to make sure they stay in sync.
+# u or v might be None, or non-species.
 
 def generate_row(AB, u, v, ops):
   # A - rcc5 - B columns
@@ -121,6 +123,7 @@ def generate_row(AB, u, v, ops):
 
     ops += impute_concept_change(AB, u, v_rel, homotypic)
     ops += impute_name_change(AB, u, v_rel, homotypic)
+    # ops += impute_rank_change(AB, u, v_rel, homotypic)
     op_field = "; ".join(ops)
     for op in ops:
       if op in counts:
@@ -156,11 +159,18 @@ def generate_row(AB, u, v, ops):
 # s is a set of exemplar ids...
 
 def show_sid_set(AB, block):
-  # xep = (sid, epithet)
-  # Sort by epithet
-  xeps = sorted(map(lambda sid:(sid, sid_to_epithet(AB, sid)), block),
-                key=lambda xep: xep[1])
-  return "; ".join(map(lambda xep:"%s %s" % xep, xeps))
+  if True:
+    sids = sorted(block, key=lambda sid: sid_to_epithet(AB, sid))
+    return "; ".join(map(show_sid, sids))
+  else:
+    # xep = (sid, epithet)
+    xeps = sorted(map(lambda sid:(sid, sid_to_epithet(AB, sid)), block),
+                  key=lambda xep: xep[1])
+    return "; ".join(map(lambda xep:"%s %s" % xep, xeps))
+
+def show_sid(sid):
+  ep = sid_to_epithet(AB, sid)
+  return "%s %s" % (sid, ep)
 
 def impute_concept_change(AB, u, v_rel, homotypic):
   if not u:
@@ -171,7 +181,16 @@ def impute_concept_change(AB, u, v_rel, homotypic):
     ship = v_rel.relationship
     if ship == EQ:
       # This can happen if e.g. the type is ambiguous or otherwise unmatched
-      op = "congruent" if homotypic else "congruent but heterotypic"
+      op = "congruent"
+      if not homotypic:
+        from specimen import get_specimen_id, get_type_uf
+        v = v_rel.record
+        log("# u %s   %s" %
+            (show_sid(get_specimen_id(get_type_uf(u))),
+             blurb(u)))
+        log("# v %s   %s" %
+            (show_sid(get_specimen_id(get_type_uf(v))),
+             blurb(v)))
     elif ship == LT:
       op = "expand" if homotypic else "lump"
     elif ship == GT:
@@ -202,6 +221,28 @@ def impute_name_change(AB, u, v_rel, homotypic):
     if r1 != r2:
       ops.append("change rank")
   # maybe: promotion, demotion, rank change
+  return ops
+
+# u or v might be None.
+# Not ready for prime time.
+
+def impute_rank_change(AB, u, v_rel, homotypic):
+  ops = []
+  if not u or not v_rel: return ops
+  v = v_rel.record
+  r1 = ranks_dict[get_rank(u, None)]
+  r2 = ranks_dict[get_rank(v, None)]
+  if r1 and r2:
+    if r1 < r2:
+      ops.append("promoted")
+    elif r1 > r2:
+      ops.append("demoted")
+  a1 = is_accepted_locally(AB, u)
+  a2 = is_accepted_locally(AB, v)
+  if a1 < a2:
+    ops.append("accepted")
+  elif a1 > a2:
+    ops.append("synonymized")
   return ops
 
 

@@ -55,8 +55,7 @@ $B.csv: $B-clean.csv
 
 # Adjoin 'tipe' and 'year' columns.  To skip this step, change the rule to
 # cp -pf $< $@
-%.csv: %-clean.csv \
-          $P/extract_names.py $P/use_gnparse.py
+%.csv: %-clean.csv $P/extract_names.py $P/use_gnparse.py
 	$P/extract_names.py < $< \
 	| gnparser -s \
 	| $P/use_gnparse.py --source $< > $@.new

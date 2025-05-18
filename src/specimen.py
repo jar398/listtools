@@ -16,6 +16,8 @@ from rcc5 import DISJOINT
 # Specimens per se
 
 # Get a specimen id on demand (never returns falsish)
+# Either an exemplar, or a specimen for which an id is needed for 
+# indexing purposes (typify).
 
 def get_specimen_id(uf):
   r = uf.payload()
@@ -25,11 +27,16 @@ def get_specimen_id(uf):
     w = u or v
     assert w
     ws = get_workspace(w)
-    sid = len(ws.specimen_ufs)
+    sid = ws.max_sid + 1
+    ws.max_sid = sid
     r[0] = sid
     ws.specimen_ufs[sid] = uf
     #log("# Specimen %s: (%s) <-> (%s)" % (sid, blorb(u), blorb(v)))
   return sid
+
+def sid_to_specimen(AB, sid):
+  return AB.specimen_ufs[sid]
+
 
 # Assert identity of specimens
 
@@ -44,22 +51,25 @@ def equate_specimens(uf, vf):
   (i1, u1, v1) = uf.payload()
   (i2, u2, v2) = vf.payload()
 
-  ef = uf.absorb(vf)          # ef happens to be uf
-  r = ef.payload()
-
-  # Not sure this is necessary, but should at least be harmless
-  if i2 == None: r[0] = i1
-  elif i1 == None: r[0] = i2
-  elif i1 != i2: r[0] = min(i1, i2)
-
   # Choose or improve a record for which this specimen is to be its type.
   # Prefer protonyms.
-  r[1] = _pick_type_taxon(u1, u2)
-  r[2] = _pick_type_taxon(v1, v2)
+  t1 = _pick_type_taxon(u1, u2)
+  t2 = _pick_type_taxon(v1, v2)
+
+  # Not sure this is necessary, but should at least be harmless
+  if i2 == None: i = i1
+  elif i1 == None: i = i2
+  else: i = min(i1, i2)
+
+  ef = uf.absorb(vf)          # ef happens to be uf
+  r = ef.payload()
+  r[0] = i
+  r[1] = t1
+  r[2] = t2
   return ef
 
-# This helps find, given a specimen, the most tipward taxon in a
-# checklist containing that specimen.
+# This chooses, given two homotypic taxa, the one that best 'represents' 
+# the type specimen.
 
 def _pick_type_taxon(v1, v2):
   # See whether v2 is an improvement over v1 (lower unimportance value)
@@ -74,24 +84,18 @@ def _pick_type_taxon(v1, v2):
   # Prefer species (A b) to (subspecies A b c and even to A b b)
   # ...
 
-  # Prefer higher rank? (species to subspecies)
-  n1 = get_canonical(x1).count(' ')
-  n2 = get_canonical(x2).count(' ')
-  if n1 < n2: return v1
-  if n1 > n2: return v2
-
   # Prefer higher rank (e.g. species over subspecies)
   k1 = ranks_dict.get(get_rank(x1, None))
   k2 = ranks_dict.get(get_rank(x2, None))
   # lower numbers mean lower (more tipward) rank
-  if k1 < k2: return v2
-  if k2 < k1: return v1
+  if k1 and k2:
+    if k1 < k2: return v2       # higher/bigger taxon
+    if k2 < k1: return v1
 
-  # Prefer the most rootward taxon
+  # Prefer the most rootward taxon (backup in case ranks missing)
   m = simple.mrca(x1, x2)
-  if m == x1: return v1
-  if m == x2: return v2
-  # v1 and v2 are disjoint??  How can this happen?  Arbitrary I guess
+  if m == x1 and m != x2: return v1
+  if m == x2 and m != x1: return v2
 
   # Prefer the protonym, if any
   p1 = get_parts(x1).protonymp
@@ -116,15 +120,17 @@ def _pick_type_taxon(v1, v2):
   # Prefer the older one
   y1 = get_parts(x1).year
   y2 = get_parts(x2).year
-  if y1 < y2: return v1
-  if y1 > y2: return v2
+  if y1 and y2:
+    if y1 < y2: return v1
+    if y1 > y2: return v2
 
-  # Prefer earlier in alphabet
+  # Prefer earlier in alphabet ... ugh.
   n1 = get_canonical(x1)
   n2 = get_canonical(x2)
   if n1 < n2: return v1
   if n1 > n2: return v2
 
+  log("# Don't know how to choose: %s %s" % (blurb(v1), blurb(v2)))
   return v1
 
 
@@ -140,11 +146,9 @@ def typelike(x):
     return 1                    # A c, better
   return 10                     # bad
 
-# Access to specimen records [sid, u, v]
+# Access to specimen records
 
-def sid_to_specimen(AB, sid):
-  return AB.specimen_ufs[sid]
-
+# sid -> payload
 def sid_to_record(AB, sid, z):
   uf = sid_to_specimen(AB, sid)
   (_, u, v) = uf.payload()
@@ -173,6 +177,7 @@ def sid_to_epithet(AB, sid):
   prop.get_set(prop.declare_property("type_uf"))
 
 # The type specimen for a given record.
+# Not necessarily an exemplar, not necessarily identifier-carrying.
 # Only workspace nodes have uf nodes.
 
 def get_type_uf(u):

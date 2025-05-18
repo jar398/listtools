@@ -237,6 +237,8 @@ Case analysis:
   not-sci  not-sci   Remove s if =.  Otherwise leave.
 """
 
+subgenus_re = regex.compile(' \\(\\p{Uppercase_Letter}\\p{Letter}+\\) ')
+
 # Returns True if a change was made
 # TBD: Remove extraneous '.' from end of names (for MSW)
 
@@ -245,6 +247,14 @@ def clean_name(row, can_pos, sci_pos, auth_pos):
   c = row[can_pos].strip() if can_pos != None else MISSING
   s = row[sci_pos].strip() if sci_pos != None else MISSING
   a = row[auth_pos].strip() if auth_pos != None else MISSING
+
+  # Erase subgenus.  gnaparser can deal with it, but subsequent stages
+  # can't.
+  if s != MISSING:
+    # Should rule out subgenus-like element in authorship?
+    s = subgenus_re.sub(' ', s, count=1)
+  if c != MISSING:
+    c = subgenus_re.sub(' ', c, count=1)
 
   # TBD:
   # If c and s are missing, but we have a rank and values in the
