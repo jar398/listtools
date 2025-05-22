@@ -24,11 +24,11 @@ HETEROTYPIC   = 0
 # Parts masks
 
 EPITHET_MASK = 32
-VICINITY_MASK = 16
-YEAR_MASK = 8
-TOKEN_MASK = 4
-GENUS_MASK = 2
-MIDDLE_MASK = 1
+YEAR_MASK = 16
+TOKEN_MASK = 8
+GENUS_MASK = 4
+MIDDLE_MASK = 2
+PROTONYM_MASK = 1
 
 # Identify specimens in A checklist (swap to get B checklist).
 # Several taxa (synonyms, or one a descendant of the other) might share a specimen.
@@ -64,17 +64,6 @@ def find_homotypics_in_checklist(AB):
       process(c, epithets)
   process(AB.A.top, None)
 
-
-# ---------- compare_parts
-
-# Compare potentially homotypic names by examining their syntactic parts.
-# Compare Macropus robustus, Amblysomus robustus = heterotypic NOT
-# u and v are in the workspace, from different checklists.
-
-def compare_parts(u, v):
-  (misses, hits) = parts_comparison_detail(get_parts(u), get_parts(v))
-  return classify_comparison_details(misses, hits)
-
 # Given a comparison of parts, classify it as appropriate
 
 def classify_comparison_details(misses, hits):
@@ -103,6 +92,16 @@ def classify_comparison_details(misses, hits):
     return AUTHORLESS
 
   return REVIEW
+
+# ---------- compare_parts
+
+# Compare potentially homotypic names by examining their syntactic parts.
+# Compare Macropus robustus, Amblysomus robustus = heterotypic NOT
+# u and v are in the workspace, from different checklists.
+
+def compare_parts(u, v):
+  (misses, hits) = parts_comparison_detail(get_parts(u), get_parts(v))
+  return classify_comparison_details(misses, hits)
 
 # Compare potentially homotypic names.  Returns (m1, m2) where m1 and
 # m2 are integer masks, m1 for differences and m2 for similarities.
@@ -137,6 +136,10 @@ def parts_comparison_detail(p, q):
     if pmid == qmid: hits |= MIDDLE_MASK
     else: misses |= MIDDLE_MASK
 
+  if p.protonymp != None an q.protonymp != None:
+    if p.protonymp == q.protonymp: hits |= PROTONYMP_MASK
+    else: misses |= PROTONYMP_MASK
+
   return (misses, hits)
 
 # not used?
@@ -151,7 +154,6 @@ def explain(comparison):
                               "genus",    # GENUS_MASK = 2 << 1
                               "token",    # TOKEN_MASK
                               "year",     # YEAR_MASK
-                              "vicinity", # VICINITY_MASK
                               "epithet",  # EPITHET_MASK
                              ))
                       if (things & (1<<i)) != 0))
@@ -179,18 +181,22 @@ def explain_classified(classified):
 
 # --------------------
 
-# Compare potentially homotypic taxa in same workspace.
+# Compare potentially homotypic taxa.
+# Same checklist or different checklists.
 
 def relate_records(u, v):
   classified = compare_parts(u, v)
 
-  if classified == MOTION:
-    if not near_enough(u, v):
-    # Proximity within the hierarchy is essential if no genus match
-      return REVIEW
-
   if monitor(u) or monitor(v):
     log("# Compare %s, %s = %s" %
         (blurb(u), blurb(v), explain_classified(classified)))
+
+  if classified == MOTION:
+    if not near_enough(u, v):
+      # Proximity within the hierarchy is essential if no genus match
+      log("# No motion %s, %s = %s" %
+          (blurb(u), blurb(v), explain_classified(classified)))
+      return REVIEW
+
   return classified
 

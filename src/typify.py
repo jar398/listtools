@@ -197,3 +197,14 @@ def observe_match(u, v, u_matches, classified):
       v_speqs.append(v_spec)    # ????
   else:
     u_matches[u_sid] = (classified, [v_spec])
+
+def collate_by_sid(us):
+  dict = {}
+  for u in us:
+    sid = get_specimen_id(u, None)
+    seen = dict[sid]
+    if sid != None:
+      seen.append(u)
+    else:
+      seen = [u]
+  return dict

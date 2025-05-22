@@ -640,36 +640,30 @@ def records_to_rows(C, records, props=None): # Excludes top
       assert isinstance(x, prop.Record)
       yield record_to_row(x)
 
-# Filter out unnecessary equivalent A records!
-
-def keep_record_notused(x):
-  sup = get_superior(x, None)
-  # if not sup: assert False
-  if sup.relationship != EQ:
-    return True
-
-  # Hmm.  we're an A node that's EQ to some B node.
-  # Are they also a record match?
-  rel = get_matched(x)
-  if (not rel) or rel.record != sup.record:
-    # If record is unmatched, or matches something not equivalent,
-    # then keep it
-    return True
-  # They're a record match, are they also a name match?
-  can1 = get_canonical(x)       # in A
-  can2 = get_canonical(m.record) # in B
-  if can1 and can1 != can2:
-    # Similarly, keep if canonical differs
-    return True
-  # Can't figure out a way for them to be different.  Flush it.
-  return False
-
 def begin_table(C, props):
   if props == None: props = usual_props
   getters = tuple(map(prop.getter, props))
   def record_to_row(x):
     return [get(x, prop.MISSING) for get in getters]
   return ([prp.label for prp in props], record_to_row)
+
+# -----------------------------------------------------------------------------
+# Indexing
+
+# Returns dict value -> key
+# fn is a function over C records
+# e.g. lambda r:get_parts(r).epithet
+
+def index_checklist(C, fn):
+  index = {}
+  for x in postorder_records(C):
+    key = fn(x)
+    have = index.get(key, None) # part
+    if have:
+      have.append(x)
+    else:
+      index[key] = [x]
+  return index
 
 # -----------------------------------------------------------------------------
 # For debugging
