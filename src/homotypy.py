@@ -28,7 +28,7 @@ YEAR_MASK = 16
 TOKEN_MASK = 8
 GENUS_MASK = 4
 MIDDLE_MASK = 2
-PROTONYM_MASK = 1
+PROTONYMP_MASK = 1
 
 # Identify specimens in A checklist (swap to get B checklist).
 # Several taxa (synonyms, or one a descendant of the other) might share a specimen.
@@ -136,7 +136,7 @@ def parts_comparison_detail(p, q):
     if pmid == qmid: hits |= MIDDLE_MASK
     else: misses |= MIDDLE_MASK
 
-  if p.protonymp != None an q.protonymp != None:
+  if p.protonymp != None and q.protonymp != None:
     if p.protonymp == q.protonymp: hits |= PROTONYMP_MASK
     else: misses |= PROTONYMP_MASK
 

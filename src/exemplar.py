@@ -18,6 +18,8 @@ from specimen import equate_specimens, equate_type_ufs, \
 from typify import find_type_ufs
 from typify import find_endohomotypics
 
+import cluster
+
 # --------------------
 
 # listtools's exemplar-finding procedure.  If there is some other way
