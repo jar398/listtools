@@ -22,17 +22,15 @@ from rcc5 import DISJOINT
 from checklist import get_inferiors, get_rank
 from homotypy import compare_parts
 
+# A cluster has an id and a list of records (in checklist)
+
+# Clusters
 records_prop = prop.declare_property("records")
-get_records = prop.getter(records_prop)
-
 cluster_id_prop = prop.declare_property("cluster_id")
-get_cluster_id = prop.getter(cluster_id_prop)
-
 make_cluster = prop.constructor(records_prop, cluster_id_prop)
 
-cluster_prop = prop.declare_property("cluster")
-get_cluster = prop.getter(cluster_prop)
-set_cluster = prop.setter(cluster_prop)
+get_records = prop.getter(records_prop)
+get_cluster_id = prop.getter(cluster_id_prop)
 
 cluster_id = 1
 
@@ -41,15 +39,16 @@ def match_clusters(A, B):
   B_clusters = find_clusters(B)
   by_epithet = index_clusters_by_epithet(A_clusters, B_clusters) 
   # by_epithet: ep -> [[acluster...], [bcluster...]]
+  choices = []
   for sub in by_epithet.values():
     # sub = subproblem = (i_s, js)
     matches = match_in_subproblem(sub)
     # matches is a list of (i, j, score)
-    choices = choose_cluster_matches(matches)
-    # choices is a list of (i, j, score)
     # We can establish an exemplar for each choice.
-    # Maybe exemplar = matched pair of clusters
-
+    # exemplar = matched pair of clusters
+    for ch in check_cluster_matches(matches):
+      choices.append(ch)
+  return create_exemplars(choices)
 
 # Find clusters of same-type (homotypic) records in a checklist, returned
 # as a list of clusters
@@ -71,7 +70,6 @@ def find_clusters(C):
         clusters.append(cluster)
       else:
         get_records(cluster).append(x)
-        set_cluster(x, cluster)
 
     for c in get_inferiors(x):
       process(c, cluster)
@@ -81,7 +79,6 @@ def find_clusters(C):
 def new_cluster(leader):
   global cluster_id
   cluster = make_cluster([leader], id)
-  set_cluster(leader, cluster)
   cluster_id += 1
   return cluster
 
@@ -136,10 +133,11 @@ def match_clusters(i, j):
       if m > mmax: mmax = m
   return mmax
 
+# Check for ambiguities within a single subproblem
 # input is a list (i, j, score) sorted by score
 # output is a list (i, j, score) of matches
 
-def choose_cluster_matches(matches):
+def check_cluster_matches(matches):
   ii = {}                       # (i, j, score) keyed by cluster id
   jj = {}
   for (i, j, m) in matches:
@@ -164,10 +162,24 @@ def choose_cluster_matches(matches):
 
   assert len(ii) == len(jj)
 
-  for (iid, (_, j1, m1)) in ii.items:
+  for (_, j1, m1) in ii.values():
     jid = get_cluster_id(j1)
     (i2, j2, m2) = jj[jid]
     assert i is i2 and j2 is j1, "non reciprocal"
 
   return list(ii.values())
 
+# matches is a list of (i, j, score) where i,j are clusters
+
+def create_exemplars(matches):
+  id = 1
+  es = []
+  for (i, j, m) in matches:
+    e = make_exemplar(i, j, m, id)
+    id += 1
+    for r in get_records(i):
+      set_exemplar(r, e)
+    for r in get_records(j):
+      set_exemplar(r, e)
+    es.append(e)
+  return es

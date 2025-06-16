@@ -11,133 +11,13 @@ from util import log, windex
 from workspace import *
 
 from checklist import blorb, blurb
+
+# Obsolete 
 from specimen import get_exemplar, get_exemplar_id, sid_to_epithet
 from specimen import equate_specimens, equate_type_ufs, \
-  get_type_uf, maybe_get_type_uf
-
-from typify import find_type_ufs
-from typify import find_endohomotypics
+  get_type_uf
 
 import cluster
-
-# --------------------
-
-# listtools's exemplar-finding procedure.  If there is some other way
-# of finding exemplars, that's fine, don't need to use this.
-
-def find_exemplars(AB):
-  find_endohomotypics(AB)       # Within each checklist
-
-  subproblems = find_subproblems(AB)
-  log("* Finding type_ufs (single pass):")
-  find_type_ufs(AB, subproblems, None, True)
-
-  # maybe compute better estimates - see theory.py
-  report_on_exemplars(AB)
-
-# Find blocks/chunks, one per epithet
-
-def find_subproblems(AB):
-  log("* Finding subproblems:")
-  (A_index, B_index) = \
-    map(lambda CD: \
-        index_by_some_key(CD,
-                          # should use genus if epithet is missing
-                          get_subproblem_key),
-        (AB, swap(AB)))
-  subprobs = {}
-  for (key, us) in A_index.items():
-    assert key != MISSING, blurb(us[0])
-    vs = B_index.get(key, None)
-    if vs != None:
-      if any(map(monitor, us)) or any(map(monitor, vs)):
-        log("* Found monitored subproblem %s / %s" %
-            (map(blurb, us), map(blurb, vs)))
-      us.sort(key=unimportance)
-      vs.sort(key=unimportance)
-      subprobs[key] = (us, vs)
-      if (any(monitor(u) for u in us) or
-          any(monitor(v) for v in vs)):
-        log("* Added subproblem %s e.g. %s.  %s x %s" %
-            (key, blurb(us[0]), len(list(map(blurb, us))), len(list(map(blurb, vs)))))
-    else:
-      if PROBE in key:
-        log("# Null subproblem %s" % key)
-  log("* There are %s subproblems." % len(subprobs))
-  AB.subproblems = subprobs
-  return subprobs
-
-# More important -> lower number, earlier in sequence
-
-def unimportance(u):
-  parts = get_parts(u)
-  if parts.epithet == MISSING: unimp = 4      # Foo
-  elif parts.middle == parts.epithet: unimp = 2     # Foo bar bar
-  elif parts.middle == None or parts.middle == '':  unimp = 0     # Foo bar
-  else: unimp = 1                         # Foo bar baz
-  x = get_outject(u)
-  return (1 if is_accepted(x) else 2,
-          unimp,
-          # Prefer to match the duplicate that has children
-          # (or more children)
-          -len(get_children(x, ())),
-          -len(get_synonyms(x, ())),
-          get_scientific(x, None),
-          get_primary_key(x))
-
-# Returns dict value -> key
-# fn is a function over AB records
-
-def index_by_some_key(AB, fn):
-  index = {}
-  for x in postorder_records(AB.A):
-    u = AB.in_left(x)
-    key = fn(u)
-    if False and monitor(u):
-      log("# 1 Indexing %s, key %s, monitored? %s" % (blurb(u), key, monitor(u)))
-      log("# 2 Indexing %s, key %s, monitored? %s" % (blurb(u), key, monitor(x)))
-    #assert key  - MSW has scientificName = ?
-    have = index.get(key, None) # part
-    if have:
-      have.append(u)
-    else:
-      index[key] = [u]
-  return index
-
-# Each subproblem covers a single epithet (or name, if higher taxon)
-# z is in AB
-
-def get_subproblem_key(z):
-  x = get_outject(z)
-  parts = get_parts(x)
-  ep = parts.epithet            # stemmed
-  key = ep if ep else parts.genus
-  if key:
-    if False and monitor(x):
-      log("# Subproblem key is %s for %s" % (key, blurb(x)))
-  else:
-    log("** %s: Name missing or ill-formed: %s" %
-        (get_primary_key(x), parts,))
-    key = '?' + get_primary_key(x)
-  return key
-
-# ------
-
-def report_on_exemplars(AB):
-  count = ufcount = 0      # of nodes having exemplars?
-  
-  # but we could just look at AB.specimen_ufs, instead?
-  for x in preorder_records(AB.A):
-    u = AB.in_left(x)
-    uf = maybe_get_type_uf(u, None)
-    if uf:
-      ufcount += 1
-      b = get_exemplar(u)        # forces sid assignment, return (sid,u,v) ?
-      if b:
-        count += 1
-        get_exemplar_id(uf)        # forces sid assignment  ??
-  log("# Nodes with type specimens: %s, nodes with exemplars: %s, specimen id UFs: %s" %
-      (ufcount, count, len(AB.specimen_ufs)))
 
 # Write exemplars to a file
 
@@ -154,10 +34,10 @@ def generate_exemplars(AB):
       rcount += 1
       if not is_top(x):               # ?
         u = ws.in_left(x)
-        uf = get_exemplar(u)     # exemplar record [sid, u, v] or None
-        if uf:
+        exem = get_exemplar(u)     # exemplar record [sid, u, v] or None
+        if exem:
           ecount += 1
-          sid = get_exemplar_id(uf)
+          sid = get_exemplar_id(exem)
           epithet = sid_to_epithet(AB, sid)
           rows.append((sid, epithet, which, get_primary_key(x), get_canonical(x)))
           count[0] += 1
@@ -195,15 +75,15 @@ def read_exemplars(in_rows, AB):
       if sid > AB.max_sid:
         AB.max_sid = sid
       u = AB.in_left(x) if which=='A' else AB.in_right(x)
-      uf = get_type_uf(u)        # one uf for each taxon
+      exem = get_type_uf(u)        # one exemplar for each taxon
 
       if sid in AB.specimen_ufs: # as a key
         uf2 = AB.specimen_ufs[sid]
         assert uf2.payload()[0] == sid
-        uf = equate_specimens(uf, uf2)
+        exem = equate_specimens(exem, uf2)
 
-      uf.payload()[0] = sid
-      AB.specimen_ufs[sid] = uf # Replace
+      exem.payload()[0] = sid
+      AB.specimen_ufs[sid] = exem # Replace
 
 
 if __name__ == '__main__':
