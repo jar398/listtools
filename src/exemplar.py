@@ -18,35 +18,29 @@ from specimen import equate_specimens, equate_type_ufs, \
   get_type_uf
 
 import cluster
+from cluster import find_exemplars
 
 # Write exemplars to a file
 
-def write_exemplar_list(AB, out=sys.stdout):
-  util.write_rows(generate_exemplars(AB), out)
+def gather_exemplars(AB):
+  return cluster.find_exemplars(AB.A, AB.B)  # list of exemplars
 
-def generate_exemplars(AB):
+def write_exemplar_list(exemplars, AB, out=sys.stdout):
+  util.write_rows(generate_exemplars(exemplars), out)
+
+def generate_exemplars(exemplars):
   yield ("exemplar id", "epithet", "checklist", "taxonID", "canonicalName")
-  count = [0]
-  rows = []
-  def doit(ws, which):
-    rcount = ecount = 0
-    for x in preorder_records(ws.A):
-      rcount += 1
-      if not is_top(x):               # ?
-        u = ws.in_left(x)
-        exem = get_exemplar(u)     # exemplar record [sid, u, v] or None
-        if exem:
-          ecount += 1
-          sid = get_exemplar_id(exem)
-          epithet = sid_to_epithet(AB, sid)
-          rows.append((sid, epithet, which, get_primary_key(x), get_canonical(x)))
-          count[0] += 1
-    log("# preorder: %s, exemplars: %s" % (rcount, ecount)) 
-  doit(swap(AB), 'B')
-  doit(AB, 'A')
-  rows.sort(key=lambda row:(row[0], row[2], row[4]))
-  yield from rows
-  log("# %s rows in exemplar report" % count[0])
+  count = 0
+
+  for exemplar in exemplars:
+    for record in left_cluster(examplar):
+      yield exemplar_id, None, "A", get_primary_key(record), get_canonical(record)
+      count += 1
+    for record in right_cluster(examplar):
+      yield exemplar_id, None, "B", get_primary_key(record), get_canonical(record)
+      count += 1
+
+  log("# %s rows in exemplar report" % count)
 
 # Read list of exemplars from file (given as a Rows)
 
@@ -109,5 +103,4 @@ if __name__ == '__main__':
       # compute name matches afresh
       AB = ingest_workspace(a_rows.rows(), b_rows.rows(),
                             A_name=a_name, B_name=b_name)
-      find_exemplars(AB)
-      write_exemplar_list(AB)
+      write_exemplar_list(gather_exemplars(AB), AB)

@@ -2,6 +2,8 @@
 
 # 'make' utilities.  The intent is that this gile gets 'included' in
 # Makefiles using the 'include' command.
+# N.b. file references in this makefile are to files in subdirectories
+# of the listtools root directory.
 
 # Prerequisite (used by python code):
 # pip3 install regex
@@ -28,7 +30,8 @@ all: $(ABW)_report.csv
 # Needed for exemplars list
 CODE1=$P/exemplar.py $P/simple.py \
      $P/parse.py $P/typify.py $P/redundant.py $P/specimen.py \
-     $P/checklist.py $P/rcc5.py $P/util.py $P/workspace.py 
+     $P/checklist.py $P/rcc5.py $P/util.py $P/workspace.py \
+     $P/cluster.py
 
 # Needed for report
 CODE2=$P/plugin.py $P/jumble.py $P/theory.py $P/estimate.py \
