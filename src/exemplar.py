@@ -40,6 +40,7 @@ def find_exemplars(get_estimate, AB):
   report_on_exemplars(AB)
 
 # Find blocks/chunks, one per epithet
+# Do we want to keep blocks where name is in only one checklist?
 
 def find_subproblems(AB):
   log("* Finding subproblems:")
@@ -53,20 +54,21 @@ def find_subproblems(AB):
   for (key, us) in A_index.items():
     assert key != MISSING, blurb(us[0])
     vs = B_index.get(key, None)
-    if any(map(monitor, us)) or any(map(monitor, vs)):
-      log("* Found monitored subproblem %s / %s" %
-          (map(blurb, us), map(blurb, vs)))
     if vs != None:
-      us.sort(key=unimportance)
-      vs.sort(key=unimportance)
-      subprobs[key] = (us, vs)
-      if (any(monitor(u) for u in us) or
-          any(monitor(v) for v in vs)):
-        log("* Added subproblem %s e.g. %s.  %s x %s" %
-            (key, blurb(us[0]), len(list(map(blurb, us))), len(list(map(blurb, vs)))))
-    else:
-      if PROBE in key:
-        log("# Null subproblem %s" % key)
+      if any(map(monitor, us)) or any(map(monitor, vs)):
+        log("* Found monitored subproblem %s / %s" %
+            (map(blurb, us), map(blurb, vs)))
+      if vs != None:
+        us.sort(key=unimportance)
+        vs.sort(key=unimportance)
+        subprobs[key] = (us, vs)
+        if (any(monitor(u) for u in us) or
+            any(monitor(v) for v in vs)):
+          log("* Added subproblem %s e.g. %s.  %s x %s" %
+              (key, blurb(us[0]), len(list(map(blurb, us))), len(list(map(blurb, vs)))))
+      else:
+        if PROBE in key:
+          log("# Null subproblem %s" % key)
   log("* There are %s subproblems." % len(subprobs))
   AB.subproblems = subprobs
   return subprobs
