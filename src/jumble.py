@@ -14,6 +14,7 @@ from estimate import get_block  # for debugging
 def jumble_workspace(AB):
   log("# Jumbling")
   set_workspace_top(AB)
+  links = 0
   for x in preorder_records(AB.A): # includes AB.A.top
     z = AB.in_left(x)
     f = jumbled_superior(AB, z)
@@ -22,6 +23,8 @@ def jumble_workspace(AB):
       if is_top(f.record) or is_top(z):
         log("# Linking near top: %s %s" %
             (blurb(z), blurb(f)))
+      links += 1
+  log("# made %s links in AB" % links)
   for y in preorder_records(AB.B):
     z = AB.in_right(y)
     f = jumbled_superior(AB, z)
@@ -61,9 +64,11 @@ def get_workspace_top(AB):
 # I recommend drawing a picture
 
 def jumbled_superior(AB, u):
-  sup = local_sup(AB, u)      # Relation
+  sup = local_sup(AB, u)      # Relation from u to another record in AB
   cos = cosuperior(AB, u)
-  if not sup: return cos        # u is AB.top
+  if not sup:
+    # u has no parent in AB
+    return cos
   if not cos: return sup
   assert separated(sup.record, cos.record)
   assert local_accepted(AB, sup.record)
