@@ -3,7 +3,7 @@
 import sys, csv, argparse
 import rcc5, rows, checklist, workspace
 import theory, exemplar, estimate
-import jumble
+import jumble, util
 
 from workspace import ingest_workspace, is_accepted_locally, local_sup, \
   local_accepted, isinA, isinB
@@ -56,6 +56,9 @@ def generate_plugin_report(AB):
         ops.append("no corresponding species")
 
       yield generate_row(AB, u, v, ops)
+
+  # Kludge!!!  To make sure summary gets displayed
+  util.log_allowance = 1000
 
   for (op, op_count) in counts.items():
     log("  %6d %s" % (op_count, op))

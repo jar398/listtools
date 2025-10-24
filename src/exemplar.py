@@ -11,7 +11,7 @@ from workspace import *
 from checklist import blorb, blurb
 from specimen import get_exemplar, get_exemplar_id, sid_to_epithet
 from specimen import equate_specimens, equate_typifications, \
-  get_typification, maybe_get_typification
+  get_type_uf, maybe_get_type_uf
 
 from estimate import find_estimates, get_estimate
 from typify import find_typifications
@@ -135,7 +135,7 @@ def report_on_exemplars(AB):
   # but we could just look at AB.specimen_ufs, instead?
   for x in preorder_records(AB.A):
     u = AB.in_left(x)
-    uf = maybe_get_typification(u, None)
+    uf = maybe_get_type_uf(u, None)
     if uf:
       ufcount += 1
       b = get_exemplar(u)        # forces sid assignment, return (sid,u,v) ?
@@ -197,7 +197,7 @@ def read_exemplars(in_rows, AB):
       log("## read_exemplars: Record not found?! %s" % taxonid)
     else:
       u = AB.in_left(x) if which=='A' else AB.in_right(x)
-      uf = get_typification(u)
+      uf = get_type_uf(u)
 
       # row is (sid, which, taxonid)
       sid = int(row[sid_col])

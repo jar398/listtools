@@ -116,34 +116,34 @@ def sid_to_epithet(AB, sid):
 
 # -----------------------------------------------------------------------------
 
-# typification_uf = specimen that is the type of a given taxon. ???
+# type_uf = specimen that is the type of a given taxon. ???
 # We might just call these "types".
 
-(maybe_get_typification, set_typification_uf) = \
-  prop.get_set(prop.declare_property("typification_uf"))
+(maybe_get_type_uf, set_type_uf) = \
+  prop.get_set(prop.declare_property("type_uf"))
 
 # Only workspace nodes have uf records
 
-def get_typification(u):
-  probe = maybe_get_typification(u, None)
+def get_type_uf(u):
+  probe = maybe_get_type_uf(u, None)
   if probe: return probe
   AB = get_workspace(u)
   r = [None, u, None] if isinA(AB, u) else [None, None, u]
   uf = UnionFindable(r)
-  set_typification_uf(u, uf)
+  set_type_uf(u, uf)
   return uf
 
 # Are u and v known to have the same typification (type specimen)?
 
-def same_typifications(u, v):
-  uf = maybe_get_typification(u, None)
-  vf = maybe_get_typification(v, None)
+def same_type_ufs(u, v):
+  uf = maybe_get_type_uf(u, None)
+  vf = maybe_get_type_uf(v, None)
   return uf and vf and same_specimens(uf, vf)
 
 # u and v are in workspace but may or may not be from same checklist
 
 def equate_typifications(u, v):     # opposite checklists. u might be species
-  equate_specimens(get_typification(u), get_typification(v))
+  equate_specimens(get_type_uf(u), get_type_uf(v))
   if monitor(u) or monitor(v):
     log("# Unifying specimen(%s) = specimen(%s)" % (blorb(u), blorb(v)))
   return u
@@ -153,9 +153,9 @@ def equate_typifications(u, v):     # opposite checklists. u might be species
 # This implements transitivity of equality, I think?
 
 def equatable_typifications(u, v):
-  uf = maybe_get_typification(u, None)
+  uf = maybe_get_type_uf(u, None)
   if uf:
-    vf = maybe_get_typification(v, None)
+    vf = maybe_get_type_uf(v, None)
     if vf:
       return uf.payload() is vf.payload()
   return True
@@ -180,7 +180,7 @@ def is_exemplar(uf):
   return False
 
 def get_exemplar(z):            # Returns a uf node
-  uf = maybe_get_typification(z, None)
+  uf = maybe_get_type_uf(z, None)
   if is_exemplar(uf): return uf
   return None
   

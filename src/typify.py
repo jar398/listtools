@@ -17,7 +17,7 @@ from workspace import isinA, isinB, local_accepted, all_records, \
 from simple import simple_le, compare_per_checklist
 from specimen import sid_to_epithet, same_specimens, \
   equate_typifications, equate_specimens, \
-  get_typification, get_specimen_id, \
+  get_type_uf, get_specimen_id, \
   sid_to_specimen, get_typifies, same_specimens
 from proximity import near_enough
 
@@ -220,8 +220,8 @@ def find_typifications(AB, subprobs, get_estimate, last):
 # 'Classified' might be a failure e.g. HETEROTYPIC
 
 def observe_match(u, v, u_matches, classified):
-  u_spec = get_typification(u)
-  v_spec = get_typification(v)
+  u_spec = get_type_uf(u)
+  v_spec = get_type_uf(v)
 
   u_sid = get_specimen_id(u_spec)
   v_sid = get_specimen_id(v_spec)
@@ -379,7 +379,7 @@ def explain_classified(classified):
 # Convenience.  Phase this out?  Or rename it?
 
 def get_link(u, default=-19):
-  uf = maybe_get_typification(u, None)
+  uf = maybe_get_type_uf(u, None)
   if uf:
     (_, u2, v) = uf.payload()
     return v if (v and separated(u, v)) else u2

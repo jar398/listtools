@@ -11,7 +11,7 @@ from rcc5 import rcc5_symbol
 import specimen
 import exemplar
 import estimate
-from specimen import same_specimens, get_exemplar, same_typifications
+from specimen import same_specimens, get_exemplar, same_type_ufs
 from estimate import find_estimates, get_estimate, get_equivalent
 from estimate import is_empty_block, get_block, BOTTOM_BLOCK
 from estimate import block_relationship, same_block, opposite_exemplar_records
@@ -165,7 +165,7 @@ def compose_final(u, rel1, rel2, rel3):
 
 def compare_locally(AB, u, v):
   rel = simple.compare_per_checklist(get_outject(u), get_outject(v)) # in A or B
-  if rel.relationship & DISJOINT and same_typifications(u, v):
+  if rel.relationship & DISJOINT and same_type_ufs(u, v):
     # rel.relationship is NOINFO or DISJOINT
     # They're not disjoint because type is in both
     return relation(INTERSECT, v, "homotypic synonyms")
