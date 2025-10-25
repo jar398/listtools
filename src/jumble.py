@@ -4,7 +4,7 @@ from workspace import *
 from rcc5 import *
 from checklist import link_superior
 
-import theory
+import util, theory
 from estimate import get_estimate, get_equivalent
 
 from estimate import get_block  # for debugging
@@ -13,6 +13,7 @@ from estimate import get_block  # for debugging
 
 def jumble_workspace(AB):
   log("# Jumbling")
+  util.log_allowance = 1000
   set_workspace_top(AB)
   links = 0
   for x in preorder_records(AB.A): # includes AB.A.top
@@ -24,12 +25,15 @@ def jumble_workspace(AB):
         log("# Linking near top: %s %s" %
             (blurb(z), blurb(f)))
       links += 1
-  log("# made %s links in AB" % links)
+  log("# made %s parent links for A records in AB" % links)
+  links = 0
   for y in preorder_records(AB.B):
     z = AB.in_right(y)
     f = jumbled_superior(AB, z)
     if f:
       link_superior(z, f)
+      links += 1
+  log("# made %s parent links for B records in AB" % links)
   log("# workspace top is %s" % blurb(AB.top))
   infs = list(get_inferiors(AB.top))
   log("# inferiors of top are %s" % list(map(blurb, infs)))
@@ -70,6 +74,7 @@ def jumbled_superior(AB, u):
     # u has no parent in AB
     return cos
   if not cos: return sup
+  # sup and cos are both in AB
   assert separated(sup.record, cos.record)
   assert local_accepted(AB, sup.record)
   assert local_accepted(AB, cos.record)
@@ -80,6 +85,8 @@ def jumbled_superior(AB, u):
     # A node's superior will be set correctly
     return None
 
+  # Find the supremum.  sup is derived from A (and is in AB).
+  # Trouble case: theory doesn't know whether it's = or >
   rel = theory.compare(AB, sup.record, cos.record)
   # might be NOINFO
   if rel.relationship == GT or rel.relationship == GE:
@@ -116,7 +123,11 @@ def cosuperior(AB, u):
     # Cannot tolerate a synonym as parent
     if not is_accepted_locally(AB, v):
       # u <= v <= accepted-v
-      est1 = compose_relations(est1, local_sup(AB, v))
+      if False:
+        acc = local_sup(AB, v)
+      else:
+        acc = local_accepted(AB, v)    # same thing I guess
+      est1 = compose_relations(est1, acc)
       v = est1.record
     est2 = get_estimate(v, None)
     # u <= v <= u2
