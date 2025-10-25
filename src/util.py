@@ -124,15 +124,23 @@ def stdopen(x, mode='r'):
 
 # 
 
-log_allowance = 1000    #MSW dups
+log_allowance_reset = 500    #MSW dups
+log_allowance = log_allowance_reset
 
 def log(mess):
   global log_allowance
   if log_allowance > 0:
     print(mess, file=sys.stderr)
   elif log_allowance == 0:
+    # WIN!
     print("*** logging truncated ***", file=sys.stderr)
   log_allowance -= 1
+
+def reset_log_allowance():
+  print("*** reset logging ***", file=sys.stderr)  # FAIL
+  global log_allowance, log_allowance_reset
+  # Why doesn't this get written?  ************
+  log_allowance = log_allowance_reset
 
 # ------------------------------
 

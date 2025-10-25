@@ -13,7 +13,7 @@ def open(specifier, mode='r'):
 
 class Rows:
   def __init__(self, x, mode): 
-    self.x = x
+    self.x = x                  # path or -
 
     if x.startswith('('):
       self.file = None
@@ -24,6 +24,7 @@ class Rows:
         self.file = sys.stdout if 'w' in mode else sys.stdin
       else:
         self.close_required = True
+        # I fear that this is nonsensical !
         self.file = io.open(x, mode)
     self.open = True
 
@@ -49,6 +50,8 @@ class Rows:
     for row in row_generator:
       assert self.open
       writer.writerow(row)
+    # SUCCESS ...
+    print("# wrote rows", file=sys.stderr)
 
 # Test
 

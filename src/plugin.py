@@ -4,6 +4,7 @@ import sys, csv, argparse
 import rcc5, rows, checklist, workspace
 import theory, exemplar, estimate
 import jumble
+import util
 
 from workspace import ingest_workspace, is_accepted_locally, local_sup, \
   local_accepted, isinA, isinB, is_species
@@ -14,6 +15,7 @@ from estimate import get_equivalent
 from block import get_block, is_empty_block
 from property import mep, mep_get, mep_set
 from ranks import ranks_dict
+from util import reset_log_allowance
 
 counts = {}
 def count(tag):
@@ -61,6 +63,8 @@ def generate_plugin_report(AB):
         seen.add(combo)
         yield generate_row(AB, u, v, ops)
 
+def op_counts_report(counts):
+  reset_log_allowance()    # prints to stderr
   for (op, op_count) in counts.items():
     log("  %6d %s" % (op_count, op))
 
@@ -301,6 +305,16 @@ def hamming(u, v):
   if p1.year != p2.year: h += 1
   return h
 
+def generate_report(AB, d_path):
+  with rows.open(d_path, "w") as d_gen:
+    log("# a")              # doesn't get written
+    # writes to io.open(...), a text stream  ??
+    d_gen.write_rows(generate_plugin_report(AB))
+    print("# resetting logging", file=sys.stderr)    # SUCCESS
+    reset_log_allowance()
+    print("# wrote rows 2", file=sys.stderr) # SUCCESS
+    log("# wrote rows 2a")                   # FAILURE
+
 if __name__ == '__main__':
   parser = argparse.ArgumentParser(description="""
     """)
@@ -326,9 +340,8 @@ if __name__ == '__main__':
         exemplar.read_exemplars(rows.open(args.exemplars), AB)
       else:
         exemplar.find_exemplars(AB)
+      log("# theorize")         # gets written.
       theory.theorize(AB, False)
-      with rows.open(d_path, "w") as d_gen:
-        gen = (row for row in generate_plugin_report(AB))
-        kludge = list(gen)
-        log("# %s rows" % len(kludge))
-        d_gen.write_rows(kludge)
+      generate_report(AB, d_path)
+      log("# c")              # does not gets written
+      op_counts_report(counts)  # counts is global.  prints to stderr.

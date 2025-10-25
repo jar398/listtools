@@ -1,0 +1,22 @@
+On branch main
+Your branch is ahead of 'origin/main' by 22 commits.
+  (use "git push" to publish your local commits)
+
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+	modified:   src/plugin.py
+	modified:   src/rows.py
+	modified:   src/util.py
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	diff.out
+	dribble
+	git_status_1761410196.txt
+	mammals/dribble
+	msw3-mdd1.10-exemplars-v3.csv
+	msw3-mdd1.10-exemplars-v3.csv.x
+	out.out
+
+no changes added to commit (use "git add" and/or "git commit -a")
