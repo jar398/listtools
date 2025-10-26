@@ -145,24 +145,21 @@ def local_sup(AB, u):
   assert u, 'local_sup'
   assert get_outject(u)
   loc = get_superior(get_outject(u), None)
-  if not loc:
-    return None
-  if isinA(AB, u):
-    return relation(loc.relationship, AB.in_left(loc.record),
-                    note=loc.note, span=loc.span)
-  else:
-    return relation(loc.relationship, AB.in_right(loc.record),
-                    note=loc.note, span=loc.span)
+  if not loc: return None
+  v = AB.in_left(loc.record) if isinA(AB, u) else AB.in_right(loc.record)
+  return relation(loc.relationship, v,
+                  note=loc.note, span=loc.span)
 
-def swap(AB):
-  return AB.swap()
+# Given a Record, returns a Relation
 
 def local_accepted(AB, u):
-  y = get_accepted(get_outject(u))
-  if isinA(AB, u):
-    return AB.in_left(y)
-  else:
-    return AB.in_right(y)
+  assert u, 'local_accepted'
+  assert get_outject(u)
+  loc = get_accepted_relation(get_outject(u))
+  assert loc
+  v = AB.in_left(loc.record) if isinA(AB, u) else AB.in_right(loc.record)
+  return relation(loc.relationship, v,
+                  note=loc.note, span=loc.span)
 
 def is_accepted_locally(AB, u):
   return is_accepted(get_outject(u))
@@ -179,6 +176,9 @@ def normalize_articulation(art):
     return art
   else:
     return reverse_articulation(art)
+
+def swap(AB):
+  return AB.swap()
 
 # -----------------------------------------------------------------------------
 

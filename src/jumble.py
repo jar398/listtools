@@ -19,6 +19,7 @@ def jumble_workspace(AB):
   for x in preorder_records(AB.A): # includes AB.A.top
     z = AB.in_left(x)
     f = jumbled_superior(AB, z)
+    # f could be < parent of z in A
     if f:                       # should be accepted
       link_superior(z, f)
       if is_top(f.record) or is_top(z):
@@ -65,80 +66,125 @@ def get_workspace_top(AB):
           (blurb(A_top), rcc5_symbol(rel.relationship), blurb(B_top)))
   return answer
 
+def supremum(AB, u, v):
+  return None
+
 # I recommend drawing a picture
 
+# 'u' could be in either A or B
+
 def jumbled_superior(AB, u):
-  sup = local_sup(AB, u)      # Relation from u to another record in AB
-  cos = cosuperior(AB, u)
+  # Suppress nodes in B that have an equivalent in A
+  if isinB(AB, u) and get_equivalent(AB, u):
+    # Omit from jumbled hierarchy; redundant
+    return None
+
+  if isinA(AB, u):
+    sup = local_sup(AB, u)      # Relation from u to another record in AB
+    cos = cosuperior(AB, u)
+  else:
+    sup = cosuperior(AB, u)
+    cos = local_sup(AB, u)
+  # We want min(sup, cos).
   if not sup:
-    # u has no parent in AB
-    return cos
-  if not cos: return sup
+    return cos    # u has no parent in AB.A
+  if not cos:
+    return sup    # u has no parent in AB.B
   # sup and cos are both in AB
   assert separated(sup.record, cos.record)
   assert local_accepted(AB, sup.record)
   assert local_accepted(AB, cos.record)
 
-  # Suppress nodes in B that have an equivalent in A
-  if is_redundant(AB, u):
-    # sup and cos are = cosuperior and local_sup of the equivalent A node, so 
-    # A node's superior will be set correctly
-    return None
-
-  # Find the supremum.  sup is derived from A (and is in AB).
+  # Find the supremum.  sup in AB is derived from A.
   # Trouble case: theory doesn't know whether it's = or >
-  rel = theory.compare(AB, sup.record, cos.record)
-  # might be NOINFO
-  if rel.relationship == GT or rel.relationship == GE:
-    prefer = cos
-  elif rel.relationship == LT or rel.relationship == LE:
-    prefer = sup
-  elif rel.relationship == EQ:
-    prefer = sup                # sup is in A, cos is in B
-  elif rel.relationship == OVERLAP:
-    prefer = sup
-  else:  # rel.relationship == anything else: NOINFO, etc.
-    log("# jumble at %s:\n  %s %s %s" %
-        (blurb(u), blurb(sup), rcc5_symbol(rel.relationship), blurb(cos)))
-    prefer = sup
-  assert local_accepted(AB, prefer.record)
-  return prefer
 
-# Records to suppress
+  while True:
 
-def is_redundant(AB, u):
-  e_rel = get_equivalent(AB, u)
-  return (isinB(AB, u) and e_rel and
-          get_rank(e_rel.record, None) == get_rank(u, None))
+    rel = theory.compare(AB, sup.record, cos.record)
+    if rel.relationship == LT or rel.relationship == LE \
+       or rel.relationship == EQ:
+      return sup
+
+    elif rel.relationship == GT or rel.relationship == GE:
+      return cos
+
+    else:
+      sup2 = get_superior(sup.record, None)
+      if rel.relationship != OVERLAP or not sup2:
+        # rel.relationship == anything else: NOINFO, etc.
+        # might be NOINFO
+        log("# jumble at %s:\n  %s %s %s" %
+            (blurb(u), blurb(sup), rcc5_symbol(rel.relationship), blurb(cos)))
+      if not sup2:
+        return sup              # ?
+
+      # Loop around with new sup
+      sup = sup2
 
 # Let's say u is in checklist 1.  Cosuperior should be in checklist 2.
 # Answer is None for record in checklist 2 whose sup is 
-# congruent to a checklist 1 node.
+# "lifted" i.e. congruent to a checklist 1 node.
 
 def cosuperior(AB, u):
+  est1 = get_estimate(u, None)
+  if not est1: return None
+  v = est1.record
+
+  assert separated(u, v)
+
+  est2 = get_estimate(v, None)
+  if not est2: return None
+  u2 = est2.record
+
+  assert separated(u2, v)
+
+  if u2 is u:                   # Equivalent
+    sup = local_sup(AB, v)
+    if not sup: return None
+    # u -> v
+    answer = compose_relations(est1, sup)
+  else:
+    # u < u2, or u = u2 and some minor difference
+    answer = est1
+
+  assert separated(u, answer.record)
+
+  return answer
+
+
+def cosuperior_old(AB, u):
+  # Find v with u != v and u <= v
   est1 = get_estimate(u, None)  # v in checklist 2
   if est1:                      # u is not top
     # u <= v
     v = est1.record
-    # Cannot tolerate a synonym as parent
+    # if v is a synonym, we would have u <= v, which is no good
     if not is_accepted_locally(AB, v):
       # u <= v <= accepted-v
-      if False:
-        acc = local_sup(AB, v)
-      else:
-        acc = local_accepted(AB, v)    # same thing I guess
+      acc = local_accepted(AB, v)    # same thing I guess
       est1 = compose_relations(est1, acc)
       v = est1.record
+      # Now we have u <= v and it's OK
+    # est1: u -> v
     est2 = get_estimate(v, None)
     # u <= v <= u2
     if est2:      # u2 is not top
       u2 = est2.record              # in 1
-      if u2 is u:                   # Congruent
+      # Should eliminate synonym u <= u2 as we did above by lifting u2
+      if not is_accepted_locally(AB, u2):
+        acc = local_accepted(AB, u2)
+        est2 = compose_relations(est2, acc)
+        u2 = est2.record
+
+      if u2 is u:                   # Congruent; co-estimates
         # v did not provide the 2nd superior.
         # Try v's parent (u -> v -> v3).
         sup3 = local_sup(AB, v)   # v <= v3 in 2
         if sup3:
           # u <= v <= v3
+          # We want overall est1 -> u -> v -> u2 -> est2
+          #   where est1: u -> v
+          #   WHERE EST2: V -> U2
           answer = compose_relations(est1, sup3) # in 2
         else:
           return None           # v is top
@@ -153,6 +199,7 @@ def cosuperior(AB, u):
     # Shouldn't happen
     log("! nested synonyms: %s <= %s" % (blurb(u), blurb(answer.record)))
     assert False
+  # assert u.record < answer.record
   return answer
 
 if __name__ == '__main__':

@@ -43,7 +43,7 @@ def generate_plugin_report(AB):
     # A A
     # A B
     
-    assert not jumble.is_redundant(AB, z)
+    #assert jumble.is_keeper(AB, z)
 
     if is_species(z):
       w = choose_partner(AB, z) # may be None

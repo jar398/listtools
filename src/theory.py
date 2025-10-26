@@ -44,12 +44,14 @@ def compare(AB, v, w):
 # u <= u1 ? w1 >= w
 def cross_compare(AB, u, v):
   assert separated(u, v)
-  u1 = get_accepted(u)
+  u_acc = local_accepted(AB, u)
+  u1 = u_acc.record
+  # u1 = get_accepted(u)
   v1 = get_accepted(v)
   rel = compare_accepted(AB, u1, v1)
   # Cf. simple.compare_per_checklist
   if not u is u1:
-    syn = get_superior(u)
+    syn = get_superior(u)   # u_acc
     rel = compose_relations(syn, rel)
   if not v is v1:
     syn = reverse_relation(v1, get_superior(v))
@@ -139,7 +141,6 @@ def compare_within_block(AB, u, v):
 
   # Take intersection to see where they agree
   ship = parallel_relationship(ship1, rev_ship2)
-  rel = relation(ship, v, "parallel")
   # ship == NOINFO  probably means sibling synonyms
   if ship == INCONSISTENT:
     log("# Baffled: %s is inconsistent with %s" %
@@ -154,7 +155,16 @@ def compare_within_block(AB, u, v):
     log("#   v   %s   u:  %s" % (rcc5_symbol(rel_vu.relationship), blurb(rel_vu)))
     log('')
 
-  return rel
+    # Heuristic: equality is often an approximation ???
+    # This is highly unsatisfactory.  They're supposed to be in same block.
+    if ship1 == EQ:
+      ship = rev_ship2
+      log("# Repairing inconsistency 1")
+    if ship2 == EQ:
+      ship = ship1
+      log("# Repairing inconsistency 2")
+
+  return relation(ship, v, "parallel")
 
 def compose_final(u, rel1, rel2, rel3):
   assert rel1                   # could be < or <= or =
@@ -286,9 +296,10 @@ def get_intersecting_species(u):
 
 def get_species(u):
   AB = get_workspace(u)
-  s = local_accepted(AB, u)
+  acc = local_accepted(AB, u)     # Relation
+  s = acc.record
   while not is_species(s):
-    rel = local_sup(AB, s)        # relation
+    rel = local_sup(AB, s)        # Relation
     if rel: s = rel.record
     else: return None
   return s

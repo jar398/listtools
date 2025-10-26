@@ -127,7 +127,9 @@ def reverse_articulation(art):
 def compose_relations(rel1, rel2):
   assert rel1
   assert rel2
-  assert (not get_workspace(rel1.record)) == (not get_workspace(rel2.record))
+  assert get_source(rel1.record) is get_source(rel2.record)
+  #assert (not get_workspace(rel1.record)) == (not get_workspace(rel2.record))
+  # assert same checklist for rel1 and rel2 ??
   if is_identity(rel1): return rel2
   if is_identity(rel2): return rel1
   # Consider special relationships for synonyms 
