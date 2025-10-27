@@ -8,6 +8,7 @@ from checklist import *
 from workspace import *
 from simple import BOTTOM, compare_per_checklist
 from specimen import get_exemplar_record, get_exemplar, get_exemplar_id
+from specimen import same_type_ufs
 from typify import get_link
 from specimen import sid_to_record, sid_to_opposite_record
 
@@ -110,16 +111,38 @@ def find_estimate(AB, u):
 # -----------------------------------------------------------------------------
 # u assumed central
 
-# Given u, find unique node v in opposite checklist such that v = u.
-# x and y are in AB, not A or B.
+# Given u, find a node v in opposite checklist such that v = u (in RCC5 sense).
 # Returns a Relation or None.
 
-def get_equivalent(AB, u):
+def get_congruent(AB, u):
   assert u
   assert get_workspace(u)
   est = get_estimate(u, None)
   if est and est.relationship == EQ: return est
   else: return None
+
+# equivalent = congruent + homotypic   ?  maybe some other criteria like rank?
+
+# Given u, find unique node v in opposite checklist such that v and u
+# are the same concept (same type + same extension).
+# Returns a Relation or None.
+
+def get_equivalent(AB, u):
+  est2 = get_congruent(AB, u)
+  # Should iterate over ancestors looking for one with same type_ufs
+  while True:
+    if not est2:
+      return None
+    if same_type_ufs(u, est2.record):
+      return est2
+    else:
+      sup = get_superior(est2.record, None)
+      if not sup: break
+      if get_block(sup.record) != get_block(u):
+        break
+      est2 = sup
+      # Does not occur ??
+      log("# seeking equivalent ancestor %s", blurb(u))
 
 # -----------------------------------------------------------------------------
 

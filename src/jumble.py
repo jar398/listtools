@@ -5,7 +5,7 @@ from rcc5 import *
 from checklist import link_superior
 
 import util, theory
-from estimate import get_estimate, get_equivalent
+from estimate import get_estimate, get_congruent
 
 from estimate import get_block  # for debugging
 
@@ -53,15 +53,15 @@ def get_workspace_top(AB):
 
   if rel.relationship == EQ or rel.relationship == GT or rel.relationship == GE:
     answer = A_top
-    if get_equivalent(AB, B_top):
-      if rel.relationship == EQ: assert A_top == get_equivalent(AB, B_top).record
+    if get_congruent(AB, B_top):
+      if rel.relationship == EQ: assert A_top == get_congruent(AB, B_top).record
       # could be DISJOINT or OVERLAP
     else:
       log("# losing B top: %s %s %s" %
           (blurb(A_top), rcc5_symbol(rel.relationship), blurb(B_top)))
   else:  # rel.relationship == LT or rel.relationship == LE:
     answer = B_top
-    if not get_equivalent(AB, A_top):
+    if not get_congruent(AB, A_top):
       log("# losing A top: %s %s %s" %
           (blurb(A_top), rcc5_symbol(rel.relationship), blurb(B_top)))
   return answer
@@ -75,7 +75,7 @@ def supremum(AB, u, v):
 
 def jumbled_superior(AB, u):
   # Suppress nodes in B that have an equivalent in A
-  if isinB(AB, u) and get_equivalent(AB, u):
+  if isinB(AB, u) and get_congruent(AB, u):
     # Omit from jumbled hierarchy; redundant
     return None
 

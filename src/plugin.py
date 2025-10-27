@@ -12,6 +12,7 @@ from checklist import *
 from rcc5 import *
 from specimen import same_type_ufs, sid_to_epithet
 from estimate import get_block, is_empty_block, get_estimate, get_equivalent
+from estimate import get_congruent
 from property import mep, mep_get, mep_set
 from typify import explain
 from ranks import ranks_dict
@@ -23,6 +24,59 @@ def count(tag):
 
 # Preorder traversal of AB.A
 
+def generate_relators(AB):
+  # For a node z in AB
+  # if is_species(z) then
+  #   list of species s that overlap z, sorted by epithet stem
+  #   if none then make fake relationship (z, None) or (None, z)
+  #   form relationships R = (z, s) or (s, z)
+  #   suppress already-seen R
+  #   emit relationships R sorted by ... highest overlap then epithet?
+  # otherwise:
+  #   sort children of Z by (A vs. B) then by name
+  # recur
+  seen = {}
+  def half_key(node):
+    if node:
+      return get_specimen_id(get_type_uf(node))
+    else:
+      return None
+  def sort_key(node):
+    p = get_parts(node)
+    return (p.epithet, p.genus)
+  def maybe_flip(pair):
+    (z, s) = pair
+    if isinB(AB, z): return (s, z)
+    else: return pair
+  def recur(z):
+    if is_species(z):
+      inters = theory.get_intersecting_species(z)
+      inters = sort_list(inters, key=sort_key)
+      if len(inters) == 0:
+        if isinA(z):
+          yield (z, None)
+        else:
+          yield (None, z)
+      else:
+        # Modify this sort so that types come up at top
+        relators = map(lambda s: (z, s), inters)
+        for relator in relators:
+          relator = maybe_flip(relator)
+          (z, s) = relator
+          key = (half_key(z), half_key(s))
+          if not key in seen:
+            seen.add(key)
+            yield relator
+    else:
+      #   sort children of Z by (A vs. B) then by name
+      childs = get_children(z)
+      childs = sort_list(childs, key=sort_key)
+      for c in childs:
+        yield from recur(c)
+      
+  yield from recur(AB.top)
+  return None
+
 def generate_plugin_report(AB):
   yield generate_row(AB, True, True, True) # header
   i = [0]
@@ -32,7 +86,7 @@ def generate_plugin_report(AB):
   spa = spb_spe = spb_nspe = spb_ne = 0
 
   for z in preorder_records(AB):
-    count("records")
+    count("records in A+B")
     i[0] += 1
     if i[0] % frequency == 0:
       log("# %s %s" % (i[0], blurb(z)))
@@ -43,9 +97,15 @@ def generate_plugin_report(AB):
     # A A
     # A B
     
-    #assert jumble.is_keeper(AB, z)
-
     if is_species(z):
+
+      if isinB(AB, z) and get_congruent(AB, z):
+        # Skip records that have equivalents in A - they
+        # are already handled
+        continue
+
+      count("species")          # ? what to call this ?
+
       w = choose_partner(AB, z) # may be None
       if isinA(AB, z):
         u = z; v = w
@@ -63,17 +123,17 @@ def generate_plugin_report(AB):
   for (op, op_count) in counts.items():
     log("  %6d %s" % (op_count, op))
 
-# For each species, we pick one articulation.  The articulation is
+# For each concept, we pick one articulation.  The articulation is
 # between the species and a "partner".
 
 def choose_partner(AB, u):
   assert is_species(u)
-  e_rel = get_equivalent(AB, u)
+  e_rel = get_equivalent(AB, u) # not just congruent.  ??
   if e_rel:
     sp = theory.get_species(e_rel.record)
     return sp or e_rel.record
 
-  # ... no congruent record, pick the 'best' one from intersectors ...
+  # ... pick the 'best' one from intersectors ...
   inters = theory.get_intersecting_species(u)
   if len(inters) == 0:
     return None                 # No intersecting species
@@ -81,12 +141,12 @@ def choose_partner(AB, u):
     u_ids = get_block(u)
     def intensity(v):
       v_ids = get_block(v)
-      same = 0 if same_type_ufs(u, v) else 1
+      hom = 0 if same_type_ufs(u, v) else 1
       meet = len(u_ids & v_ids)
       # Ad hoc rule:
-      # Prefer: 1. same type, 2. maximum overlap, 3. minimum nonoverlap
-      return (same, -meet, len(u_ids | v_ids) - meet)
-    return min(inters, key=intensity)
+      # Prefer: 1. homotypic, 2. maximum overlap, 3. minimum nonoverlap
+      return (hom, -meet, len(u_ids | v_ids) - meet)
+    return min(inters, key=intensity)    # Could be congruent
 
 
 # Return either the header row or a data row; the code for both is

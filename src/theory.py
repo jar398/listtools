@@ -13,6 +13,7 @@ import exemplar
 import estimate
 from specimen import same_specimens, get_exemplar, same_type_ufs
 from estimate import find_estimates, get_estimate, get_equivalent
+from estimate import get_congruent
 from estimate import is_empty_block, get_block, BOTTOM_BLOCK
 from estimate import block_relationship, same_block, opposite_exemplar_records
 
@@ -251,6 +252,7 @@ def optimize_relation(AB, u, rel):
     return rel
   
 # Cannot use find_estimate because it relies on optimize_relation!
+#    [wait, not true any more I think?]
 # Warning: rel can be in either checklist... we really just care
 # about ship and note; we already know the target will be v
 
@@ -264,12 +266,12 @@ def find_cross_sup_rel(AB, u, v):
   rel = local_sup(AB, u)
   if rel:
     p = rel.record
-    p_eq = get_equivalent(AB, p)
+    p_eq = get_congruent(AB, p)
     if p_eq:
       q = p_eq.record
   if not q:
     # Option 2. u = z -> q ?= v
-    u_eq = get_equivalent(AB, u)
+    u_eq = get_congruent(AB, u)
     if u_eq:
       z = u_eq.record
       rel = local_sup(AB, z)

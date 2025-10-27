@@ -133,7 +133,7 @@ def get_type_uf(u):
   set_type_uf(u, uf)
   return uf
 
-# Are u and v known to have the same typification (type specimen)?
+# Are u and v (in AB) known to have the same typification (type specimen)?
 
 def same_type_ufs(u, v):
   uf = maybe_get_type_uf(u, None)
