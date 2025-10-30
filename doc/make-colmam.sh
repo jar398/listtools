@@ -28,4 +28,4 @@ $P/extract_names.py < mdd2.0-clean.csv \
 	| gnparser -s \
 	| $P/use_gnparse.py --source mdd2.0-clean.csv > mdd2.0.csv
 
-time $P/plugin.py --A col24-mammals.csv --B mdd2.0.csv >report.csv
+time $P/analyze.py --A col24-mammals.csv --B mdd2.0.csv >report.csv

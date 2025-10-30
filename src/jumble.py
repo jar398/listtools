@@ -39,6 +39,7 @@ def jumble_workspace(AB):
   infs = list(get_inferiors(AB.top))
   log("# inferiors of top are %s" % list(map(blurb, infs)))
   assert len(infs) > 0
+  return AB
 
 def set_workspace_top(AB):
   AB.top = get_workspace_top(AB)
@@ -74,9 +75,10 @@ def supremum(AB, u, v):
 # 'u' could be in either A or B
 
 def jumbled_superior(AB, u):
-  # Suppress nodes in B that have an equivalent in A
   if isinB(AB, u) and get_congruent(AB, u):
+    # Suppress nodes in B that have an equivalent in A
     # Omit from jumbled hierarchy; redundant
+    # TBD: Maybe they should share a type as well????
     return None
 
   if isinA(AB, u):
@@ -108,17 +110,18 @@ def jumbled_superior(AB, u):
     elif rel.relationship == GT or rel.relationship == GE:
       return cos
 
-    else:
+    else:    # OVERLAP, NOINFO, etc.
       sup2 = get_superior(sup.record, None)
-      if rel.relationship != OVERLAP or not sup2:
-        # rel.relationship == anything else: NOINFO, etc.
-        # might be NOINFO
-        log("# jumble at %s:\n  %s %s %s" %
-            (blurb(u), blurb(sup), rcc5_symbol(rel.relationship), blurb(cos)))
       if not sup2:
-        return sup              # ?
+        log("# jumble at top: %s <=\n  %s %s %s" %
+            (blurb(u), blurb(sup), rcc5_symbol(rel.relationship), blurb(cos)))
+        return sup              # ??? this doesn't seem right
+      if rel.relationship != OVERLAP:
+        # rel.relationship == anything else: NOINFO, etc.
+        log("# jumble: %s <=\n  %s %s %s" %
+            (blurb(u), blurb(sup), rcc5_symbol(rel.relationship), blurb(cos)))
 
-      # Loop around with new sup
+      # Loop around with new sup.  We want sup >= cos.
       sup = sup2
 
 # Let's say u is in checklist 1.  Cosuperior should be in checklist 2.

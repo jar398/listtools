@@ -23,6 +23,7 @@ def count(tag):
   else: counts[tag] = 1
 
 # Preorder traversal of AB.A
+# NOT ACTIVE YET - DEAD CODE
 
 def generate_relators(AB):
   # For a node z in AB
@@ -33,8 +34,8 @@ def generate_relators(AB):
   #   suppress already-seen R
   #   emit relationships R sorted by ... highest overlap then epithet?
   # otherwise:
-  #   sort children of Z by (A vs. B) then by name
-  # recur
+  #   sort children of Z (some A, some B) by epithet
+  #   recur
   seen = {}
   def half_key(node):
     if node:
@@ -48,10 +49,18 @@ def generate_relators(AB):
     (z, s) = pair
     if isinB(AB, z): return (s, z)
     else: return pair
+  def inter_sort_key(u, v):        # v is an intersector of u
+    typical = 0 if same_type_ufs(u, v) else 1
+    
+    return (typical, key)
+    
+  def sorted_inters(z):
+    inters = theory.get_intersecting_species(z)
+    inters = map(lambda s: ((0 if same_type_ufs(u, v) else 1) s), inters)
+    inters = sort_list(inters, key=sort_key)
   def recur(z):
     if is_species(z):
-      inters = theory.get_intersecting_species(z)
-      inters = sort_list(inters, key=sort_key)
+      inters = sorted_inters(z)
       if len(inters) == 0:
         if isinA(z):
           yield (z, None)
@@ -69,8 +78,7 @@ def generate_relators(AB):
             yield relator
     else:
       #   sort children of Z by (A vs. B) then by name
-      childs = get_children(z)
-      childs = sort_list(childs, key=sort_key)
+      childs = sort_list(children(z), key=sort_key)
       for c in childs:
         yield from recur(c)
       
@@ -135,6 +143,9 @@ def choose_partner(AB, u):
 
   # ... pick the 'best' one from intersectors ...
   inters = theory.get_intersecting_species(u)
+  return best_topo_match(inters, u)
+
+def best_topo_match(inters, u):
   if len(inters) == 0:
     return None                 # No intersecting species
   else:
@@ -193,7 +204,7 @@ def generate_row(AB, u, v, ops):
     u_not_v = "in A concept but not in B concept"
     v_not_u = "in B concept but not in A concept"
   elif u and v:
-    u_ids = get_block(u)
+    u_ids = get_block(u)        # set of specimen ids
     v_ids = get_block(v)
     u_and_v = show_sid_set(AB, u_ids & v_ids)
     u_not_v = show_sid_set(AB, u_ids - v_ids)
@@ -212,7 +223,12 @@ def generate_row(AB, u, v, ops):
           v_not_u,
           )
 
-# s is a set of exemplar ids...
+def epithet_sort_key(AB, z):
+  parts = get_parts(get_outject(z))
+  return (parts.epithet, parts.genus)
+
+# sid is a specimen id... human-readable, sort of
+# block is a list of sids
 
 def show_sid_set(AB, block):
   # xep = (sid, epithet)

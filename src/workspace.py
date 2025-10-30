@@ -194,6 +194,19 @@ usual_workspace_props = usual_props + \
      prop.declare_property("basis_of_match", getter=recover_basis_of_match))
 
 # -----------------------------------------------------------------------------
+# Venn diagram cached in the Relation
+
+# sid is a specimen id... human-readable, sort of
+# block is a list of sids
+
+def show_sid_set(AB, block):
+  # xep = (sid, epithet)
+  # Sort by epithet
+  xeps = sorted(map(lambda sid:(sid, sid_to_epithet(AB, sid)), block),
+                key=lambda xep: xep[1])
+  return "; ".join(map(lambda xep:"%s %s" % xep, xeps))
+
+# -----------------------------------------------------------------------------
 # Little baby tests
 
 import newick

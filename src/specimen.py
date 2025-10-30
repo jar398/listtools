@@ -9,7 +9,7 @@ from util import log, UnionFindable
 from checklist import get_source, blurb, blorb, get_parts, monitor, \
   is_accepted, get_redundant
 from workspace import get_workspace, get_children, \
-  get_outject, isinA
+  get_outject, isinA, separated
   
 
 # Specimens per se
@@ -100,7 +100,7 @@ def sid_to_record(AB, sid, z):
   (_, u, v) = uf.payload()
   return u if isinA(AB, z) else v
 
-def sid_to_opposite_record(AB, sid, z):
+def sid_to_opposite_record(AB, sid, z):  # cf. get_homotypic
   uf = sid_to_specimen(AB, sid)
   (_, u, v) = uf.payload()
   return v if isinA(AB, z) else u
@@ -165,6 +165,17 @@ def equatable_typifications(u, v):
 def get_typifies(spec_uf):
   (sid, u, v) = spec_uf.payload()
   return v or u
+
+# Look at intersectors?  Look at UFS structure?
+
+def get_homotypic(AB, z):
+  uf = get_type_uf(z)
+  (sid, u, v) = uf.payload()
+  if not u or not v: return None   # Not an exemplar
+  if separated(u, z): w = u
+  else: w = v
+  assert same_type_ufs(z, w)
+  return w
 
 # -----------------------------------------------------------------------------
 # An exemplar is a specimen that's the typification of two or more taxa in distinct

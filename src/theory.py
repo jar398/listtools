@@ -97,16 +97,24 @@ def is_graft(start, rel):
 
 def compare_centrally(AB, u, v):
   assert separated(u, v)
+  # Is this a place where we can use the venn diagram?  get_venn
+  # venn = compute_venn(u, v)
+  # if len(a_not_b) == 0 and len(b_not_a) == 0:
+  #   ship = EQ
+  # elif len(a_not_b) == 0:
+  #   ship = LT
+  # etc. etc.
+  # rel = relation(v, SHIP???, venn=venn)
   b1 = get_block(u)
   b2 = get_block(v)
   assert b1 != BOTTOM_BLOCK
   assert b2 != BOTTOM_BLOCK
-  if b1 == b2:
+  if b1 == b2:    # len(a_not_b) == 0 and len(b_not_a) == 0:
     #! In same block.  Use names to figure out relationships.
     return compare_within_block(AB, u, v)
   else:
     # i.e. exemplar sets are different
-    ship = block_relationship(b1, b2)
+    ship = block_relationship(b1, b2) # in estimate.py
     return optimize_relation(AB, u,
                              relation(ship, v, note="exemplar set comparison"))
 
@@ -295,6 +303,19 @@ def get_intersecting_species(u):
       ids = ids | {s.id}
       inters.append(s)
   return inters
+
+def get_intersecting_species_2(AB, u):
+  relations = []
+  ids = set()
+  AB = get_workspace(u)
+  for v in opposite_exemplar_records(AB, u):
+    s = get_species(v)          # in AB
+    if s and not s.id in ids:
+      rel = compare(AB, u, s)
+      relations.append(rel)
+  return inters
+
+# an ancestor of u that is a species
 
 def get_species(u):
   AB = get_workspace(u)

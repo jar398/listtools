@@ -98,6 +98,7 @@ class Relation(NamedTuple):
   record : Any       # the record that we're relating this one to
   span : int
   note : Any          # comments justifying this relationship
+  venn : Any
 
 def relation(ship, record, note=MISSING, span=None):
   assert isinstance(ship, int), ship
@@ -108,21 +109,23 @@ def relation(ship, record, note=MISSING, span=None):
     if ship == EQ: span = 0
     #elif ship == SYNONYM or MYNONYS: span = 1
     else: span = 2
-  return Relation(ship, record, span, note)
+  return Relation(ship, record, span, note, [None])
 
 def reverse_relation(starting, rel):
   assert isinstance(rel, Relation)
   return Relation(reverse_relationship(rel.relationship),
                   starting,
                   rel.span,
-                  reverse_note(rel.note))
+                  reverse_note(rel.note),
+                  [None])       # could do better
 
 def reverse_articulation(art):
   (starting, rel) = art
   return (rel.record, Relation(reverse_relationship(rel.relationship),
                                starting,
                                rel.span,
-                               reverse_note(rel.note)))
+                               reverse_note(rel.note),
+                               [None]))
 
 def compose_relations(rel1, rel2):
   assert rel1
@@ -137,7 +140,8 @@ def compose_relations(rel1, rel2):
   return Relation(compose_relationships(rel1.relationship, rel2.relationship),
                   rel2.record,
                   rel1.span + rel2.span,
-                  compose_notes(rel1.note, rel2.note))
+                  compose_notes(rel1.note, rel2.note),
+                  [None])
 
 def is_identity(rel):
   return rel.relationship == EQ and rel.note == MISSING

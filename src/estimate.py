@@ -7,10 +7,11 @@ from util import log
 from checklist import *
 from workspace import *
 from simple import BOTTOM, compare_per_checklist
+from typify import get_link
 from specimen import get_exemplar_record, get_exemplar, get_exemplar_id
 from specimen import same_type_ufs
-from typify import get_link
-from specimen import sid_to_record, sid_to_opposite_record
+from specimen import sid_to_record, sid_to_opposite_record, \
+  get_homotypic
 
 # -----------------------------------------------------------------------------
 
@@ -111,14 +112,25 @@ def find_estimate(AB, u):
 # -----------------------------------------------------------------------------
 # u assumed central
 
+# Congruence is RCC5 =, but we are trying to compute it before
+# theory.compare is available.
+# But we do have blocks, and if blocks are the same then we have =.
+
 # Given u, find a node v in opposite checklist such that v = u (in RCC5 sense).
 # Returns a Relation or None.
+# - should look for intersector?  No, too early in init sequence.
+
+# There may be many nodes = to the given one; worry?
 
 def get_congruent(AB, u):
   assert u
   assert get_workspace(u)
   est = get_estimate(u, None)
   if est and est.relationship == EQ: return est
+  # if get_block(est.record) == get_block(u):
+  #   return est
+
+  # See if blocks are the same ??
   else: return None
 
 # equivalent = congruent + homotypic   ?  maybe some other criteria like rank?
@@ -129,7 +141,8 @@ def get_congruent(AB, u):
 
 def get_equivalent(AB, u):
   est2 = get_congruent(AB, u)
-  # Should iterate over ancestors looking for one with same type_ufs
+  # if same_type_ufs(est2.record, u): return est2
+  # Should iterate over ancestors looking for one with same type_ufs ?
   while True:
     if not est2:
       return None
@@ -268,6 +281,8 @@ def get_block(x):
 (get_mono, set_mono) = prop.get_set(prop.declare_property("mono"))
 
 # RCC-5 relationship between two blocks
+# Is this a place where we can use the venn diagram?  get_venn
+# Yes I think so... 
 
 def block_relationship(e1, e2):   # can assume intersecting
   if e1 == e2: return EQ          # same block
@@ -301,3 +316,18 @@ def combine_blocks(e1, e2):
 BOTTOM_BLOCK = set()
 def same_block(e1, e2): return e1 == e2
 def is_empty_block(e): return e == BOTTOM_BLOCK
+
+# Cache the three parts of the Venn diagram
+
+def get_venn(u, v_rel):
+  if v_rel.venn[0] == None:
+    v_rel.venn[0] = compute_venn(u, v_rel.record)
+  return v_rel.venn[0]
+
+def compute_venn(u, v):
+  u_ids = get_block(u)        # set of specimen ids
+  v_ids = get_block(v)
+  u_and_v = u_ids & v_ids
+  u_not_v = u_ids - v_ids
+  v_not_u = v_ids - u_ids
+  return (u_and_v, u_not_v, v_not_u)
