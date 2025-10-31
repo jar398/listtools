@@ -75,32 +75,44 @@ def supremum(AB, u, v):
 # 'u' could be in either A or B
 
 def jumbled_superior(AB, u):
-  if isinB(AB, u) and get_congruent(AB, u):
+  if False and isinB(AB, u) and get_congruent(AB, u):
+    # Maybe:
     # Suppress nodes in B that have an equivalent in A
     # Omit from jumbled hierarchy; redundant
     # TBD: Maybe they should share a type as well????
+    # This has turned out to be a bad idea.
     return None
 
+  # debug
+  def snitch(sup, cos, mess):
+    if sup and cos:
+      assert separated(sup.record, cos.record), (mess, blurb(sup), blurb(cos))
+    else:
+      assert sup and cos, (mess, blurb(sup), blurb(cos))  # debug
+
+  # u has two parents, one in A and one in B
+  # sup is in A, cos is in B
   if isinA(AB, u):
     sup = local_sup(AB, u)      # Relation from u to another record in AB
     cos = cosuperior(AB, u)
   else:
     sup = cosuperior(AB, u)
     cos = local_sup(AB, u)
-  # We want min(sup, cos).
-  if not sup:
-    return cos    # u has no parent in AB.A
-  if not cos:
-    return sup    # u has no parent in AB.B
-  # sup and cos are both in AB
-  assert separated(sup.record, cos.record)
-  assert local_accepted(AB, sup.record)
-  assert local_accepted(AB, cos.record)
 
-  # Find the supremum.  sup in AB is derived from A.
+  # Find the supremum of sup and cos.  sup in AB is derived from A.
   # Trouble case: theory doesn't know whether it's = or >
 
   while True:
+
+    # We want min(sup, cos).
+    if not sup:
+      return cos    # u has no parent in AB.A
+    if not cos:
+      return sup    # u has no parent in AB.B
+    # sup and cos are both in AB
+    snitch(sup, cos, "dd")
+    assert local_accepted(AB, sup.record)
+    assert local_accepted(AB, cos.record)
 
     rel = theory.compare(AB, sup.record, cos.record)
     if rel.relationship == LT or rel.relationship == LE \
@@ -111,31 +123,35 @@ def jumbled_superior(AB, u):
       return cos
 
     else:    # OVERLAP, NOINFO, etc.
-      sup2 = get_superior(sup.record, None)
+      snitch(sup, cos, "ee")
+      assert separated(sup.record, cos.record)  # debug
+      sup2 = local_sup(AB, sup.record) # In A
       if not sup2:
         log("# jumble at top: %s <=\n  %s %s %s" %
             (blurb(u), blurb(sup), rcc5_symbol(rel.relationship), blurb(cos)))
         return sup              # ??? this doesn't seem right
-      if rel.relationship != OVERLAP:
-        # rel.relationship == anything else: NOINFO, etc.
+      elif rel.relationship != OVERLAP:
+        # rel.relationship == anything else: NOINFO, DISJOINT, etc.
         log("# jumble: %s <=\n  %s %s %s" %
             (blurb(u), blurb(sup), rcc5_symbol(rel.relationship), blurb(cos)))
 
       # Loop around with new sup.  We want sup >= cos.
       sup = sup2
+      # sup and cos are not separated?
+      snitch(sup, cos, "ff")
 
 # Let's say u is in checklist 1.  Cosuperior should be in checklist 2.
 # Answer is None for record in checklist 2 whose sup is 
 # "lifted" i.e. congruent to a checklist 1 node.
 
 def cosuperior(AB, u):
-  est1 = get_estimate(u, None)
+  est1 = get_estimate(u, None)  # in opposite checklist
   if not est1: return None
   v = est1.record
 
   assert separated(u, v)
 
-  est2 = get_estimate(v, None)
+  est2 = get_estimate(v, None)  # in same checklist as u
   if not est2: return None
   u2 = est2.record
 
@@ -144,10 +160,11 @@ def cosuperior(AB, u):
   if u2 is u:                   # Equivalent
     sup = local_sup(AB, v)
     if not sup: return None
-    # u -> v
+    # u -> v -> v_sup
     answer = compose_relations(est1, sup)
   else:
     # u < u2, or u = u2 and some minor difference
+    # u -> v
     answer = est1
 
   assert separated(u, answer.record)
