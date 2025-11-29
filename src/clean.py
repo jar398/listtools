@@ -270,7 +270,8 @@ def clean_name(row, can_pos, sci_pos, auth_pos):
       c = name
       # log("# Synthesizing complete name %s" % s)  - common in CoL
     elif a == MISSING:
-      log("# No authorship info for %s" % name)
+      # log("# No authorship info for %s" % name)
+      pass
     else:
       log("# Name already has authorship %s" % name)
 

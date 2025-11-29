@@ -51,8 +51,9 @@ def find_homotypics_in_checklist(AB):
           z2 = AB.in_left(c2)
           rel = simple.compare_per_checklist(c, c2)
           if rel.relationship == DISJOINT:
-            log("# Keeping %s apart from %s; mrca = %s" %
-                (blurb(z1), blurb(z2), blurb(simple.mrca(c, c2))))
+            #log("# Keeping %s apart from %s; mrca = %s" %
+            #    (blurb(z1), blurb(z2), blurb(simple.mrca(c, c2))))
+            pass
             # Later-encountered does not get an exemplar; type specimens
             # are not unified.
           elif compare_parts(z1, z2) >= MOTION:

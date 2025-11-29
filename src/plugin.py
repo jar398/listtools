@@ -119,7 +119,7 @@ def generate_row(AB, u, v, ops):
       rcc5_field = MISSING
       if not u:
         tag = "not in A"
-      elif not v_rel:
+      elif not v:
         tag = "not in B"
       else:
         tag = "should not happen"
@@ -164,7 +164,7 @@ def generate_row(AB, u, v, ops):
     u_not_v = MISSING
     v_not_u = MISSING
 
-  return (;; op_field,
+  return (# op_field,
           u_fields[0], u_fields[1],
           rcc5_field,
           v_fields[0], v_fields[1],
