@@ -104,36 +104,49 @@ def generate_row(AB, u, v, ops):
   if u == True:
     u_fields = ("A concept taxonID", "A concept name")
     rcc5_field = "RCC5"         # header
+    rcc5_tag = "tag"
     v_fields = ("B concept taxonID", "B concept name")
   else:
     u_fields = description_for_report(AB, u)
     v_fields = description_for_report(AB, v)
     if u and v:
       v_rel = theory.compare(AB, u, v)
-      rcc5_field = rcc5_symbol(v_rel.relationship)
+      (rcc5_field, rcc5_tag) = impute_relationship(AB, u, v_rel.relationship)
       if rcc5_field.startswith('='):
         # Kludge to appease spreadsheet programs
         rcc5_field = "'" + rcc5_field
     else:
       rcc5_field = MISSING
+      if not u:
+        tag = "not in A"
+      elif not v_rel:
+        tag = "not in B"
+      else:
+        tag = "should not happen"
       v_rel = None
 
   # change column
   if u == True:
-    op_field = "change"      # header
+    op_field = "change"      # header.  obsolete
   else:
     # `homotypic` is true iff u is homotypic with v.
     homotypic = u and v and same_type_ufs(u, v)
 
-    ops += impute_concept_change(AB, u, v_rel, homotypic)
-    ops += impute_name_change(AB, u, v_rel, homotypic)
-    # ops += impute_rank_change(AB, u, v_rel, homotypic)
-    op_field = "; ".join(ops)
-    for op in ops:
-      if op in counts:
-        counts[op] += 1
+    if False:
+      ops += impute_concept_change(AB, u, v_rel, homotypic)
+      ops += impute_name_change(AB, u, v_rel, homotypic)
+      # ops += impute_rank_change(AB, u, v_rel, homotypic)
+      op_field = "; ".join(ops)
+      for op in ops:
+        if op in counts:
+          counts[op] += 1
+        else:
+          counts[op] = 1
+    else:
+      if tag in counts:
+        counts[tag] += 1
       else:
-        counts[op] = 1
+        counts[tag] = 1
 
   # Venn diagram columns
   if u == True:
@@ -151,7 +164,7 @@ def generate_row(AB, u, v, ops):
     u_not_v = MISSING
     v_not_u = MISSING
 
-  return (op_field,
+  return (;; op_field,
           u_fields[0], u_fields[1],
           rcc5_field,
           v_fields[0], v_fields[1],
@@ -175,6 +188,15 @@ def show_sid_set(AB, block):
 def show_sid(sid):
   ep = sid_to_epithet(AB, sid)
   return "%s %s" % (sid, ep)
+
+def impute_relationship(AB, u, v_rel):
+  ship = v_rel.relationship
+  tag = ""
+  if ship == EQ: tag = "is congruent with"
+  elif ship == LT: tag = "is contained in"
+  elif ship == GT: tag = "contains"
+  elif ship == OVERLAP: tag = "overlaps"
+  return (rcc5_symbol(ship), tag)
 
 def impute_concept_change(AB, u, v_rel, homotypic):
   if not u:
