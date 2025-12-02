@@ -47,14 +47,16 @@ def start_csv(inport, params, outport, args):
 
   out_header = in_header
 
-  if can_pos == None:
-    can_pos = len(out_header)
-    out_header = out_header + ["canonicalName"]
-    log("-- Adding canonicalName column")
+  # scientific = canonical + authority
   if sci_pos == None:
     sci_pos = len(out_header)
     out_header = out_header + ["scientificName"]
     log("-- Adding scientificName column")
+  # canonical = name only (could get from gnparse ??)
+  if can_pos == None:
+    can_pos = len(out_header)
+    out_header = out_header + ["canonicalName"]
+    log("-- Adding canonicalName column")
   # add an authority column too ??
 
   # --managed taxonID --prefix GBIF:   must always be used together
@@ -222,15 +224,16 @@ def normalize_accepted(row, taxon_id_pos, parent_pos, accepted_pos):
   return False
 
 """
-Let c = canonicalName from csv, s = scientificName from csv,
-sci = satisfies scientific name regex.
+Let s = scientificName from csv, c = canonicalName from csv, 
+a = authorship,
+sci = satisfies scientific name regex (name + authorship).
 Case analysis:
   c        s
-  empty    empty     Leave.
-  sci      empty     Maybe copy c to s ?
-  not-sci  empty     Leave.
-  empty    sci       Leave; but should use gnparse.
-  sci      sci       Leave; but should use gnparse.
+  empty    empty     Leave alone.
+  sci      empty     Leave alone (gnparse will look at canonical).
+  not-sci  empty     Leave alone (gnparse will look at canonical).
+  empty    sci       Leave alone.
+  sci      sci       Deal with c somehow downstream.
   not-sci  sci       Leave.
   empty    not-sci   Swap.
   sci      not-sci   Swap if s is a prefix of c, otherwise leave.
@@ -262,33 +265,25 @@ def clean_name(row, can_pos, sci_pos, auth_pos):
   # columns, then synthesize a canonicalName from those values
   # (who needs this??)
 
-  # Synthesize scientific from canonical + authorship.
-  if s == MISSING or c == MISSING or s == c:
-    name = (s or c)
-    if a != MISSING and not authorish_re.match(name):
-      s = "%s %s" % (name, a)
-      c = name
-      # log("# Synthesizing complete name %s" % s)  - common in CoL
-    elif a == MISSING:
-      # log("# No authorship info for %s" % name)
-      pass
-    else:
-      log("# Name already has authorship %s" % name)
+  # Attempt to enforce s = c + a
 
-  # Extract canonical as prefix of scientific
-  elif c == MISSING and s != MISSING and a != MISSING:
-    if s.endswith(a):
-      c = s[0:-len(a)].strip()
-      # Happens copiously with GBIF extracts
-      #log("# Extracting canonical '%s' from '%s'" % (c, s))
+  if s == MISSING:
+    if c != MISSING and not authorish_re.match(c):
+      if a != MISSING:
+        s = "%s %s" % (c, a)
+      else:
+        s = c
 
-  # Extract authorship as suffix of scientific
-  elif a == MISSING and s != MISSING and c != MISSING:
-    if s.startswith(c):
-      a = s[len(c):].strip()
-      if False:
-        # Works copiously with NCBI Taxonomy
-        log("# Extracting authorship '%s' from '%s'" % (a, s))
+  else:
+    # Extract canonical as prefix of scientific
+    if c == MISSING and a != MISSING:
+      if s.endswith(a):
+        c = s[0:-len(a)].strip()
+
+    # Extract authorship as suffix of scientific
+    if a == MISSING and c != MISSING:
+      if s.startswith(c):
+        a = s[len(c):].strip()
 
   s = s.replace(' and ', ' & ') # frequent in DH 1.1 ?
   s = s.replace(',,', ',')    # kludge for MDD 1.0

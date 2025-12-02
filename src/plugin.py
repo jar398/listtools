@@ -13,6 +13,7 @@ from rcc5 import *
 from specimen import same_type_ufs, sid_to_epithet
 from estimate import get_equivalent
 from block import get_block, is_empty_block
+from theory import get_intersecting_species, get_species
 from property import mep, mep_get, mep_set
 from ranks import ranks_dict
 from util import reset_log_allowance
@@ -35,7 +36,7 @@ def generate_plugin_report(AB):
   seen = set()
 
   for z in preorder_records(AB):
-    count("records")
+    count("in jumble")
     i[0] += 1
     if i[0] % frequency == 0:
       log("# %s %s" % (i[0], blurb(z)))
@@ -49,51 +50,30 @@ def generate_plugin_report(AB):
     assert not jumble.is_redundant(AB, z)
 
     if is_species(z):
-      w = choose_partner(AB, z) # may be None
-      if isinA(AB, z):
-        u = z; v = w
-        spa += 1
+      count("species in jumble")
+      spp = get_intersecting_species(AB, z)
+      if spp:
+        for w in spp:
+          count("species x species in jumble")
+          if isinA(AB, z):
+            u = z; v = w
+          else:
+            u = w; v = z
+          combo = (get_primary_key(u) if u else None,
+                   get_primary_key(v) if v else None)
+          if not combo in seen:
+            seen.add(combo)
+            yield generate_row(AB, u, v, ops)
       else:
-        u = w; v = z
-        spb_ne += 1
+        if isinA(AB, z):
+          yield generate_row(AB, z, None, ops)
+        else:
+          yield generate_row(AB, None, z, ops)
 
-      combo = (get_primary_key(u) if u else None,
-               get_primary_key(v) if v else None)
-      if not combo in seen:
-        seen.add(combo)
-        yield generate_row(AB, u, v, ops)
-
-def op_counts_report(counts):
+def rcc5_counts_report(counts):
   reset_log_allowance()    # prints to stderr
-  for (op, op_count) in counts.items():
-    log("  %6d %s" % (op_count, op))
-
-# For each species, we pick one articulation.  The articulation is
-# between the species and a "partner".
-# z is a species, but partner could be non-species or None.
-
-def choose_partner(AB, z):
-  e_rel = get_equivalent(AB, z)
-  if e_rel:
-    sp = theory.get_species(e_rel.record)
-    return sp or e_rel.record
-
-  # ... no congruent record, pick the 'best' one from intersectors ...
-  inters = theory.get_intersecting_species(z)
-  if len(inters) == 0:
-    return None                 # No intersecting species
-  else:
-    z_ids = get_block(z)
-    def intensity(v):
-      v_ids = get_block(v)
-      # Ad hoc rule:
-      # Prefer: 1. same type specimen, 2. maximum overlap, 3. minimum nonoverlap
-      same = 0 if same_type_ufs(z, v) else 1
-      meet = len(z_ids & v_ids)
-      nono = len(z_ids | v_ids) - meet
-      return (same, -meet, nono)
-    return min(inters, key=intensity)
-
+  for (op, rcc5_count) in counts.items():
+    log("  %6d %s" % (rcc5_count, op))
 
 # Return either the header row or a data row; the code for both is
 # together to make sure they stay in sync.
@@ -104,49 +84,30 @@ def generate_row(AB, u, v, ops):
   if u == True:
     u_fields = ("A concept taxonID", "A concept name")
     rcc5_field = "RCC5"         # header
-    rcc5_tag = "tag"
+    rcc5_comment = "comment"
     v_fields = ("B concept taxonID", "B concept name")
   else:
     u_fields = description_for_report(AB, u)
     v_fields = description_for_report(AB, v)
     if u and v:
-      v_rel = theory.compare(AB, u, v)
-      (rcc5_field, rcc5_tag) = impute_relationship(AB, u, v_rel.relationship)
+      v_rel = theory.compare(AB, u, v) # a Relation
+      assert isinstance(v_rel, Relation)
+      (rcc5_field, rcc5_comment) = impute_relationship(AB, u, v_rel)
       if rcc5_field.startswith('='):
         # Kludge to appease spreadsheet programs
         rcc5_field = "'" + rcc5_field
     else:
       rcc5_field = MISSING
       if not u:
-        tag = "not in A"
+        rcc5_comment = "unrelated to A"
       elif not v:
-        tag = "not in B"
+        rcc5_comment = "unrelated to B"
+        log("# not in B: %s" % blurb(v))
       else:
-        tag = "should not happen"
+        rcc5_comment = "should not happen"
       v_rel = None
 
-  # change column
-  if u == True:
-    op_field = "change"      # header.  obsolete
-  else:
-    # `homotypic` is true iff u is homotypic with v.
-    homotypic = u and v and same_type_ufs(u, v)
-
-    if False:
-      ops += impute_concept_change(AB, u, v_rel, homotypic)
-      ops += impute_name_change(AB, u, v_rel, homotypic)
-      # ops += impute_rank_change(AB, u, v_rel, homotypic)
-      op_field = "; ".join(ops)
-      for op in ops:
-        if op in counts:
-          counts[op] += 1
-        else:
-          counts[op] = 1
-    else:
-      if tag in counts:
-        counts[tag] += 1
-      else:
-        counts[tag] = 1
+    count(rcc5_comment)
 
   # Venn diagram columns
   if u == True:
@@ -164,8 +125,7 @@ def generate_row(AB, u, v, ops):
     u_not_v = MISSING
     v_not_u = MISSING
 
-  return (# op_field,
-          u_fields[0], u_fields[1],
+  return (u_fields[0], u_fields[1],
           rcc5_field,
           v_fields[0], v_fields[1],
           u_and_v,
@@ -191,12 +151,12 @@ def show_sid(sid):
 
 def impute_relationship(AB, u, v_rel):
   ship = v_rel.relationship
-  tag = ""
-  if ship == EQ: tag = "is congruent with"
-  elif ship == LT: tag = "is contained in"
-  elif ship == GT: tag = "contains"
-  elif ship == OVERLAP: tag = "overlaps"
-  return (rcc5_symbol(ship), tag)
+  comment = ""
+  if ship == EQ: comment = "is congruent with"
+  elif ship == LT: comment = "is contained in"
+  elif ship == GT: comment = "contains"
+  elif ship == OVERLAP: comment = "overlaps"
+  return (rcc5_symbol(ship), comment)
 
 def impute_concept_change(AB, u, v_rel, homotypic):
   if not u:
@@ -359,11 +319,13 @@ if __name__ == '__main__':
       AB = ingest_workspace(a_rows.rows(), b_rows.rows(),
                             A_name=a_name, B_name=b_name)
       if args.exemplars:
+        log("# Reading exemplars from file %s" % args.exemplars)
         exemplar.read_exemplars(rows.open(args.exemplars), AB)
       else:
+        log("# Computing exemplars")
         exemplar.find_exemplars(AB)
       log("# theorize")         # gets written.
       theory.theorize(AB, False)
       generate_report(AB, d_path)
       log("# c")              # does not gets written
-      op_counts_report(counts)  # counts is global.  prints to stderr.
+      rcc5_counts_report(counts)  # counts is global.  prints to stderr.

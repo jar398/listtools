@@ -253,16 +253,17 @@ def find_cross_sup_rel(AB, u, v):
 
 # Returns [v1, v2, ...]
 
-def get_intersecting_species(u):
+def get_intersecting_species(AB, u):
   inters = []
   ids = set()
-  AB = get_workspace(u)
   for v in exemplar_opposite_records(AB, u):
     s = get_species(v)
     if s and not s.id in ids:
       ids = ids | {s.id}
       inters.append(s)
   return inters
+
+# Nearest ancestor that is an accepted species
 
 def get_species(u):             # u is in workspace
   AB = get_workspace(u)
@@ -408,13 +409,7 @@ def unique_in_block(AB, u):
 # The records on z's "side" corresponding to the exemplars
 # in the block for z.  (z is in AB)
 
-# used in theory.py only - move there
-def exemplar_opposite_records(AB, z): # see theory.py
-  return (sid_to_opposite_record(AB, id, z) for id in exemplar_ids(AB, z))
-
-# record -> list of ids for subtended exemplars
-
-# used here only
-def exemplar_ids(AB, z):
-  return list(get_block(z))
-
+def exemplar_opposite_records(AB, z):
+  b = get_block(z)
+  #if len(b) > 0 and len(b) < 50: log("block %s" % list(b))
+  return (sid_to_opposite_record(AB, id, z) for id in b)

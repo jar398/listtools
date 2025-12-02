@@ -14,12 +14,15 @@ from rcc5 import *
 # Assumes exemplars have already been chosen and are available
 # via `get_exemplar`.
 
+e_sightings = 0
+
 def analyze_blocks(ws):
   def doit(AB):
     def traverse(x):
+      global e_sightings
       u = AB.in_left(x)
       if monitor(u): log("# estimate: computing block for %s" % (blurb(u),))
-      # initial e = exemplars from descendants
+       # initial e = exemplars from descendants
       e = BOTTOM_BLOCK
       mono = None
       for c in get_inferiors(x):  # inferiors in A/B
@@ -30,6 +33,7 @@ def analyze_blocks(ws):
       if mono != None and mono != False: set_mono(u, AB.in_left(mono))
       uf = get_exemplar(u) # returns None or... (sid, u, v)?
       if uf:
+        e_sightings += 1
         e = adjoin_exemplar(get_exemplar_id(uf), e)
         if get_redundant(x, None):
           log("# Redundant record's exemplar suppressed: %s" % blurb(x))
@@ -42,6 +46,8 @@ def analyze_blocks(ws):
     traverse(AB.A.top)
   doit(ws)
   doit(swap(ws))
+
+  log("# block: %s exemplar sightings" % e_sightings)
 
   # Sanity check
   b1 = get_block(ws.in_left(ws.A.top))

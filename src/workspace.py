@@ -24,7 +24,7 @@ def ingest_workspace(A_gen, B_gen, A_name='A', B_name='B'):
 
 REUSE_KEYS = True
 
-def make_workspace(A, B, meta=None):
+def make_workspace(A, B, meta={}):
   Q = prop.make_context()       # allows overriding A and/or B
   (get_inject, set_inject) = prop.get_set(inject_prop, context=Q)
 

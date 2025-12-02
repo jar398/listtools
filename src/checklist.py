@@ -346,9 +346,11 @@ def link_superior(w, sup):      # w is inferior Record, sup is Relation
   assert isinstance(w, prop.Record), blurb(w)
   assert isinstance(sup, Relation), blurb(sup)
   assert isinstance(sup.record, prop.Record), blurb(sup)
+  # why would this fail?  (for newick)  sup.record is missing
+  assert get_source(w) is get_source(sup.record), blurb(sup)
+
   #assert is_accepted(sup.record), blurb(sup)
   assert get_superior(w, None) == None
-  assert get_source(w) == get_source(sup.record)
   set_superior(w, sup)
   link_inferior(w, sup)
 
@@ -485,7 +487,9 @@ TOP_NAME = "⊤"
 
 # For non-coproduct checklists only
 def is_top(x):
-  return x == get_source(x).top
+  # Why would get_source(x) not be defined? 'missing value'
+  sou = get_source(x)
+  return x == sou.top
 
 def is_toplike(x):
   return get_canonical(x, None) == TOP_NAME

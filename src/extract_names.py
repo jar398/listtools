@@ -28,8 +28,9 @@ for row in reader:
     name = row[sci_pos]
     if name != MISSING:
       sci_count += 1
-  if name == MISSING:
+  if name == MISSING:   # no scientific name
     if can_pos != None and row[can_pos] != MISSING:
+      # should not happen, clean.py takes care of this
       name = row[can_pos]
     elif rank_pos != None and gen_pos != None and spec_pos != None:
       # genericName,specificEpithet  if rank is species

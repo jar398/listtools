@@ -16,7 +16,7 @@ M=~/g/MDD-DwC-mapping
 P=$L/src
 
 # Prepare CoL for alignment
-unzip $L/in/2b1541bc-12e7-4200-833b-7ae02e1d5f35.zip -d col24-mammals
+unzip -u $L/in/2b1541bc-12e7-4200-833b-7ae02e1d5f35.zip -d col24-mammals
 $P/clean.py --input `$P/find_taxa.py col24-mammals` >col24-mammals-clean.csv
 $P/extract_names.py < col24-mammals-clean.csv \
 	| gnparser -s \
@@ -31,6 +31,6 @@ $P/extract_names.py < mdd2.0-clean.csv \
 	| $P/use_gnparse.py --source mdd2.0-clean.csv > mdd2.0.csv
 
 # Align
-$P/exemplar.py --A col24-mammals.csv --B mdd2.0.csv >exemplars.csv
-$P/plugin.py --A col24-mammals.csv --B mdd2.0.csv --exemplars exemplars.csv \
+$P/exemplar.py --A col24-mammals.csv --B mdd2.0.csv >col24-mammals-mdd2.0-exemplars.csv
+$P/plugin.py --A col24-mammals.csv --B mdd2.0.csv --exemplars col24-mammals-mdd2.0-exemplars.csv \
   > alignment-report.csv
