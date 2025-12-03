@@ -1,7 +1,7 @@
 # Sample run of the alignment tool.
 
-# Perform manual steps.  Then run this file as an ordinary shell
-# script using bash or any other Unix shell.
+# First, perform manual steps.  Then run this file as an ordinary
+# shell script using bash or any other Unix shell.
 
 # MANUAL STEP: Get listtools.
 # Go to https://github.com/jar398/listtools.
@@ -50,3 +50,6 @@ $P/extract_names.py < mdd2.0-clean.csv \
 $P/exemplar.py --A col24-mammals.csv --B mdd2.0.csv >col24-mammals-mdd2.0-exemplars.csv
 $P/plugin.py --A col24-mammals.csv --B mdd2.0.csv --exemplars col24-mammals-mdd2.0-exemplars.csv \
   > alignment-report.csv
+
+# Make .zip file
+# zip colmdd.zip col24-mammals-mdd2.0-exemplars.csv alignment-report.csv
