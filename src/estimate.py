@@ -38,6 +38,8 @@ def find_estimates(AB):
   findem(swap(AB))              # swap is in checklist
   log("# Estimates: %s (=), %s (<)" % (int(counts[0]/2), counts[1]))
 
+# Blocks have not been computed at this point (but they could be)
+
 # Can't make sense of the following:
 # "Given a model M, let [u] be the least node in the opposite checklist
 # that contains u.  Then we're interested in the minimal [u] taken over
@@ -45,33 +47,53 @@ def find_estimates(AB):
 
 # Low-numbered ranks are closer to root
 
-# For u in checklist 1, find smallest v in checklist 2 such that u <= v
+# For u in checklist 1, find smallest v in checklist 2 such that
+# concepts C(u) <= C(v).
+# Assume for now it's sufficient to find exemplars X(u) <= X(v).
+
+# XS(u) = exemplar set of u
+
 # Careful, u might be top or None.
 
 def find_estimate(AB, u):       # u is in AB
-  rel1 = get_central(AB, u)
+  rel1 = get_central(AB, u)     # ancestor of u that has >0 exemplars
   # rel1 ascends from u up to top, looking for a node with a cross_mrca
+  # u_central >= u
   u_central = rel1.record
-  v = get_cross_mrca(u_central) # in AB
-  # n.b. v >= every exemplar in u
-  #  but it could still be < u (or > u)
-
+  v = get_cross_mrca(u_central) # in AB, from B
+  # n.b. XS(u) <= XS(v)
+  #  but it could still be that v < u
+  
   # Fall through with u_central, v
   # How does u relate to v?
 
-  u_rank_n = ranks.ranks_dict.get(get_rank(u, 0))
-
-  # v starts at cross_mrca u and goes up (rootward)
+  # loop: v starts at cross_mrca(u_central).  If it's too small it 
+  # goes up (rootward) until it's >= to u...
   while True:
-    w = get_cross_mrca(v)   #get_block(v)    # or get_cross_mrca(v)
+    w = get_cross_mrca(v)   # w from A.  X(w) >= X(v) >= X(u)
+
+    # w and u are in the same checklist, so are comparable.
+    # Three cases:
+    #   w < u    -- keep searching
+    #   w = u    -- result should be EQ
+    #   w > u    -- result should be LT
 
     if simple.simple_le(get_outject(u), get_outject(w)):
+      # C(u) >= C(w)
       if u is w:                # u = v = w
+        # TBD: might actually have C(u) > C(v).
+
+        # Easiest improvement: look for same-exemplar-set ancestors of
+        # v, and ancestors and descendants of u, and switch to vaguer
+        # relationship or higher estimate if not unique.
+
         rel2 = relation(EQ, v, "reciprocal cross_mrca")
-      else:                     # u < v
+      else:                     # u < v <= w
+        # X(u) < X(w), ergo C(u) < C(w)
         rel2 = relation(LT, v, "bigger cross_mrca")
       break
 
+    #   w < u    -- keep searching
     sup = local_sup(AB, v)         # B.Tupaia montana
     if not sup:                    # v is top
       log("# %s has no estimate" % blurb(u))
@@ -82,6 +104,14 @@ def find_estimate(AB, u):       # u is in AB
   assert separated(u, rel2.record)
   return compose_relations(rel1, rel2) # u -> u_central -> v
   # TBD: convert LT to LE when synonym ?
+
+def is_monotype(u):
+  b = get_block(u)
+  for c in get_inferiors(u):
+    if get_block(c) == b:
+      return True
+  return False
+
 
 # -----------------------------------------------------------------------------
 # u assumed central

@@ -102,7 +102,7 @@ def generate_row(AB, u, v, ops):
         rcc5_comment = "unrelated to A"
       elif not v:
         rcc5_comment = "unrelated to B"
-        log("# not in B: %s" % blurb(v))
+        # log("# not in B: %s" % blurb(v))
       else:
         rcc5_comment = "should not happen"
       v_rel = None
@@ -289,13 +289,13 @@ def hamming(u, v):
 
 def generate_report(AB, d_path):
   with rows.open(d_path, "w") as d_gen:
-    log("# a")              # doesn't get written
+    log("# logged 1??")              # doesn't get written
     # writes to io.open(...), a text stream  ??
     d_gen.write_rows(generate_plugin_report(AB))
     print("# resetting logging", file=sys.stderr)    # SUCCESS
     reset_log_allowance()
     print("# wrote rows 2", file=sys.stderr) # SUCCESS
-    log("# wrote rows 2a")                   # FAILURE
+    log("# logged 2??")                   # SUCCESS sometimes
 
 if __name__ == '__main__':
   parser = argparse.ArgumentParser(description="""
@@ -316,16 +316,18 @@ if __name__ == '__main__':
   d_path = '-'
   with rows.open(args.A) as a_rows:
     with rows.open(args.B) as b_rows:
+      log("* Aligning")
       AB = ingest_workspace(a_rows.rows(), b_rows.rows(),
                             A_name=a_name, B_name=b_name)
       if args.exemplars:
-        log("# Reading exemplars from file %s" % args.exemplars)
+        log("*  Reading exemplars from file %s" % args.exemplars)
         exemplar.read_exemplars(rows.open(args.exemplars), AB)
       else:
-        log("# Computing exemplars")
+        log("*  Computing exemplars")
         exemplar.find_exemplars(AB)
       log("# theorize")         # gets written.
       theory.theorize(AB, False)
       generate_report(AB, d_path)
-      log("# c")              # does not gets written
+      log("# Wrote alignment...") # does not gets written !??
       rcc5_counts_report(counts)  # counts is global.  prints to stderr.
+      log("* Wrote alignment\n")

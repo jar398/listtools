@@ -4,7 +4,7 @@
 
 rank_names = [
          "never zero",
-         "cluster",
+         "cluster",             # SILVA ?
          "subform",
          "forma",
          "form",                # 2016 GBIF
@@ -32,6 +32,8 @@ rank_names = [
          "suborder",
          "order",
          "superorder",
+         "magnorder",           # MDD, wikipedia
+         "megaorder",           # wikipedia
          "subcohort",           # NCBI
          "cohort",              # NCBI Polyneoptera
          "subterclass",         # worms Colobognatha

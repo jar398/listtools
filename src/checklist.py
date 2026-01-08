@@ -8,6 +8,7 @@ from typing import NamedTuple, Any
 import property as prop
 from util import log, MISSING
 from rcc5 import *
+from ranks import ranks_dict     # not very abstract
 import parse
 
 # Strings (field values)
@@ -324,6 +325,7 @@ def set_superior_carefully(x, sup):
 
   # If sup itself is a synonym, we're in trouble.
   # Unfortunately GBIF has a bunch of these.
+  # We are forced to discard hierarchy information between synonyms.
   if sup.relationship != EQ:
     s = sup
     while not is_accepted(s.record):
@@ -332,12 +334,35 @@ def set_superior_carefully(x, sup):
       s = su
     if s != sup:
       if False:
+        # Apparently this happens too often to warrant logging
         log("** parent not accepted: %s -> %s ...-> %s" %
             (blurb(x), blurb(sup.record), blurb(s.record)))
       sup = s
 
+  normalize_ranks(x, sup)
+
   # OK go for it.  sup might be top
   link_superior(x, sup)
+
+def normalize_ranks(x, sup):
+  if is_accepted(x):            # ignore synonym rank?
+    r1 = get_rank(x, None)
+    r2 = get_rank(sup.record, None)
+    if r1 and r2:
+      d1 = ranks_dict.get(r1)
+      d2 = ranks_dict.get(r2)
+      if d1 == None or d2 == None:
+        pass
+      if d1 < d2:
+        pass
+      elif d1 == d2:
+        log("! Repeated rank: %s %s < %s %s" %
+            (blurb(x), r1, blurb(sup.record), r2))
+        set_rank(x, None)
+      else:
+        log("! Ranks out of order: %s %s < %s %s" %
+            (blurb(x), r1, blurb(sup.record), r2))
+        set_rank(x, None)
 
 # Establish links w -> p and p -> w
 # sup is a Relation with record p

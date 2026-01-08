@@ -11,9 +11,12 @@ from checklist import *
 from coproduct import *
 
 def ingest_workspace(A_gen, B_gen, A_name='A', B_name='B'):
+  log("*  Loading checklists")
   A = rows_to_checklist(A_gen, {'tag': A_name or "A"})  # meta
   B = rows_to_checklist(B_gen, {'tag': B_name or "B"})  # meta
-  return make_workspace(A, B, {'tag': "AB"})
+  WS = make_workspace(A, B, {'tag': "AB"})
+  log("*  Checklists loaded\n")
+  return WS
 
 # -----------------------------------------------------------------------------
 # Sum / coproduct / merged checklist / theory workspace

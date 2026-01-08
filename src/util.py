@@ -137,8 +137,9 @@ def log(mess):
   log_allowance -= 1
 
 def reset_log_allowance():
-  print("*** reset logging ***", file=sys.stderr)  # FAIL
   global log_allowance, log_allowance_reset
+  print("*** reset logging to %s ***" % log_allowance_reset,
+        file=sys.stderr)
   # Why doesn't this get written?  ************
   log_allowance = log_allowance_reset
 

@@ -146,6 +146,7 @@ def generate_exemplars(AB):
   yield ("exemplar id", "epithet", "checklist", "taxonID", "canonicalName")
   count = [0]
   rows = []
+  sid_to_exemplar = {}
   def doit(ws, which):
     rcount = ecount = 0
     for x in preorder_records(ws.A):
@@ -156,10 +157,11 @@ def generate_exemplars(AB):
         if uf:
           ecount += 1
           sid = get_exemplar_id(uf)
+          sid_to_exemplar[sid] = uf
           epithet = sid_to_epithet(AB, sid)
           rows.append((sid, epithet, which, get_primary_key(x), get_canonical(x)))
           count[0] += 1
-    log("# preorder: %s, exemplars: %s" % (rcount, ecount)) 
+    log("* There are %s exemplars" % len(sid_to_exemplar))
   doit(swap(AB), 'B')
   doit(AB, 'A')
   rows.sort(key=lambda row:(row[0], row[2], row[4]))
@@ -225,7 +227,10 @@ if __name__ == '__main__':
   with rows.open(a_path) as a_rows:
     with rows.open(b_path) as b_rows:
       # compute name matches afresh
+      log("* Finding exemplars")
       AB = ingest_workspace(a_rows.rows(), b_rows.rows(),
                             A_name=a_name, B_name=b_name)
       find_exemplars(AB)
       write_exemplar_list(AB)
+      log("* Wrote exemplars\n")
+

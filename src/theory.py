@@ -32,8 +32,8 @@ def theorize(AB, compute_exemplars=True):
     exemplar.find_exemplars(AB)
   # else: read them from a file
 
-  find_estimates(AB)
   analyze_blocks(AB)               # does set_block(...)
+  find_estimates(AB)
 
 #-----------------------------------------------------------------------------
 # compare: The implementation of the RCC-5 theory of AB (A+B).
@@ -59,6 +59,8 @@ def compare(AB, u, v):
   # u -> u1 -> v1 -> v
   assert get_workspace(rel3.record)
   return compose_final(u, rel1, rel2, rel3)
+
+# Mark grafts with ! per Nico's suggestion, per eulerx.py
 
 def maybe_graft(start, rel):
   if is_graft(start, rel):
@@ -110,22 +112,28 @@ def compare_within_block(AB, u, v):
 
   # if get_rank(u) == get_rank(v) ...
 
-  # Path 1: u = m ? v
-  rel_um = get_estimate(u, None)      # u <= m   in same checklist
+  # Path 1: X(u) <= X(m), m ? v.  Assume u <= m.
+  # TBD: What if u > m.
+  rel_um = get_estimate(u, None)
+  # We could search rootward from m for name match ... ?
   assert rel_um
   m = rel_um.record
+  # X(u) <= X(m)   because of get_estimate
+  # If X(u) < X(m) is it even possible that X(u) = X(v)?  No.
+  # But we might still have u > v...
   assert separated(u, m)
   rel_mv = compare_locally(AB, m, v)
   rel_uv = compose_paths(u, rel_um, rel_mv)
   ship1 = rel_uv.relationship   # u <= m ? v
 
-  # Path 2: u ? n = v   (starting with v)
+  # Path 2: X(v) <= X(n), u ? n, assume v <= n.
+  # TBD: What if v > n.
   rel_vn = get_estimate(v, None)     # n = v
   assert rel_vn
   n = rel_vn.record
   assert separated(v, n)
-  rel_nu = compare_locally(AB, n, u)
-  rel_vu = compose_paths(v, rel_vn, rel_nu)
+  rel_nu = compare_locally(AB, n, u)           # n ? u
+  rel_vu = compose_paths(v, rel_vn, rel_nu)    # v ? u
   rev_rel_vu = reverse_relation(v, rel_vu)
   rev_ship2 = rev_rel_vu.relationship   # u ? v
 
@@ -134,7 +142,7 @@ def compare_within_block(AB, u, v):
   rel = relation(ship, v, "within block")
   if ship == NOINFO:   # probably means sibling synonyms ?
     # Use rank to distinguish?
-    log("# No info: %s {%s,%s} %s, block size %s" %
+    log("** No info: %s {%s,%s} %s, block size %s" %
         (blurb(u), rcc5_symbol(ship1), rcc5_symbol(rev_ship2), blurb(v),
          get_block(u)))
   elif ship == INCONSISTENT:
@@ -372,8 +380,8 @@ def compare_in_block(AB, u, v):
   # This rank method is stupid and unreliable.  Name comparison and/or
   # a search would be better.
 
-  u_rank_n = ranks.ranks_dict.get(get_rank(u, 0))
-  v_rank_n = ranks.ranks_dict.get(get_rank(v, 0))
+  u_rank_n = ranks.ranks_dict.get(get_rank(u, None), 0)
+  v_rank_n = ranks.ranks_dict.get(get_rank(v, None), 0)
 
   if u_rank_n > 0 and v_rank_n > 0:
     if u_rank_n < v_rank_n:
