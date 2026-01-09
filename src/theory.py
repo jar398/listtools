@@ -104,12 +104,14 @@ def compare_within_block(AB, u, v):
   # synonym < accepted regardless ... ?
   if not is_accepted_locally(AB, u) and is_accepted_locally(AB, v):
     answer = relation(LE, v, "synonym <= accepted")
-    log("# %s %s %s" %
-        (blurb(u), rcc5_symbol(answer.relationship), blurb(v)))
+    if False:
+      log("# %s %s %s" %
+          (blurb(u), rcc5_symbol(answer.relationship), blurb(v)))
   elif is_accepted_locally(AB, u) and not is_accepted_locally(AB, v):
     answer = relation(GE, v, "accepted >= synonym")
-    log("# %s %s %s" %
-        (blurb(u), rcc5_symbol(answer.relationship), blurb(v)))
+    if False:
+      log("# %s %s %s" %
+          (blurb(u), rcc5_symbol(answer.relationship), blurb(v)))
   else:
     u_rank_n = ranks.ranks_dict.get(get_rank(u, None), 0)
     v_rank_n = ranks.ranks_dict.get(get_rank(v, None), 0)

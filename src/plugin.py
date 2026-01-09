@@ -54,7 +54,7 @@ def generate_plugin_report(AB):
       spp = get_intersecting_species(AB, z)
       if spp:
         for w in spp:
-          count("species x species in jumble")
+          count("species * species in jumble")
           if isinA(AB, z):
             u = z; v = w
           else:
@@ -96,13 +96,14 @@ def generate_row(AB, u, v, ops):
       if rcc5_field.startswith('='):
         # Kludge to appease spreadsheet programs
         rcc5_field = "'" + rcc5_field
+      count("total number of relationships")
     else:
       rcc5_field = MISSING
       if u:
-        rcc5_comment = ("In %s, unknown relationship to %s" %
+        rcc5_comment = ("In %s; unknown relationship to %s" %
                         (get_tag(AB.A), get_tag(AB.B)))
       elif v:
-        rcc5_comment = ("In %s, unknown relationship to %s" %
+        rcc5_comment = ("In %s; unknown relationship to %s" %
                         (get_tag(AB.B), get_tag(AB.A)))
       else:
         rcc5_comment = "should not happen"

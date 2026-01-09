@@ -10,7 +10,8 @@ from simple import BOTTOM, compare_per_checklist
 from specimen import get_exemplar_info, get_exemplar, get_exemplar_id
 from specimen import maybe_get_type_uf
 from rcc5 import rcc5_symbol
-from cross_mrca import compute_cross_mrcas, get_cross_mrca
+from cross_mrca import get_cross_mrca
+from theory import compare, get_central
 
 # -----------------------------------------------------------------------------
 
@@ -20,7 +21,6 @@ def find_estimates(AB):
   # Cross-mrcas might need to be replaced 
   #  (LUBs get tighter/smaller on 2nd pass).
   #  Easily overwritten.
-  compute_cross_mrcas(AB)          # does set_cross_mrca(...)
 
   counts = [0, 0]
   def findem(AB):
@@ -50,7 +50,6 @@ def find_estimates(AB):
 
 # For u in checklist 1, find smallest v in checklist 2 such that
 # concepts C(u) <= C(v).
-# Assume for now it's sufficient to find exemplars X(u) <= X(v).
 
 # XS(u) = exemplar set of u
 
@@ -61,14 +60,36 @@ def find_estimate(AB, u):       # u is in AB
   # rel1 ascends from u up to top, looking for a node with a cross_mrca
   # u_central >= u
   u_central = rel1.record
-  v = get_cross_mrca(u_central) # in AB, from B
+  if True:
+    rel2 = central_estimate(AB, u_central)
+  else:
+    rel2 = central_estimate_2(AB, u_central)
+  return compose_relations(rel1, rel2) # u -> u_central -> v
+  # TBD: convert LT to LE when synonym ?
+
+def central_estimate(AB, u):
+  v = get_cross_mrca(u) # in AB, from B
+  while True:
+    rel = compare(AB, u, v)
+    if rel.relationship == rel.relationship & LE:
+      return rel
+    sup = local_sup(AB, v)         # B.Tupaia montana
+    # all nodes are <= top, right?
+    assert sup, (blurb(u), blurb(rel), blurb(sup))
+    v = sup.record
+  assert False
+
+# Deprecated
+
+def central_estimate_2(AB, u):
+  v = get_cross_mrca(u) # in AB, from B
   # n.b. XS(u) <= XS(v)
   #  but it could still be that v < u
   
-  # Fall through with u_central, v
+  # Fall through with u, v
   # How does u relate to v?
 
-  # loop: v starts at cross_mrca(u_central).  If it's too small it 
+  # loop: v starts at cross_mrca(u).  If it's too small it 
   # goes up (rootward) until it's >= to u...
   while True:
     # if u <= v: return v
@@ -103,24 +124,13 @@ def find_estimate(AB, u):       # u is in AB
       return None
     v = sup.record
     # iterate
-
-  assert separated(u, rel2.record)
-  return compose_relations(rel1, rel2) # u -> u_central -> v
-  # TBD: convert LT to LE when synonym ?
-
-def is_monotype(u):
-  b = get_block(u)
-  for c in get_inferiors(u):
-    if get_block(c) == b:
-      return True
-  return False
-
+  return rel2
 
 # -----------------------------------------------------------------------------
 # u assumed central
 
 # Given u, find unique node v in opposite checklist such that v = u.
-# x and y are in AB, not A or B.
+# u is in AB.
 # Returns a Relation or None.
 
 def get_equivalent(AB, u):
@@ -180,26 +190,13 @@ def mrca(AB, u, v):
       v = n
     else: assert False
 
-# -----------------------------------------------------------------------------
+"""
+# Don't need this since block.py does set_mono.  Just do get_mono.
 
-# Find a 'central' (non-peripheral) ancestor node (contains at least
-# one exemplar) in SAME checklist.  Returns a Relation.
-
-# Deprecated = see theory.py
-
-def get_central(AB, u):
-  u_central = u
-  while u_central:
-    if get_cross_mrca(u_central, None): break
-    u_central = local_sup(AB, u_central).record
-  # Make a Relation.
-  if not u_central:
-    log("# No central: %s" % blurb(u))
-  if u_central is u:
-    return relation(EQ, u_central)
-  else:
-    sup = local_sup(AB, u)
-    if sup and sup.record is u_central:
-      return sup                # u -> u_central = sup
-    else:
-      return relation(LT, u_central, note="get_central")
+def has_monotype(u):
+  b = get_block(u)
+  for c in get_inferiors(u):
+    if get_block(c) == b:
+      return True
+  return False
+"""
