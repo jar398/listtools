@@ -10,16 +10,16 @@ from rcc5 import rcc5_symbol
 
 import specimen
 import exemplar
-import estimate
+import lub
 import ranks
 from specimen import same_specimens, get_exemplar, same_type_ufs, \
   sid_to_opposite_record
 from exemplar import find_exemplars
-from estimate import find_estimates, get_equivalent
-from estimate import get_central
+from lub import get_equivalent
 from block import analyze_blocks, get_mono
 from block import block_relationship, same_block
 from block import is_empty_block, get_block, BOTTOM_BLOCK
+from cross_mrca import compute_cross_mrcas, get_cross_mrca
 
 # Assumes that name matches are already stored in AB.
 # Assumes that exemplars are known.
@@ -33,7 +33,7 @@ def theorize(AB, compute_exemplars=True):
   # else: read them from a file
 
   analyze_blocks(AB)               # does set_block(...)
-  find_estimates(AB)
+  compute_cross_mrcas(AB)    # for lub
 
 #-----------------------------------------------------------------------------
 # compare: The implementation of the RCC-5 theory of AB (A+B).
@@ -60,20 +60,21 @@ def compare(AB, u, v):
   assert get_workspace(rel3.record)
   return compose_final(u, rel1, rel2, rel3)
 
-# Mark grafts with ! per Nico's suggestion, per eulerx.py
-
-def maybe_graft(start, rel):
-  if is_graft(start, rel):
-    return relation(rel.relationship | DISJOINT,
-                    rel.record,
-                    rel.note,
-                    rel.span)
+def get_central(AB, u):
+  u_central = u
+  while u_central:
+    if get_block(u_central):
+      break
+    u_central = local_sup(AB, u_central).record
+  assert u_central, ("No central", blurb(u))
+  if u_central is u:
+    return relation(EQ, u_central)
   else:
-    return rel
-
-def is_graft(start, rel):
-  return (rel.span == 1 and
-          is_empty_block(get_block(start)) != is_empty_block(rel.record))
+    sup = local_sup(AB, u)
+    if sup and sup.record is u_central:
+      return sup                # u < u_central = sup
+    else:
+      return relation(LT, u_central, note="get_central")
 
 # Compare taxa that are known to have nonempty exemplar sets.
 # Returns non-None as long as there are any exemplars.
@@ -84,81 +85,71 @@ def compare_centrally(AB, u, v):
   b2 = get_block(v)
   assert b1 != BOTTOM_BLOCK
   assert b2 != BOTTOM_BLOCK
-  if b1 == b2:
-    #! In same block.  Use names to figure out relationships.
+  ship = block_relationship(b1, b2)
+  if ship == COMPARABLE:
+    #! In same block.  Use ranks to figure out relationship.
     return compare_within_block(AB, u, v)
   else:
-    # i.e. exemplar sets are different
-    ship = block_relationship(b1, b2)
-    return optimize_relation(AB, u,
-                             relation(ship, v, note="exemplar set comparison"))
+    # Different blocks (exemplar sets)
+    return relation(ship, v, note="exemplar set comparison")
 
-# u and v are in different checklists, but in the same nonempty block
-# (in parallel chains)
+# --------------------
+# u and v are in opposite checklists but same block
 
 def compare_within_block(AB, u, v):
-  assert separated(u, v)
-  assert not is_empty_block(get_block(u))
-  assert same_block(get_block(u), get_block(v))
-  # Look for a record match for u or v, and punt to simple case
+  uu = unique_in_block(AB, u)
+  vv = unique_in_block(AB, v)
+  if uu and vv:
+    #log("# both unique in block: %s, %s" % (blurb(u), blurb(v)))
+    return relation(EQ, v, "unique in both blocks")
 
-  rel_0 = compare_in_block(AB, u, v)
-  if rel_0 and rel_0.relationship != NOINFO:
-    return rel_0
+  # synonym < accepted regardless ... ?
+  if not is_accepted_locally(AB, u) and is_accepted_locally(AB, v):
+    answer = relation(LE, v, "synonym <= accepted")
+    log("# %s %s %s" %
+        (blurb(u), rcc5_symbol(answer.relationship), blurb(v)))
+  elif is_accepted_locally(AB, u) and not is_accepted_locally(AB, v):
+    answer = relation(GE, v, "accepted >= synonym")
+    log("# %s %s %s" %
+        (blurb(u), rcc5_symbol(answer.relationship), blurb(v)))
+  else:
+    u_rank_n = ranks.ranks_dict.get(get_rank(u, None), 0)
+    v_rank_n = ranks.ranks_dict.get(get_rank(v, None), 0)
 
-  # Set up a u/m/v/n diagram and see how well it commutes.
+    # Assume a treelike model...
+    if u_rank_n > 0 and v_rank_n > 0:
+      if u_rank_n < v_rank_n:
+        answer = relation(LT, v, "ranks <")
+      elif u_rank_n == v_rank_n:
+        answer = relation(EQ, v, "ranks =")
+      else:
+        answer = relation(GT, v, "ranks >")
+    else:
+      answer = relation(COMPARABLE, v, "missing rank information")
+    if False and get_canonical(u) != get_canonical(v):
+      # This actually happens quite a bit
+      # Jackpot
+      log("# Using ranks to decide %s %s %s" %
+          (blurb(u), rcc5_symbol(answer.relationship), blurb(v)))
+  return answer
 
-  ship1 = ship2 = None
+# True iff there is no v in u's checklist congruent to u.
 
-  # if get_rank(u) == get_rank(v) ...
-
-  # Path 1: X(u) <= X(m), m ? v.  Assume u <= m.
-  # TBD: What if u > m.
-  rel_um = get_estimate(u, None)
-  # We could search rootward from m for name match ... ?
-  assert rel_um
-  m = rel_um.record
-  # X(u) <= X(m)   because of get_estimate
-  # If X(u) < X(m) is it even possible that X(u) = X(v)?  No.
-  # But we might still have u > v...
-  assert separated(u, m)
-  rel_mv = compare_locally(AB, m, v)
-  rel_uv = compose_paths(u, rel_um, rel_mv)
-  ship1 = rel_uv.relationship   # u <= m ? v
-
-  # Path 2: X(v) <= X(n), u ? n, assume v <= n.
-  # TBD: What if v > n.
-  rel_vn = get_estimate(v, None)     # n = v
-  assert rel_vn
-  n = rel_vn.record
-  assert separated(v, n)
-  rel_nu = compare_locally(AB, n, u)           # n ? u
-  rel_vu = compose_paths(v, rel_vn, rel_nu)    # v ? u
-  rev_rel_vu = reverse_relation(v, rel_vu)
-  rev_ship2 = rev_rel_vu.relationship   # u ? v
-
-  # Take intersection to see where they agree
-  ship = parallel_relationship(ship1, rev_ship2)
-  rel = relation(ship, v, "within block")
-  if ship == NOINFO:   # probably means sibling synonyms ?
-    # Use rank to distinguish?
-    log("** No info: %s {%s,%s} %s, block size %s" %
-        (blurb(u), rcc5_symbol(ship1), rcc5_symbol(rev_ship2), blurb(v),
-         get_block(u)))
-  elif ship == INCONSISTENT:
-    log("# Baffled: %s is inconsistent with %s" %
-        (rcc5_symbol(ship1), rcc5_symbol(rev_ship2)))
-    log("#   u        : %s" % blurb(u))         # u
-    log("#     %s m    :  %s" % (rcc5_symbol(rel_um.relationship), blurb(rel_um)))
-    log("#         %s v:   %s" % (rcc5_symbol(rel_mv.relationship), blurb(rel_mv)))
-    log("#   u   %s   v:  %s" % (rcc5_symbol(rel_uv.relationship), blurb(rel_uv)))
-    log("#   v        : %s" % blurb(v)),        # v
-    log("#     %s n    :  %s" % (rcc5_symbol(rel_vn.relationship), blurb(rel_vn)))
-    log("#         %s u:   %s" % (rcc5_symbol(rel_nu.relationship), blurb(rel_nu)))
-    log("#   v   %s   u:  %s" % (rcc5_symbol(rel_vu.relationship), blurb(rel_vu)))
-    log('')
-
-  return rel
+def unique_in_block(AB, u):
+  b = get_block(u)
+  sup = get_superior(u, None)
+  if sup and get_block(sup.record) == b:
+    # parent is also in block b
+    return False
+  if True:
+    return not get_mono(u, None)
+  else:
+    # method to use if we're not computing 'monotypes'
+    for c in get_inferiors(get_outject(u)):
+      w = AB.in_left(c) if isinA(AB, u) else AB.in_right(c)
+      if get_block(w) == b:
+        return False
+  return True
 
 def compose_final(u, rel1, rel2, rel3):
   assert rel1                   # could be < or <= or =
@@ -210,52 +201,6 @@ def cross_lt(AB, u, v):
 def cross_le(AB, u, v):
   ship = compare(AB, u, v).relationship
   return ship == LT or ship == LE or ship == PERI or ship == EQ
-
-# -----------------------------------------------------------------------------
-
-# sort of like: exemplar  ???
-
-# Attempt to set span to 1 (parent/child) if possible.
-
-def optimize_relation(AB, u, rel):
-  v = rel.record
-  assert separated(u, v)
-  sup = find_cross_sup_rel(AB, u, v)
-  if sup:
-    # Make a copy of within-checklist relationship, retaining note
-    assert sup.relationship & rel.relationship != 0
-    return relation(sup.relationship, v, note=sup.note, span=sup.span)
-  else:
-    return rel
-  
-# Cannot use find_estimate because it relies on optimize_relation!
-# Warning: rel can be in either checklist... we really just care
-# about ship and note; we already know the target will be v
-
-def find_cross_sup_rel(AB, u, v):
-  # Are u/v in a child/parent configuration?
-  assert u
-  assert v
-  assert separated(u, v)
-  q = None
-  # Option 1. u -> p = q ?= v
-  rel = local_sup(AB, u)
-  if rel:
-    p = rel.record
-    p_eq = get_equivalent(AB, p)
-    if p_eq:
-      q = p_eq.record
-  if not q:
-    # Option 2. u = z -> q ?= v
-    u_eq = get_equivalent(AB, u)
-    if u_eq:
-      z = u_eq.record
-      rel = local_sup(AB, z)
-      if rel:
-        q = rel.record
-        # oops, could use rel directly without copying it!
-  # Option 3. u ?= z = q -> v   -- cannot go from v to child q.
-  return rel if q == v else None
 
 # -----------------------------------------------------------------------------
 
@@ -366,51 +311,6 @@ def get_dominator(AB, w):
       # iterate
       p = get_superior(p)       # 'Break' the taxon
     else: assert False
-
-# --------------------
-# u and v are in opposite checklists but same block
-
-def compare_in_block(AB, u, v):
-  uu = unique_in_block(AB, u)
-  vv = unique_in_block(AB, v)
-  if uu and vv:
-    #log("# both unique in block: %s, %s" % (blurb(u), blurb(v)))
-    return relation(EQ, v, "unique in both blocks")
-
-  # This rank method is stupid and unreliable.  Name comparison and/or
-  # a search would be better.
-
-  u_rank_n = ranks.ranks_dict.get(get_rank(u, None), 0)
-  v_rank_n = ranks.ranks_dict.get(get_rank(v, None), 0)
-
-  if u_rank_n > 0 and v_rank_n > 0:
-    if u_rank_n < v_rank_n:
-      answer = relation(LT, v, "estimate by rank<")
-    elif u_rank_n == v_rank_n:
-      answer = relation(EQ, v, "estimate by rank")
-    else:
-      answer = relation(GT, v, "estimate by rank>")
-  else:
-    answer = relation(OVERLAP, v, "missing rank information")
-  if False:
-    log("# Using ranks to decide %s %s %s" %
-        (blurb(u), rcc5_symbol(answer.relationship), blurb(v)))
-  return answer
-
-# True iff u is the only node in u's block.
-# More complicated: compare names
-
-def unique_in_block(AB, u):
-  b = get_block(u)
-  sup = get_superior(u, None)
-  if sup and get_block(sup.record) == b:
-    # parent is also in block b
-    return False
-  for c in get_inferiors(get_outject(u)):
-    w = AB.in_left(c) if isinA(AB, u) else AB.in_right(c)
-    if get_block(w) == b:
-      return False
-  return True
 
 # -----------------------------------------------------------------------------
 

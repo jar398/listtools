@@ -98,11 +98,12 @@ def generate_row(AB, u, v, ops):
         rcc5_field = "'" + rcc5_field
     else:
       rcc5_field = MISSING
-      if not u:
-        rcc5_comment = "unrelated to A"
-      elif not v:
-        rcc5_comment = "unrelated to B"
-        # log("# not in B: %s" % blurb(v))
+      if u:
+        rcc5_comment = ("In %s, unknown relationship to %s" %
+                        (get_tag(AB.A), get_tag(AB.B)))
+      elif v:
+        rcc5_comment = ("In %s, unknown relationship to %s" %
+                        (get_tag(AB.B), get_tag(AB.A)))
       else:
         rcc5_comment = "should not happen"
       v_rel = None

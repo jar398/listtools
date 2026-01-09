@@ -710,8 +710,7 @@ def blurb(r):
   if isinstance(r, prop.Record):
     if get_workspace(r):
       x = get_outject(r, None)
-      name = get_ok_name(x)
-      name = get_workspace(r).prefix(r) + name
+      name = get_source_tag(x) + "." + get_ok_name(x)
     else:
       x = r
       name = get_ok_name(x)

@@ -2,7 +2,7 @@ from util import log
 from checklist import *
 from workspace import *
 from rcc5 import *
-from checklist import link_superior
+from checklist import link_superior, get_tag
 
 import theory
 from estimate import get_estimate, get_equivalent
@@ -34,7 +34,8 @@ def jumble_workspace(AB):
     if f:
       link_superior(z, f)
       B_sups += 1
-  log("# %s A superiors, %s B superiors" % (A_sups, B_sups))
+  log("# %s %s superiors, %s %s superiors" %
+      (A_sups, get_tag(AB.A), B_sups, get_tag(AB.B)))
   A_top = AB.in_left(AB.A.top)
   B_top = AB.in_right(AB.B.top)
   assert get_block(A_top) == get_block(B_top)

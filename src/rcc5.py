@@ -32,11 +32,11 @@ rcc5_relationships['*'] = OVERLAP # for concise composition table
 NEQ = def_rcc5_symbol(LT|GT|OVERLAP|DISJOINT, '!=')     # ≠, not congruent
 LE = def_rcc5_symbol(LT|EQ, '<=')       # ≤, synonym
 GE = def_rcc5_symbol(GT|EQ, '>=')       # ≥, accepted
-COMPARABLE = def_rcc5_symbol(LT|GT, '<>')
-INTERSECT = def_rcc5_symbol(LT|GT|EQ|OVERLAP, 'not!')  # ∩
+COMPARABLE = def_rcc5_symbol(LT|EQ|GT, '<=>')
+INTERSECT = def_rcc5_symbol(LT|EQ|GT|OVERLAP, 'not!')  # ∩
 rcc5_relationships['∩'] = INTERSECT
 # bottom
-NOINFO = def_rcc5_symbol(LT|GT|EQ|OVERLAP|DISJOINT, '?')
+NOINFO = def_rcc5_symbol(LT|EQ|GT|OVERLAP|DISJOINT, '?')
 # top (unicode ⋕ is 'equal and parallel to')
 INCONSISTENT = def_rcc5_symbol(0, '⋕', '{}')
 

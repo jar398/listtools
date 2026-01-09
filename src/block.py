@@ -30,14 +30,15 @@ def analyze_blocks(ws):
         if not is_empty_block(b):
           e = combine_blocks(e, b)
           mono = c if mono == None else False
-      if mono != None and mono != False: set_mono(u, AB.in_left(mono))
+      if mono != None and mono != False:
+        set_mono(u, AB.in_left(mono))
       uf = get_exemplar(u) # returns None or... (sid, u, v)?
       if uf:
         e_sightings += 1
-        e = adjoin_exemplar(get_exemplar_id(uf), e)
         if get_redundant(x, None):
           log("# Redundant record's exemplar suppressed: %s" % blurb(x))
           return BOTTOM_BLOCK
+        e = adjoin_exemplar(get_exemplar_id(uf), e)
       # **************** TBD
       set_block(u, e)
       if monitor(u):
@@ -73,7 +74,7 @@ def get_block(x):
 # RCC-5 relationship between two blocks
 
 def block_relationship(e1, e2):   # can assume intersecting
-  if e1 == e2: return EQ          # same block
+  if e1 == e2: return COMPARABLE  # same block.  COMPARABLE concepts
   elif e1.issubset(e2): return LT
   elif e2.issubset(e1): return GT
   elif e1.isdisjoint(e2): return DISJOINT

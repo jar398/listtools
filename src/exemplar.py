@@ -161,9 +161,9 @@ def generate_exemplars(AB):
           epithet = sid_to_epithet(AB, sid)
           rows.append((sid, epithet, which, get_primary_key(x), get_canonical(x)))
           count[0] += 1
-    log("* There are %s exemplars" % len(sid_to_exemplar))
   doit(swap(AB), 'B')
   doit(AB, 'A')
+  log("* There are %s exemplars" % len(sid_to_exemplar))
   rows.sort(key=lambda row:(row[0], row[2], row[4]))
   yield from rows
   log("# %s rows in exemplar report" % count[0])

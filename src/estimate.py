@@ -70,6 +70,8 @@ def find_estimate(AB, u):       # u is in AB
   # loop: v starts at cross_mrca(u_central).  If it's too small it 
   # goes up (rootward) until it's >= to u...
   while True:
+    # if u <= v: return v
+
     w = get_cross_mrca(v)   # w from A.  X(w) >= X(v) >= X(u)
 
     # w and u are in the same checklist, so are comparable.
@@ -178,6 +180,8 @@ def compute_cross_mrcas(AB):
 # Find a 'central' (non-peripheral) ancestor node (contains at least
 # one exemplar) in SAME checklist.  Returns a Relation.
 
+# Deprecated = see theory.py
+
 def get_central(AB, u):
   u_central = u
   while u_central:
@@ -194,14 +198,3 @@ def get_central(AB, u):
       return sup                # u -> u_central = sup
     else:
       return relation(LT, u_central, note="get_central")
-
-# --------------------
-
-# Convenience.  Phase this out?  Or rename it?
-
-def get_link(u, default=-19):
-  uf = maybe_get_type_uf(u, None)
-  if uf:
-    (_, u2, v) = uf.payload()
-    return v if (v and separated(u, v)) else u2
-  return None

@@ -47,8 +47,12 @@ $P/extract_names.py < mdd2.0-clean.csv \
 	| $P/use_gnparse.py --source mdd2.0-clean.csv > mdd2.0.csv
 
 # Align
+time \
 $P/exemplar.py --A col24-mammals.csv --B mdd2.0.csv >col24-mammals-mdd2.0-exemplars.csv
-$P/plugin.py --A col24-mammals.csv --B mdd2.0.csv --exemplars col24-mammals-mdd2.0-exemplars.csv \
+time \
+$P/plugin.py --A col24-mammals.csv --B mdd2.0.csv \
+  --Aname COL --Bname MDD \
+  --exemplars col24-mammals-mdd2.0-exemplars.csv \
   > alignment-report.csv
 
 # Make .zip file
