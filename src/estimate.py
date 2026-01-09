@@ -10,6 +10,7 @@ from simple import BOTTOM, compare_per_checklist
 from specimen import get_exemplar_info, get_exemplar, get_exemplar_id
 from specimen import maybe_get_type_uf
 from rcc5 import rcc5_symbol
+from cross_mrca import compute_cross_mrcas, get_cross_mrca
 
 # -----------------------------------------------------------------------------
 
@@ -131,49 +132,53 @@ def get_equivalent(AB, u):
     return est
   else: return None
 
-# -----------------------------------------------------------------------------
+# ----------------------------------------
+# Extra stuff
 
-# If w (in B) is the 'estimate' of u (in A), and u contains at least one 
-# exemplar, then:
-#      w is the smallest taxon in B containing all the exemplars 
-#      that are in v (might contain more).
-#
-# i.e.   x ≲ y ≲ x' ≤ x   →   x ≅ y   (same 'block')
-# i.e.   x ≲ y ≲ x' > x   →   x < y
-#
-# Cached in AB nodes under the 'estimate' property.
-# Needed for equivalent and cosuperior calculations
+# Least taxon q of B such that w < q 
 
-def compute_cross_mrcas(AB):
-  count = [0]
-  def do_cross_mrcas(WS):        # WS is AB or swap(AB)
-    def traverse(x):            # arg in A, result in B
-      u = WS.in_left(x)          # in WS
-      exem = get_exemplar_info(u)       # exemplar record (not uf)
-      if exem:
-        (_, u1, v1) = exem
-        assert get_outject(v1), blurb(v1) # fails
-        assert get_outject(u1), blurb(u1)
-        m = get_outject(v1) if isinA(AB, u) else get_outject(u1)
-      else:
-        m = BOTTOM                # identity for mrca
-      for c in get_inferiors(x):  # c in WS.A
-        q = traverse(c)           # in WS.B
-        m = simple.mrca(m, q)     # in WS.B
-      # Sanity checks
-      if m != BOTTOM:
-        v = WS.in_right(m)
-        assert separated(u, v)
-        set_cross_mrca(u, v)
-        count[0] += 1
-      return m
-    traverse(WS.A.top)
-  do_cross_mrcas(AB)
-  do_cross_mrcas(swap(AB))
-  log("# %s cross_mrcas set" % count[0])
+def get_dominator(AB, w):  # not used as of 1/2026
+  if isinA(AB, w):
+    u = w
+    v = get_estimate(w)
+  else:
+    u = get_estimate(w)
+    v = w
+  p = get_superior(u) if u is w else u
+  q = get_superior(v) if v is w else v
+  while True:
+    rel = compare(AB, p, q)
+    if rel.relationship == LT: return p
+    elif rel.relationship == LE: return p
+    elif rel.relationship == EQ: return q
+    elif rel.relationship == GT: return q
+    elif rel.relationship == GE: return q
+    elif rel.relationship == OVERLAP:
+      log("# Overlap: %s with %s" % (blurb(p), blurb(q)))
+      # iterate
+      p = get_superior(p)       # 'Break' the taxon
+    else: assert False
 
-(get_cross_mrca, set_cross_mrca) = \
-  prop.get_set(prop.declare_property("cross_mrca"))
+# Least taxon z of AB with u= < z and v <= z
+
+def mrca(AB, u, v):
+  while True:
+    m = AB.in_left(simple.mrca(get_outject(u), get_outject(get_estimate(v))))
+    n = AB.in_right(simple.mrca(get_outject(v), get_outject(get_estimate(u))))
+    rel = compare(AB, m, n)
+    if   rel.relationship == EQ: return n
+    elif rel.relationship == LT: return n
+    elif rel.relationship == LE: return n
+    elif rel.relationship == GT: return m
+    elif rel.relationship == GE: return m
+    elif rel.relationship == OVERLAP:
+      # Does this terminate?  Yes, because simple.mrca always goes
+      # rootward after an overlap.
+      log("# Reducing mrca(%s, %s) to mrca(%s, %s)" %
+          (blurb(x), blurb(y), blurb(m), blurb(n)))
+      u = m
+      v = n
+    else: assert False
 
 # -----------------------------------------------------------------------------
 

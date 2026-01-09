@@ -11,7 +11,7 @@ from workspace import ingest_workspace, is_accepted_locally, local_sup, \
 from checklist import *
 from rcc5 import *
 from specimen import same_type_ufs, sid_to_epithet
-from estimate import get_equivalent
+from estimate import get_equivalent, find_estimates
 from block import get_block, is_empty_block
 from theory import get_intersecting_species, get_species
 from property import mep, mep_get, mep_set
@@ -328,6 +328,7 @@ if __name__ == '__main__':
         exemplar.find_exemplars(AB)
       log("# theorize")         # gets written.
       theory.theorize(AB, False)
+      find_estimates(AB)
       generate_report(AB, d_path)
       log("# Wrote alignment...") # does not gets written !??
       rcc5_counts_report(counts)  # counts is global.  prints to stderr.

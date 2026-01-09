@@ -10,12 +10,10 @@ from rcc5 import rcc5_symbol
 
 import specimen
 import exemplar
-import lub
 import ranks
 from specimen import same_specimens, get_exemplar, same_type_ufs, \
   sid_to_opposite_record
 from exemplar import find_exemplars
-from lub import get_equivalent
 from block import analyze_blocks, get_mono
 from block import block_relationship, same_block
 from block import is_empty_block, get_block, BOTTOM_BLOCK
@@ -33,7 +31,7 @@ def theorize(AB, compute_exemplars=True):
   # else: read them from a file
 
   analyze_blocks(AB)               # does set_block(...)
-  compute_cross_mrcas(AB)    # for lub
+  compute_cross_mrcas(AB)
 
 #-----------------------------------------------------------------------------
 # compare: The implementation of the RCC-5 theory of AB (A+B).
@@ -263,54 +261,6 @@ def get_buddy(AB, u):
   if vf and same_specimens(uf, vf):
     return v
   return None
-
-# ----------------------------------------
-# Extra stuff
-
-# Least taxon z of AB with u= < z and v <= z
-
-def mrca(AB, u, v):
-  while True:
-    m = AB.in_left(simple.mrca(get_outject(u), get_outject(get_estimate(v))))
-    n = AB.in_right(simple.mrca(get_outject(v), get_outject(get_estimate(u))))
-    rel = compare(AB, m, n)
-    if   rel.relationship == EQ: return n
-    elif rel.relationship == LT: return n
-    elif rel.relationship == LE: return n
-    elif rel.relationship == GT: return m
-    elif rel.relationship == GE: return m
-    elif rel.relationship == OVERLAP:
-      # Does this terminate?  Yes, because simple.mrca always goes
-      # rootward after an overlap.
-      log("# Reducing mrca(%s, %s) to mrca(%s, %s)" %
-          (blurb(x), blurb(y), blurb(m), blurb(n)))
-      u = m
-      v = n
-    else: assert False
-
-# Least taxon q of B such that w < q 
-
-def get_dominator(AB, w):
-  if isinA(AB, w):
-    u = w
-    v = get_estimate(w)
-  else:
-    u = get_estimate(w)
-    v = w
-  p = get_superior(u) if u is w else u
-  q = get_superior(v) if v is w else v
-  while True:
-    rel = compare(AB, p, q)
-    if rel.relationship == LT: return p
-    elif rel.relationship == LE: return p
-    elif rel.relationship == EQ: return q
-    elif rel.relationship == GT: return q
-    elif rel.relationship == GE: return q
-    elif rel.relationship == OVERLAP:
-      log("# Overlap: %s with %s" % (blurb(p), blurb(q)))
-      # iterate
-      p = get_superior(p)       # 'Break' the taxon
-    else: assert False
 
 # -----------------------------------------------------------------------------
 
