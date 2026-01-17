@@ -8,7 +8,7 @@
 # Clone the repo (under 'Code' / 'Clone' / HTTP or the protocol of your choice).
 # Edit L below to point to your local clone of listtools.
 
-L=~/g/listtools
+(($L) || L=~/g/listtools
 P=$L/src
 
 # MANUAL STEP: Get COL 2024.
