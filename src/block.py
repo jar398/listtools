@@ -73,7 +73,7 @@ def get_block(x):
 
 # RCC-5 relation between two blocks
 
-def block_relasionship(e1, e2):   # can assume intersecting
+def block_relation(e1, e2):   # can assume intersecting
   if e1 == e2: return COMPARABLE  # same block.  COMPARABLE concepts
   elif e1.issubset(e2): return LT
   elif e2.issubset(e1): return GT

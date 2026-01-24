@@ -92,11 +92,11 @@ def generate_row(AB, u, v, ops):
     if u and v:
       v_rel = theory.compare(AB, u, v) # a Predicate
       assert isinstance(v_rel, Predicate)
-      (rcc5_field, rcc5_comment) = impute_relasionship(AB, u, v_rel)
+      (rcc5_field, rcc5_comment) = impute_relation(AB, u, v_rel)
       if rcc5_field.startswith('='):
         # Kludge to appease spreadsheet programs
         rcc5_field = "'" + rcc5_field
-      count("total number of relasionships")
+      count("total number of relations")
     else:
       rcc5_field = MISSING
       if u:
@@ -151,8 +151,8 @@ def show_sid(sid):
   ep = sid_to_epithet(AB, sid)
   return "%s %s" % (sid, ep)
 
-def impute_relasionship(AB, u, v_rel):
-  ship = v_rel.relasionship
+def impute_relation(AB, u, v_rel):
+  ship = v_rel.relation
   comment = ""
   if ship == EQ: comment = "is congruent with"
   elif ship == LT: comment = "is contained in"
@@ -166,7 +166,7 @@ def impute_concept_change(AB, u, v_rel, homotypic):
   elif not v_rel:
     op = "gone"
   else:
-    ship = v_rel.relasionship
+    ship = v_rel.relation
     if ship == EQ:
       # This can happen if e.g. the type is ambiguous or otherwise unmatched
       op = "congruent"

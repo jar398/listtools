@@ -67,7 +67,7 @@ def find_type_ufs(AB, subprobs, get_estimate, last):
         v1 = get_typifies(v_specs[1])
         if is_accepted(v0) and is_accepted(v1):
           if compare_per_checklist(get_outject(v0), get_outject(v1)) \
-             .relasionship & DISJOINT != 0:
+             .relation & DISJOINT != 0:
             # Another kind of REVIEW
             # TBD: suppress if synonym?
             log("# B ambiguity: %s %s -> %s %s, %s %s" %
@@ -100,7 +100,7 @@ def find_type_ufs(AB, subprobs, get_estimate, last):
             u0 = get_typifies(u_specs[0])
             u1 = get_typifies(u_specs[1])
             if compare_per_checklist(get_outject(u0), get_outject(u1)) \
-               .relasionship & DISJOINT != 0:
+               .relation & DISJOINT != 0:
               # TBD: suppress if synonym?
               log("# A ambiguity %s: %s, %s -> %s" %
                   (explain_classified(u_clas),

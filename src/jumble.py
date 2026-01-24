@@ -79,20 +79,20 @@ def jumbled_superior(AB, u):
 
     rel = theory.compare(AB, sup.record, cos.record)
     # might be NOINFO
-    if rel.relasionship == GT or rel.relasionship == GE:
+    if rel.relation == GT or rel.relation == GE:
       prefer = cos
 
-    elif rel.relasionship == LT or rel.relasionship == LE:
+    elif rel.relation == LT or rel.relation == LE:
       prefer = sup
-    elif rel.relasionship == EQ:
+    elif rel.relation == EQ:
       prefer = sup                # sup is in A, cos is in B
-    elif rel.relasionship == DISJOINT:
+    elif rel.relation == DISJOINT:
       assert "should not happen"
 
     # OVERLAP NOINFO COMPARABLE INTERSECT ...
     # Superior should be MRCA ??
 
-    elif rel.relasionship == OVERLAP:
+    elif rel.relation == OVERLAP:
       # There are lots of these (434 in CoL/MDD mammals)
       prefer = sup
 
@@ -100,7 +100,7 @@ def jumbled_superior(AB, u):
       # Way too many of these
       if is_accepted_locally(AB, u):
         log("# Superiors of %s are:\n  %s %s %s" %
-            (blurb(u), blurb(sup), rcc5_symbol(rel.relasionship), blurb(cos)))
+            (blurb(u), blurb(sup), rcc5_symbol(rel.relation), blurb(cos)))
       prefer = sup
   assert is_accepted_locally(AB, prefer.record)
   eq = is_redundant(AB, prefer.record)

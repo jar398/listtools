@@ -29,7 +29,7 @@ def find_estimates(AB):
         u = AB.in_left(x)
         rel = find_estimate(AB, u)
         set_estimate(u, rel)
-        if rel and rel.relasionship == EQ: # Metering
+        if rel and rel.relation == EQ: # Metering
           counts[0] += 1
         else:
           counts[1] += 1
@@ -71,7 +71,7 @@ def central_estimate(AB, u):
   v = get_cross_mrca(u) # in AB, from B
   while True:
     rel = compare(AB, u, v)
-    if rel.relasionship == rel.relasionship & LE:
+    if rel.relation == rel.relation & LE:
       return rel
     sup = local_sup(AB, v)         # B.Tupaia montana
     # all nodes are <= top, right?
@@ -109,7 +109,7 @@ def central_estimate_2(AB, u):
 
         # Easiest improvement: look for same-exemplar-set ancestors of
         # v, and ancestors and descendants of u, and switch to vaguer
-        # relasionship or higher estimate if not unique.
+        # relation or higher estimate if not unique.
 
         rel2 = predicate(EQ, v, "reciprocal cross_mrca")
       else:                     # u < v <= w
@@ -137,7 +137,7 @@ def get_equivalent(AB, u):
   assert u
   assert get_workspace(u)
   est = get_estimate(u, None)   # In opposite checklist
-  if (est and est.relasionship == EQ and
+  if (est and est.relation == EQ and
       (is_accepted_locally(AB, u) == is_accepted_locally(AB, est.record))):
     return est
   else: return None
@@ -158,12 +158,12 @@ def get_dominator(AB, w):  # not used as of 1/2026
   q = get_superior(v) if v is w else v
   while True:
     rel = compare(AB, p, q)
-    if rel.relasionship == LT: return p
-    elif rel.relasionship == LE: return p
-    elif rel.relasionship == EQ: return q
-    elif rel.relasionship == GT: return q
-    elif rel.relasionship == GE: return q
-    elif rel.relasionship == OVERLAP:
+    if rel.relation == LT: return p
+    elif rel.relation == LE: return p
+    elif rel.relation == EQ: return q
+    elif rel.relation == GT: return q
+    elif rel.relation == GE: return q
+    elif rel.relation == OVERLAP:
       log("# Overlap: %s with %s" % (blurb(p), blurb(q)))
       # iterate
       p = get_superior(p)       # 'Break' the taxon
@@ -176,12 +176,12 @@ def mrca(AB, u, v):
     m = AB.in_left(simple.mrca(get_outject(u), get_outject(get_estimate(v))))
     n = AB.in_right(simple.mrca(get_outject(v), get_outject(get_estimate(u))))
     rel = compare(AB, m, n)
-    if   rel.relasionship == EQ: return n
-    elif rel.relasionship == LT: return n
-    elif rel.relasionship == LE: return n
-    elif rel.relasionship == GT: return m
-    elif rel.relasionship == GE: return m
-    elif rel.relasionship == OVERLAP:
+    if   rel.relation == EQ: return n
+    elif rel.relation == LT: return n
+    elif rel.relation == LE: return n
+    elif rel.relation == GT: return m
+    elif rel.relation == GE: return m
+    elif rel.relation == OVERLAP:
       # Does this terminate?  Yes, because simple.mrca always goes
       # rootward after an overlap.
       log("# Reducing mrca(%s, %s) to mrca(%s, %s)" %

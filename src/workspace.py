@@ -154,10 +154,10 @@ def local_sup(AB, u):
   if not loc:
     return None
   if isinA(AB, u):
-    return predicate(loc.relasionship, AB.in_left(loc.record),
+    return predicate(loc.relation, AB.in_left(loc.record),
                     note=loc.note, span=loc.span)
   else:
-    return predicate(loc.relasionship, AB.in_right(loc.record),
+    return predicate(loc.relation, AB.in_right(loc.record),
                     note=loc.note, span=loc.span)
 
 def swap(AB):

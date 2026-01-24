@@ -15,7 +15,7 @@ from specimen import same_specimens, get_exemplar, same_type_ufs, \
   sid_to_opposite_record
 from exemplar import find_exemplars
 from block import analyze_blocks, get_mono
-from block import block_relasionship, same_block
+from block import block_relation, same_block
 from block import is_empty_block, get_block, BOTTOM_BLOCK
 from cross_mrca import compute_cross_mrcas, get_cross_mrca
 
@@ -35,7 +35,7 @@ def theorize(AB, compute_exemplars=True):
 
 #-----------------------------------------------------------------------------
 # compare: The implementation of the RCC-5 theory of AB (A+B).
-# Returns a Relation.
+# Returns a Predicate.
 # central = non-peripheral
 
 def compare(AB, u, v):
@@ -83,9 +83,9 @@ def compare_centrally(AB, u, v):
   b2 = get_block(v)
   assert b1 != BOTTOM_BLOCK
   assert b2 != BOTTOM_BLOCK
-  ship = block_relasionship(b1, b2)
+  ship = block_relation(b1, b2)
   if ship == COMPARABLE:
-    #! In same block.  Use ranks to figure out relasionship.
+    #! In same block.  Use ranks to figure out relationship.
     return compare_within_block(AB, u, v)
   else:
     # Different blocks (exemplar sets)
@@ -106,12 +106,12 @@ def compare_within_block(AB, u, v):
     answer = predicate(LE, v, "synonym <= accepted")
     if False:
       log("# %s %s %s" %
-          (blurb(u), rcc5_symbol(answer.relasionship), blurb(v)))
+          (blurb(u), rcc5_symbol(answer.relation), blurb(v)))
   elif is_accepted_locally(AB, u) and not is_accepted_locally(AB, v):
     answer = predicate(GE, v, "accepted >= synonym")
     if False:
       log("# %s %s %s" %
-          (blurb(u), rcc5_symbol(answer.relasionship), blurb(v)))
+          (blurb(u), rcc5_symbol(answer.relation), blurb(v)))
   else:
     u_rank_n = ranks.ranks_dict.get(get_rank(u, None), 0)
     v_rank_n = ranks.ranks_dict.get(get_rank(v, None), 0)
@@ -130,7 +130,7 @@ def compare_within_block(AB, u, v):
       # This actually happens quite a bit
       # Jackpot
       log("# Using ranks to decide %s %s %s" %
-          (blurb(u), rcc5_symbol(answer.relasionship), blurb(v)))
+          (blurb(u), rcc5_symbol(answer.relation), blurb(v)))
   return answer
 
 # True iff there is no v in u's checklist congruent to u.
@@ -161,14 +161,14 @@ def compose_final(u, rel1, rel2, rel3):
 def compare_locally(AB, u, v):
   rel = simple.compare_per_checklist(get_outject(u), get_outject(v)) # in A or B
   # Returns NOINFO for sibling + any synonym.
-  if rel.relasionship == NOINFO:
+  if rel.relation == NOINFO:
     if same_type_ufs(get_type_uf(u), get_type_uf(v)):
       return predicate(EQ, v, "homotypic synonym")   # treat as aliases.
       # (perhaps INTERSECT instead ??)
     else:
       return predicate(NEQ, v, "heterotypic synonym")  # treat as distinct.
   else:
-    return predicate(rel.relasionship,
+    return predicate(rel.relation,
                     v,
                     note=rel.note,
                     span=rel.span)  # in A or B
@@ -180,26 +180,26 @@ def compare_locally(AB, u, v):
 def compose_paths(z, rel1, rel2):
   rel = compose_predicates(rel1, rel2)
   if False and (monitor(z) or monitor(rel2.record)):
-    log("# %s ; %s -> %s" % (rcc5_symbol(rel1.relasionship),
-                             rcc5_symbol(rel2.relasionship),
-                             rcc5_symbol(rel.relasionship)))
+    log("# %s ; %s -> %s" % (rcc5_symbol(rel1.relation),
+                             rcc5_symbol(rel2.relation),
+                             rcc5_symbol(rel.relation)))
   return rel
 
-# Both relasionships hold
+# Both relationships hold
 
-def parallel_relasionship(ship1, ship2):
+def parallel_relation(ship1, ship2):
   return ship1 & ship2
 
-# RCC-5 relasionship across the two checklists
+# RCC-5 relationship across the two checklists
 # x and y are in AB
 # Could be made more efficient by skipping unused calculations
 
 def cross_lt(AB, u, v):
-  ship = compare(AB, u, v).relasionship
+  ship = compare(AB, u, v).relation
   return ship == LT or ship == LE or ship == PERI
 
 def cross_le(AB, u, v):
-  ship = compare(AB, u, v).relasionship
+  ship = compare(AB, u, v).relation
   return ship == LT or ship == LE or ship == PERI or ship == EQ
 
 # -----------------------------------------------------------------------------

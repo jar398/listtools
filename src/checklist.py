@@ -89,16 +89,16 @@ get_match_key = prop.getter(prop.declare_property("match_id", inherit=False))
 get_match_direction = prop.getter(prop.declare_property("direction", inherit=False))
 get_match_kind = prop.getter(prop.declare_property("kind", inherit=False))
 get_basis_of_match = prop.getter(prop.declare_property("basis_of_match", inherit=False))
-get_match_relasionship = prop.getter(prop.declare_property("relasionship", inherit=False))
+get_match_relation = prop.getter(prop.declare_property("relation", inherit=False))
 
 # -----------------------------------------------------------------------------
-# Predicates and relasionships
+# Predicates and relations
 
 class Predicate(NamedTuple):
-  relasionship : Any    # < (LT, HAS_PARENT), <= (LE), =, NOINFO, maybe others
+  relation : Any    # < (LT, HAS_PARENT), <= (LE), =, NOINFO, maybe others
   record : Any       # the record that we're relating this one to
   span : int
-  note : Any          # comments justifying this relasionship
+  note : Any          # comments justifying this relationship
 
 def predicate(ship, record, note=MISSING, span=None):
   assert isinstance(ship, int), ship
@@ -112,14 +112,14 @@ def predicate(ship, record, note=MISSING, span=None):
 
 def reverse_predicate(origin, pred):
   assert isinstance(pred, Predicate)
-  return Predicate(reverse_relasionship(pred.relasionship),
+  return Predicate(reverse_relation(pred.relation),
                    origin,
                    pred.span,
                    reverse_note(pred.note))
 
 def reverse_articulation(art):
   (origin, pred) = art
-  return (pred.record, Predicate(reverse_relasionship(pred.relasionship),
+  return (pred.record, Predicate(reverse_relation(pred.relation),
                                origin,
                                pred.span,
                                reverse_note(pred.note)))
@@ -130,15 +130,15 @@ def compose_predicates(pred1, pred2):
   assert (not get_workspace(pred1.record)) == (not get_workspace(pred2.record))
   if is_identity(pred1): return pred2
   if is_identity(pred2): return pred1
-  # Consider special relasionships for synonyms 
+  # Consider special relations for synonyms 
   # if pred1.span <= 1 and pred2.span <= 1: ...
-  return Predicate(compose_relasionships(pred1.relasionship, pred2.relasionship),
+  return Predicate(compose_relations(pred1.relation, pred2.relation),
                   pred2.record,
                   pred1.span + pred2.span,
                   compose_notes(pred1.note, pred2.note))
 
 def is_identity(pred):
-  return pred.relasionship == EQ and pred.note == MISSING
+  return pred.relation == EQ and pred.note == MISSING
 
 # Algebra of 'notes'
 
@@ -275,7 +275,7 @@ def resolve_superior(S, record):
         if monitor(record):
           log("# checklist: debug: %s %s %s %s" %
               (blurb(record), taxonID, accepted_key, blurb(accepted)))
-        sup = predicate(synonym_relasionship(record, accepted),
+        sup = predicate(synonym_relation(record, accepted),
                        accepted,
                        note="checklist (synonym)", span=1)
     else:
@@ -304,7 +304,7 @@ def resolve_superior(S, record):
   else:
     log("# No superior: %s" % blurb(record))
 
-def synonym_relasionship(record, accepted):
+def synonym_relation(record, accepted):
   return SYNONYM                # could be LT, LE, EQ
 
 # sup might be top
@@ -315,7 +315,7 @@ def set_superior_carefully(x, sup):
   assert sup.record != x
   have = get_superior(x, None)
   if have:
-    if (have.relasionship != sup.relasionship or
+    if (have.relation != sup.relation or
         have.record != sup.record):
       log("**** Changing sup of %s from %a to %s" %
           (blurb(x), blurb(have), blurb(sup)))
@@ -324,7 +324,7 @@ def set_superior_carefully(x, sup):
   # If sup itself is a synonym, we're in trouble.
   # Unfortunately GBIF has a bunch of these.
   # We are forced to discard hierarchy information between synonyms.
-  if sup.relasionship != EQ:
+  if sup.relation != EQ:
     s = sup
     while not is_accepted(s.record):
       su = get_superior(s.record, None)
@@ -429,7 +429,7 @@ def validate(C):
   log("# %s total records" % len(seen))
 
 # -----------------------------------------------------------------------------
-# Collect parent/child and accepted/synonym relasionships;
+# Collect parent/child and accepted/synonym relationships;
 # set children and synonyms properties.
 # **** Checklist could be either source or coproduct. ****
 # Run this AFTER all superior links have been set in other ways (e.g. merge).
@@ -602,7 +602,7 @@ def recover_status(x, default=MISSING): # taxonomicStatus
     else:
       return status
 
-# Non-DwC relasionships, use optionally, see workspace
+# Non-DwC relationships, use optionally, see workspace
 
 def recover_equated_key(x, default=MISSING):
   m = get_equated(x, None)
@@ -626,7 +626,7 @@ def recover_basis_of_match(x, default=MISSING):
 def get_matched(x):
   if x:
     pred = get_match(x, None)
-    if pred and pred.relasionship == EQ:
+    if pred and pred.relation == EQ:
       return pred
   return None
 
@@ -672,7 +672,7 @@ def records_to_rows(C, records, props=None): # Excludes top
 def keep_record_notused(x):
   sup = get_superior(x, None)
   # if not sup: assert False
-  if sup.relasionship != EQ:
+  if sup.relation != EQ:
     return True
 
   # Hmm.  we're an A node that's EQ to some B node.
@@ -718,10 +718,10 @@ def blurb(r):
   elif isinstance(r, Predicate):
     if r.note:
       return ("[%s (%s) %s]" %
-              (rcc5_symbol(r.relasionship), r.note,
+              (rcc5_symbol(r.relation), r.note,
                blurb(r.record)))
     else:
-      return "[%s %s]" % (rcc5_symbol(r.relasionship), blurb(r.record))
+      return "[%s %s]" % (rcc5_symbol(r.relation), blurb(r.record))
   elif isinstance(r, str):
     return "'%s'" % r           # kludge
   elif r:
@@ -780,7 +780,7 @@ def monitor(x):
 def load_matches(row_iterator, AB):
   log("# checklist: loading")
 
-  # match_id,relasionship,taxonID,direction,kind,basis_of_match
+  # match_id,relation,taxonID,direction,kind,basis_of_match
   header = next(row_iterator)
   plan = prop.make_plan_from_header(header)
   mutual_count = 0
@@ -801,7 +801,7 @@ def load_matches(row_iterator, AB):
 
     # Put ambiguities into the comment ??
 
-    ship = rcc5_relasionship(get_match_relasionship(match_record)) # EQ, NOINFO
+    ship = rcc5_relation(get_match_relation(match_record)) # EQ, NOINFO
     # match_direction, match_kind, basis_of_match
     dir = get_match_direction(match_record, '?')
     kind = get_match_kind(match_record, '?')

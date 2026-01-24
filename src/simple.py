@@ -50,7 +50,7 @@ def compare_per_checklist_newer(x, y):
   if r13.record is r64.record:
     # r13 is EQ and/or r64 is EQ, so x <=> y
     ship = EQ                   # gets composed with < and/or >
-  elif r13.relasionship != SYNONYM and r64.relasionship != SYNONYM:
+  elif r13.relation != SYNONYM and r64.relation != SYNONYM:
     # accepted / accepted non-siblings
     # {x3 and descendants} disjoint from {x4 and descendants}
     ship = DISJOINT
@@ -112,7 +112,7 @@ def mrca(x, y):
     y = get_parent(y)
   return x
 
-# premature optimization of compare(x, y).relasionship == LE
+# premature optimization of compare(x, y).relation == LE
 
 def simple_le(x, y):
   # Is x <= y?  Scan from x upwards, see if we find y
