@@ -10,7 +10,7 @@ from block import get_block  # for debugging
 from ranks import ranks_dict
 
 # link_superior(inf, sup)
-#   inf is a Record, sup is a Relation
+#   inf is a Record, sup is a Predicate
 #   sup becomes the superior of inf
 #   inf becomes a child or synonym of sup, depending 
 #     on inf's taxonomicStatus
@@ -67,7 +67,7 @@ def jumbled_superior(AB, u):
   if is_redundant(AB, u):
     return None
 
-  sup = local_sup(AB, u)      # Relation
+  sup = local_sup(AB, u)      # Predicate
   cos = cosuperior(AB, u)
   if not sup and not cos: return None
   elif not sup: prefer = cos        # u is A or B top in AB
@@ -79,20 +79,20 @@ def jumbled_superior(AB, u):
 
     rel = theory.compare(AB, sup.record, cos.record)
     # might be NOINFO
-    if rel.relationship == GT or rel.relationship == GE:
+    if rel.relasionship == GT or rel.relasionship == GE:
       prefer = cos
 
-    elif rel.relationship == LT or rel.relationship == LE:
+    elif rel.relasionship == LT or rel.relasionship == LE:
       prefer = sup
-    elif rel.relationship == EQ:
+    elif rel.relasionship == EQ:
       prefer = sup                # sup is in A, cos is in B
-    elif rel.relationship == DISJOINT:
+    elif rel.relasionship == DISJOINT:
       assert "should not happen"
 
     # OVERLAP NOINFO COMPARABLE INTERSECT ...
     # Superior should be MRCA ??
 
-    elif rel.relationship == OVERLAP:
+    elif rel.relasionship == OVERLAP:
       # There are lots of these (434 in CoL/MDD mammals)
       prefer = sup
 
@@ -100,12 +100,12 @@ def jumbled_superior(AB, u):
       # Way too many of these
       if is_accepted_locally(AB, u):
         log("# Superiors of %s are:\n  %s %s %s" %
-            (blurb(u), blurb(sup), rcc5_symbol(rel.relationship), blurb(cos)))
+            (blurb(u), blurb(sup), rcc5_symbol(rel.relasionship), blurb(cos)))
       prefer = sup
   assert is_accepted_locally(AB, prefer.record)
   eq = is_redundant(AB, prefer.record)
   if eq:
-    prefer = compose_relations(prefer, eq)
+    prefer = compose_predicates(prefer, eq)
   return prefer
 
 # Records to suppress
@@ -126,7 +126,7 @@ def cosuperior(AB, u):
     # Cannot tolerate a synonym as parent
     if not is_accepted_locally(AB, v):
       # u <= v <= accepted-v
-      est1 = compose_relations(est1, local_sup(AB, v))
+      est1 = compose_predicates(est1, local_sup(AB, v))
       v = est1.record
     est2 = get_estimate(v, None)
     # u <= v <= u2
@@ -138,7 +138,7 @@ def cosuperior(AB, u):
         sup3 = local_sup(AB, v)   # v <= v3 in 2
         if sup3:
           # u = v < v3
-          answer = compose_relations(est1, sup3) # in 2
+          answer = compose_predicates(est1, sup3) # in 2
         else:
           return None           # u is at top
       else:

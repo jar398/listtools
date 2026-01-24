@@ -67,7 +67,7 @@ def eulerx_alignment(AB, al):
       assert is_accepted_locally(AB, u)
       assert is_accepted_locally(AB, w), blurb(w)
       if not is_top(get_outject(u)) and not is_top(get_outject(w)):
-        yield eulerx_articulation(u, rel.relationship, w, rel.note)
+        yield eulerx_articulation(u, rel.relasionship, w, rel.note)
 
 def eulerx_articulation(u, ship, v, note):
   sym = rcc5_eulerx(ship)

@@ -154,10 +154,10 @@ def local_sup(AB, u):
   if not loc:
     return None
   if isinA(AB, u):
-    return relation(loc.relationship, AB.in_left(loc.record),
+    return predicate(loc.relasionship, AB.in_left(loc.record),
                     note=loc.note, span=loc.span)
   else:
-    return relation(loc.relationship, AB.in_right(loc.record),
+    return predicate(loc.relasionship, AB.in_right(loc.record),
                     note=loc.note, span=loc.span)
 
 def swap(AB):
@@ -217,7 +217,7 @@ def workspace_from_newicks(m, n):
   AB = make_workspace(A, B, {'tag': "AB"})
   if False:
     for record in all_records(AB): # No merge, no top
-      set_superior(record, relation(SYNONYM, AB.top, note="testing"))
+      set_superior(record, predicate(SYNONYM, AB.top, note="testing"))
   return AB
 
 def show_workspace(AB, props=None):

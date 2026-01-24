@@ -30,12 +30,12 @@ source_prop = prop.declare_property("source", inherit=False)    # which checklis
 parent_key_prop = prop.declare_property("parentNameUsageID", inherit=False)
 accepted_key_prop = prop.declare_property("acceptedNameUsageID", inherit=False)
 superior_note_prop = prop.declare_property("superior_note", inherit=False)
-superior_prop = prop.declare_property("superior", inherit=False)    # value is a Relation
+superior_prop = prop.declare_property("superior", inherit=False)    # value is a Predicate
 
 # For A/B identifications
-equated_key_prop = prop.declare_property("equated_id", inherit=False)    # value is a Relation
-equated_note_prop = prop.declare_property("equated_note", inherit=False)    # value is a Relation
-equated_prop = prop.declare_property("equated", inherit=False)    # value is a Relation
+equated_key_prop = prop.declare_property("equated_id", inherit=False)    # value is a Predicate
+equated_note_prop = prop.declare_property("equated_note", inherit=False)    # value is a Predicate
+equated_prop = prop.declare_property("equated", inherit=False)    # value is a Predicate
 
 # For record matches made by name(s)
 match_prop = prop.declare_property("match", inherit=False)
@@ -89,18 +89,18 @@ get_match_key = prop.getter(prop.declare_property("match_id", inherit=False))
 get_match_direction = prop.getter(prop.declare_property("direction", inherit=False))
 get_match_kind = prop.getter(prop.declare_property("kind", inherit=False))
 get_basis_of_match = prop.getter(prop.declare_property("basis_of_match", inherit=False))
-get_match_relationship = prop.getter(prop.declare_property("relationship", inherit=False))
+get_match_relasionship = prop.getter(prop.declare_property("relasionship", inherit=False))
 
 # -----------------------------------------------------------------------------
-# Relations and relationships
+# Predicates and relasionships
 
-class Relation(NamedTuple):
-  relationship : Any    # < (LT, HAS_PARENT), <= (LE), =, NOINFO, maybe others
+class Predicate(NamedTuple):
+  relasionship : Any    # < (LT, HAS_PARENT), <= (LE), =, NOINFO, maybe others
   record : Any       # the record that we're relating this one to
   span : int
-  note : Any          # comments justifying this relationship
+  note : Any          # comments justifying this relasionship
 
-def relation(ship, record, note=MISSING, span=None):
+def predicate(ship, record, note=MISSING, span=None):
   assert isinstance(ship, int), ship
   assert note != None
   assert record == False or isinstance(record, prop.Record), blurb(record)
@@ -108,39 +108,37 @@ def relation(ship, record, note=MISSING, span=None):
     if ship == EQ: span = 0
     #elif ship == SYNONYM or MYNONYS: span = 1
     else: span = 2
-  return Relation(ship, record, span, note)
+  return Predicate(ship, record, span, note)
 
-# rel: origin -> target
-
-def reverse_relation(origin, rel):
-  assert isinstance(rel, Relation)
-  return Relation(reverse_relationship(rel.relationship),
-                  origin,
-                  rel.span,
-                  reverse_note(rel.note))
+def reverse_predicate(origin, pred):
+  assert isinstance(pred, Predicate)
+  return Predicate(reverse_relasionship(pred.relasionship),
+                   origin,
+                   pred.span,
+                   reverse_note(pred.note))
 
 def reverse_articulation(art):
-  (origin, rel) = art
-  return (rel.record, Relation(reverse_relationship(rel.relationship),
+  (origin, pred) = art
+  return (pred.record, Predicate(reverse_relasionship(pred.relasionship),
                                origin,
-                               rel.span,
-                               reverse_note(rel.note)))
+                               pred.span,
+                               reverse_note(pred.note)))
 
-def compose_relations(rel1, rel2):
-  assert rel1
-  assert rel2
-  assert (not get_workspace(rel1.record)) == (not get_workspace(rel2.record))
-  if is_identity(rel1): return rel2
-  if is_identity(rel2): return rel1
-  # Consider special relationships for synonyms 
-  # if rel1.span <= 1 and rel2.span <= 1: ...
-  return Relation(compose_relationships(rel1.relationship, rel2.relationship),
-                  rel2.record,
-                  rel1.span + rel2.span,
-                  compose_notes(rel1.note, rel2.note))
+def compose_predicates(pred1, pred2):
+  assert pred1
+  assert pred2
+  assert (not get_workspace(pred1.record)) == (not get_workspace(pred2.record))
+  if is_identity(pred1): return pred2
+  if is_identity(pred2): return pred1
+  # Consider special relasionships for synonyms 
+  # if pred1.span <= 1 and pred2.span <= 1: ...
+  return Predicate(compose_relasionships(pred1.relasionship, pred2.relasionship),
+                  pred2.record,
+                  pred1.span + pred2.span,
+                  compose_notes(pred1.note, pred2.note))
 
-def is_identity(rel):
-  return rel.relationship == EQ and rel.note == MISSING
+def is_identity(pred):
+  return pred.relasionship == EQ and pred.note == MISSING
 
 # Algebra of 'notes'
 
@@ -270,14 +268,14 @@ def resolve_superior(S, record):
     if accepted:                        # Is there an accepted record (parent)?
       status = get_taxonomic_status(record, "synonym")    # default = synonym?
       if status == "equivalent":
-        rel = relation(EQ, record, note="input")
-        set_equated(accepted, rel)
-        sup = relation(EQ, accepted, note="input")
+        pred = predicate(EQ, record, note="input")
+        set_equated(accepted, pred)
+        sup = predicate(EQ, accepted, note="input")
       else:
         if monitor(record):
           log("# checklist: debug: %s %s %s %s" %
               (blurb(record), taxonID, accepted_key, blurb(accepted)))
-        sup = relation(synonym_relationship(record, accepted),
+        sup = predicate(synonym_relasionship(record, accepted),
                        accepted,
                        note="checklist (synonym)", span=1)
     else:
@@ -289,13 +287,13 @@ def resolve_superior(S, record):
     parent_key = get_parent_key(record, None)
     parent = look_up_record(S, parent_key, record)
     if parent:
-      sup = relation(HAS_PARENT, parent, note="checklist (child)")
+      sup = predicate(HAS_PARENT, parent, note="checklist (child)")
     else:
       if parent_key:
         log("# accepted in %s but has unresolvable parent: %s = %s" %
             (get_tag(S), blurb(record), parent_key))
       # Child of top
-      sup = relation(HAS_PARENT, S.top, note="inferior of top")
+      sup = predicate(HAS_PARENT, S.top, note="inferior of top")
 
   if monitor(record):
     "# resolving sup %s = %s" % (blurb(record), blurb(sup))
@@ -306,18 +304,18 @@ def resolve_superior(S, record):
   else:
     log("# No superior: %s" % blurb(record))
 
-def synonym_relationship(record, accepted):
+def synonym_relasionship(record, accepted):
   return SYNONYM                # could be LT, LE, EQ
 
 # sup might be top
 
 def set_superior_carefully(x, sup):
   assert isinstance(x, prop.Record)
-  assert isinstance(sup, Relation)
+  assert isinstance(sup, Predicate)
   assert sup.record != x
   have = get_superior(x, None)
   if have:
-    if (have.relationship != sup.relationship or
+    if (have.relasionship != sup.relasionship or
         have.record != sup.record):
       log("**** Changing sup of %s from %a to %s" %
           (blurb(x), blurb(have), blurb(sup)))
@@ -326,7 +324,7 @@ def set_superior_carefully(x, sup):
   # If sup itself is a synonym, we're in trouble.
   # Unfortunately GBIF has a bunch of these.
   # We are forced to discard hierarchy information between synonyms.
-  if sup.relationship != EQ:
+  if sup.relasionship != EQ:
     s = sup
     while not is_accepted(s.record):
       su = get_superior(s.record, None)
@@ -365,11 +363,11 @@ def normalize_ranks(x, sup):
         set_rank(x, None)
 
 # Establish links w -> p and p -> w
-# sup is a Relation with record p
+# sup is a Predicate with record p
 
-def link_superior(w, sup):      # w is inferior Record, sup is Relation
+def link_superior(w, sup):      # w is inferior Record, sup is Predicate
   assert isinstance(w, prop.Record), blurb(w)
-  assert isinstance(sup, Relation), blurb(sup)
+  assert isinstance(sup, Predicate), blurb(sup)
   assert isinstance(sup.record, prop.Record), blurb(sup)
   # why would this fail?  (for newick)  sup.record is missing
   assert get_source(w) is get_source(sup.record), blurb(sup)
@@ -431,7 +429,7 @@ def validate(C):
   log("# %s total records" % len(seen))
 
 # -----------------------------------------------------------------------------
-# Collect parent/child and accepted/synonym relationships;
+# Collect parent/child and accepted/synonym relasionships;
 # set children and synonyms properties.
 # **** Checklist could be either source or coproduct. ****
 # Run this AFTER all superior links have been set in other ways (e.g. merge).
@@ -533,19 +531,19 @@ def is_accepted(x):             # exported
           status.startswith("valid") or
           status.startswith("doubtful"))
 
-def get_accepted_relation(x):
+def get_accepted_predicate(x):
   if is_accepted(x):
-    return relation(EQ, x, MISSING)
+    return predicate(EQ, x, MISSING)
   else:
     sup = get_superior(x, None)
     if sup:
       assert is_accepted(sup.record), blurb(x)
       return sup
     else:
-      return relation(EQ, x, MISSING) # top
+      return predicate(EQ, x, MISSING) # top
 
 def get_accepted(x):            # Doesn't return falsish
-  # return get_accepted_relation.record
+  # return get_accepted_predicate.record
   if is_accepted(x):
     return x
   else:
@@ -604,7 +602,7 @@ def recover_status(x, default=MISSING): # taxonomicStatus
     else:
       return status
 
-# Non-DwC relationships, use optionally, see workspace
+# Non-DwC relasionships, use optionally, see workspace
 
 def recover_equated_key(x, default=MISSING):
   m = get_equated(x, None)
@@ -617,8 +615,8 @@ def recover_equated_note(x, default=MISSING):
   return m.note if m else default
 
 def recover_match_key(x, default=MISSING):
-  rel = get_matched(x)
-  if rel: return get_primary_key(rel.record)
+  pred = get_matched(x)
+  if pred: return get_primary_key(pred.record)
   else: return default
 
 def recover_basis_of_match(x, default=MISSING):
@@ -627,9 +625,9 @@ def recover_basis_of_match(x, default=MISSING):
 
 def get_matched(x):
   if x:
-    rel = get_match(x, None)
-    if rel and rel.relationship == EQ:
-      return rel
+    pred = get_match(x, None)
+    if pred and pred.relasionship == EQ:
+      return pred
   return None
 
 # -----------------------------------------------------------------------------
@@ -674,13 +672,13 @@ def records_to_rows(C, records, props=None): # Excludes top
 def keep_record_notused(x):
   sup = get_superior(x, None)
   # if not sup: assert False
-  if sup.relationship != EQ:
+  if sup.relasionship != EQ:
     return True
 
   # Hmm.  we're an A node that's EQ to some B node.
   # Are they also a record match?
-  rel = get_matched(x)
-  if (not rel) or rel.record != sup.record:
+  pred = get_matched(x)
+  if (not pred) or pred.record != sup.record:
     # If record is unmatched, or matches something not equivalent,
     # then keep it
     return True
@@ -717,13 +715,13 @@ def blurb(r):
     if not is_accepted(x):
       name = name + "*"
     return name
-  elif isinstance(r, Relation):
+  elif isinstance(r, Predicate):
     if r.note:
       return ("[%s (%s) %s]" %
-              (rcc5_symbol(r.relationship), r.note,
+              (rcc5_symbol(r.relasionship), r.note,
                blurb(r.record)))
     else:
-      return "[%s %s]" % (rcc5_symbol(r.relationship), blurb(r.record))
+      return "[%s %s]" % (rcc5_symbol(r.relasionship), blurb(r.record))
   elif isinstance(r, str):
     return "'%s'" % r           # kludge
   elif r:
@@ -773,7 +771,7 @@ def monitor(x):
 # -----------------------------------------------------------------------------
 # Load/dump a set of provisional matches (could be either record match
 # or taxonomic matches... but basically, record matches).  The matches are stored 
-# as Relations under the 'match' property of nodes in AB.
+# as Predicates under the 'match' property of nodes in AB.
 
 # Obsolete
 
@@ -782,7 +780,7 @@ def monitor(x):
 def load_matches(row_iterator, AB):
   log("# checklist: loading")
 
-  # match_id,relationship,taxonID,direction,kind,basis_of_match
+  # match_id,relasionship,taxonID,direction,kind,basis_of_match
   header = next(row_iterator)
   plan = prop.make_plan_from_header(header)
   mutual_count = 0
@@ -803,7 +801,7 @@ def load_matches(row_iterator, AB):
 
     # Put ambiguities into the comment ??
 
-    ship = rcc5_relationship(get_match_relationship(match_record)) # EQ, NOINFO
+    ship = rcc5_relasionship(get_match_relasionship(match_record)) # EQ, NOINFO
     # match_direction, match_kind, basis_of_match
     dir = get_match_direction(match_record, '?')
     kind = get_match_kind(match_record, '?')
@@ -824,11 +822,11 @@ def load_matches(row_iterator, AB):
       miss_count += 1
     if dir == 'A<->B' or dir == 'A->B':
       assert u
-      set_match(u, relation(ship, v, note=note))
+      set_match(u, predicate(ship, v, note=note))
       set_match_info(u, (vs, kind, basis))
     if dir == 'A<->B' or dir == 'B->A':
       assert v
-      set_match(v, relation(ship, u, note=note))
+      set_match(v, predicate(ship, u, note=note))
       set_match_info(v, (us, kind, basis))
 
   log("# loaded %s match records, %s nonmatches" % (mutual_count, miss_count))

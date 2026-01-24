@@ -69,7 +69,7 @@ def check_for_redundant(checklist):
 # mismatch_point(x, y)
 
 def redundancy_sort_key(x):
-  sup = get_superior(x, None)   # relation
+  sup = get_superior(x, None)   # predicate
   supcan = get_canonical(sup.record, '') if sup else ''
   return (not is_accepted(x),
           -len(get_children(x, ())),

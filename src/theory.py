@@ -15,7 +15,7 @@ from specimen import same_specimens, get_exemplar, same_type_ufs, \
   sid_to_opposite_record
 from exemplar import find_exemplars
 from block import analyze_blocks, get_mono
-from block import block_relationship, same_block
+from block import block_relasionship, same_block
 from block import is_empty_block, get_block, BOTTOM_BLOCK
 from cross_mrca import compute_cross_mrcas, get_cross_mrca
 
@@ -46,11 +46,11 @@ def compare(AB, u, v):
   rel3r = get_central(AB, v)         # v <= v1
   if not (rel1 and rel3r):
     log("trees not connected: %s, %s" % (blurb(u), blurb(v)))
-    return relation(NOINFO, v, "trees not connected")
+    return predicate(NOINFO, v, "trees not connected")
   u1 = rel1.record
   v1 = rel3r.record
   assert separated(u1, v1)
-  rel3 = reverse_relation(v, rel3r)  # v1 >= v
+  rel3 = reverse_predicate(v, rel3r)  # v1 >= v
   # Compare u1 and v1, which are central, in opposite checklists
   rel2 = compare_centrally(AB, u1, v1)   # u1 ? v1
   assert rel2
@@ -66,13 +66,13 @@ def get_central(AB, u):
     u_central = local_sup(AB, u_central).record
   assert u_central, ("No central", blurb(u))
   if u_central is u:
-    return relation(EQ, u_central)
+    return predicate(EQ, u_central)
   else:
     sup = local_sup(AB, u)
     if sup and sup.record is u_central:
       return sup                # u < u_central = sup
     else:
-      return relation(LT, u_central, note="get_central")
+      return predicate(LT, u_central, note="get_central")
 
 # Compare taxa that are known to have nonempty exemplar sets.
 # Returns non-None as long as there are any exemplars.
@@ -83,13 +83,13 @@ def compare_centrally(AB, u, v):
   b2 = get_block(v)
   assert b1 != BOTTOM_BLOCK
   assert b2 != BOTTOM_BLOCK
-  ship = block_relationship(b1, b2)
+  ship = block_relasionship(b1, b2)
   if ship == COMPARABLE:
-    #! In same block.  Use ranks to figure out relationship.
+    #! In same block.  Use ranks to figure out relasionship.
     return compare_within_block(AB, u, v)
   else:
     # Different blocks (exemplar sets)
-    return relation(ship, v, note="exemplar set comparison")
+    return predicate(ship, v, note="exemplar set comparison")
 
 # --------------------
 # u and v are in opposite checklists but same block
@@ -99,19 +99,19 @@ def compare_within_block(AB, u, v):
   vv = unique_in_block(AB, v)
   if uu and vv:
     #log("# both unique in block: %s, %s" % (blurb(u), blurb(v)))
-    return relation(EQ, v, "unique in both blocks")
+    return predicate(EQ, v, "unique in both blocks")
 
   # synonym < accepted regardless ... ?
   if not is_accepted_locally(AB, u) and is_accepted_locally(AB, v):
-    answer = relation(LE, v, "synonym <= accepted")
+    answer = predicate(LE, v, "synonym <= accepted")
     if False:
       log("# %s %s %s" %
-          (blurb(u), rcc5_symbol(answer.relationship), blurb(v)))
+          (blurb(u), rcc5_symbol(answer.relasionship), blurb(v)))
   elif is_accepted_locally(AB, u) and not is_accepted_locally(AB, v):
-    answer = relation(GE, v, "accepted >= synonym")
+    answer = predicate(GE, v, "accepted >= synonym")
     if False:
       log("# %s %s %s" %
-          (blurb(u), rcc5_symbol(answer.relationship), blurb(v)))
+          (blurb(u), rcc5_symbol(answer.relasionship), blurb(v)))
   else:
     u_rank_n = ranks.ranks_dict.get(get_rank(u, None), 0)
     v_rank_n = ranks.ranks_dict.get(get_rank(v, None), 0)
@@ -119,18 +119,18 @@ def compare_within_block(AB, u, v):
     # Assume a treelike model...
     if u_rank_n > 0 and v_rank_n > 0:
       if u_rank_n < v_rank_n:
-        answer = relation(LT, v, "ranks <")
+        answer = predicate(LT, v, "ranks <")
       elif u_rank_n == v_rank_n:
-        answer = relation(EQ, v, "ranks =")
+        answer = predicate(EQ, v, "ranks =")
       else:
-        answer = relation(GT, v, "ranks >")
+        answer = predicate(GT, v, "ranks >")
     else:
-      answer = relation(COMPARABLE, v, "missing rank information")
+      answer = predicate(COMPARABLE, v, "missing rank information")
     if False and get_canonical(u) != get_canonical(v):
       # This actually happens quite a bit
       # Jackpot
       log("# Using ranks to decide %s %s %s" %
-          (blurb(u), rcc5_symbol(answer.relationship), blurb(v)))
+          (blurb(u), rcc5_symbol(answer.relasionship), blurb(v)))
   return answer
 
 # True iff there is no v in u's checklist congruent to u.
@@ -161,14 +161,14 @@ def compose_final(u, rel1, rel2, rel3):
 def compare_locally(AB, u, v):
   rel = simple.compare_per_checklist(get_outject(u), get_outject(v)) # in A or B
   # Returns NOINFO for sibling + any synonym.
-  if rel.relationship == NOINFO:
+  if rel.relasionship == NOINFO:
     if same_type_ufs(get_type_uf(u), get_type_uf(v)):
-      return relation(EQ, v, "homotypic synonym")   # treat as aliases.
+      return predicate(EQ, v, "homotypic synonym")   # treat as aliases.
       # (perhaps INTERSECT instead ??)
     else:
-      return relation(NEQ, v, "heterotypic synonym")  # treat as distinct.
+      return predicate(NEQ, v, "heterotypic synonym")  # treat as distinct.
   else:
-    return relation(rel.relationship,
+    return predicate(rel.relasionship,
                     v,
                     note=rel.note,
                     span=rel.span)  # in A or B
@@ -178,28 +178,28 @@ def compare_locally(AB, u, v):
 # Remember all the nodes involved are central (no synonyms)
 
 def compose_paths(z, rel1, rel2):
-  rel = compose_relations(rel1, rel2)
+  rel = compose_predicates(rel1, rel2)
   if False and (monitor(z) or monitor(rel2.record)):
-    log("# %s ; %s -> %s" % (rcc5_symbol(rel1.relationship),
-                             rcc5_symbol(rel2.relationship),
-                             rcc5_symbol(rel.relationship)))
+    log("# %s ; %s -> %s" % (rcc5_symbol(rel1.relasionship),
+                             rcc5_symbol(rel2.relasionship),
+                             rcc5_symbol(rel.relasionship)))
   return rel
 
-# Both relationships hold
+# Both relasionships hold
 
-def parallel_relationship(ship1, ship2):
+def parallel_relasionship(ship1, ship2):
   return ship1 & ship2
 
-# RCC-5 relationship across the two checklists
+# RCC-5 relasionship across the two checklists
 # x and y are in AB
 # Could be made more efficient by skipping unused calculations
 
 def cross_lt(AB, u, v):
-  ship = compare(AB, u, v).relationship
+  ship = compare(AB, u, v).relasionship
   return ship == LT or ship == LE or ship == PERI
 
 def cross_le(AB, u, v):
-  ship = compare(AB, u, v).relationship
+  ship = compare(AB, u, v).relasionship
   return ship == LT or ship == LE or ship == PERI or ship == EQ
 
 # -----------------------------------------------------------------------------
@@ -223,7 +223,7 @@ def get_species(u):             # u is in workspace
   s = local_accepted(AB, u)
   while not is_species(s):
     # TBD: use ranks_dict
-    rel = local_sup(AB, s)        # relation
+    rel = local_sup(AB, s)        # predicate
     if rel: s = rel.record
     else: return None
   return s

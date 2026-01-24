@@ -12,7 +12,7 @@ from rcc5 import EQ, GT, LT, DISJOINT, NOINFO
 
 NEWER = False
 
-# Returns a Relation
+# Returns a Predicate
 
 def compare_per_checklist(x, y):
   if NEWER:
@@ -30,35 +30,35 @@ def compare_per_checklist_newer(x, y):
 
   # x3 starts at x and runs up to its final value at level i
   x3 = x
-  r13 = relation(EQ, x)
+  r13 = predicate(EQ, x)
   while get_level(x3) > i:
     sup = get_superior(x3, None)
-    r13 = compose_relations(r13, sup)  # extend r13
+    r13 = compose_predicates(r13, sup)  # extend r13
     x3 = sup.record
 
   # x4 starts at y and runs up to its final value at level i
   x4 = y
-  r64 = relation(EQ, x4)
+  r64 = predicate(EQ, x4)
   while get_level(x4) > i:
     sup = get_superior(x4, None)
-    r64 = compose_relations(r64, sup)  # extend r64
+    r64 = compose_predicates(r64, sup)  # extend r64
     x4 = sup.record
 
-  r46 = reverse_relation(x4, r64)
+  r46 = reverse_predicate(x4, r64)
   
   # x3 and x4 are same 'level' (~ 'rank')
   if r13.record is r64.record:
     # r13 is EQ and/or r64 is EQ, so x <=> y
     ship = EQ                   # gets composed with < and/or >
-  elif r13.relationship != SYNONYM and r64.relationship != SYNONYM:
+  elif r13.relasionship != SYNONYM and r64.relasionship != SYNONYM:
     # accepted / accepted non-siblings
     # {x3 and descendants} disjoint from {x4 and descendants}
     ship = DISJOINT
   else:
     # accepted / synonym siblings or synonym / synonym siblings
     ship = NOINFO
-  r34 = relation(ship, r13.record, "bridge")
-  return compose_relations(compose_relations(r13, r34), r46)
+  r34 = predicate(ship, r13.record, "bridge")
+  return compose_predicates(compose_predicates(r13, r34), r46)
 
 # Older version, numbers are as in mss as of 1/23/2026, ugly code, 
 # dubious optimization, dubious correctness
@@ -66,22 +66,22 @@ def compare_per_checklist_newer(x, y):
 def compare_per_checklist_older(x, y):
   # older version, matching 1/23/26 version of mss
   if x is y:
-    return relation(EQ, y) # x = peer = y
+    return predicate(EQ, y) # x = peer = y
   (x_peer, y_peer) = find_peers(x, y)
   if x_peer is y_peer:     # x <= x_peer = y_peer >= y
     # They intersect, so < = >
     if x_peer is x:          # x = x_peer >= y, so x >= y (or > y, so x > y)
       y_sup = get_superior(y)
       if y_sup and x is y_sup.record:
-        return reverse_relation(y, y_sup)
+        return reverse_predicate(y, y_sup)
       else:
-        return relation(GT, y, note="x = xsup = ysup > y")
+        return predicate(GT, y, note="x = xsup = ysup > y")
     elif y_peer is y:          # x <= y_peer = y, so x <= y (or x <, so x < y)
       x_sup = get_superior(x)
       if x_sup and y is x_sup.record:
         return x_sup
       else:
-        return relation(LT, y, note="x < xsup = ysup = y")
+        return predicate(LT, y, note="x < xsup = ysup = y")
     else:
       assert False, "shouldnt happen"
   else:
@@ -90,8 +90,8 @@ def compare_per_checklist_older(x, y):
     ysup = get_superior(y)
     if (xsup and ysup and xsup.record is ysup.record
         and (not is_accepted(x) or not is_accepted(y))):
-      return relation(NOINFO, y, note="synonym ? sibling")
-    return relation(DISJOINT, y, note="x < xsup = ysup > y")
+      return predicate(NOINFO, y, note="synonym ? sibling")
+    return predicate(DISJOINT, y, note="x < xsup = ysup > y")
 
 def find_peers(x, y):
   assert get_level(x, None) and get_level(x, None), "no levels"
@@ -112,7 +112,7 @@ def mrca(x, y):
     y = get_parent(y)
   return x
 
-# premature optimization of compare(x, y).relationship == LE
+# premature optimization of compare(x, y).relasionship == LE
 
 def simple_le(x, y):
   # Is x <= y?  Scan from x upwards, see if we find y

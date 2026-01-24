@@ -6,7 +6,7 @@ import checklist, workspace, simple, ranks
 from util import log
 from checklist import *
 from workspace import *
-from simple import BOTTOM, compare_per_checklist
+from simple import compare_per_checklist
 from specimen import get_exemplar_info, get_exemplar, get_exemplar_id
 from specimen import maybe_get_type_uf
 from rcc5 import rcc5_symbol
@@ -29,7 +29,7 @@ def find_estimates(AB):
         u = AB.in_left(x)
         rel = find_estimate(AB, u)
         set_estimate(u, rel)
-        if rel and rel.relationship == EQ: # Metering
+        if rel and rel.relasionship == EQ: # Metering
           counts[0] += 1
         else:
           counts[1] += 1
@@ -64,14 +64,14 @@ def find_estimate(AB, u):       # u is in AB
     rel2 = central_estimate(AB, u_central)
   else:
     rel2 = central_estimate_2(AB, u_central)
-  return compose_relations(rel1, rel2) # u -> u_central -> v
+  return compose_predicates(rel1, rel2) # u -> u_central -> v
   # TBD: convert LT to LE when synonym ?
 
 def central_estimate(AB, u):
   v = get_cross_mrca(u) # in AB, from B
   while True:
     rel = compare(AB, u, v)
-    if rel.relationship == rel.relationship & LE:
+    if rel.relasionship == rel.relasionship & LE:
       return rel
     sup = local_sup(AB, v)         # B.Tupaia montana
     # all nodes are <= top, right?
@@ -109,12 +109,12 @@ def central_estimate_2(AB, u):
 
         # Easiest improvement: look for same-exemplar-set ancestors of
         # v, and ancestors and descendants of u, and switch to vaguer
-        # relationship or higher estimate if not unique.
+        # relasionship or higher estimate if not unique.
 
-        rel2 = relation(EQ, v, "reciprocal cross_mrca")
+        rel2 = predicate(EQ, v, "reciprocal cross_mrca")
       else:                     # u < v <= w
         # X(u) < X(w), ergo C(u) < C(w)
-        rel2 = relation(LT, v, "bigger cross_mrca")
+        rel2 = predicate(LT, v, "bigger cross_mrca")
       break
 
     #   w < u    -- keep searching
@@ -131,13 +131,13 @@ def central_estimate_2(AB, u):
 
 # Given u, find unique node v in opposite checklist such that v = u.
 # u is in AB.
-# Returns a Relation or None.
+# Returns a Predicate or None.
 
 def get_equivalent(AB, u):
   assert u
   assert get_workspace(u)
   est = get_estimate(u, None)   # In opposite checklist
-  if (est and est.relationship == EQ and
+  if (est and est.relasionship == EQ and
       (is_accepted_locally(AB, u) == is_accepted_locally(AB, est.record))):
     return est
   else: return None
@@ -158,12 +158,12 @@ def get_dominator(AB, w):  # not used as of 1/2026
   q = get_superior(v) if v is w else v
   while True:
     rel = compare(AB, p, q)
-    if rel.relationship == LT: return p
-    elif rel.relationship == LE: return p
-    elif rel.relationship == EQ: return q
-    elif rel.relationship == GT: return q
-    elif rel.relationship == GE: return q
-    elif rel.relationship == OVERLAP:
+    if rel.relasionship == LT: return p
+    elif rel.relasionship == LE: return p
+    elif rel.relasionship == EQ: return q
+    elif rel.relasionship == GT: return q
+    elif rel.relasionship == GE: return q
+    elif rel.relasionship == OVERLAP:
       log("# Overlap: %s with %s" % (blurb(p), blurb(q)))
       # iterate
       p = get_superior(p)       # 'Break' the taxon
@@ -176,12 +176,12 @@ def mrca(AB, u, v):
     m = AB.in_left(simple.mrca(get_outject(u), get_outject(get_estimate(v))))
     n = AB.in_right(simple.mrca(get_outject(v), get_outject(get_estimate(u))))
     rel = compare(AB, m, n)
-    if   rel.relationship == EQ: return n
-    elif rel.relationship == LT: return n
-    elif rel.relationship == LE: return n
-    elif rel.relationship == GT: return m
-    elif rel.relationship == GE: return m
-    elif rel.relationship == OVERLAP:
+    if   rel.relasionship == EQ: return n
+    elif rel.relasionship == LT: return n
+    elif rel.relasionship == LE: return n
+    elif rel.relasionship == GT: return m
+    elif rel.relasionship == GE: return m
+    elif rel.relasionship == OVERLAP:
       # Does this terminate?  Yes, because simple.mrca always goes
       # rootward after an overlap.
       log("# Reducing mrca(%s, %s) to mrca(%s, %s)" %

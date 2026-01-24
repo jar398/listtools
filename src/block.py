@@ -71,9 +71,9 @@ def get_block(x):
 (really_get_block, set_block) = prop.get_set(prop.declare_property("block"))
 (get_mono, set_mono) = prop.get_set(prop.declare_property("mono"))
 
-# RCC-5 relationship between two blocks
+# RCC-5 relation between two blocks
 
-def block_relationship(e1, e2):   # can assume intersecting
+def block_relasionship(e1, e2):   # can assume intersecting
   if e1 == e2: return COMPARABLE  # same block.  COMPARABLE concepts
   elif e1.issubset(e2): return LT
   elif e2.issubset(e1): return GT

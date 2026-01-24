@@ -90,20 +90,20 @@ def generate_row(AB, u, v, ops):
     u_fields = description_for_report(AB, u)
     v_fields = description_for_report(AB, v)
     if u and v:
-      v_rel = theory.compare(AB, u, v) # a Relation
-      assert isinstance(v_rel, Relation)
-      (rcc5_field, rcc5_comment) = impute_relationship(AB, u, v_rel)
+      v_rel = theory.compare(AB, u, v) # a Predicate
+      assert isinstance(v_rel, Predicate)
+      (rcc5_field, rcc5_comment) = impute_relasionship(AB, u, v_rel)
       if rcc5_field.startswith('='):
         # Kludge to appease spreadsheet programs
         rcc5_field = "'" + rcc5_field
-      count("total number of relationships")
+      count("total number of relasionships")
     else:
       rcc5_field = MISSING
       if u:
-        rcc5_comment = ("In %s; unknown relationship to %s" %
+        rcc5_comment = ("in %s; unknown relationship to %s" %
                         (get_tag(AB.A), get_tag(AB.B)))
       elif v:
-        rcc5_comment = ("In %s; unknown relationship to %s" %
+        rcc5_comment = ("in %s; unknown relationship to %s" %
                         (get_tag(AB.B), get_tag(AB.A)))
       else:
         rcc5_comment = "should not happen"
@@ -151,8 +151,8 @@ def show_sid(sid):
   ep = sid_to_epithet(AB, sid)
   return "%s %s" % (sid, ep)
 
-def impute_relationship(AB, u, v_rel):
-  ship = v_rel.relationship
+def impute_relasionship(AB, u, v_rel):
+  ship = v_rel.relasionship
   comment = ""
   if ship == EQ: comment = "is congruent with"
   elif ship == LT: comment = "is contained in"
@@ -166,7 +166,7 @@ def impute_concept_change(AB, u, v_rel, homotypic):
   elif not v_rel:
     op = "gone"
   else:
-    ship = v_rel.relationship
+    ship = v_rel.relasionship
     if ship == EQ:
       # This can happen if e.g. the type is ambiguous or otherwise unmatched
       op = "congruent"
