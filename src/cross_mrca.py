@@ -41,7 +41,12 @@ def compute_cross_mrcas(AB):
         m = BOTTOM                # identity for mrca
       for c in get_inferiors(x):  # c in WS.A
         q = traverse(c)           # in WS.B
-        m = simple.mrca(m, q)     # in WS.B
+        if q == BOTTOM:
+          pass
+        elif m == BOTTOM:
+          m = q
+        else:
+          m = simple.mrca(m, q)     # in WS.B
       # Sanity checks
       if m != BOTTOM:
         v = WS.in_right(m)

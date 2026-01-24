@@ -2,6 +2,7 @@ import property as prop
 from checklist import *
 from rcc5 import EQ, GT, LT, DISJOINT, NOINFO
 
+# Implementation of "Darwin Core semantics" from the mss
 
 # Same-tree relationships
 
@@ -9,12 +10,64 @@ from rcc5 import EQ, GT, LT, DISJOINT, NOINFO
 #   /       \
 #  x         y   'smaller', 'down'
 
-# Returns a Relation explaining justification
+NEWER = False
 
-def compare_per_checklist(x, y):             # Within a single checklist
+# Returns a Relation
+
+def compare_per_checklist(x, y):
+  if NEWER:
+    return compare_per_checklist_newer(x, y)
+  else:
+    return compare_per_checklist_older(x, y)
+
+# Newer version, more species and congruences, fewer overlaps
+# Easier to be seen as correct, but as of 1/23/2026 it's not exactly
+# compatible with the mss
+# Leads to 6% overall performance hit
+
+def compare_per_checklist_newer(x, y):
+  i = min(get_level(x), get_level(y))
+
+  # x3 starts at x and runs up to its final value at level i
+  x3 = x
+  r13 = relation(EQ, x)
+  while get_level(x3) > i:
+    sup = get_superior(x3, None)
+    r13 = compose_relations(r13, sup)  # extend r13
+    x3 = sup.record
+
+  # x4 starts at y and runs up to its final value at level i
+  x4 = y
+  r64 = relation(EQ, x4)
+  while get_level(x4) > i:
+    sup = get_superior(x4, None)
+    r64 = compose_relations(r64, sup)  # extend r64
+    x4 = sup.record
+
+  r46 = reverse_relation(x4, r64)
+  
+  # x3 and x4 are same 'level' (~ 'rank')
+  if r13.record is r64.record:
+    # r13 is EQ and/or r64 is EQ, so x <=> y
+    ship = EQ                   # gets composed with < and/or >
+  elif r13.relationship != SYNONYM and r64.relationship != SYNONYM:
+    # accepted / accepted non-siblings
+    # {x3 and descendants} disjoint from {x4 and descendants}
+    ship = DISJOINT
+  else:
+    # accepted / synonym siblings or synonym / synonym siblings
+    ship = NOINFO
+  r34 = relation(ship, r13.record, "bridge")
+  return compose_relations(compose_relations(r13, r34), r46)
+
+# Older version, numbers are as in mss as of 1/23/2026, ugly code, 
+# dubious optimization, dubious correctness
+
+def compare_per_checklist_older(x, y):
+  # older version, matching 1/23/26 version of mss
   if x is y:
     return relation(EQ, y) # x = peer = y
-  (x_peer, y_peer) = find_peers(x, y)    # Decrease levels as needed
+  (x_peer, y_peer) = find_peers(x, y)
   if x_peer is y_peer:     # x <= x_peer = y_peer >= y
     # They intersect, so < = >
     if x_peer is x:          # x = x_peer >= y, so x >= y (or > y, so x > y)
@@ -30,7 +83,7 @@ def compare_per_checklist(x, y):             # Within a single checklist
       else:
         return relation(LT, y, note="x < xsup = ysup = y")
     else:
-      assert False
+      assert False, "shouldnt happen"
   else:
     # They do not intersect, or are sibling synonyms
     xsup = get_superior(x)
@@ -40,14 +93,8 @@ def compare_per_checklist(x, y):             # Within a single checklist
       return relation(NOINFO, y, note="synonym ? sibling")
     return relation(DISJOINT, y, note="x < xsup = ysup > y")
 
-# (ship, note) =     return relation(ship, y, note=note)
-
-# Assumes synonyms already 'nipped' off
-
 def find_peers(x, y):
-  if get_level(x, None) == None or get_level(x, None) == None:
-    clog("# No level for one of these:", x, y)
-    return NOINFO
+  assert get_level(x, None) and get_level(x, None), "no levels"
   i = min(get_level(x), get_level(y))
   while get_level(x) > i:
     x = get_parent(x)
@@ -59,33 +106,26 @@ def find_peers(x, y):
 
 def mrca(x, y):
   if x == y: return x
-  if x == BOTTOM: return y
-  if y == BOTTOM: return x
-
-  x = get_accepted(x)
-  y = get_accepted(y)
   (x, y) = find_peers(x, y)
   while not (x is y):
     x = get_parent(x)
     y = get_parent(y)
   return x
 
-BOTTOM = None
+# premature optimization of compare(x, y).relationship == LE
 
 def simple_le(x, y):
   # Is x <= y?  Scan from x upwards, see if we find y
   if x == y: return True
-  y = get_accepted(y)
-  x1 = x
+  assert not is_accepted(y)
   stop = get_level(y)
-
-  while get_level(x1) > stop:
-    x1 = get_parent(x1)    # y1 > previously, level(y1) < previously
-
-  return x1 is y
+  while get_level(x) > stop:
+    x = get_parent(x)    # y1 > previously, level(y1) < previously
+  return x is y
 
 def simple_lt(x, y):
-  return simple_le(x, y) and not x is y
+  if x == y: return False
+  return simple_le(x, y)
 
 def simple_gt(x, y): return simple_lt(y, x)
 def simple_ge(x, y): return simple_le(y, x)
@@ -131,58 +171,3 @@ def ensure_levels(S):
 
 def descends_from(x, y):
   return get_level(y) < get_level(x)
-
-# =============================================================================
-
-# Following is a currently unused rewrite of compare_per_checklist
-# that I hope is seen, more easily than the above, as an
-# implementation of the Darwin Core semantics rules in the paper.
-# I hope it's not any slower...
-
-def factor_path(x, y):          # x1 to x6
-  i = min(get_level(x), get_level(y))
-
-  # x3 starts at x1 and runs up to its final value at bridge
-  x3 = x
-  r13 = relation(EQ, x)
-  while get_level(x3) > i:
-    sup = get_superior(x3, None)
-    r13 = compose_relations(r13, sup)  # extend r13
-    x3 = sup.record
-
-  # x4 starts at x6 and runs up to its final value at bridge
-  x4 = y
-  r64 = relation(EQ, x4)
-  while get_level(x4) > i:
-    sup = get_superior(x4, None)
-    r64 = compose_relations(r64, sup)  # extend r64
-    x4 = sup.record
-
-  r46 = reverse_relation(x4, r46)
-  # Cases
-  # lineage, 0 synonyms - EQ
-  # lineage, 1 synonym  - <= (r34 can be EQ)
-  # lineage, 2 synonyms - cannot happen.
-  # separated, 0 synonyms - DISJOINT
-  # separated, 1 synonym  - NOINFO
-  # separated, 2 synonyms - NOINFO
-
-  # x3 and x4 are same 'level' (~ 'rank')
-  if r13.record is r64.record:
-    # r13 is EQ and/or r64 is EQ, so x <=> y
-    ship = EQ                   # gets composed with < and/or >
-  elif r13.relationship != SYNONYM and r64.relation != SYNONYM:
-    # accepted / accepted non-siblings
-    # {x3 and descendants} disjoint from {x4 and descendants}
-    ship = DISJOINT
-  else:
-    # accepted / synonym siblings or synonym / synonym siblings
-    ship = NOINFO
-  r34 = relation(ship, r13.record, "bridge")
-  return (r13, r34, r46)
-
-def compare_per_checklist_draft(x, y):
-  (r13, r34, r46) = factor_path(x, y)
-  r14 = compose_relations(r13, r34)
-  return compose_relations(r14, r46)
-
