@@ -1,9 +1,27 @@
+# Generate the alignment for the COL/MDD comparison in the mss.
+
+# I've been setting up (once per computer) with:
+#   mkdir -p ~/g
+#   cd ~/g
+#   clone ... URL for listtools repo ...
+#   clone ... URL for MDD-DwC-mapping repo ...
+#   (cd MDD-DwC-mapping; make)
+#   cd listtools; mkdir -p run
+
+# Then I compute the alignment with:
+#   (pushd run; L=.. ../doc/colmdd/colmdd.sh)
+# which puts the alignment CSV file in run/.
+
+# There are many other ways to do this.  Clones and CSVs can go in
+# other places, customize the pipeline, different inputs, etc.
+
 # Directory containing listtools (github checkout)
 L=~/g/listtools
 
+# Source files for execution
 P=$L/src
 
-# COL
+# COL - there is a copy sequestered in the in/ directory.
 
 # How to make col-mammals.csv ?  Get mammals from COL24 from checklistbank,
 # then extract the taxa file.

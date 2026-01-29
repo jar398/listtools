@@ -1,5 +1,20 @@
+Version designator = v1-draft
+
+The work "List Tools Bundle" (below called "the bundle" consists of
+the contents of this directory, which is the versioned release at
+https://github.com/jar398/listtools as tagged by the version
+designator above, if there is such a release.
+
+The work "List Tools" consists of everything in "List Tools Bundle"
+other than the "in/" subdirectory (and "out/" if there is one).
+
+The LICENSE documents in subdirectories of the in/ and out/
+directories apply to their respective contents.
+
+The following applies to "List Tools":
+
 Copyright (c) 2021-2026 Jonathan A. Rees (mumble.net/~jar) and
-Encyclopedia of Life project (www.eol.org)
+Encyclopedia of Life project (www.eol.org).
   
 Permission is hereby granted, free of charge, to any person obtaining
 a copy of this software and associated documentation files (the
@@ -19,3 +34,5 @@ NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
 LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
 OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+Author: Jonathan A. Rees
