@@ -1,5 +1,7 @@
 # listtools
 
+** OUT OF DATE **
+
 (Sources on main branch are in a somewhat inconsistent state; Makefile
 and documentation require revision.  )
 

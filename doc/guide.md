@@ -1,9 +1,11 @@
 # List tools user guide
 
+** OUT OF DATE **
+
 ## Overview
 
 The 'tools' or 'scripts' or 'programs' in this repository manipulate
-tabular data in the form of CSV files.  Most of them act as filters
+tabular data in the form of CSV files.  Many of them act as filters
 and can be invoked from the Unix shell.  They can be sequenced into
 pipelines using '|' if desired.  CSV files uniformly have a single
 header row giving column names.
@@ -375,10 +377,10 @@ When the exemplars are type specimens, they play a role similar
 to that played by protonyms in the Pyle/Remsen formulation.
 
 
-### plugin
-<a name="plugin"></a>
+### align
+<a name="align"></a>
 
-    src/plugin.py --A A.csv --B B.csv --exemplars AB-exemplars.csv
+    src/align.py --A A.csv --B B.csv --exemplars AB-exemplars.csv
 
 This writes an analysis report to standard output.  Concepts are
 imputed for all of the A and B records, and RCC-5 relationships
@@ -396,7 +398,7 @@ When there is a B concept of the same taxonomic
 name (allowing for non-semantic changes like genus moves and
 spelling corrections) the B concept is called the A concept's "buddy".
 
-The output (to standard output) of `plugin.py` has these columns (subject to change):
+The output (to standard output) of `align.py` has these columns (subject to change):
  - `A taxon id` - The taxon id of an A row
  - `A taxon name` - The canonicalName of that A record (for human
    consumption).  A suffixed `*` indicates a synonym.
@@ -617,7 +619,7 @@ suffixed to a name says that the name is to be considered a synonym
 
 ## Typical pipeline
 
-A typical processing pipeline to generate a "plugin" style report would be:
+A typical processing pipeline to generate a "align" style report would be:
 
  1. Obtain two .zip files, DwCAs for the two checklists
  1. Find the Taxon file names in the DwCAs using `find_taxa.py`
@@ -629,5 +631,5 @@ A typical processing pipeline to generate a "plugin" style report would be:
      1. Run `gnparse` on that list
      1. Fold the `gnparse` output into checklist with `use_gnparse.py`
  1. Run `exemplar.py` on the checklists to obtain file `exemplars.csv`
- 1. Apply `plugin.py` to the checklists and to `exemplars.csv` to obtain report
+ 1. Apply `align.py` to the checklists and to `exemplars.csv` to obtain report
 
