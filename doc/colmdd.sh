@@ -12,7 +12,7 @@ set -e
 # Personally, I compute the demo alignment with:
 #   (W=run Q=~/g ~/g/listtols/doc/make-colmdd.sh)
 # which puts the final alignment .csv file and temporary files in
-# ./run.
+# ./rfb26.
 
 # There are many other ways to do this.  Clones and CSVs can go in
 # other places, customize the pipeline, different inputs, etc.
@@ -82,4 +82,4 @@ $P/extract_names.py < $W/mdd2.0-clean.csv \
 	| gnparser -s \
 	| $P/use_gnparse.py --source $W/mdd2.0-clean.csv > $W/mdd2.0.csv
 
-time $P/plugin.py --A $W/col24-mammals.csv --B $W/mdd2.0.csv >report.csv
+time $P/align.py --A $W/col24-mammals.csv --B $W/mdd2.0.csv >report.csv
