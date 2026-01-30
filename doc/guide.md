@@ -1,6 +1,6 @@
 # List tools user guide
 
-** OUT OF DATE **
+**OUT OF DATE**
 
 ## Overview
 
