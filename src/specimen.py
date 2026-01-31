@@ -30,12 +30,12 @@ def get_specimen_id(uf):
     sid = ws.max_sid + 1
     ws.max_sid = sid
     r[0] = sid
-    ws.specimen_ufs[sid] = uf
+    ws.specimens[sid] = uf
     #log("# Specimen %s: (%s) <-> (%s)" % (sid, blorb(u), blorb(v)))
   return sid
 
 def sid_to_specimen(AB, sid):
-  return AB.specimen_ufs[sid]
+  return AB.specimens[sid]
 
 
 # Assert identity of specimens

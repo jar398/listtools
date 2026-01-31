@@ -128,7 +128,7 @@ def get_subproblem_key(z):
 def report_on_exemplars(AB):
   count = ufcount = 0      # of nodes having exemplars?
   
-  # but we could just look at AB.specimen_ufs, instead?
+  # but we could just look at AB.specimens, instead?
   for x in preorder_records(AB.A):
     u = AB.in_left(x)
     uf = maybe_get_type_uf(u, None)
@@ -139,7 +139,7 @@ def report_on_exemplars(AB):
         count += 1
         get_exemplar_id(uf)        # forces sid assignment  ??
   log("# Nodes with type specimens: %s, nodes with exemplars: %s, specimen id UFs: %s" %
-      (ufcount, count, len(AB.specimen_ufs)))
+      (ufcount, count, len(AB.specimens)))
 
 # Write exemplars to a file
 
@@ -175,7 +175,7 @@ def generate_exemplars(AB):
 # Read list of exemplars from file (given as a Rows)
 
 def read_exemplars(in_rows, AB):
-  assert len(AB.specimen_ufs) == 0
+  assert len(AB.specimens) == 0
   equate_type_ufs(AB.in_left(AB.A.top), AB.in_right(AB.B.top))
   the_rows = in_rows.rows()     # caller will close in_rows
   header = next(the_rows)
@@ -201,13 +201,13 @@ def read_exemplars(in_rows, AB):
       u = AB.in_left(x) if which=='A' else AB.in_right(x)
       uf = get_type_uf(u)        # one uf for each taxon
 
-      if sid in AB.specimen_ufs: # as a key
-        uf2 = AB.specimen_ufs[sid]
+      if sid in AB.specimens: # as a key
+        uf2 = AB.specimens[sid]
         assert uf2.payload()[0] == sid
         uf = equate_specimens(uf, uf2)
 
       uf.payload()[0] = sid
-      AB.specimen_ufs[sid] = uf # Replace
+      AB.specimens[sid] = uf # Replace
 
 
 if __name__ == '__main__':
