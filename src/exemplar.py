@@ -102,6 +102,8 @@ def index_by_some_key(AB, fn):
       have.append(u)
     else:
       index[key] = [u]
+  for have in index.values():
+    have.sort(key=unimportance)
   return index
 
 # Each subproblem covers a single epithet (or name, if higher taxon)

@@ -83,7 +83,7 @@ $P/extract_names.py < mdd2.0-clean.csv \
 time ($P/align.py --A col24-mammals.csv --B mdd2.0.csv > report.csv) \
   2>&1 | tee report.dribble 
 
-if False; do
+if false; then
   mkdir -p ~/g/artifacts/rfs26
   cp -p run/report.* ~/g/artifacts/rfs26/
-done
+fi
