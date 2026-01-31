@@ -1,3 +1,11 @@
+# A specimen (data type) designates a specimen (biological entity)
+# and captures hypotheses of its codesignations of a specimen
+# (biological) with other specimens (data type).
+
+# Specimens (biological) are called 'occurrences' in the latest draft
+# of the article about the method.
+
+# 'uf' stands for 'union/find'
 
 import util
 import property as prop
@@ -43,7 +51,11 @@ def sid_to_specimen(AB, sid):
 def same_specimens(uf, vf):
   return uf.find() is vf.find()
 
-def equate_specimens(uf, vf):
+# TBD: Since types are not necessarily involved in exemplar
+# generation, it would be nice to eliminate any mention of them from
+# this file, which later will need to handle non-type-based specimens
+
+def equate_specimens(uf, vf):   # u, v in workspace
   uf = uf.find()
   vf = vf.find()
   if uf is vf: return
@@ -52,7 +64,7 @@ def equate_specimens(uf, vf):
   (i2, u2, v2) = vf.payload()
 
   # Choose or improve a record for which this specimen is to be its type.
-  # Prefer protonyms.
+  # Prefer more protonym-like names.
   t1 = _pick_type_taxon(u1, u2)
   t2 = _pick_type_taxon(v1, v2)
 
@@ -62,16 +74,16 @@ def equate_specimens(uf, vf):
   else: i = min(i1, i2)
 
   ef = uf.absorb(vf)          # ef happens to be uf
-  r = ef.payload()
-  r[0] = i
-  r[1] = t1
-  r[2] = t2
+  sr = ef.payload()           # little specimen record
+  sr[0] = i
+  sr[1] = t1
+  sr[2] = t2
   return ef
 
 # This chooses, given two homotypic taxa, the one that best 'represents' 
 # the type specimen.
 
-def _pick_type_taxon(v1, v2):
+def _pick_type_taxon(v1, v2):   # v1, v2 in workspace
   # See whether v2 is an improvement over v1 (lower unimportance value)
   if v1 == None: return v2
   if v2 == None: return v1

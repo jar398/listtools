@@ -1,6 +1,7 @@
 #!/bin/bash
 
-# Generate the alignment for the COL/MDD comparison in the mss.
+# Generate the alignment for the COL/MDD comparison in a planned
+# article by Rees, Franz, and Sterner, 2026.
 
 # First, perform the one-time manual setup ("installation").  Then run
 # this file as an ordinary shell script using 'bash' (other shells
