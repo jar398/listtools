@@ -4,6 +4,7 @@
 import sys, io, argparse, csv, hashlib
 from typing import NamedTuple, Any
 
+VERSION = 1
 MISSING = ''  # property.MISSING
 
 def read_csv(inport, pk_col=None, key=None):

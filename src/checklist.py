@@ -733,6 +733,8 @@ def blurb(r):
   else:
     return "[?]"
 
+# Long blurb
+
 def blorb(u):
   if u == None:
     return "None"

@@ -81,7 +81,11 @@ $P/extract_names.py < mdd2.0-clean.csv \
 	| gnparser -s \
 	| $P/use_gnparse.py --source mdd2.0-clean.csv > mdd2.0.csv
 
-time ($P/align.py --A col24-mammals.csv --B mdd2.0.csv > report.csv) \
+time ($P/exemplar.py --A col24-mammals.csv --B mdd2.0.csv > exemplars.csv) \
+  2>&1 | tee exemplars.dribble 
+
+time ($P/align.py --A col24-mammals.csv --B mdd2.0.csv \
+                  --exemplars exemplars.csv > report.csv) \
   2>&1 | tee report.dribble 
 
 if false; then

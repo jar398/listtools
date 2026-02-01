@@ -1,3 +1,4 @@
+from util import VERSION
 import property as prop
 from checklist import *
 from rcc5 import EQ, GT, LT, DISJOINT, NOINFO
@@ -10,7 +11,7 @@ from rcc5 import EQ, GT, LT, DISJOINT, NOINFO
 #   /       \
 #  x         y   'smaller', 'down'
 
-NEWER = False
+NEWER = (VERSION > 1)
 
 # Returns a Predicate
 

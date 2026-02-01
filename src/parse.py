@@ -9,7 +9,7 @@ PROBE='zzzz'
 # Synthesize a string ('unparse') from parts in inverse operation.
 
 import util, regex
-from util import MISSING, log
+from util import MISSING, log, VERSION
 from typing import NamedTuple, Any
 
 class Parts(NamedTuple):
@@ -21,9 +21,10 @@ class Parts(NamedTuple):
   authorship : Any              # includes initials, all authors, etc
   token      : Any              # just Lastname of first author
   year       : Any
-  protonymp  : Any              # False = moved, None = don't know, True = protonym
+  protonymp  : Any              # False = moved (...), True = apparent protonym
 
-# Missing part is represented as None
+# A missing (unknown) part is represented as None
+WILD = None
 
 # -----------------------------------------------------------------------------
 # Parsing: string -> Parts
@@ -76,10 +77,11 @@ def parse_name(verbatim,
     if is_polynomial(canonical) and ' ' in canonical:
       chunks = canonical.split(' ')
       g = chunks[0]
-      mid = ' '.join(chunks[1:-1])
+      mid = ' '.join(chunks[1:-1]) # maybe ''
       e = chunks[-1]              # do our own stemming !? no
     else:
       g = canonical
+      # mid = '' if VERSION <= 1 else mid = WILD   ???
       mid = ''                  # no middle stuff
       e = ''                    # no epithet
     if PROBE in verbatim:
@@ -95,9 +97,9 @@ def parse_name(verbatim,
       log("# Parsed stem '%s' as '%s' '%s'" % (gn_stem, g, e))
 
 
-  if g == '?': g = None         # cf. use_gnparse.py, but careful MSW3
-  if mid == '?': mid = None
-  if e == '?': e = None
+  if g == '?': g = WILD         # cf. use_gnparse.py, but careful MSW3
+  if mid == '?': mid = WILD
+  if e == '?': e = WILD
   (t, y, protonymp) = analyze_authorship(auth)
   (t2, y2, protonymp2) = analyze_authorship(auth0)
   if not t: t = t2              # ???
@@ -114,8 +116,10 @@ def parse_name(verbatim,
           (y, auth, y2, auth0))
     y = min(y, y2)
   # ugh, tangled code
-  if protonymp == None: protonymp = protonymp2
-  if protonymp != None and protonymp2 != None and \
+  # We never know something is a protonym, do we?
+  # If authorship is missing altogether, it should be WILD.
+  if protonymp == WILD: protonymp = protonymp2
+  if protonymp != WILD and protonymp2 != WILD and \
      protonymp != protonymp2:
     # parse: protonymps differ: gn Hinton 1919 / ad hoc (Fitzinger, 1867) wroughtoni Hinton, 1919
     if False:   #too much of this in msw3
@@ -193,7 +197,7 @@ def recover_canonical(gn_full, gn_stem, hack_canonical):
 #  and note whether protonymp (not parenthesized)
 
 def analyze_authorship(auth):
-  if not auth: return (None, None, None) # moved? don't know
+  if not auth: return (WILD, WILD, WILD) # moved? don't know
 
   # GBIF sometimes has (yyyy) where yyyy would be more helpful
   m = parenyear_re.search(auth)
@@ -202,11 +206,13 @@ def analyze_authorship(auth):
 
   # Find (...) in auth, assume it means this isn't a protonym, and flush parents
   if '(' in auth and ')' in auth:
+    # Moved, not a protonym
     auth = auth.replace('(','')
     auth = auth.replace(')','')
     protonymp = False
   else:
-    protonymp = None
+    # Not moved, probably a protonym
+    protonymp = True
 
   # Change W. E. Smith to just Smith.
   # Should also take care of von, etc.
@@ -218,13 +224,13 @@ def analyze_authorship(auth):
     auth = auth2
 
   t_match = token_re.search(auth)
-  tok = t_match[0] if t_match else None
-  if tok == 'Someone': tok = None         # Wild card
+  tok = t_match[0] if t_match else WILD
+  if tok == 'Someone': tok = WILD         # Wild card, *, ?, Someone
   y_match = year_re.search(auth)
-  year = y_match[1] if y_match else None
-  if year == '1111': year = None       # Wild card
+  year = y_match[1] if y_match else WILD
+  if year == '1111': year = WILD       # Wild card
 
-  if protonymp == None and tok != None and year != None:
+  if protonymp == WILD and tok != WILD and year != WILD:
     protonymp = True
 
   return (tok, year, protonymp)
@@ -249,7 +255,7 @@ parenyear_re = \
 # Split verbatim using regex.  This is a parsing strategy independent
 # of what gnparse does.
 # Assume that there is no authority for hybrids!
-# Missing parts are returned as None.
+# Missing parts are returned as WILD.
 
 def split_name(verbatim):
   if verbatim.endswith(')') and '(' in verbatim:
@@ -280,7 +286,7 @@ def is_polynomial(name):
 # -----------------------------------------------------------------------------
 # Unparsing = inverse of parsing = string from parts
 
-# '' and None are both falsish, so be a bit careful
+# '' (MISSING) and None (WILD) are both falsish, so be a bit careful
 
 # Umm... really ought to just combine canonical and authorship
 
@@ -289,7 +295,7 @@ def unparse_parts(parts):
   assert g
 
   # Species name
-  if ep == None:
+  if ep == WILD:
     # Unknown genus
     canon = "%s ?" % g
   elif ep == '':
@@ -301,38 +307,24 @@ def unparse_parts(parts):
     canon = "%s %s %s" % (g, mid, ep)  # Genus middle epithet
 
   # Authorship
-  # y and tok are never '' but can be None
-  if y == None and tok == None:
-    auth = None
+  # y and tok are never '' but can be WILD
+  if y == WILD and tok == WILD:
+    auth = WILD
   else:
-    if tok == None:
-      tok = "Someone"
-    if y == None:
+    if tok == WILD:
+      tok = "?"
+    if y == WILD:
       auth = tok                  # Jones
     else:
       auth = "%s, %s" % (tok, y) # Jones, 2088
     if protonymp == False: auth = "(%s)" % auth
-    assert protonymp != None    # ???
 
   all = "%s %s" % (canon, auth) if auth != None else canon
   return all
 
-# -----------------------------------------------------------------------------
-# Parts - description of names or whatever with wildcard and so on -
-
-def unify_parts(p1, p2):
-  tup = tuple((unify_values(x, y) for (x, y) in zip(p1, p2)))
-  return None if False in tup else tup
-
-def unify_values(x, y):
-  if x and y:
-    return x if x == y else False
-  else:
-    return x or y               # None if neither
-
 if __name__ == '__main__':
   import sys
-  def qu(x): return "?" if x == None else "'%s'" % x
+  def qu(x): return "?" if x == WILD else "'%s'" % x
 
   parts = parse_name(sys.argv[1])
   (v, c, g, mid, ep, a, tok, y, protonymp) = parts

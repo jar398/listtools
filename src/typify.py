@@ -1,5 +1,8 @@
 # Identify homotypies that tie checklists together
 
+#  (A homotypy is an implication of a shared protonym, and protonyms
+#  are 1-1 with type specimens)
+
 import util
 import simple
 import homotypy
@@ -21,7 +24,7 @@ from specimen import sid_to_epithet, same_specimens, \
   get_typical, get_specimen_id, \
   sid_to_specimen, get_typifies, same_specimens
 
-from homotypy import compare_parts, MOTION, REVIEW, explain_classified
+from homotypy import ALL_IN, NO_WAY, MOTION, REVIEW, explain_classified
 from homotypy import relate_records
 
 # Problem perhaps: This creates specimen objects even when they aren't matched.
@@ -52,13 +55,13 @@ def find_typicals(AB, subprobs, get_estimate, last):
       u_spec = sid_to_specimen(AB, u_sid)
       # if monitor(get_typifies(u_spec)): ...
       if v_clas == MOTION:
-        # Maybe log AUTHORLESS and/or REVIEW
+        # Maybe log INCOMPLETE and/or REVIEW
         # Put this in the report somehow ??
         u0 = get_typifies(u_spec)
         v0 = get_typifies(v_specs[0])
         log("# %s: %s -> %s" %  # or, make a note of it for review
             (explain_classified(v_clas), blorb(u0), blorb(v0)))
-      if v_clas < MOTION:
+      if v_clas < ALL_IN:
         pass
       elif len(v_specs) > 1:
         # Problem here
@@ -89,11 +92,12 @@ def find_typicals(AB, subprobs, get_estimate, last):
         if results:
           (u_clas, u_specs) = results
           if u_clas == MOTION:
-            # also maybe AUTHORLESS, REVIEW ?
+            # also maybe INCOMPLETE, REVIEW ?
             log("# Review 2 %s -> %s" %         # or, make a note of it for review
                 (blorb(get_typifies(u_spec)),
                  blorb(get_typifies(v_spec)),))
-          if u_clas < MOTION:    # e.g. REVIEW
+          if u_clas < ALL_IN:    # e.g. REVIEW
+            # Less than enthusiastic
             pass
           elif len(u_specs) > 1:
             # Select type A b b from u_specs if possible...
