@@ -10,7 +10,7 @@ from workspace import ingest_workspace, is_accepted_locally, local_sup, \
   local_accepted, isinA, isinB, is_species
 from checklist import *
 from rcc5 import *
-from specimen import same_type_ufs, sid_to_epithet
+from specimen import same_typicals, sid_to_epithet
 from estimate import get_equivalent, find_estimates
 from block import get_block, is_empty_block
 from theory import get_intersecting_species, get_species
@@ -171,13 +171,13 @@ def impute_concept_change(AB, u, v_rel, homotypic):
       # This can happen if e.g. the type is ambiguous or otherwise unmatched
       op = "congruent"
       if not homotypic:
-        from specimen import get_specimen_id, get_type_uf
+        from specimen import get_specimen_id, get_typical
         v = v_rel.record
         log("# u %s   %s" %
-            (show_sid(get_specimen_id(get_type_uf(u))),
+            (show_sid(get_specimen_id(get_typical(u))),
              blurb(u)))
         log("# v %s   %s" %
-            (show_sid(get_specimen_id(get_type_uf(v))),
+            (show_sid(get_specimen_id(get_typical(v))),
              blurb(v)))
     elif ship == LT:
       op = "expand" if homotypic else "lump"

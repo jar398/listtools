@@ -12,10 +12,10 @@ from workspace import *
 
 from checklist import blorb, blurb
 from specimen import get_exemplar, get_exemplar_id, sid_to_epithet
-from specimen import equate_specimens, equate_type_ufs, \
-  get_type_uf, maybe_get_type_uf
+from specimen import equate_specimens, equate_typicals, \
+  get_typical, maybe_get_typical
 
-from typify import find_type_ufs
+from typify import find_typicals
 from typify import find_endohomotypics
 
 # --------------------
@@ -27,8 +27,8 @@ def find_exemplars(AB):
   find_endohomotypics(AB)       # Within each checklist
 
   subproblems = find_subproblems(AB)
-  log("* Finding type_ufs (single pass):")
-  find_type_ufs(AB, subproblems, None, True)
+  log("* Finding typicals (single pass):")
+  find_typicals(AB, subproblems, None, True)
 
   # maybe compute better estimates - see theory.py
   report_on_exemplars(AB)
@@ -131,7 +131,7 @@ def report_on_exemplars(AB):
   # but we could just look at AB.specimens, instead?
   for x in preorder_records(AB.A):
     u = AB.in_left(x)
-    uf = maybe_get_type_uf(u, None)
+    uf = maybe_get_typical(u, None)
     if uf:
       ufcount += 1
       b = get_exemplar(u)        # forces sid assignment, return (sid,u,v) ?
@@ -176,7 +176,7 @@ def generate_exemplars(AB):
 
 def read_exemplars(in_rows, AB):
   assert len(AB.specimens) == 0
-  equate_type_ufs(AB.in_left(AB.A.top), AB.in_right(AB.B.top))
+  equate_typicals(AB.in_left(AB.A.top), AB.in_right(AB.B.top))
   the_rows = in_rows.rows()     # caller will close in_rows
   header = next(the_rows)
   sid_col = windex(header, "exemplar id")
@@ -199,7 +199,7 @@ def read_exemplars(in_rows, AB):
       if sid > AB.max_sid:
         AB.max_sid = sid
       u = AB.in_left(x) if which=='A' else AB.in_right(x)
-      uf = get_type_uf(u)        # one uf for each taxon
+      uf = get_typical(u)        # one uf for each taxon
 
       if sid in AB.specimens: # as a key
         uf2 = AB.specimens[sid]

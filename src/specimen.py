@@ -182,37 +182,37 @@ def sid_to_epithet(AB, sid):
 
 # -----------------------------------------------------------------------------
 
-# type_uf = specimen that is the type of a given taxon. ???
+# typical = specimen that is the type of a given taxon. ???
 # We might just call these "types".
 
-(maybe_get_type_uf, set_type_uf) = \
-  prop.get_set(prop.declare_property("type_uf"))
+(maybe_get_typical, set_typical) = \
+  prop.get_set(prop.declare_property("typical"))
 
 # The type specimen for a given record.
 # Not necessarily an exemplar, not necessarily identifier-carrying.
 # Only workspace nodes have uf nodes.
 
-def get_type_uf(u):
-  uf = maybe_get_type_uf(u, None)
+def get_typical(u):
+  uf = maybe_get_typical(u, None)
   if not uf:
     AB = get_workspace(u)
     r = [None, u, None] if isinA(AB, u) else [None, None, u]
     uf = UnionFindable(r)
-    set_type_uf(u, uf)
+    set_typical(u, uf)
   return uf
 
-# Are u and v known to have the same type_uf?
+# Are u and v known to have the same typical?
 #  I.e. are they known to be homotypic?
 
-def same_type_ufs(u, v):
-  uf = maybe_get_type_uf(u, None)
-  vf = maybe_get_type_uf(v, None)
+def same_typicals(u, v):
+  uf = maybe_get_typical(u, None)
+  vf = maybe_get_typical(v, None)
   return uf and vf and same_specimens(uf, vf)
 
 # u and v are in workspace but may or may not be from same checklist
 
-def equate_type_ufs(u, v):     # opposite checklists. u might be species
-  equate_specimens(get_type_uf(u), get_type_uf(v))
+def equate_typicals(u, v):     # opposite checklists. u might be species
+  equate_specimens(get_typical(u), get_typical(v))
   if monitor(u) or monitor(v):
     log("# Unifying specimen(%s) = specimen(%s)" % (blorb(u), blorb(v)))
   return u
@@ -221,10 +221,10 @@ def equate_type_ufs(u, v):     # opposite checklists. u might be species
 # u and v are assumed to be in the same checklist.
 # This implements transitivity of equality, I think?
 
-def equatable_type_ufs(u, v):
-  uf = maybe_get_type_uf(u, None)
+def equatable_typicals(u, v):
+  uf = maybe_get_typical(u, None)
   if uf:
-    vf = maybe_get_type_uf(v, None)
+    vf = maybe_get_typical(v, None)
     if vf:
       return uf.payload() is vf.payload()
   return True
@@ -236,10 +236,10 @@ def get_typifies(spec_uf):
   return v or u
 
 # -----------------------------------------------------------------------------
-# An exemplar is a specimen that's the type_uf of two or more taxa in distinct
+# An exemplar is a specimen that's the typical of two or more taxa in distinct
 # checklists.
 
-# Returns type_uf record (sid, u, v) or None.
+# Returns typical record (sid, u, v) or None.
 # z is in AB.
 
 def is_exemplar(uf):
@@ -251,7 +251,7 @@ def is_exemplar(uf):
 # Cf. analyze_blocks
 
 def get_exemplar(z):            # Returns a uf node
-  uf = maybe_get_type_uf(z, None)
+  uf = maybe_get_typical(z, None)
   if is_exemplar(uf): return uf
   return None
   

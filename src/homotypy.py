@@ -7,7 +7,7 @@ from util import log
 from checklist import get_parts, get_rank, get_inferiors, \
   get_canonical, blurb, monitor
 from rcc5 import DISJOINT
-from specimen import equate_type_ufs
+from specimen import equate_typicals
 from proximity import near_enough
 
 
@@ -58,7 +58,7 @@ def find_homotypics_in_checklist(AB):
             # are not unified.
           elif compare_parts(z1, z2) >= MOTION:
             # Found via tree traversal, so motion is OK ... ?
-            equate_type_ufs(z1, z2)
+            equate_typicals(z1, z2)
         else:
           epithets[ep] = c
     for c in get_inferiors(x):

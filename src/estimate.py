@@ -8,7 +8,7 @@ from checklist import *
 from workspace import *
 from simple import compare_per_checklist
 from specimen import get_exemplar_info, get_exemplar, get_exemplar_id
-from specimen import maybe_get_type_uf
+from specimen import maybe_get_typical
 from rcc5 import rcc5_symbol
 from cross_mrca import get_cross_mrca
 from theory import compare, get_central

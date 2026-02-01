@@ -11,7 +11,7 @@ from rcc5 import rcc5_symbol
 import specimen
 import exemplar
 import ranks
-from specimen import same_specimens, get_exemplar, same_type_ufs, \
+from specimen import same_specimens, get_exemplar, same_typicals, \
   sid_to_opposite_record
 from exemplar import find_exemplars
 from block import analyze_blocks, get_mono
@@ -162,7 +162,7 @@ def compare_locally(AB, u, v):
   rel = simple.compare_per_checklist(get_outject(u), get_outject(v)) # in A or B
   # Returns NOINFO for sibling + any synonym.
   if rel.relation == NOINFO:
-    if same_type_ufs(get_type_uf(u), get_type_uf(v)):
+    if same_typicals(get_typical(u), get_typical(v)):
       return predicate(EQ, v, "homotypic synonym")   # treat as aliases.
       # (perhaps INTERSECT instead ??)
     else:

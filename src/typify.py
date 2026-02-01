@@ -17,8 +17,8 @@ from workspace import isinA, isinB, local_accepted, \
   swap
 from simple import compare_per_checklist
 from specimen import sid_to_epithet, same_specimens, \
-  equate_type_ufs, equate_specimens, \
-  get_type_uf, get_specimen_id, \
+  equate_typicals, equate_specimens, \
+  get_typical, get_specimen_id, \
   sid_to_specimen, get_typifies, same_specimens
 
 from homotypy import compare_parts, MOTION, REVIEW, explain_classified
@@ -32,8 +32,8 @@ def find_endohomotypics(AB):
 
 # Unify the type specimens of A with the type specimens of B.
 
-def find_type_ufs(AB, subprobs, get_estimate, last):
-  # This sets the 'type_uf' property of ... some ... records.
+def find_typicals(AB, subprobs, get_estimate, last):
+  # This sets the 'typical' property of ... some ... records.
 
   n = 1
   for (key, (us, vs)) in subprobs.items():  # For each subproblem
@@ -127,7 +127,7 @@ def find_type_ufs(AB, subprobs, get_estimate, last):
       # End u_sid loop.
       # end subproblem loop
 
-  equate_type_ufs(AB.in_left(AB.A.top),
+  equate_typicals(AB.in_left(AB.A.top),
                        AB.in_right(AB.B.top))
 
 def find_matches(key, us, vs):
@@ -164,8 +164,8 @@ def find_matches(key, us, vs):
 # 'Classified' might be a failure e.g. HETEROTYPIC
 
 def observe_match(u, v, u_matches, classified):
-  u_spec = get_type_uf(u) # there may be multiple u's with same specimen
-  v_spec = get_type_uf(v)
+  u_spec = get_typical(u) # there may be multiple u's with same specimen
+  v_spec = get_typical(v)
 
   u_sid = get_specimen_id(u_spec)
   v_sid = get_specimen_id(v_spec)
