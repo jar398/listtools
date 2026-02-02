@@ -15,6 +15,8 @@
 # There are many other ways to do this.  Clones and CSVs can go in
 # other places, customize the pipeline, different inputs, etc.
 
+set -e
+
 # Shell variables.
 # Short names just to make this file easier on the eyes.
 (($Q)) || Q=~/g

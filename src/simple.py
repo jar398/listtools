@@ -131,9 +131,17 @@ def simple_lt(x, y):
 def simple_gt(x, y): return simple_lt(y, x)
 def simple_ge(x, y): return simple_le(y, x)
 
-(really_get_level, set_level) = prop.get_set(prop.declare_property("level", inherit=False))
+# Necessary or possible intersection... ?
+# So far we've been treating RCC-5 as disjunctive
+
+def simple_intersect(x, y):
+  pred = compare_per_checklist(x, y)
+  return ((pred.relation & INTERSECT) != 0 and # could
+          (pred.relation & DISJOINT) == 0)     # must
 
 # ----- Levels maintenance
+
+(really_get_level, set_level) = prop.get_set(prop.declare_property("level", inherit=False))
 
 # 2nd result is True if x is a synonym, False otherwise
 #
@@ -172,3 +180,4 @@ def ensure_levels(S):
 
 def descends_from(x, y):
   return get_level(y) < get_level(x)
+

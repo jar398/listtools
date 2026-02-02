@@ -2,6 +2,9 @@
 
 # Sources and sinks of CSV rows
 
+# Very poor design here - my first attempt to do smoething like this,
+# and it came out wrong.  Really needs to be thought through afresh.
+
 import sys, io, csv, newick
 
 # For CoL

@@ -8,10 +8,12 @@ import simple
 
 from util import log, MISSING, VERSION
 from checklist import get_parts, get_rank, get_inferiors, \
-  get_canonical, blurb, blorb, monitor
+  get_canonical, blurb, blorb, monitor, get_outject, \
+  get_taxonomic_status
 from rcc5 import DISJOINT
-from specimen import equate_typicals
+from specimen import equate_typicals, equate_specimens
 from proximity import near_enough
+from workspace import separated
 
 
 # Name comparison outcomes.  Only the ordering matters.
@@ -20,6 +22,7 @@ from proximity import near_enough
 DECLARED      = 11
 HOMOTYPIC     = 10
 CORRECTION    = 9   # token or year change, otherwise OK
+MIDDLE        = 8.5
 MOTION        = 8   # genus change: depends on topology etc.
 CLASH         = 7   # genus change not annotated as such with '(' authority ')'
 ALL_IN        = 6   # ---- all in above
@@ -32,14 +35,24 @@ NO_WAY        = 4   # ---- no way below
 REVIEW        = 2   # token+year agree but genera don't
 DISAGREE      = 1   # token and year both disagree
 HETEROTYPIC   = 0
+TOPO          = -1  # cannot match due to topological constraints
 
 # Identify specimens in A checklist (swap to get B checklist).
-# Several taxa (synonyms, or one a descendant of the other) might share a specimen.
+# Several taxa (synonyms, or one a descendant of the other) might share
+# a specimen.
+# Called from find_endohomotypics in typify.py.
 
 # It might be possible to make these matches by indexing by epithet.
 # But this seems easier.
 
 def find_homotypics_in_checklist(AB):
+  if True:
+    find_homotypics_in_checklist_v1(AB)
+  else:
+    find_homotypics_in_checklist_v2(AB.A)
+    find_homotypics_in_checklist_v2(AB.B)
+
+def find_homotypics_in_checklist_v1(AB):
   def process(x, epithets):     # x in A
     if get_rank(x, None) == "genus":
       epithets = {}             # epithet -> taxon in checklist
@@ -47,7 +60,7 @@ def find_homotypics_in_checklist(AB):
       for c in get_inferiors(x):
         # assume children / accepted are found first
         z1 = AB.in_left(c)
-        ep = get_parts(z1).epithet or get_canonical(c)  # ???
+        ep = get_parts(c).epithet or get_canonical(c)  # ???
         if ep in epithets:    # Seen before?
           # Previous time epithet has been encountered - same?
           c2 = epithets[ep]
@@ -59,7 +72,7 @@ def find_homotypics_in_checklist(AB):
             pass
             # Later-encountered does not get an exemplar; type specimens
             # are not unified.
-          elif compare_records(z1, z2) >= MOTION:
+          elif compare_record_protonyms(z1, z2) >= MOTION:
             # Found via tree traversal, so motion is OK ... ?
             equate_typicals(z1, z2)
         else:
@@ -68,22 +81,55 @@ def find_homotypics_in_checklist(AB):
       process(c, epithets)
   process(AB.A.top, None)
 
+# Not in workspace
 
-# ---------- compare_parts
+def find_homotypics_in_checklist_v2(C):
+  def process(x, prev):            # b is x's type taxon, so far
+    b = prev or x
+    for c in get_inferiors(x):  # sorted ?
+      a = process(c, b)
+      # Is c a "better" type for x than b?
+      if compare_record_protonyms(c, x) >= ALL_IN:   # excludes disjoint
+        if b is x:
+          b = c                 # b is better, deeper
+        else:
+          # b is no better and maybe worse, stick with c.
+          # Different taxon, should have same protonym as c
+          assert compare_record_protonyms(c, b) >= ALL_IN   # not assured
+        equate_types(c, b)   # b forwards to c
+    return b
+  process(C.top, None)
 
-def compare_records(u, v):
+# ---------- compare_record_protonyms
+# 
+# Make an effort to determine how the two records' protonyms would
+# compare, if we only knew them.
+
+# Return value >= ALL_IN corresponds to INTERSECT.
+# Return value <= NO_WAY corresponds to DISJOINT.
+
+def compare_record_protonyms(u, v):
   # TBD:  If in same checklist, use simple.compare to filter.
   #  (that's probably useless)
   # TBD: use synonym/accepted status for some decisions.
   # TBD: 'homotypic synonym'
+  x = get_outject(u)
+  y = get_outject(v)
+  c1 = compare_names_1(get_parts(x), get_parts(y))
   if VERSION <= 1:
-    return compare_names_1(get_parts(u), get_parts(v))
+    return c1
   else:
-    if objective_synonym_of(u, v) or objective_synonym_of(v, u):
-      return DECLARED
-    c1 = compare_names_1(get_parts(u), get_parts(v))
-    c2 = compare_names_2(get_parts(u), get_parts(v))
-    if c1 != c2:
+    c2 = None
+    if not separated(u, v):     # In same checklist?
+      # Check against Darwin Core semantics
+      if not simple.simple_intersect(x, y):
+        c2 = TOPO
+      elif objective_synonym_of(x, y) or objective_synonym_of(y, x):
+        c2 = DECLARED
+
+    if c2 == None:
+      c2 = compare_names_2(get_parts(x), get_parts(y))
+    if c2 != c1:
       if c1 >= ALL_IN and c2 >= ALL_IN:
         pass # concur
       elif c1 <= NO_WAY and c2 <= NO_WAY:
@@ -96,11 +142,8 @@ def compare_records(u, v):
 # Wait, if u and v are in different checklists, this works only when y is
 # x's superior's equivalent.  And we have no way to do that.  Foo.
 
-def objective_synonym_of(u, v):
-  # ???? prove this
-  x = get_outject(u)
-  y = get_outject(v)
-  return ("objective" in get_taxonomic_status(get_outject(x)) and
+def objective_synonym_of(x, y):
+  return ("objective" in get_taxonomic_status(x, MISSING) and
           get_superior(x).record is y)
 
 WILD = None # cf. parse.py
@@ -115,17 +158,36 @@ def compare_names_2(u_parts, v_parts):
   mismatches = 0     # Number of reasons to think they're het
   wilds = 0          # How musch wildcard reliance in authority?  0, 1, 2
 
-  # -- First peel off the no-ways --
-
-  # EPITHET: mismatch implies taxon mismatch.  Does not happen since
-  # this is checked earlier.
+  # EPITHET: mismatch implies taxon mismatch, deal breaker.
   u_ep = u_parts.epithet
   v_ep = v_parts.epithet
   if u_ep != WILD and v_ep != WILD:
     if u_ep != v_ep:
-      log("# Comparing names with different epithets? %s" %
-          (u_ep, v_ep))
+      # mismatches += 1
       return HETEROTYPIC
+    else:
+      wilds += 1
+
+  # -- Canonicalize epithet and middle
+  u_ge = u_parts.genus
+  v_ge = v_parts.genus
+  # Hack to force treating 'G' like 'G g', so that 'G' doesn't 
+  # match both 'G x' and 'G y'
+  if u_ep == MISSING and u_ge != WILD: u_ep = u_ge.lower()
+  if v_ep == MISSING and v_ge != WILD: v_ep = v_ge.lower()
+
+  # Make 'Foo baz' match 'Foo baz baz' but not 'Foo bar baz' ...right?
+  # Or both?  Complicated.
+  u_mid = u_parts.middle
+  v_mid = v_parts.middle
+  # Hack to force treating 'G e' like 'G e e' - is this right??
+  # Depends on whether x and y are synonyms, yes?
+  # Tricky logic here, be careful.
+  if u_mid == MISSING and u_ep != WILD: u_mid = u_ep  # was WILD
+  if v_mid == MISSING and v_ep != WILD: v_mid = v_ep  # was WILD
+
+
+  # -- First peel off the no-ways --
 
   # AUTHOR
   u_tok = u_parts.token
@@ -147,36 +209,20 @@ def compare_names_2(u_parts, v_parts):
 
   binomial = (wilds >= 2)       # No authority field
 
+  # Mild to good agreement on the authority, look at the polynomial
+
+  mid_change = False
+  pre_epithet_change = False
+
   # MIDDLE - complicated, play around with this.
-  # Make 'Foo baz' match 'Foo baz baz' but not 'Foo bar baz' ...right?
-  # Or both?  Complicated.
-  u_mid = u_parts.middle
-  v_mid = v_parts.middle
-  # Hack to force treating 'G e' like 'G ? e', so that 'G e' matches
-  # both 'G x e' and 'G y e' - is this right??  Depends on whether 
-  # x and y are synonyms, yes?
-  if u_mid == MISSING: u_mid = WILD
-  if v_mid == MISSING: v_mid = WILD
   if u_mid != WILD and v_mid != WILD:
     if u_mid != v_mid:
-      mismatches += 1
+      mid_change = True
+      pre_epithet_change = True
   else:
     pass
 
-  if mismatches > 1:
-    return DISAGREE     # Multiple differences.  Never OK
-
-  # Mild to good agreement on the authority
-
   # GENUS: Protonym mismatch implies mismatch
-
-  # Canonicalize genus
-  u_ge = u_parts.genus
-  v_ge = v_parts.genus
-  # Hack to force treating 'G' like 'G g', so that 'G' doesn't 
-  # match both 'G x' and 'G y'
-  if u_ep == MISSING and u_ge: u_ep = u_ge.lower()
-  if v_ep == MISSING and v_ge: v_ep = v_ge.lower()
 
   # Three genus comparison cases: clash < motion < same
   clash = motion = False
@@ -186,15 +232,19 @@ def compare_names_2(u_parts, v_parts):
         clash = True                                # even worse
       else:
         motion = True           # Foo x Smith -> Bar x (Smith) etc.
-      mismatches += 1
+      pre_epithet_change = True
   else:
     pass
+
+  if pre_epithet_change:
+    mismatches += 1
 
   # Genus+epithet match, auth+year no mismatch...
   if mismatches > 1:
     return DISAGREE
 
   # --- End no-ways, now distinguish special situations from all-ins
+  # Often we have combinations of these conditions
 
   # Risky
   if binomial: return BINOMIAL  # Foo x could be Foo x Smith or Foo x Jones
@@ -202,6 +252,9 @@ def compare_names_2(u_parts, v_parts):
 
   # Not so bad
   if motion: return MOTION      # motion from Foo Smith to Bar Smith etc.
+
+  # Downright benign
+  if mid_change: return MIDDLE
 
   # Not bad at all
   if mismatches > 0: return CORRECTION
@@ -335,7 +388,7 @@ def explain_classified(classified):
 # Compare potentially homotypic taxa in same workspace.
 
 def relate_records(u, v):
-  classified = compare_records(u, v)
+  classified = compare_record_protonyms(u, v)
 
   if classified == MOTION:
     if not near_enough(u, v):

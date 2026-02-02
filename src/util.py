@@ -159,7 +159,7 @@ class UnionFindable:
     else:
       return self
 
-  # Absorb a into self
+  # Absorb a into self (equate)
   def absorb(self, a):
     a = a.find()
     s = self.find()

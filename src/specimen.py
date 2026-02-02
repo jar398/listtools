@@ -54,6 +54,8 @@ def same_specimens(uf, vf):
 # TBD: Since types are not necessarily involved in exemplar
 # generation, it would be nice to eliminate any mention of them from
 # this file, which later will need to handle non-type-based specimens
+# Should: guess at the protonym, pick whichever one is closer to 
+# the protonym according to compare_names
 
 def equate_specimens(uf, vf):   # u, v in workspace
   uf = uf.find()
@@ -80,8 +82,10 @@ def equate_specimens(uf, vf):   # u, v in workspace
   sr[2] = t2
   return ef
 
-# This chooses, given two homotypic taxa, the one that best 'represents' 
-# the type specimen.
+# This chooses, given records for two homotypic taxa, the one that
+# best 'represents' the type specimen.
+# TBD: Pick the record with a stronger name.  Or, unify the names 
+# and store the unfied name somewhere.
 
 def _pick_type_taxon(v1, v2):   # v1, v2 in workspace
   # See whether v2 is an improvement over v1 (lower unimportance value)

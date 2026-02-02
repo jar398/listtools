@@ -69,6 +69,7 @@ def find_typicals(AB, subprobs, get_estimate, last):
         v0 = get_typifies(v_specs[0]) # record that has given specimen
         v1 = get_typifies(v_specs[1])
         if is_accepted(v0) and is_accepted(v1):
+          # Redundant with check now made in compare_record_protonyms
           if compare_per_checklist(get_outject(v0), get_outject(v1)) \
              .relation & DISJOINT != 0:
             # Another kind of REVIEW

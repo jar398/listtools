@@ -241,8 +241,21 @@ LP = "\\("
 RP = "\\)"
 split_re = \
   regex.compile(u"(.+?) (((%s)?)\\p{Uppercase_Letter}[\\p{Letter}.'-]+.*)$" % LP)
-initial_re = regex.compile(u"(\\p{Uppercase_Letter}[.] )*")
-token_re = regex.compile(u"\\p{Uppercase_Letter}[\\p{Letter}-]{3,}")
+
+# Get token?  Consider 'Say in James, 1823' ~ 'Say, 1823'
+initial_re = \
+  regex.compile(u"(\\p{Uppercase_Letter}[.] )*")
+
+# Pull out author's first capitalized (last) name part.
+# Should actually be the last capitalized in first sequence.  or something.
+# except if it's a Chinese or Vietnamese etc. name.
+# 'Muntiacus jiangkouensis Gu Yonghe & Xu Longhui, 1998'
+# '(Ho Hsi J., 1935)'
+if VERSION <= 1:                # Four letter minimum
+  token_re = regex.compile(u"\\p{Uppercase_Letter}[\\p{Letter}-]{3,}")
+else:                           # Two letter minimum
+  token_re = regex.compile(u"\\p{Uppercase_Letter}[\\p{Letter}-]{1,}")
+
 # Loses with Van Beneden & Gervais, 1868-79
 year_re_string = '\\b([12][0-9]{3})\\b'
 year_re = regex.compile(year_re_string)
