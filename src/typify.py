@@ -53,16 +53,11 @@ def find_typicals(AB, subprobs, get_estimate, last):
     # clas means a classification
     for (u_sid, (v_clas, v_specs)) in u_matches.items():
       u_spec = sid_to_specimen(AB, u_sid)
-      # if monitor(get_typifies(u_spec)): ...
       if v_clas == MOTION:
-        # Maybe log INCOMPLETE and/or REVIEW
-        # Put this in the report somehow ??
-        u0 = get_typifies(u_spec)
-        v0 = get_typifies(v_specs[0])
         log("# %s: %s -> %s" %  # or, make a note of it for review
-            (explain_classified(v_clas), blorb(u0), blorb(v0)))
+            (explain_classified(v_clas), blorsb(u_spec), blorsb(v_specs[0])))
       if v_clas < ALL_IN:
-        pass
+        disequate_specimens(u_spec, v_specs[0], v_clas)
       elif len(v_specs) > 1:
         # Problem here
         # But it seems to not occur (in MDD/COL).
@@ -134,6 +129,13 @@ def find_typicals(AB, subprobs, get_estimate, last):
 
   equate_typicals(AB.in_left(AB.A.top),
                        AB.in_right(AB.B.top))
+
+def disequate_specimens(u_spec, v_spec, reason):
+  pass
+
+def blorsb(spec):
+  rec = typifies(spec)
+  return "%s/%s" % (blorb(rec), get_primary_key(rec))
 
 def find_matches(key, us, vs):
   if any(map(monitor, us)):

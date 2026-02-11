@@ -198,11 +198,7 @@ def is_species(u):              # u is in workspace
 def workspace_preorder_rows(AB, props=None):
   return checklist.preorder_rows(AB, props or usual_workspace_props)
 
-usual_workspace_props = usual_props + \
-    (prop.declare_property("equated_id", getter=recover_equated_key),
-     prop.declare_property("equated_note", getter=recover_equated_note),
-     prop.declare_property("match_id", getter=recover_match_key),
-     prop.declare_property("basis_of_match", getter=recover_basis_of_match))
+usual_workspace_props = ()
 
 # -----------------------------------------------------------------------------
 # Little baby tests

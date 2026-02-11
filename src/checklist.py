@@ -32,12 +32,7 @@ accepted_key_prop = prop.declare_property("acceptedNameUsageID", inherit=False)
 superior_note_prop = prop.declare_property("superior_note", inherit=False)
 superior_prop = prop.declare_property("superior", inherit=False)    # value is a Predicate
 
-# For A/B identifications
-equated_key_prop = prop.declare_property("equated_id", inherit=False)    # value is a Predicate
-equated_note_prop = prop.declare_property("equated_note", inherit=False)    # value is a Predicate
-equated_prop = prop.declare_property("equated", inherit=False)    # value is a Predicate
-
-# For record matches made by name(s)
+# For record matches made by name(s) ?
 match_prop = prop.declare_property("match", inherit=False)
 
 # For workspaces
@@ -58,9 +53,6 @@ outject_prop = prop.declare_property("outject")
 (get_taxonomic_status, set_taxonomic_status) = \
   prop.get_set(taxonomic_status_prop)
 
-# One column from the matches table?
-(get_match, set_match) = prop.get_set(match_prop)
-
 # Links
 (get_parent_key, set_parent_key) = prop.get_set(parent_key_prop)
 (get_accepted_key, set_accepted_key) = prop.get_set(accepted_key_prop)
@@ -76,20 +68,8 @@ get_gn_auth = prop.getter(prop.declare_property("gn_authorship"))
 (get_redundant, set_redundant) = \
   prop.get_set(prop.declare_property("redundant"))
 
-# Merge related links
-get_equated_key = prop.getter(equated_key_prop)
-get_equated_note = prop.getter(equated_note_prop)
-(get_equated, set_equated) = prop.get_set(equated_prop)
-
 # Workspaces
 (get_outject, set_outject) = prop.get_set(outject_prop)
-
-# Records in the matches table
-get_match_key = prop.getter(prop.declare_property("match_id", inherit=False))
-get_match_direction = prop.getter(prop.declare_property("direction", inherit=False))
-get_match_kind = prop.getter(prop.declare_property("kind", inherit=False))
-get_basis_of_match = prop.getter(prop.declare_property("basis_of_match", inherit=False))
-get_match_relation = prop.getter(prop.declare_property("relation", inherit=False))
 
 # -----------------------------------------------------------------------------
 # Predicates and relations
@@ -268,8 +248,6 @@ def resolve_superior(S, record):
     if accepted:                        # Is there an accepted record (parent)?
       status = get_taxonomic_status(record, "synonym")    # default = synonym?
       if status == "equivalent":
-        pred = predicate(EQ, record, note="input")
-        set_equated(accepted, pred)
         sup = predicate(EQ, accepted, note="input")
       else:
         if monitor(record):
@@ -553,21 +531,6 @@ def get_accepted(x):            # Doesn't return falsish
     else:
       return x
 
-"""
-    y = get_equated(syn, None)
-    def passing(m): clog(m, x, syn, y)
-    # TBD: Also keep it if canonicalName differs
-    if not y:
-      pass #ing("keep because not equated to anything")
-    elif y.record != x:
-      passing("keep because equated but to wrong record")
-    elif get_canonical(y.record) != get_canonical(syn):
-      passing("keep because provides a different name")
-    else:
-      continue
-    yield syn
-"""
-
 # ----- Functions for filling columns in output table
 
 def recover_parent_key(x, default=MISSING):
@@ -601,34 +564,6 @@ def recover_status(x, default=MISSING): # taxonomicStatus
       return "*" + status
     else:
       return status
-
-# Non-DwC relationships, use optionally, see workspace
-
-def recover_equated_key(x, default=MISSING):
-  m = get_equated(x, None)
-  if m and m.record:
-    return get_primary_key(m.record)
-  else: return default
-
-def recover_equated_note(x, default=MISSING):
-  m = get_equated(x, None)
-  return m.note if m else default
-
-def recover_match_key(x, default=MISSING):
-  pred = get_matched(x)
-  if pred: return get_primary_key(pred.record)
-  else: return default
-
-def recover_basis_of_match(x, default=MISSING):
-  m = get_match(x, None)
-  return m.note if m else default
-
-def get_matched(x):
-  if x:
-    pred = get_match(x, None)
-    if pred and pred.relation == EQ:
-      return pred
-  return None
 
 # -----------------------------------------------------------------------------
 # Convert a checklist to csv rows (as an iterable); inverse of rows_to_checklist, above
@@ -666,30 +601,6 @@ def records_to_rows(C, records, props=None): # Excludes top
     if not x == C.top:
       assert isinstance(x, prop.Record)
       yield record_to_row(x)
-
-# Filter out unnecessary equivalent A records!
-
-def keep_record_notused(x):
-  sup = get_superior(x, None)
-  # if not sup: assert False
-  if sup.relation != EQ:
-    return True
-
-  # Hmm.  we're an A node that's EQ to some B node.
-  # Are they also a record match?
-  pred = get_matched(x)
-  if (not pred) or pred.record != sup.record:
-    # If record is unmatched, or matches something not equivalent,
-    # then keep it
-    return True
-  # They're a record match, are they also a name match?
-  can1 = get_canonical(x)       # in A
-  can2 = get_canonical(m.record) # in B
-  if can1 and can1 != can2:
-    # Similarly, keep if canonical differs
-    return True
-  # Can't figure out a way for them to be different.  Flush it.
-  return False
 
 def begin_table(C, props):
   if props == None: props = usual_props
@@ -770,91 +681,6 @@ def monitor(x):
           False
           )
 
-# -----------------------------------------------------------------------------
-# Load/dump a set of provisional matches (could be either record match
-# or taxonomic matches... but basically, record matches).  The matches are stored 
-# as Predicates under the 'match' property of nodes in AB.
-
-# Obsolete
-
-(get_match_info, set_match_info) = prop.get_set(prop.declare_property("match_info", inherit=False))
-
-def load_matches(row_iterator, AB):
-  log("# checklist: loading")
-
-  # match_id,relation,taxonID,direction,kind,basis_of_match
-  header = next(row_iterator)
-  plan = prop.make_plan_from_header(header)
-  mutual_count = 0
-  miss_count = 0
-
-  for row in row_iterator:
-    # row = [taxonID (x id), rel, matchID (y id), dir, kind, basis]
-    match_record = prop.construct(plan, row)
-    A_ids = get_primary_key(match_record, MISSING).split('|')
-    xs = map(lambda id: look_up_record(AB.A, id), A_ids)
-    us = [AB.in_left(x) for x in xs if x]
-    B_ids = get_match_key(match_record, MISSING).split('|')
-    ys = map(lambda id: look_up_record(AB.B, id), B_ids)
-    vs = [AB.in_right(y) for y in ys if y]
-    u = us[0] if len(us) == 1 else None
-    v = vs[0] if len(vs) == 1 else None
-    assert u or v, (A_ids, B_ids)
-
-    # Put ambiguities into the comment ??
-
-    ship = rcc5_relation(get_match_relation(match_record)) # EQ, NOINFO
-    # match_direction, match_kind, basis_of_match
-    dir = get_match_direction(match_record, '?')
-    kind = get_match_kind(match_record, '?')
-    basis = get_basis_of_match(match_record, '')
-    note = "%s: %s" % (dir, kind)
-           
-    if monitor(u) or monitor(v):
-      log("# match: %s -> %s, %s" %
-          (tuple(map(blurb, us)), tuple(map(blurb, vs)), note))
-
-    # u or v might be None with ship=NOINFO ... hope this is OK
-    assert dir in ('A->B', 'B->A', 'A<->B')
-    if dir == 'A<->B':
-      assert ship == EQ
-      mutual_count += 1
-    else:
-      assert ship == NOINFO
-      miss_count += 1
-    if dir == 'A<->B' or dir == 'A->B':
-      assert u
-      set_match(u, predicate(ship, v, note=note))
-      set_match_info(u, (vs, kind, basis))
-    if dir == 'A<->B' or dir == 'B->A':
-      assert v
-      set_match(v, predicate(ship, u, note=note))
-      set_match_info(v, (us, kind, basis))
-
-  log("# loaded %s match records, %s nonmatches" % (mutual_count, miss_count))
-
-def get_matches(u):
-  info = get_match_info(u, None)
-  if info:
-    (vs, kind, basis) = info
-    return vs
-  else:
-    return ()
-
-def diagnose_match(u):
-  def descend(u, prefix, u_return, v_return, count):
-    u_info = get_match_info(u, None)
-    if u_info:
-      (vs, u_kind, u_basis) = u_info
-      mess = "%s%s %s %s" % (prefix, xblurb(u), u_kind, u_basis)
-      if u == u_return:
-        log(mess + " (return)")
-      else:
-        log(mess)
-        if count > 0:
-          for v in vs:
-            descend(v, ' ' * len(prefix) + "  -> ", v_return, u_return or u, count-1)
-  descend(u, "", None, None, 3)
 
 """
 u1 -> v1 -> u2 -> v3

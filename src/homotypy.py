@@ -116,7 +116,7 @@ def compare_record_protonyms(u, v):
   x = get_outject(u)
   y = get_outject(v)
   c1 = compare_names_1(get_parts(x), get_parts(y))
-  if VERSION <= 1:
+  if VERSION <= 7:
     return c1
   else:
     c2 = None
@@ -152,7 +152,7 @@ WILD = None # cf. parse.py
 # Compare Macropus robustus, Amblysomus robustus = heterotypic NOT
 # u and v are in the workspace, from different checklists.
 
-# VERSION > 1
+# VERSION > 7
 
 def compare_names_2(u_parts, v_parts):
   mismatches = 0     # Number of reasons to think they're het
@@ -262,7 +262,7 @@ def compare_names_2(u_parts, v_parts):
   return HOMOTYPIC     # All parts match
 
 
-# VERSION == 1
+# VERSION <= 1
 
 def compare_names_1(name1, name2):
   (misses, hits) = parts_comparison_detail(name1, name2)
@@ -341,7 +341,7 @@ def parts_comparison_detail(p, q):
 
   return (misses, hits)
 
-# VERSION > 1
+# VERSION > 7
 
 
 

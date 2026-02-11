@@ -81,7 +81,7 @@ def parse_name(verbatim,
       e = chunks[-1]              # do our own stemming !? no
     else:
       g = canonical
-      # mid = '' if VERSION <= 1 else mid = WILD   ???
+      # mid = '' if VERSION <= 7 else mid = WILD   ???
       mid = ''                  # no middle stuff
       e = ''                    # no epithet
     if PROBE in verbatim:
@@ -251,7 +251,7 @@ initial_re = \
 # except if it's a Chinese or Vietnamese etc. name.
 # 'Muntiacus jiangkouensis Gu Yonghe & Xu Longhui, 1998'
 # '(Ho Hsi J., 1935)'
-if VERSION <= 1:                # Four letter minimum
+if VERSION <= 7:                # Four letter minimum
   token_re = regex.compile(u"\\p{Uppercase_Letter}[\\p{Letter}-]{3,}")
 else:                           # Two letter minimum
   token_re = regex.compile(u"\\p{Uppercase_Letter}[\\p{Letter}-]{1,}")

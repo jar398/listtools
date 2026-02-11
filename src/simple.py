@@ -11,7 +11,7 @@ from rcc5 import EQ, GT, LT, DISJOINT, NOINFO
 #   /       \
 #  x         y   'smaller', 'down'
 
-NEWER = (VERSION > 1)
+NEWER = (VERSION > 7)
 
 # Returns a Predicate
 

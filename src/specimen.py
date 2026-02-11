@@ -19,7 +19,7 @@ from checklist import get_source, blurb, blorb, get_parts, monitor, \
 from workspace import get_workspace, get_children, \
   get_outject, isinA
 from ranks import ranks_dict
-from rcc5 import DISJOINT
+from rcc5 import *
   
 # Specimens per se
 
@@ -57,7 +57,7 @@ def same_specimens(uf, vf):
 # Should: guess at the protonym, pick whichever one is closer to 
 # the protonym according to compare_names
 
-def equate_specimens(uf, vf):   # u, v in workspace
+def equate_specimens(uf, vf, clas=None):   # u, v in workspace
   uf = uf.find()
   vf = vf.find()
   if uf is vf: return
@@ -97,15 +97,17 @@ def _pick_type_taxon(v1, v2):   # v1, v2 in workspace
   x2 = get_outject(v2)
   assert not x1 is x2
 
-  # Prefer species (A b) to (subspecies A b c and even to A b b)
-  # ...
+  rel = simple.compare_per_checklist(x1, x2)
+  if rel == LT or rel == LE:  return v1  # v1 < v2
+  if rel == GT or rel == GE:  return v2  # v1 < v2
 
   # Prefer higher rank (e.g. species over subspecies)
   k1 = ranks_dict.get(get_rank(x1, None))
   k2 = ranks_dict.get(get_rank(x2, None))
   # lower numbers mean lower (more tipward) rank
   if k1 and k2:
-    if k1 < k2: return v2       # higher/bigger taxon
+    # less rootward (more tipward) means more important
+    if k1 < k2: return v2
     if k2 < k1: return v1
 
   # Prefer the most rootward taxon (backup in case ranks missing)
@@ -233,6 +235,7 @@ def equatable_typicals(u, v):
       return uf.payload() is vf.payload()
   return True
 
+# A record (one of many, in A preferred) that is typified by this specimen.
 # For debugging mainly?
 
 def get_typifies(spec_uf):
