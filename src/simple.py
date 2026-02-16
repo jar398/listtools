@@ -141,7 +141,8 @@ def simple_intersect(x, y):
 
 # ----- Levels maintenance
 
-(really_get_level, set_level) = prop.get_set(prop.declare_property("level", inherit=False))
+(really_get_level, set_level) = \
+  prop.get_set(prop.declare_property("level", inherit=False))
 
 # 2nd result is True if x is a synonym, False otherwise
 #
