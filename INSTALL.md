@@ -12,6 +12,8 @@ Also required is `gnparser`, which has download instructions
 tested listtools against version 1.11.8 (July 2025).
 
 If you are working with MDD (the Mammal Diversity Database), you may
-want to get version 2 or beyond of the MDD-DwC-mapping tool, a single
-python file located as of January 2026 in the 'MDD-DwC-mapping'
+want to get version 2 or beyond of the 
+[MDD-DwC-mapping tool](https://github.com/jar398/MDD-DwC-mapping/blob/main/src/explore_data.py), 
+a single
+python file located as of February 2026 in the 'MDD-DwC-mapping'
 repository, user jar398, at github.com.

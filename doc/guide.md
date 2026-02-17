@@ -37,7 +37,7 @@ would be:
      1. Fold the `gnparse` output into cleaned checklist with `use_gnparse.py` 
         specifying the temporary file name as a command line argument.
  1. Run `exemplar.py` on the two checklists to obtain exemplars file
- 1. Apply [`align.py`](align) to the checklists and exemplars file to obtain species 
+ 1. Apply [`align.py`](#align) to the checklists and exemplars file to obtain species 
     comparison report (TBD: other kinds of report)
 
 Inputs can be obtained in other formats, such as MDD, NCBI Taxonomy,
@@ -211,32 +211,9 @@ The output (to standard output) of `align.py` has these columns (subject to chan
  - `A taxon id` - The taxon id of an A row
  - `A taxon name` - The canonicalName of that A record (for human
    consumption).  A suffixed `*` indicates a synonym.
- - `operation` - short description of what "happens" to the name
-   and/or concept as one "changes" the A checklist to its successor, the B checklist.
-   (This is not to say that a temporal order between the
-   checklists is required in reality.)
-   Work in progress.
- - `B species that intersect` - 
-   If the A record indicates rank 'species', this is a semicolon-separated
-   list of relationship/id/name for
-   B taxon concepts with rank 'species' that are inferred to intersect the A 
-   taxon concept.
-   The relationship is the RCC-5
-   relationship of the A concept to the B concept, the id
-   is the taxon id of the B concept's record, and the name is
-   canonical name from the B record.
-   An initial `.` prevents Excel from treating values as formulas.
-   A value of `-` means there may be intersecting concepts but the list was not computed 
-   because the A row was not for a species.
- - `LUB in B` - 
-   The relationship/id/name of the A concept to its least upper bound (LUB)
-   in the B checklist.  The least upper bound is the smallest B concept
-   that contains the all of the A concept.
-   An initial `.` prevents Excel from treating values as formulas.
-   If the A
-   and B names are accepted, the A concept is either the same (RCC-5 =)
-   as the B concept or smaller (RCC-5 <) than it.  For synonyms it may
-   be hard to tell what the precise relationship is so it <= or ? will show.
+ - `B taxon id` - The taxon id of a B row
+ - `B taxon name` - The canonicalName of that B record (for human
+   consumption).  A suffixed `*` indicates a synonym.
  - `A and B` - list of ids of exemplars that occur in both the A
    concept and the name's B concept (the "buddy" concept)
  - `A not B` - list of ids of exemplars that occur in the A
@@ -244,94 +221,11 @@ The output (to standard output) of `align.py` has these columns (subject to chan
  - `B not A` - list of ids of exemplars that occur in the 
    concept bot not the name's A concept
 
-
-A name written with an asterisk (e.g. `Rana pipiens*`) indicates a synonym.
+Rows are generated for comparison between A species and B species that intersect.
 
 The canonical names in the output are there for human readability.
 For a more compact ('normalized') report they might be omitted, and obtained as
 needed from the checklists using the taxon id.
-
-Report rows for synonyms that match synonyms or that have no match
-nothing are suppressed.  (this may need to be revised.)
-
-How to read the report:
-
-If you're mainly concerned with the impact on a data set of advancing
-from one version of a checklist to the next (from A to B), then focus
-on lines with semicolons, i.e. intersections with more than
-one B concept.  These rows indicate splits, meaning that data using the
-taxon name in A would have to be re-curated to use the correct
-intersecting species (concept) in B, if one wanted to make the data consistent
-with checklist B.
-
-Probably of most interest for understanding the impact of changes in
-taxonomy going from A to B are the rows with multiple concepts given in
-the intersecting concepts column.  These are situations where an A
-species concept corresponds to multiple B concepts,
-potentially creating mislabeled data or requiring re-curation to
-replace each use of an A species name with the appropriate B species
-name.
-
-It may be that a record in B having a name not occurring in A is
-intended to indicate a new concept, call it Y, split off from a
-concept in A, call that one X.  Sometimes Y can be connected with X
-via a synonym or subspecies in A, but if not there simply isn't enough
-information in the checklists to permit the inference that 
-that the B name is the result of a 'split', i.e. X < Y.
-
-(In the future maybe we can come up with a good way to add this
-information so that the checklist comparison can be complete.  For
-example, the A checklist could be amended with the new B name
-as a heterotypic synonym for the A name.)
-
-
-[TBD: the report should give some indication of name changes; otherwise
-they are hard to detect on a quick scan.  Maybe a separate
-column with 'rename', 'lump', 'split' information.]
-
-Example (excerpt of a larger comparison):
-
-| | A taxon id | A taxon name | B species that intersect | LUB in B | exemplar ids |
-|---|---|---|---|---|---|
-| (1) | 35492802 | Platyrrhinus lineatus |  > 4JY2M Platyrrhinus lineatus; >< 4JY2R Platyrrhinus umbratus |  < 6S3Q Platyrrhinus | 3935;3936 |
-| (2) | 35504725 | Platyrrhinus lineatus nigellus |  <= 4JY2R Platyrrhinus umbratus |  = 855Z5 Platyrrhinus lineatus nigellus* | 3935 |
-| (3) | 35504048 | Platyrrhinus lineatus lineatus |  = 4JY2M Platyrrhinus lineatus |  = 4JY2M Platyrrhinus lineatus | 3936 |
-| (4) | 35492801 | Platyrrhinus infuscus |  = 4JY2L Platyrrhinus infuscus |  = 4JY2L Platyrrhinus infuscus | 5577 |
-| (5) | 35492805 | Platyrrhinus vittatus |  = 4JY2S Platyrrhinus vittatus |  = 4JY2S Platyrrhinus vittatus | 3937 |
-| (6) | 35492804 | Platyrrhinus umbratus |  > 874KL Platyrrhinus aquilus; >< 4JY2R Platyrrhinus umbratus |  < 6S3Q Platyrrhinus | 3938;3939;3940 |
-| (7) | 35505347 | Platyrrhinus umbratus aquilus |  = 874KL Platyrrhinus aquilus |  = 874KL Platyrrhinus aquilus | 3938 |
-| (8) | 35504727 | Platyrrhinus umbratus oratus |  <= 4JY2R Platyrrhinus umbratus |  = 855Z8 Platyrrhinus umbratus oratus* | 3939 |
-| (9) | 35504049 | Platyrrhinus umbratus umbratus |  < 4JY2R Platyrrhinus umbratus |  < 4JY2R Platyrrhinus umbratus | 3940 |
-
-(1) _P. lineatus_ sec. A is not in the B checklist, but
-it fully contains _P. lineatus_ sec. B, and
-it contains some of _P. umbratus_ sec. B (it overlaps (><) but does not contain it).  The nearest (smallest) B 
-concept covering all of _P. lineatus_ sec. A is the genus _Platyrrhinus_.
-
-(2) _P. lineatus nigellus_ sec. A is strictly contained in
-_P. umbratus_ sec. B, i.e. it has been moved out of _P. lineatus_.
-
-(3) _P. lineatus lineatus_ sec. A promoted to species, i.e. its name in B is _P. lineatus lineatus_.
-
-(4), (5) Species carried over, same concept in both checklists
-
-(6) _P. umbratus_ sec. A (the concept) is not in the B checklist, but is represented by
-_P. aquilus_ sec. B (which it contains) and by part of _P. umbratus_ sec. B 
-(that is, it overlaps _P. umbratus_ sec. B without containing it completely).
-
-(7) Subspecies _aquilas_ promoted to species; a clerical change in how the concept is named.
-
-(8) _P. umbratus oratus_ sec. A doesn't have its own record in B except as a synonym.
-It has been lumped into _P. umbratus_ sec. B (which, remember, differs from
-_P. umbratus_ sec. A).  The B checklist has a synonym record for it.k
-
-(9) _P. umbratus umbratus_ sec. A has been lumped into
-_P. umbratus_ sec. B, and there is no synonym record in B.  
-(Personally, I'm of the opinion that when a checklist is revised. the revision
-should always have synonym records deprecated names in previous checklists.  But
-this is not always the case.)
-
-Sample output: [col-19-23-report.csv](col-19-23-report.csv)
 
 
 ### ncbi_to_dwc
@@ -350,6 +244,9 @@ Columns in the DwC output:
 `taxonID`, `NCBI Taxonomy ID`, `parentNameUsageID`, `taxonRank`,
 `acceptedNameUsageID`, `scientificName`, `canonicalName`,
 `taxonomicStatus`, `nomenclaturalStatus`
+
+Last I checked the dumps from the first of each month are considered
+archival.  Others get deleted periodically.
 
 ### project
 
@@ -394,7 +291,8 @@ You can specify the root using its `canonicalName` it that's unique:
 
 ### newick
 
-An extremely rudimentary Newick notation parser.  
+An extremely rudimentary Newick notation parser, intended mainly for
+running small tests.
 
 The following accepts a Newick string on the command line and emits a
 CSV table with basic Darwin Core columns:
@@ -429,3 +327,7 @@ suffixed to a name says that the name is to be considered a synonym
 
 Work in progress; this hasn't been tested in years.  Produces an
 alignment in Euler/X input syntax.
+
+### scatter
+
+Doc FYI
