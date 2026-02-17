@@ -26,6 +26,10 @@ interfaces.  Documentation is poor, there is dead code, there are no
 unit tests or modules.  There is no web UI or graphical UI, just
 command line (bash) or script (python3) use.
 
+### Installation
+
+See [here](INSTALL.md)
+
 ### History
 
 The genesis for this software was a conversation around 2018 or 2019
@@ -35,8 +39,8 @@ I had been working on
 [Smasher](https://github.com/opentreeoflife/reference-taxonomy/) (see
 [article](https://doi.org/10.3897/bdj.5.e12581)), which did something
 similar in a different way (similar to the 'splits' of Redelings and
-Holder), and i felt a desire to rewrite it on a firmer theoretical,
-philosophical, and nomenclatural foundation to make it more "sound",
+Holder), and I felt a desire to rewrite it on firmer theoretical,
+philosophical, and nomenclatural foundations to make it more sound,
 and to create a free-standing tool independent of the open tree of
 life project or any other framework.
 

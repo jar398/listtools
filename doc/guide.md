@@ -15,26 +15,33 @@ I have found it convenient to run the tools by using `make` (I use GNU
 files can be cached in the local file system, avoiding expensive
 regeneration steps when inputs have not changed.
 
+For installation, see [the installation instructions](../INSTALL.md).
+
 ## Typical pipeline
 
 A typical processing pipeline to generate an "alignment" style report
 would be:
 
- 1. Obtain two .zip archives, in DwCA format, for the two checklists
- 1. Find the Taxon file names in the DwCAs using `find_taxa.py` or by 
-    examining `meta.xml`
- 1. Optional: use `subset.py` to extract the subtree (taxon) of interest
- 1. Prepare checklists for further processing using `clean.py`
- 1. Use `gnparse` to obtain stemming and other useful information.
-    This requires multiple steps.  For each checklist:
-     1. Prepare list of scientific names by applying `extract_names.py` to checklist
-     1. Run `gnparse` on that list
-     1. Fold the `gnparse` output into checklist with `use_gnparse.py`
- 1. Run `exemplar.py` on the checklists to obtain file `exemplars.csv`
- 1. Apply `align.py` to the checklists and `exemplars.csv` to obtain report
+ 1. Obtain two DwCA format files.  One way to do this is as follows, but 
+    there are others:
+     1. Obtain .zip archives, in [DwCA format](file-formats.md), for the two checklists
+     1. Find the Taxon file names in the DwCAs using `find_taxa.py` or by 
+        examining `meta.xml`
+     1. Optional: use `subset.py` to extract the subtree (taxon) of interest
+ 1. Prepare each checklist as follows so that it is suitable for use with the tools
+     1. Normalize for further processing using `clean.py`, saving to a 
+        temporary file.
+     1. Prepare list of scientific names suitable for use with `gnparse` 
+        by applying `extract_names.py` to cleaned checklist.  Pipe to:
+     1. Use `gnparse` for parsing, stemming and normalization.  Pipe to:
+     1. Fold the `gnparse` output into cleaned checklist with `use_gnparse.py` 
+        specifying the temporary file name as a command line argument.
+ 1. Run `exemplar.py` on the two checklists to obtain exemplars file
+ 1. Apply [`align.py`](align) to the checklists and exemplars file to obtain species 
+    comparison report (TBD: other kinds of report)
 
 Inputs can be obtained in other formats, such as MDD, NCBI Taxonomy,
-or Newick.
+or Newick, and converted to DwC.
 
 
 ## The tools
@@ -45,12 +52,12 @@ whatever you learn from using the `--help` option, e.g.
     src/clean.py --help
 
 Some tools operate on arbitrary CSV files, while some assume they're
-working with Darwin Core files.
+working with Darwin Core files or 'cleaned' Darwin Core files.
 
 ### clean
 
 A Darwin Core data source should be run through `src/clean.py` first
-for some modest validation and DwC-specific cleaning.
+for some modest validation and DwC-specific cleaning and normalization.
 
     src/clean.py --input A.dump/Taxon.tsv >A-clean.csv
 
@@ -67,37 +74,43 @@ contents of the row.
 Values in the primary key column that occur there more than once
 are detected and flagged.
 
+A 'scientific name' is a 'canonical name' together with an 'authorship'.
 Data cleaning is performed for the following columns:
- - `canonicalName`, `scientificName` - if a scientific name (one that has an
-   authority) is found in the `canonicalName` column, and the
-   `scientificName` column is empty, then the scientific name is moved
-   to the `scientificName` column.  Similarly, if a non-scientific name
-   is found in the `scientificName` column, it's moved to the `canonicalName` column.
+ - If a scientific name (one with
+   authorship) is found in the `canonicalName` column, and the
+   `scientificName` column is empty, then the canonical name is moved
+   to the `scientificName` column.  
+ - Similarly, if a canonical name is found in the `scientificName` 
+   column, it's moved to the `canonicalName` column.
+ - Gven any two of `canonicalName`, `scientificNameAuthorship`, 
+   and `scientificName`, the third can be determined.
  - `acceptedNameUsageID` - if it just replicates the `taxonID`, clear it
- - `taxonomicStatus` - flag if a record with taxonomic status
+ - `taxonomicStatus` - report if a record with taxonomic status
    `synonym` does not have an accepted taxon id, or if one with status
    `accepted` does
+ - trim leading and trailing space, change double to single space, remove
+   trailing period
  - `source` - cleanup specific to EOL DH 0.9 and smasher - remove
    source record ids other than the first
- - `Landmark` - recode values, change to `landmark_status` - EOL specific cleanup
+ - `Landmark` - cleanup specific to EOL DH - recode values, change to 
+   `landmark_status`
 
 `--managed prefix:column` is for designating use of managed identifier
 spaces.  If one column contains, say, NCBI taxids, or GBIF taxon
 identifiers, or anything similar, that are stable across versions of
-the source (as opposed to being idiosyncratic to one version), then
-the column should be copied to the `managed_id` column.  This
-operation is what this feature is for.  For examples, `--managed
+the source checklist (as opposed to being idiosyncratic to one version), then
+the is copied to a new `managed_id` column.  For examples, `--managed
 gbif:taxonID` means that the taxonID column contains managed GBIF
 taxon 'identifiers' and the `managed_id` column will contain 'managed
-identifiers' (an idea I made up).  E.g. if a row's taxonID contains
-`359` then the string `gbid:359` will be placed in the `managed_id`
+identifiers'.  E.g. if a row's taxonID contains
+`359` then the string `gbif:359` will be placed in the `managed_id`
 column.  This will then be used for matching operations (well... not
 currently... but it has done so in the past).
 
 ### find_taxa
 
-Locates the Darwin Core Taxon file within a .zip file.  Let `A.dump/`
-be a directory containing the files resulting from unzipping the .zip
+Locates the Darwin Core Taxon file within a .zip file.  Suppose `A.dump/`
+is a directory containing the files resulting from unzipping the .zip
 file.  Then:
 
     src/find_taxa.py A.dump
@@ -106,16 +119,17 @@ writes the name of the taxon file within the .zip file, e.g.
 
     A.dump/Taxon.tsv
 
-It's usually clear by inspection which file is the taxon file, but
-spelling details vary.  This command is intended for use in scripts.
+This currently operates by examining file names heuristically.
+TBD: It really ought to look in the meta.xml file, which provides the
+taxon file name explicitly.
+
+It's usually clear by inspecting the file names in A.dump
+which file is the taxon file, but
+spelling details vary.
 
 The taxon file is suitable as input to `clean.py`:
 
     src/clean.py `src/find_taxa.py A.dump`
-
-TBD: This currently operates by examining file names heuristically.
-But it really ought to look in the meta.xml file, which provides the
-taxon file name explicitly.
 
 
 ### extract_names
@@ -126,6 +140,7 @@ If there is no `scientificName` then the `canonicalName` is extracted.
     src/extract_names.py < A-clean.csv > A-names.txt
     gnparser -s < A-names.txt > A-gnparsed.csv
 
+
 ### use_gnparse
 
 This consumes the output of `gnparser` and combines it with the table
@@ -133,6 +148,7 @@ that was the input to `extract_names`, enriching the table with the addition of
 new columns copied from the `gnparser` output.
 
     src/use_gnparse.py < A-gnparsed.csv > A.csv
+
 
 ### exemplar
 <a name="exemplar"></a>
@@ -165,8 +181,6 @@ identified by `exemplar id` falls under the taxon concept / record identified
 by `taxonID` in the indicated checklist.  (Of course the same exemplar
 can also fall under other taxon concepts, in particular taxon concepts
 in the other checklist.)
-
-Sample output: [col-19-23-exemplars.csv](col-19-23-exemplars.csv)
 
 When the exemplars are type specimens, they play a role similar
 to that played by protonyms in the Pyle/Remsen formulation.
@@ -411,96 +425,7 @@ since the main use for this feature is testing): an asterisk `*`
 suffixed to a name says that the name is to be considered a synonym
 (i.e. not accepted).
 
+### eulerx
 
-## File formats
-
-### Checklist file format
-
-A checklist is given as a tabular text file.  If the extension is
-`.csv` it is assumed to be CSV (comma-separated); otherwise it's
-assumed to be TSV (tab-separated).  Each row other than the header is
-a 'record'.
-
-A checklist should use [Darwin Core
-Taxon](https://dwc.tdwg.org/terms/#taxon) column headings for
-information of special significance to these commands.  Other columns
-can be included and will be ignored or passed through as appropriate.
-
-A prefix `dwc:` on column headings is optional.  Some inputs use this
-prefix, some don't.
-
-`canonicalName` is an additional column that is not from Darwin Core
-but is important.
-
-`managed_id` is a column used internally to the tools but is not
-relevant to most users.  (It is used for distinguishing the case of
-aligning checklists with a 'managed' identifier space (e.g. versions
-of GBIF or NCBI Taxonomy) from checklists that could have accidental
-identifier collisions.)
-
-
-Here are Darwin Core headings used by one or more of the tools.
-
- - `taxonID`: the record's primary key, uniquely specifying a record within a checklist
- - `scientificName`: the full taxonomic name, with or without authorship information
- - `canonicalName`: the taxonomic name without authorship
- - `scientificNameAuthorship`: the authorship (e.g. `Smith, 1825`).
-   Optional but the matcher is more accurate if authorship is present
-   either here or in `scientificName`
- - `namePublishedInYear`: year of publication (e.g. `1825`) (not
-     currently used; optional)
- - `taxonRank`: `species`, `subspecies`, `genus`, and so on.
-   Important but not required
- - `taxonomicStatus`: if `accepted`, `valid`, or `doubtful`, the name is
-   to be considered not a synonym in this checklist.  Otherwise
-   (e.g. `synonym`) it is treated as a synonym.
-   Case matters.
- - `parentNameUsageID` - `taxonID` of the parent record, or empty if a root
- - `acceptedNameUsageID` - `taxonID` of non-synonym record of which
-     this is a synonym, empty if
-     not a synonym
-
-One of `scientificName` or `canonicalName` must be given.
-
-Putting the `taxonID` = the `acceptedNameUsageID` is another
-way to indicate something is not a synonym.
-
-
-### Exemplar file format
-
-Some commands read or write files that specify exemplars.  An exemplar
-file can be either computed by the `exemplar.py` command or provided
-independently if there is some other way.  This section
-should be of interest if you don't want or don't need to use
-`exemplar.py`, for example if you have your own name matcher.
-
-An exemplar file has one output row for each statement
-that an exemplar falls under some taxon concept.
-
- - `checklist`: 0 for the A checklist, 1 for B
- - `taxonID`: the checklist record for a taxon concept
- - `exemplar id`: identifies an exemplar, locally to this file
-   (not globally)
- - `canonicalName`: given only for purposes of human inspection or debugging
-
-By construction, each exemplar id will have at least one exemplar file
-row giving an A record for a taxon concept the exemplar falls under, and one
-giving a B record for a taxon concept it falls under.
-
-If preparing your own exemplars rather than using `exemplar.py` to do so:
-
-First, note that if an exemplar belongs to a taxon concept, it
-also belongs to that taxon concept's ancestors.  It is not necessary
-to list all the ancestors as taxon concepts containing the exemplar.
-However, it is not harmful to include a few extras (e.g. the species when
-the type subspecies of the species is listed).
-
-Second, it is desirable to list all of the most specific taxon
-concepts containing an exemplar and not just some of their ancestors.
-E.g. if an exemplar belongs to a species then it may also belong to
-the species's type subspecies, and the subspecies should be listed as
-a taxon concept containing the exemplar.
-
-In a checklist of genera with no species, the exemplars would be
-chosen one per matched genus name pair.  In general, one should match
-matchable names whenever no descendant matches, regardless of rank.
+Work in progress; this hasn't been tested in years.  Produces an
+alignment in Euler/X input syntax.

@@ -9,9 +9,9 @@ Install the python3 `regex` module using `pip3` or equivalent.
 
 Also required is `gnparser`, which has download instructions
 [here](https://github.com/gnames/gnparser#installation).  I have
-minimally tested listtools against version 1.11.8 (July 2025).
+tested listtools against version 1.11.8 (July 2025).
 
 If you are working with MDD (the Mammal Diversity Database), you may
-want to get version 2 or beyond of the MDD-DwC-mapping tool, located
-as of January 2026 in the 'MDD-DwC-mapping' repository, user jar398,
-at github.com.
+want to get version 2 or beyond of the MDD-DwC-mapping tool, a single
+python file located as of January 2026 in the 'MDD-DwC-mapping'
+repository, user jar398, at github.com.
