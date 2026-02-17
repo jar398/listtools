@@ -19,6 +19,8 @@ For installation, see [the installation instructions](../INSTALL.md).
 
 For file formats, see [here](file-formats).
 
+For an example, see [here](colmdd.sh).
+
 ## Typical pipeline
 
 A typical processing pipeline to generate an "alignment" style report
@@ -99,18 +101,6 @@ Data cleaning is performed for the following columns:
    source record ids other than the first
  - `Landmark` - cleanup specific to EOL DH - recode values, change to 
    `landmark_status`
-
-`--managed prefix:column` is for designating use of managed identifier
-spaces.  If one column contains, say, NCBI taxids, or GBIF taxon
-identifiers, or anything similar, that are stable across versions of
-the source checklist (as opposed to being idiosyncratic to one version), then
-the is copied to a new `managed_id` column.  For examples, `--managed
-gbif:taxonID` means that the taxonID column contains managed GBIF
-taxon 'identifiers' and the `managed_id` column will contain 'managed
-identifiers'.  E.g. if a row's taxonID contains
-`359` then the string `gbif:359` will be placed in the `managed_id`
-column.  This will then be used for matching operations (well... not
-currently... but it has done so in the past).
 
 ### find_taxa
 <a name="find_taxa"></a>
@@ -227,11 +217,13 @@ The output (to standard output) of `align.py` has these columns (subject to chan
  - `B not A` - list of ids of exemplars that occur in the 
    concept bot not the name's A concept
 
-Rows are generated for comparison between A species and B species that intersect.
+One row is generated for each (A species, B species) combination for
+intersecting species.
 
 The canonical names in the output are there for human readability.
-For a more compact ('normalized') report they might be omitted, and obtained as
-needed from the checklists using the taxon id.
+For a more compact ('normalized') report they might be omitted (with a
+small modification to the software), and obtained as needed from the
+checklists using the taxon id.
 
 
 ### ncbi_to_dwc
@@ -251,8 +243,9 @@ Columns in the DwC output:
 `acceptedNameUsageID`, `scientificName`, `canonicalName`,
 `taxonomicStatus`, `nomenclaturalStatus`
 
-Last I checked the dumps from the first of each month are considered
+Last I checked NCBI's dumps from the first of each month are considered
 archival.  Others get deleted periodically.
+
 
 ### project
 
