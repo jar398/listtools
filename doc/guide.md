@@ -17,15 +17,19 @@ regeneration steps when inputs have not changed.
 
 For installation, see [the installation instructions](../INSTALL.md).
 
+For file formats, see [here](file-formats).
+
 ## Typical pipeline
 
 A typical processing pipeline to generate an "alignment" style report
 would be:
 
- 1. Obtain two DwCA format files.  One way to do this is as follows, but 
-    there are others:
-     1. Obtain .zip archives, in [DwCA format](file-formats.md), for the two checklists
-     1. Find the Taxon file names in the DwCAs using `find_taxa.py` or by 
+ 1. Obtain two checklists.
+    One way to do this is as follows, but 
+    there are others.  For each checklist:
+     1. Obtain a .zip archive, in DwCA format, and unzip it
+     1. Find the Taxon file name in the unzipped DwCA using 
+        [`find_taxa.py`](#find_taxa) or by 
         examining `meta.xml`
      1. Optional: use `subset.py` to extract the subtree (taxon) of interest
  1. Prepare each checklist as follows so that it is suitable for use with the tools
@@ -36,7 +40,7 @@ would be:
      1. Use `gnparse` for parsing, stemming and normalization.  Pipe to:
      1. Fold the `gnparse` output into cleaned checklist with `use_gnparse.py` 
         specifying the temporary file name as a command line argument.
- 1. Run `exemplar.py` on the two checklists to obtain exemplars file
+ 1. Run [`exemplar.py`](#exemplar) on the two checklists to obtain exemplars file
  1. Apply [`align.py`](#align) to the checklists and exemplars file to obtain species 
     comparison report (TBD: other kinds of report)
 
@@ -55,6 +59,7 @@ Some tools operate on arbitrary CSV files, while some assume they're
 working with Darwin Core files or 'cleaned' Darwin Core files.
 
 ### clean
+<a name="clean"></>
 
 A Darwin Core data source should be run through `src/clean.py` first
 for some modest validation and DwC-specific cleaning and normalization.
@@ -108,6 +113,7 @@ column.  This will then be used for matching operations (well... not
 currently... but it has done so in the past).
 
 ### find_taxa
+<a name="find_taxa"></a>
 
 Locates the Darwin Core Taxon file within a .zip file.  Suppose `A.dump/`
 is a directory containing the files resulting from unzipping the .zip
