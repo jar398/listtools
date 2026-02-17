@@ -3,68 +3,116 @@
 # Generate the alignment for the COL/MDD comparison in a planned
 # article by Rees, Franz, and Sterner, 2026.
 
-# First, perform the one-time manual setup ("installation").  Then run
-# this file as an ordinary shell script using 'bash' (other shells
-# might work too).  Output goes to ./rfs26.
+# Here are steps you need to do in preparation to running this script.
+# Review these sections before proceeding.
+#
+#  0. Get dependencies (regexp, gnparser) (see INSTALL.md)
+#  1. Review the parameters, below, and override if necessary (especially Q)
+#  2. Optional: to download checklists from their original sources, see 
+#     instructions below
+#
+# The script will do its one-time setup if necessary, and then each
+# time write temporary and output files to ./rfs or $W.
 
-# Personally, I compute the demo alignment with:
-#   (W=run Q=~/g ~/g/listtols/doc/colmdd.sh)
-# which puts the final alignment .csv file and temporary files in
-# ./rfs26.
+# File locations are subject to change.  In particular, if you have
+# trouble obtaining the checklist sources, you might be able to find
+# copies in the 'artifacts' repository in the 'jar389' account on
+# github.
 
-# There are many other ways to do this.  Clones and CSVs can go in
-# other places, customize the pipeline, different inputs, etc.
+# There are many other ways to do this.  You can customize the
+# pipeline, use different inputs, use 'make', etc.
 
 set -e
 
-# Shell variables.
-# Short names just to make this file easier on the eyes.
+# ---------------------------------------------------------------------------
+# 1. PARAMETERS
+
+# The setting of Q is my personal choice; you will likely want to
+# override Q, and perhaps other parameter settings, either by changing
+# this file or by exporting it from your shell before running this
+# script.
+# (I use short names to make this file easier on the eyes.)
+#
+# The shell syntax 'Q=path foo.sh' which sets Q while running foo.sh
+# can be useful.
+
+# $Q is a directory to contain resources you load from the Internet.
+# This would normally be the parent of a listtools repository clone,
+# which you probably already have.
 (($Q)) || Q=~/g
+
+# L is the clone of the repository where you put or want to put
+# listtools.
 (($L)) || L=$Q/listtools
+
+# M is where you have put or want to put the MDD to DW mapper.
 (($M)) || M=$Q/MDD-DwC-mapping
+
+# $A is a cache of other artifacts from the internet, either one you
+# create manually or a clone of the jar398 artifacts repo.
 (($A)) || A=$Q/artifacts
+
+# Git URL prefix.  Repositories are automatically cloned as needed.
+(($G)) || G=git@github.com:jar398
+
+# $W (for 'work') is where you want to put the temporary files and
+# final reports.
 (($W)) || W=./rfs26
-# Source files for the various list tools:
-P=$L/src
+
+# -----------------------------------------------------------------------------
+# 2. TO DOWNLOAD SOURCE CHECKLISTS MANUALLY:
+#
+#   If you choose to skip these steps, the sources will be obtained from
+#   an 'artifacts' cache on github.
+#
+#   1. Choose a download directory for the sources, here written <path>.
+#    mkdir -p <path>/col24   (you choose <path>, must match parameter $A below)
+#    mkdir -p <path>/mdd2.0
+#
+#   2. Get COL 2024 Mammals:
+#    Go to checklistbank.org.  Log in with GBIF user id.  Go to
+#    'Downloads'.  Find COL24 (? the UI changes sometimes).  Prepare
+#    with these parameters: DwCA output, Mammalia root taxon.  Download
+#    the .zip file to <path>/col24/.
+#
+#   3. Get MDD v2.0:
+#    Go to zenodo.org.  Search for "Mammal Diversity Database".  Select "Mammal
+#    Diversity Database".  Select "Version v2.0".  Under "Files" select
+#    "MDD_v2.0_6759species.csv".  Select "Download".  
+#    Find MDD_v2.0_6759species.csv where your browser placed it on your 
+#    computer (maybe in 'Downloads').  Move the csv file to <path>/mdd2.0/.
+
+# -----------------------------------------------------------------------------
+# SCRIPT
+
+# One-time setup:
+
+# Configure parameters below (variables Q, L, M, A, W).
+
+# Create a local place for the git clones, if necessary.
+mkdir -p $Q
+
+# Clone repos.  Substitute for these URLs for your own
+# github authentication method.
+test -e $L || \
+   (cd $Q && git clone $G/listtools.git)
+
+test -e $M || \
+   (cd $Q && git clone $G/MDD-DwC-mapping.git)
+
+test -e $A || \
+   (cd $Q && git clone $G/artifacts.git)
+
+# -----------------------------------------------------------------------------
+
+# Finally, run the tools:
 
 # A place to work
 mkdir -p $W
 cd $W
 
-# -----------------------------------------------------------------------------
-
-# One-time setup:
-
-# Create a local place to work and cd into it, if desired.  You can
-# use a different location more compatible with your local setup.
-
-# Get dependencies (regexp, gnparser) (see documentation ??)
-
-# MANUAL STEP: Clone repos.  Substitute for these URLs for your own
-# github authentication method.
-#   (cd $Q && git clone git@github.com:jar398/listtools.git)
-#   (cd $Q && git clone git@github.com:jar398/MDD-DwC-mapping.git)
-
-# MANUAL STEP: Get source checklists.
-#  GET SOURCE CHECKLISTS METHOD A:
-#   (cd $Q && git clone git@github.com:jar398/artifacts.git)
-#
-#  GET SOURCE CHECKLISTS METHOD B:
-#   Get COL 2024 Mammals:
-#   mkdir -p $A
-#   Go to checklistbank.org.  Log in with GBIF user id.  Go to
-#   'Downloads'.  Find COL24 (? the UI changes sometimes).  Prepare
-#   with these parameters: DwCA output, Mammalia root taxon.  Download
-#   the .zip file to $A/col24/.
-#
-#   Get MDD v2.0:
-#   Go to zenodo.org.  Search for "Mammal Diversity Database".  Select "Mammal
-#   Diversity Database".  Select "Version v2.0".  Under "Files" select
-#   "MDD_v2.0_6759species.csv".  Select "Download".  
-#   Find MDD_v2.0_6759species.csv on your computer (e.g. in 'Downloads'). 
-#   Move it to $A/mdd2.0/.
-
-# -----------------------------------------------------------------------------
+# Source files for the various list tools:
+P=$L/src
 
 # Prepare CoL for alignment.  You may have to adjust the URL.
 unzip -u $A/col24-mammals/2b1541bc-12e7-4200-833b-7ae02e1d5f35.zip -d col24-mammals

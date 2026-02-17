@@ -27,19 +27,13 @@ is wrong.  Some input sources use this prefix, some don't.
 `canonicalName` is an additional column used formerly by GBIF that is
 not from Darwin Core but is important.
 
-`managed_id` is a column used internally to the tools but is not
-relevant to most users.  (It is used for distinguishing the case of
-aligning checklists with a 'managed' identifier space (e.g. versions
-of GBIF or NCBI Taxonomy) from checklists that could have accidental
-identifier collisions.)
 
-
-Here are Darwin Core headings used by one or more of the tools,
+Here are headings used by one or more of the tools,
 post-cleaning.  Usage of these columns by other software may vary.
 
  - `taxonID`: the record's primary key, uniquely specifying a record within a checklist
  - `scientificName`: the full taxonomic name with authorship information
- - `canonicalName`: the taxonomic name without authorship
+ - `canonicalName`: the taxonomic name without authorship (not a Darwin Core heading)
  - `scientificNameAuthorship`: the authorship (e.g. `Smith, 1825`).
    Optional but the matcher is more precise if authorship is present
    either here or in `scientificName`
@@ -55,6 +49,8 @@ post-cleaning.  Usage of these columns by other software may vary.
  - `acceptedNameUsageID` - `taxonID` of non-synonym record of which
      this is a synonym, empty if
      not a synonym
+ - `gn_canonical_full`, `gn_canonical_stem`, `gn_authorship` - not DwC - 
+   copied over from `gnparse` output, see [`use_gnparse`](guide#use_gnparse)
 
 One of `scientificName` or `canonicalName` must be given.
 

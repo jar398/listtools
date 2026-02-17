@@ -19,7 +19,8 @@ For installation, see [the installation instructions](../INSTALL.md).
 
 For file formats, see [here](file-formats).
 
-For an example, see [here](colmdd.sh).
+For an example, see [here](colmdd.sh).  Please read the text in the
+comments before trying to run the script.
 
 ## Typical pipeline
 
@@ -33,14 +34,15 @@ would be:
      1. Find the Taxon file name in the unzipped DwCA using 
         [`find_taxa.py`](#find_taxa) or by 
         examining `meta.xml`
-     1. Optional: use `subset.py` to extract the subtree (taxon) of interest
+     1. Optional: use [`subset.py`](#subset) to extract the subtree (taxon) of interest
  1. Prepare each checklist as follows so that it is suitable for use with the tools
-     1. Normalize for further processing using `clean.py`, saving to a 
+     1. Normalize for further processing using [`clean.py`](#clean), saving to a 
         temporary file.
      1. Prepare list of scientific names suitable for use with `gnparse` 
         by applying `extract_names.py` to cleaned checklist.  Pipe to:
      1. Use `gnparse` for parsing, stemming and normalization.  Pipe to:
-     1. Fold the `gnparse` output into cleaned checklist with `use_gnparse.py` 
+     1. Fold the `gnparse` output into cleaned checklist with 
+        [`use_gnparse.py`](#use_gnparse)
         specifying the temporary file name as a command line argument.
  1. Run [`exemplar.py`](#exemplar) on the two checklists to obtain exemplars file
  1. Apply [`align.py`](#align) to the checklists and exemplars file to obtain species 
@@ -138,6 +140,7 @@ If there is no `scientificName` then the `canonicalName` is extracted.
 
 
 ### use_gnparse
+<a name="use_gnparse"></a>
 
 This consumes the output of `gnparser` and combines it with the table
 that was the input to `extract_names`, enriching the table with the addition of 
@@ -260,6 +263,7 @@ With `--drop`, it drops particular columns, keeping all the rest:
 
 
 ### subset
+<a name="subset"></a>
 
 `subset` generates a subset of the rows of a given file, starting from
 a specified root.

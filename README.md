@@ -51,5 +51,5 @@ diff'](https://github.com/jar398/cldiff) tool.
 
 As of 2026 an article on listtools is in preparation.  We will
 endeavor to make the supplementary material reproducible from source
-material available on the Internet.  See [reproducibility
-notes](doc/colmdd.sh).
+material available on the Internet.  Please see the notes on
+reproduction at the top of shell file [doc/colmdd.sh](doc/colmdd.sh).
