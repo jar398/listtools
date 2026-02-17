@@ -39,7 +39,7 @@ def start_csv(inport, params, outport, args):
   accepted_pos = windex(in_header, "acceptedNameUsageID")
   parent_pos = windex(in_header, "parentNameUsageID")
   tax_status_pos = windex(in_header, "taxonomicStatus")
-  auth_pos = windex(in_header, "scientificNameAuthorship")
+  auth_pos = windex(in_header, "scientificNameAuthorshipb")
   taxon_id_pos = windex(in_header, "taxonID")
 
   if taxon_id_pos == None:

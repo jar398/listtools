@@ -36,54 +36,66 @@ set -e
 # The shell syntax 'Q=path foo.sh' which sets Q while running foo.sh
 # can be useful.
 
-# $Q is a directory to contain resources you load from the Internet.
-# This would normally be the parent of a listtools repository clone,
-# which you probably already have.
-(($Q)) || Q=~/g
-
-# L is the clone of the repository where you put or want to put
-# listtools.
-(($L)) || L=$Q/listtools
-
-# M is where you have put or want to put the MDD to DW mapper.
-(($M)) || M=$Q/MDD-DwC-mapping
-
-# $A is a cache of other artifacts from the internet, either one you
-# create manually or a clone of the jar398 artifacts repo.
-(($A)) || A=$Q/artifacts
-
-# Git URL prefix.  Repositories are automatically cloned as needed.
-(($G)) || G=git@github.com:jar398
+# From stackexchange:    VAR1="${VAR1:-default value}"
 
 # $W (for 'work') is where you want to put the temporary files and
 # final reports.
-(($W)) || W=./rfs26
+W="${W:-./rfs26}"
+
+# $Q is a directory to contain resources you load from the Internet.
+# On my setup this directory is the parent of a listtools repository
+# clone, which you probably already have.  To avoid nesting
+# $L -> $Q -> $L you might want to put Q outside of L, e.g. as
+# $L's parent directory.
+Q="${Q:-$W/g}"
+
+# Git URL prefix.  Repositories are cloned as needed.
+G="${G:-git@github.com:jar398}"
+
+# L is the clone of the repository where you put or want to put
+# listtools.
+L="${L:-$Q/listtools}"
+
+# M is where you have put or want to put the MDD to DW mapper.
+M="${M:-$Q/MDD-DwC-mapping}"
+
+# $A is a cache of other artifacts from the internet, either one you
+# create manually or a clone of the jar398 artifacts repo.
+A="${A:-$Q/artifacts}"
+
+# Location of 'gnparser' utility
+gnparser=gnparser
 
 # -----------------------------------------------------------------------------
 # 2. TO DOWNLOAD SOURCE CHECKLISTS MANUALLY:
 #
-#   If you choose to skip these steps, the sources will be obtained from
-#   an 'artifacts' cache on github.
+#   If you choose to skip these steps, because they don't work or you
+#   don't have the patience, the sources will be obtained from an
+#   'artifacts' cache on github.
 #
 #   1. Choose a download directory for the sources, here written <path>.
-#    mkdir -p <path>/col24   (you choose <path>, must match parameter $A below)
+#    mkdir -p <path>/col24-mammals (you choose <path>, must match parameter $A below)
 #    mkdir -p <path>/mdd2.0
 #
 #   2. Get COL 2024 Mammals:
-#    Go to checklistbank.org.  Log in with GBIF user id.  Go to
+#    Go to checklistbank.org.  Log in with your gbif.org user id.  Go to
 #    'Downloads'.  Find COL24 (? the UI changes sometimes).  Prepare
 #    with these parameters: DwCA output, Mammalia root taxon.  Download
-#    the .zip file to <path>/col24/.
+#    the .zip file to <path>/col24-mammals/.
 #
 #   3. Get MDD v2.0:
 #    Go to zenodo.org.  Search for "Mammal Diversity Database".  Select "Mammal
 #    Diversity Database".  Select "Version v2.0".  Under "Files" select
 #    "MDD_v2.0_6759species.csv".  Select "Download".  
 #    Find MDD_v2.0_6759species.csv where your browser placed it on your 
-#    computer (maybe in 'Downloads').  Move the csv file to <path>/mdd2.0/.
+#    computer (maybe in 'Downloads').  Move this csv file to <path>/mdd2.0/.
 
 # -----------------------------------------------------------------------------
 # SCRIPT
+
+# A place to work
+mkdir -p $W
+cd $W
 
 # One-time setup:
 
@@ -107,34 +119,30 @@ test -e $A || \
 
 # Finally, run the tools:
 
-# A place to work
-mkdir -p $W
-cd $W
-
 # Source files for the various list tools:
-P=$L/src
+T=$L/src
 
 # Prepare CoL for alignment.  You may have to adjust the URL.
 unzip -u $A/col24-mammals/2b1541bc-12e7-4200-833b-7ae02e1d5f35.zip -d col24-mammals
-$P/clean.py --input `$P/find_taxa.py col24-mammals` >col24-mammals-clean.csv
-$P/extract_names.py < col24-mammals-clean.csv \
-	| gnparser -s \
-	| $P/use_gnparse.py --source col24-mammals-clean.csv \
+$T/clean.py --input `$T/find_taxa.py col24-mammals` >col24-mammals-clean.csv
+$T/extract_names.py < col24-mammals-clean.csv \
+	| $gnparser -s \
+	| $T/use_gnparse.py --source col24-mammals-clean.csv \
         > col24-mammals.csv
 
 # Prepare MDD v2.0 for alignment
 $M/src/explore_data.py \
    --input $A/mdd2.0/MDD_v2.0_6759species.csv \
    --output mdd2.0-dwc.csv
-$P/clean.py --input mdd2.0-dwc.csv > mdd2.0-clean.csv
-$P/extract_names.py < mdd2.0-clean.csv \
-	| gnparser -s \
-	| $P/use_gnparse.py --source mdd2.0-clean.csv > mdd2.0.csv
+$T/clean.py --input mdd2.0-dwc.csv > mdd2.0-clean.csv
+$T/extract_names.py < mdd2.0-clean.csv \
+	| $gnparser -s \
+	| $T/use_gnparse.py --source mdd2.0-clean.csv > mdd2.0.csv
 
-time ($P/exemplar.py --A col24-mammals.csv --B mdd2.0.csv > exemplars.csv) \
+time ($T/exemplar.py --A col24-mammals.csv --B mdd2.0.csv > exemplars.csv) \
   2>&1 | tee exemplars.dribble 
 
-time ($P/align.py --A col24-mammals.csv --B mdd2.0.csv \
+time ($T/align.py --A col24-mammals.csv --B mdd2.0.csv \
                   --exemplars exemplars.csv > report.csv) \
   2>&1 | tee report.dribble 
 
