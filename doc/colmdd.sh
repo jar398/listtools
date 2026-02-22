@@ -12,7 +12,7 @@
 #     instructions below
 #
 # The script will do its one-time setup if necessary, and then each
-# time write temporary and output files to ./rfs or $W.
+# time write temporary and output files to ./rfs or $work.
 
 # File locations are subject to change.  In particular, if you have
 # trouble obtaining the checklist sources, you might be able to find
@@ -21,6 +21,9 @@
 
 # There are many other ways to do this.  You can customize the
 # pipeline, use different inputs, use 'make', etc.
+
+# As of 2/2026 precomputed outputs are found here:
+#   https://github.com/jar398/artifacts/tree/main/rfs26
 
 set -e
 
@@ -38,16 +41,16 @@ set -e
 
 # From stackexchange:    VAR1="${VAR1:-default value}"
 
-# $W (for 'work') is where you want to put the temporary files and
+# $work (for 'work') is where you want to put the temporary files and
 # final reports.
-W="${W:-./rfs26}"
+work="${work:-./rfs26}"
 
 # $Q is a directory to contain resources you load from the Internet.
 # On my setup this directory is the parent of a listtools repository
 # clone, which you probably already have.  To avoid nesting
 # $L -> $Q -> $L you might want to put Q outside of L, e.g. as
 # $L's parent directory.
-Q="${Q:-$W/g}"
+Q="${Q:-$work/g}"
 
 # Git URL prefix.  Repositories are cloned as needed.
 G="${G:-git@github.com:jar398}"
@@ -94,8 +97,8 @@ gnparser=gnparser
 # SCRIPT
 
 # A place to work
-mkdir -p $W
-cd $W
+mkdir -p $work
+cd $work
 
 # One-time setup:
 
