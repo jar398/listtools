@@ -1,26 +1,30 @@
 #!/bin/bash
 
 # Generate the alignment for the COL/MDD comparison in a planned
-# article by Rees, Franz, and Sterner, 2026.
+# article by Rees, Franz, and Sterner, 2026.  Inputs are the mammal
+# subtree from Catalogue of Life 2024 and version 2.0 of the Mammal
+# Diversity Database.  Outputs are a set of 'exemplars' used for
+# occurrence codetermination and a species-level alignment report.
+# By default the outputs are deposited in directory `./rfs26`.
 
 # Here are steps you need to do in preparation to running this script.
 # Review these sections before proceeding.
 #
 #  0. Get dependencies (regexp, gnparser) (see INSTALL.md)
-#  1. Review the parameters, below, and override if necessary (especially Q)
+#  1. Review the parameters, below, and override if necessary (especially `cache`)
 #  2. Optional: to download checklists from their original sources, see 
 #     instructions below
 #
 # The script will do its one-time setup if necessary, and then each
-# time write temporary and output files to ./rfs or $work.
+# time write (or overwrite) temporary and output files.
 
-# File locations are subject to change.  In particular, if you have
-# trouble obtaining the checklist sources, you might be able to find
-# copies in the 'artifacts' repository in the 'jar389' account on
-# github.
+# Internet file locations are subject to change.  If you have trouble
+# obtaining the original sources, you might be able to find copies in
+# the 'artifacts' repository in the 'jar389' account on github.
 
-# There are many other ways to do this.  You can customize the
-# pipeline, use different inputs, use 'make', etc.
+# There are many other ways one might do this.  You could use
+# different inputs, customize the pipeline, write your own 'makefile',
+# etc.
 
 # As of 2/2026 precomputed outputs are found here:
 #   https://github.com/jar398/artifacts/tree/main/rfs26
@@ -30,54 +34,49 @@ set -e
 # ---------------------------------------------------------------------------
 # 1. PARAMETERS
 
-# The setting of Q is my personal choice; you will likely want to
-# override Q, and perhaps other parameter settings, either by changing
-# this file or by exporting it from your shell before running this
-# script.
-# (I use short names to make this file easier on the eyes.)
-#
-# The shell syntax 'Q=path foo.sh' which sets Q while running foo.sh
-# can be useful.
+# The defauls are my personal choices.  Please review and override for
+# your local setup and preferences.
 
-# From stackexchange:    VAR1="${VAR1:-default value}"
+# The shell syntax 'var=path foo.sh' sets `var` while running foo.sh.
+# If you override using this syntax or exported shell variables, you 
+# can avoid having to modify this file.
 
-# $work (for 'work') is where you want to put the temporary files and
-# final reports.
+# $work is where you want to put the temporary files and
+# final alignment reports.
 work="${work:-./rfs26}"
 
-# $Q is a directory to contain resources you load from the Internet.
-# On my setup this directory is the parent of a listtools repository
-# clone, which you probably already have.  To avoid nesting
-# $L -> $Q -> $L you might want to put Q outside of L, e.g. as
-# $L's parent directory.
-Q="${Q:-$work/g}"
+# $cache is a directory to contain resources you load from the
+# Internet, mainly git clones.  To avoid circular nesting $tools ->
+# $cache -> $tools you should put `cache` outside of `tools`, e.g. as
+# its parent directory.
+cache="${cache:-$work/g}"
 
 # Git URL prefix.  Repositories are cloned as needed.
-G="${G:-git@github.com:jar398}"
+origin="${origin:-git@github.com:jar398}"
 
-# L is the clone of the repository where you put or want to put
-# listtools.
-L="${L:-$Q/listtools}"
+# tools is to be the clone of the listtools repository.
+tools="${tools:-$cache/listtools}"
 
-# M is where you have put or want to put the MDD to DW mapper.
-M="${M:-$Q/MDD-DwC-mapping}"
+# mdd is where you have put or want to put the MDD to Darwin Core
+# mapper.
+mdd="${mdd:-$cache/MDD-DwC-mapping}"
 
-# $A is a cache of other artifacts from the internet, either one you
+# $artifacts is a cache of other artifacts from the internet, either one you
 # create manually or a clone of the jar398 artifacts repo.
-A="${A:-$Q/artifacts}"
+artifacts="${artifacts:-$cache/artifacts}"
 
 # Location of 'gnparser' utility
 gnparser=gnparser
 
 # -----------------------------------------------------------------------------
-# 2. TO DOWNLOAD SOURCE CHECKLISTS MANUALLY:
+# 2. TO DOWNLOAD SOURCE CHECKLISTS MANUALLY FROM ORIGINAL SOURCES:
 #
 #   If you choose to skip these steps, because they don't work or you
 #   don't have the patience, the sources will be obtained from an
 #   'artifacts' cache on github.
 #
 #   1. Choose a download directory for the sources, here written <path>.
-#    mkdir -p <path>/col24-mammals (you choose <path>, must match parameter $A below)
+#    mkdir -p <path>/col24-mammals (you choose <path>, must match parameter $artifacts below)
 #    mkdir -p <path>/mdd2.0
 #
 #   2. Get COL 2024 Mammals:
@@ -96,56 +95,59 @@ gnparser=gnparser
 # -----------------------------------------------------------------------------
 # SCRIPT
 
+[ which gnparser ] || echo "No gnparser, see ../INSTALL.md"
+
 # A place to work
 mkdir -p $work
 cd $work
 
 # One-time setup:
 
-# Configure parameters below (variables Q, L, M, A, W).
+# Configure parameters above (variables cache, origin, tools, mdd, artifacts, work).
 
 # Create a local place for the git clones, if necessary.
-mkdir -p $Q
+mkdir -p $cache
 
 # Clone repos.  Substitute for these URLs for your own
 # github authentication method.
-test -e $L || \
-   (cd $Q && git clone $G/listtools.git)
+test -e $tools || \
+   (cd $cache && git clone $origin/listtools.git)
 
-test -e $M || \
-   (cd $Q && git clone $G/MDD-DwC-mapping.git)
+test -e $mdd || \
+   (cd $cache && git clone $origin/MDD-DwC-mapping.git)
 
-test -e $A || \
-   (cd $Q && git clone $G/artifacts.git)
+# If you create artifacts "manually" they won't be retrieved from github
+test -e $artifacts || \
+   (cd $cache && git clone $origin/artifacts.git)
 
 # -----------------------------------------------------------------------------
 
 # Finally, run the tools:
 
 # Source files for the various list tools:
-T=$L/src
+run=$tools/src
 
 # Prepare CoL for alignment.  You may have to adjust the URL.
-unzip -u $A/col24-mammals/2b1541bc-12e7-4200-833b-7ae02e1d5f35.zip -d col24-mammals
-$T/clean.py --input `$T/find_taxa.py col24-mammals` >col24-mammals-clean.csv
-$T/extract_names.py < col24-mammals-clean.csv \
+unzip -u $artifacts/col24-mammals/2b1541bc-12e7-4200-833b-7ae02e1d5f35.zip -d col24-mammals
+$run/clean.py --input `$run/find_taxa.py col24-mammals` >col24-mammals-clean.csv
+$run/extract_names.py < col24-mammals-clean.csv \
 	| $gnparser -s \
-	| $T/use_gnparse.py --source col24-mammals-clean.csv \
+	| $run/use_gnparse.py --source col24-mammals-clean.csv \
         > col24-mammals.csv
 
 # Prepare MDD v2.0 for alignment
 $M/src/explore_data.py \
-   --input $A/mdd2.0/MDD_v2.0_6759species.csv \
+   --input $artifacts/mdd2.0/MDD_v2.0_6759species.csv \
    --output mdd2.0-dwc.csv
-$T/clean.py --input mdd2.0-dwc.csv > mdd2.0-clean.csv
-$T/extract_names.py < mdd2.0-clean.csv \
+$run/clean.py --input mdd2.0-dwc.csv > mdd2.0-clean.csv
+$run/extract_names.py < mdd2.0-clean.csv \
 	| $gnparser -s \
-	| $T/use_gnparse.py --source mdd2.0-clean.csv > mdd2.0.csv
+	| $run/use_gnparse.py --source mdd2.0-clean.csv > mdd2.0.csv
 
-time ($T/exemplar.py --A col24-mammals.csv --B mdd2.0.csv > exemplars.csv) \
+time ($run/exemplar.py --A col24-mammals.csv --B mdd2.0.csv > exemplars.csv) \
   2>&1 | tee exemplars.dribble 
 
-time ($T/align.py --A col24-mammals.csv --B mdd2.0.csv \
+time ($run/align.py --A col24-mammals.csv --B mdd2.0.csv \
                   --exemplars exemplars.csv > report.csv) \
   2>&1 | tee report.dribble 
 
@@ -153,3 +155,8 @@ if false; then
   mkdir -p ~/g/artifacts/rfs26
   cp -p run/report.* ~/g/artifacts/rfs26/
 fi
+
+echo
+echo "Script ran to ompletion."
+echo "Exemplar definitions are in" $run/exemplars.csv
+echo "Species alignment report is in" $run/report.csv

@@ -1,7 +1,5 @@
 # List Tools user guide
 
-**OUT OF DATE**
-
 ## Overview
 
 The 'tools' or 'scripts' or 'programs' in this repository manipulate
